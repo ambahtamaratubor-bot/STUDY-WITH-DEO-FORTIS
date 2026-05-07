@@ -1,39 +1,24 @@
-const SUPABASE_URL = 'https://yygjkqkzbdjnyyrrhdku.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl5Z2prcWt6YmRqbnl5cnJoZGt1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgwMjgyNTcsImV4cCI6MjA5MzYwNDI1N30.6mJTBhjWphURBnFefQziVreQW8WjYJLAAjMx6Sv-Kfk';
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+alter table recall_requests enable row level security;
+alter table flashcard_decks enable row level security;
+alter table flashcards enable row level security;
+alter table flashcard_progress enable row level security;
+alter table vignette_questions enable row level security;
+alter table vignette_scores enable row level security;
+alter table testimonials enable row level security;
+alter table tutoring_packages enable row level security;
+alter table booking_requests enable row level security;
 
-const { useState, useEffect } = React;
-
-function App() {
-  const [page, setPage] = useState('landing');
-  const [user, setUser] = useState(null);
-  const [profile, setProfile] = useState(null);
-
-  useEffect(() => {
-    // Check for admin in URL
-   const params = new URLSearchParams(window.location.search);
-if (params.get('page') === 'admin') setPage('admin');
-
-    
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) {
-        setUser(session.user);
-        fetchProfile(session.user.id);
-      }
-    });
-    supabase.auth.onAuthStateChange((_event, session) => {
-      if (session) {
-        setUser(session.user);
-        fetchProfile(session.user.id);
-      } else {
-        setUser(null);
-        setProfile(null);
-        setPage('landing');
-      }
-    });
-  }, []);
-
-  async function fetchProfile(userId) {
+create policy "Users can view own recall requests" on recall_requests for select using (auth.uid() = user_id);
+create policy "Users can insert recall requests" on recall_requests for insert with check (auth.uid() = user_id);
+create policy "Anyone can read flashcard decks" on flashcard_decks for select using (true);
+create policy "Anyone can read flashcards" on flashcards for select using (true);
+create policy "Users can manage own progress" on flashcard_progress for all using (auth.uid() = user_id);
+create policy "Anyone can read vignette questions" on vignette_questions for select using (true);
+create policy "Users can manage own scores" on vignette_scores for all using (auth.uid() = user_id);
+create policy "Anyone can read testimonials" on testimonials for select using (true);
+create policy "Anyone can read packages" on tutoring_packages for select using (true);
+create policy "Users can insert bookings" on booking_requests for insert with check (true);
+create policy "Admin can read bookings" on booking_requests for select using (true);
     const { data } = await supabase.from('profiles').select('*').eq('id', userId).single();
     if (data) {
       setProfile(data);
