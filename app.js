@@ -291,7 +291,8 @@ function Landing({ setPage }) {
         <div style={{ color: S.gold, opacity: 0.4, letterSpacing: 8, marginBottom: 12 }}>✦ ✦ ✦</div>
         <p style={{ fontSize: 14, color: S.dim, fontWeight: 300 }}>Premium study. Real results. No shortcuts.</p>
         {/* Hidden admin link - only you know this is here */}
-        <button onClick={() => setPage('admin')} style={{ background: 'none', border: 'none', color: '#0F0E0A', cursor: 'pointer', fontSize: 10, marginTop: 24, padding: 8 }}>⚙</button>
+     <button onClick={() => setPage('admin')} style={{ background: 'none', border: 'none', color: '#8A7F6E', cursor: 'pointer', fontSize: 11, marginTop: 24, padding: 8, fontFamily: "'Courier New', monospace", letterSpacing: 2, textTransform: 'uppercase' }}>Admin</button>
+
       </footer>
     </div>
   );
