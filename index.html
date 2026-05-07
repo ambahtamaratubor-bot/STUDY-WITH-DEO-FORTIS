@@ -11,13 +11,8 @@
 </head>
 <body style="margin:0;padding:0;background:#0F0E0A;">
   <div id="root"></div>
-  <div id="error-box" style="display:none;color:red;padding:20px;font-family:monospace;"></div>
-  <script>
-    window.onerror = function(msg, src, line, col, err) {
-      document.getElementById('error-box').style.display = 'block';
-      document.getElementById('error-box').innerText = 'Error: ' + msg + '\nLine: ' + line;
-    };
+  <script type="text/babel" data-presets="react">
+    // ALL THE APP CODE GOES HERE INLINE
   </script>
-  <script type="text/babel" data-presets="react" src="app.js"></script>
 </body>
 </html>
