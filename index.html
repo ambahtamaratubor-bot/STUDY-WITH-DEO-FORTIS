@@ -12,7 +12,1354 @@
 <body style="margin:0;padding:0;background:#0F0E0A;">
   <div id="root"></div>
   <script type="text/babel" data-presets="react">
-    // ALL THE APP CODE GOES HERE INLINE
+const SUPABASE_URL = 'https://yygjkqkzbdjnyyrrhdku.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl5Z2prcWt6YmRqbnl5cnJoZGt1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgwMjgyNTcsImV4cCI6MjA5MzYwNDI1N30.6mJTBhjWphURBnFefQziVreQW8WjYJLAAjMx6Sv-Kfk';
+const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const { useState, useEffect, useRef } = React;
+
+const S = {
+  bg: '#0F0E0A', gold: '#C8A96E', teal: '#7EB8A4', purple: '#A89BC8',
+  text: '#E8E0D0', muted: '#8A7F6E', dim: '#4A4035', border: '#2A2519',
+  card: '#141309', mono: "'Courier New', monospace",
+};
+
+const css = `
+  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;1,400;1,700&family=DM+Mono:wght@400;500&display=swap');
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body { background: #0F0E0A; color: #E8E0D0; font-family: Georgia, serif; }
+  ::-webkit-scrollbar { width: 3px; }
+  ::-webkit-scrollbar-thumb { background: #C8A96E; }
+  input, textarea, select { outline: none; }
+  a { text-decoration: none; }
+  .fade { animation: fadeUp 0.5s ease both; }
+  @keyframes fadeUp { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:translateY(0); } }
+  .btn { display:inline-block; padding:12px 28px; font-family:'DM Mono',monospace; font-size:11px; letter-spacing:2px; text-transform:uppercase; cursor:pointer; border:none; border-radius:2px; transition:all 0.2s; }
+  .btn:hover { opacity:0.85; transform:translateY(-1px); }
+  .btn-gold { background:#C8A96E; color:#0F0E0A; }
+  .btn-outline { background:transparent; color:#E8E0D0; border:1px solid #2A2519; }
+  .btn-outline:hover { border-color:#C8A96E44; }
+  .btn-red { background:#8B0000; color:#fff; }
+  .btn-teal { background:#7EB8A4; color:#0F0E0A; }
+  .card { background:#141309; border:1px solid #2A2519; border-radius:4px; padding:32px; }
+  .input { width:100%; background:#0F0E0A; border:1px solid #2A2519; border-radius:2px; padding:12px 16px; color:#E8E0D0; font-family:Georgia,serif; font-size:14px; transition:border-color 0.2s; }
+  .input:focus { border-color:#C8A96E44; }
+  .input::placeholder { color:#4A4035; }
+  .label { display:block; font-family:'DM Mono',monospace; font-size:10px; letter-spacing:2px; text-transform:uppercase; color:#8A7F6E; margin-bottom:8px; }
+  .chapter { font-family:'DM Mono',monospace; font-size:10px; letter-spacing:3px; text-transform:uppercase; color:#C8A96E; display:block; margin-bottom:12px; }
+  .ruled { border:none; border-top:1px solid #2A2519; margin:24px 0; }
+  .quote { border-left:3px solid #C8A96E; padding:12px 24px; font-style:italic; color:#8A7F6E; font-family:'Playfair Display',serif; font-size:16px; }
+  .page-lines { position:fixed; inset:0; pointer-events:none; z-index:0; opacity:0.015; background-image:repeating-linear-gradient(0deg,transparent,transparent 27px,#C8A96E 27px,#C8A96E 28px); }
+  .nav { position:fixed; top:0; left:0; right:0; z-index:100; padding:18px 48px; display:flex; align-items:center; justify-content:space-between; transition:all 0.3s; }
+  .nav.scrolled { background:rgba(15,14,10,0.97); border-bottom:1px solid #2A2519; backdrop-filter:blur(8px); }
+  .plan-card { background:#141309; border:1px solid #2A2519; border-radius:4px; padding:36px 28px; transition:transform 0.3s; position:relative; }
+  .plan-card:hover { transform:translateY(-6px); }
+  .check-item { display:flex; align-items:flex-start; gap:10px; margin-bottom:10px; font-size:13px; color:#8A7F6E; line-height:1.5; }
+  .popular-tag { position:absolute; top:-1px; left:50%; transform:translateX(-50%); background:#7EB8A4; color:#0F0E0A; font-family:'DM Mono',monospace; font-size:9px; letter-spacing:2px; text-transform:uppercase; padding:4px 12px; border-radius:0 0 4px 4px; white-space:nowrap; }
+  .reason-card { padding:24px; border:1px solid #1E1B14; border-radius:4px; background:#131209; transition:all 0.3s; }
+  .reason-card:hover { border-color:#C8A96E44; }
+  .timer-circle { transition: stroke-dashoffset 1s linear; }
+  .leaderboard-row { display:flex; align-items:center; gap:16px; padding:16px 20px; border-bottom:1px solid #1E1B14; transition:background 0.2s; }
+  .leaderboard-row:hover { background:#131209; }
+  .flip-card { perspective:1000px; cursor:pointer; }
+  .flip-inner { position:relative; width:100%; transition:transform 0.6s; transform-style:preserve-3d; }
+  .flip-inner.flipped { transform:rotateY(180deg); }
+  .flip-front, .flip-back { backface-visibility:hidden; border-radius:4px; }
+  .flip-back { transform:rotateY(180deg); }
+  .tab-btn { background:none; border:none; border-bottom:2px solid transparent; color:#8A7F6E; font-family:'DM Mono',monospace; font-size:11px; letter-spacing:2px; text-transform:uppercase; padding:16px 24px; cursor:pointer; transition:all 0.2s; white-space:nowrap; }
+  .tab-btn.active { border-bottom-color:#C8A96E; color:#C8A96E; }
+  .progress-bar { height:6px; background:#1E1B14; border-radius:3px; overflow:hidden; }
+  .progress-fill { height:100%; border-radius:3px; transition:width 0.3s; }
+  .option-btn { width:100%; text-align:left; padding:14px 18px; background:#0F0E0A; border:1px solid #2A2519; border-radius:2px; color:#E8E0D0; font-family:Georgia,serif; font-size:14px; cursor:pointer; transition:all 0.2s; margin-bottom:10px; display:block; }
+  .option-btn:hover { border-color:#C8A96E44; }
+  .option-btn.correct { border-color:#7EB8A4; background:#0a1f18; color:#7EB8A4; }
+  .option-btn.wrong { border-color:#8B0000; background:#1f0a0a; color:#ff8888; }
+  .option-btn.selected { border-color:#C8A96E; background:#1a1509; }
+`;
+
+function App() {
+  const [page, setPage] = useState('landing');
+  const [user, setUser] = useState(null);
+  const [profile, setProfile] = useState(null);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) { setUser(session.user); fetchProfile(session.user.id); }
+    });
+    supabase.auth.onAuthStateChange((_event, session) => {
+      if (session) { setUser(session.user); fetchProfile(session.user.id); }
+      else { setUser(null); setProfile(null); setPage('landing'); }
+    });
+  }, []);
+
+  async function fetchProfile(userId) {
+    const { data } = await supabase.from('profiles').select('*').eq('id', userId).single();
+    if (data) {
+      setProfile(data);
+      if (data.status === 'approved') setPage('dashboard');
+      else setPage('pending');
+    }
+  }
+
+  if (page === 'landing') return <Landing setPage={setPage} />;
+  if (page === 'signup') return <Signup setPage={setPage} />;
+  if (page === 'login') return <Login setPage={setPage} fetchProfile={fetchProfile} />;
+  if (page === 'pending') return <Pending />;
+  if (page === 'dashboard') return <Dashboard user={user} profile={profile} setPage={setPage} />;
+  if (page === 'study') return <Study user={user} profile={profile} setPage={setPage} />;
+  if (page === 'flashcards') return <Flashcards user={user} setPage={setPage} />;
+  if (page === 'vignette') return <Vignette user={user} setPage={setPage} />;
+  if (page === 'leaderboard') return <Leaderboard user={user} setPage={setPage} />;
+  if (page === 'admin') return <Admin setPage={setPage} />;
+  return <Landing setPage={setPage} />;
+}
+
+function Landing({ setPage }) {
+  const [scrolled, setScrolled] = useState(false);
+  const [videoOpen, setVideoOpen] = useState(false);
+  const [videoUrl, setVideoUrl] = useState('');
+  const [payLinks, setPayLinks] = useState({ monthly: '#', sixmonth: '#', yearly: '#' });
+  const [testimonials, setTestimonials] = useState([]);
+  const [packages, setPackages] = useState([]);
+  const [bookingOpen, setBookingOpen] = useState(false);
+
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 60);
+    window.addEventListener('scroll', onScroll);
+    loadSettings();
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
+
+  async function loadSettings() {
+    const { data: s } = await supabase.from('admin_settings').select('*').single();
+    if (s) { setVideoUrl(s.video_url || ''); setPayLinks({ monthly: s.link_monthly || '#', sixmonth: s.link_sixmonth || '#', yearly: s.link_yearly || '#' }); }
+    const { data: t } = await supabase.from('testimonials').select('*').order('created_at', { ascending: false });
+    if (t) setTestimonials(t);
+    const { data: p } = await supabase.from('tutoring_packages').select('*').order('id');
+    if (p) setPackages(p);
+  }
+
+  const plans = [
+    { name: 'Monthly', price: '$10', period: '/ month', duration: '1 Month', color: S.gold, link: payLinks.monthly },
+    { name: '6 Months', price: '$39', period: '/ 6 months', duration: '6 Months', color: S.teal, popular: true, link: payLinks.sixmonth },
+    { name: '1 Year', price: '$59', period: '/ year', duration: '12 Months', color: S.purple, link: payLinks.yearly },
+  ];
+
+  const features = ['Full Pomodoro System','Active Recall Engine (Theory, Anki, Vignette)','Request Recall Sessions Anytime','Personalised Study Timetable','Clock In / Clock Out Tracking','Leaderboard Access','Community Access','Accountability System','Admin-Curated Content','Study Analytics'];
+  const reasons = [
+    { icon: '🍅', title: 'Pomodoro Technique', desc: 'Structured sessions built around proven time management. Work hard, rest smart, repeat.' },
+    { icon: '🧠', title: 'Active Recall Sessions', desc: 'Request a recall session anytime. Theory, Anki-style, or vignette — you choose the format.' },
+    { icon: '📅', title: 'Study Timetable', desc: 'Get a personalised follow-up timetable built around your goals and weak areas.' },
+    { icon: '🏆', title: 'Leaderboard', desc: 'Compete with other students. Rankings based on real study hours logged.' },
+    { icon: '👥', title: 'Community', desc: 'You are not studying alone. Be part of a group that holds each other accountable.' },
+    { icon: '✅', title: 'Accountability', desc: 'Clock in. Clock out. Your real study hours tracked. No lying to yourself.' },
+  ];
+
+  return (
+    <div style={{ background: S.bg, minHeight: '100vh' }}>
+      <style>{css}</style>
+      <div className="page-lines" />
+
+      {videoOpen && (
+        <div onClick={() => setVideoOpen(false)} style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.9)', zIndex:999, display:'flex', alignItems:'center', justifyContent:'center', padding:24 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background:S.card, border:`1px solid ${S.border}`, borderRadius:4, width:'100%', maxWidth:720, overflow:'hidden' }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'14px 20px', borderBottom:`1px solid ${S.border}` }}>
+              <span style={{ fontFamily:S.mono, fontSize:11, letterSpacing:2, textTransform:'uppercase', color:S.muted }}>Platform Demo</span>
+              <button onClick={() => setVideoOpen(false)} style={{ background:'none', border:'none', color:S.muted, fontSize:18, cursor:'pointer' }}>✕</button>
+            </div>
+            <div style={{ aspectRatio:'16/9', background:'#000', display:'flex', alignItems:'center', justifyContent:'center' }}>
+              {videoUrl ? <iframe src={videoUrl} style={{ width:'100%', height:'100%', border:'none' }} allowFullScreen /> : <p style={{ fontFamily:S.mono, color:S.dim, fontSize:11, letterSpacing:2 }}>VIDEO NOT UPLOADED YET</p>}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {bookingOpen && <BookingModal packages={packages} onClose={() => setBookingOpen(false)} />}
+
+      <nav className={`nav ${scrolled ? 'scrolled' : ''}`}>
+        <div style={{ fontFamily:"'Playfair Display',serif", fontStyle:'italic', fontSize:20, color:S.gold }}>Deo Fortis</div>
+        <div style={{ display:'flex', gap:32, alignItems:'center' }}>
+          <a href="#plans" style={{ fontFamily:S.mono, fontSize:11, letterSpacing:2, textTransform:'uppercase', color:S.muted }}>Plans</a>
+          <a href="#tutoring" style={{ fontFamily:S.mono, fontSize:11, letterSpacing:2, textTransform:'uppercase', color:S.muted }}>Tutoring</a>
+          <button className="btn btn-outline" onClick={() => setPage('login')} style={{ padding:'8px 18px' }}>Log In</button>
+          <button className="btn btn-gold" onClick={() => setPage('signup')} style={{ padding:'8px 18px' }}>Sign Up</button>
+        </div>
+      </nav>
+
+      <section style={{ minHeight:'100vh', display:'flex', flexDirection:'column', justifyContent:'center', padding:'140px 48px 80px', maxWidth:1100, margin:'0 auto', position:'relative' }}>
+        <div style={{ position:'absolute', top:100, right:0, opacity:0.1, display:'flex', alignItems:'flex-end', gap:3, borderBottom:'4px solid #3A3020' }}>
+          {[{h:160,w:22,c:'#8B4513'},{h:200,w:30,c:'#2F4F4F'},{h:140,w:18,c:'#8B0000'},{h:185,w:26,c:'#4B0082'},{h:220,w:34,c:'#556B2F'},{h:150,w:20,c:'#8B6914'},{h:175,w:28,c:'#1C3A5E'},{h:130,w:16,c:'#6B3A2A'},{h:195,w:24,c:'#2E4A1E'},{h:210,w:32,c:'#4A1942'}].map((b,i)=>(
+            <div key={i} style={{ height:b.h, width:b.w, background:b.c, borderRadius:'2px 2px 0 0' }} />
+          ))}
+        </div>
+        <div className="fade" style={{ position:'relative', zIndex:1 }}>
+          <span className="chapter">— A Premium Study Platform —</span>
+          <h1 style={{ fontFamily:"'Playfair Display',serif", fontSize:'clamp(52px,9vw,110px)', fontWeight:700, lineHeight:0.95, letterSpacing:-1 }}>
+            Study with<br /><em style={{ fontStyle:'italic', color:S.gold }}>Deo Fortis!</em>
+          </h1>
+          <hr style={{ border:'none', borderTop:`1px solid ${S.border}`, margin:'28px 0', maxWidth:480 }} />
+          <p style={{ fontSize:16, lineHeight:1.8, color:S.muted, maxWidth:520, fontWeight:300 }}>A structured, evidence-based study system built for students who are done making excuses and ready to actually retain what they learn.</p>
+          <div style={{ display:'flex', gap:16, marginTop:32, flexWrap:'wrap', alignItems:'center' }}>
+            <a href="#plans" className="btn btn-gold">View Plans →</a>
+            <button onClick={() => setVideoOpen(true)} style={{ display:'inline-flex', alignItems:'center', gap:10, padding:'12px 24px', border:`1px solid ${S.border}`, borderRadius:2, fontFamily:S.mono, fontSize:11, letterSpacing:2, textTransform:'uppercase', color:S.muted, cursor:'pointer', background:'transparent' }}>
+              <span style={{ width:24, height:24, borderRadius:'50%', border:`1px solid ${S.dim}`, display:'inline-flex', alignItems:'center', justifyContent:'center', fontSize:10, color:S.gold }}>▶</span>
+              Watch Demo (Optional)
+            </button>
+          </div>
+          <div style={{ display:'flex', gap:48, marginTop:56, flexWrap:'wrap' }}>
+            {[{num:'3',label:'Recall Formats'},{num:'100%',label:'Full Access'},{num:'∞',label:'Sessions'}].map((s,i)=>(
+              <div key={i} style={{ borderLeft:`2px solid ${S.border}`, paddingLeft:16 }}>
+                <div style={{ fontFamily:"'Playfair Display',serif", fontSize:36, color:S.gold, lineHeight:1, fontWeight:700 }}>{s.num}</div>
+                <div style={{ fontFamily:S.mono, fontSize:10, color:S.dim, letterSpacing:2, textTransform:'uppercase', marginTop:6 }}>{s.label}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <div style={{ borderTop:`1px solid ${S.border}` }} />
+
+      <section id="plans" style={{ padding:'80px 48px', maxWidth:1100, margin:'0 auto' }}>
+        <span className="chapter">Chapter I — Enrolment</span>
+        <h2 style={{ fontFamily:"'Playfair Display',serif", fontSize:'clamp(32px,5vw,56px)', fontWeight:700, lineHeight:1.05, marginBottom:12 }}>Choose Your<br /><em style={{ fontStyle:'italic', color:S.gold }}>Duration</em></h2>
+        <p style={{ fontSize:15, color:S.muted, maxWidth:500, marginBottom:8, fontWeight:300 }}>Every plan includes the full platform. You are simply choosing how long your access lasts.</p>
+        <div className="quote" style={{ maxWidth:480, marginBottom:40 }}>"The longer you commit, the less you pay per month."</div>
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(290px,1fr))', gap:20 }}>
+          {plans.map((plan,i) => (
+            <div key={i} className="plan-card" style={{ borderColor:plan.popular ? plan.color+'55' : S.border, borderTopWidth:plan.popular ? 3 : 1, borderTopColor:plan.popular ? plan.color : S.border }}>
+              {plan.popular && <div className="popular-tag">Best Value</div>}
+              <div style={{ fontFamily:S.mono, fontSize:10, letterSpacing:3, textTransform:'uppercase', color:S.dim, marginBottom:8, marginTop:plan.popular ? 16 : 0 }}>{plan.name}</div>
+              <div style={{ display:'flex', alignItems:'baseline', gap:6, marginBottom:4 }}>
+                <span style={{ fontFamily:"'Playfair Display',serif", fontSize:52, color:plan.color, lineHeight:1, fontWeight:700 }}>{plan.price}</span>
+                <span style={{ fontSize:14, color:S.dim, fontWeight:300 }}>{plan.period}</span>
+              </div>
+              <div style={{ fontFamily:S.mono, fontSize:11, color:plan.color, letterSpacing:1, marginBottom:24, opacity:0.8 }}>{plan.duration} of full access</div>
+              <hr style={{ border:'none', borderTop:`1px solid ${S.border}`, marginBottom:20 }} />
+              <div style={{ marginBottom:28 }}>
+                {features.map((f,j) => (
+                  <div key={j} className="check-item"><span style={{ color:plan.color, fontSize:12, marginTop:2, flexShrink:0 }}>✦</span><span>{f}</span></div>
+                ))}
+              </div>
+              <button onClick={() => setPage('signup')} className="btn" style={{ background:plan.color, color:'#0F0E0A', width:'100%', textAlign:'center', display:'block' }}>Enrol — {plan.price}</button>
+              <p style={{ fontFamily:S.mono, fontSize:10, color:S.dim, textAlign:'center', marginTop:12, letterSpacing:1, textTransform:'uppercase' }}>Approval required · Payment via Selar</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <div style={{ borderTop:`1px solid ${S.border}` }} />
+
+      <section id="tutoring" style={{ padding:'80px 48px', maxWidth:1100, margin:'0 auto' }}>
+        <span className="chapter">Chapter II — Personal Tutoring</span>
+        <h2 style={{ fontFamily:"'Playfair Display',serif", fontSize:'clamp(32px,5vw,56px)', fontWeight:700, lineHeight:1.05, marginBottom:12 }}>Work With Me<br /><em style={{ fontStyle:'italic', color:S.gold }}>Directly</em></h2>
+        <p style={{ fontSize:15, color:S.muted, maxWidth:500, marginBottom:8, fontWeight:300 }}>Personal tutoring packages include full access to the study portal.</p>
+        <div className="quote" style={{ maxWidth:480, marginBottom:40 }}>"One-on-one guidance accelerates everything."</div>
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(290px,1fr))', gap:20 }}>
+          {packages.map((pkg,i) => (
+            <div key={i} className="plan-card" style={{ borderTopWidth:3, borderTopColor:i===0?S.gold:S.purple, borderColor:i===0?S.gold+'33':S.purple+'33' }}>
+              <div style={{ fontFamily:S.mono, fontSize:10, letterSpacing:3, textTransform:'uppercase', color:S.dim, marginBottom:8 }}>{pkg.name}</div>
+              <div style={{ fontFamily:"'Playfair Display',serif", fontSize:48, color:i===0?S.gold:S.purple, lineHeight:1, fontWeight:700, marginBottom:8 }}>{pkg.price}</div>
+              <div style={{ fontFamily:S.mono, fontSize:11, color:i===0?S.gold:S.purple, letterSpacing:1, marginBottom:24, opacity:0.8 }}>{pkg.sessions}</div>
+              <hr style={{ border:'none', borderTop:`1px solid ${S.border}`, marginBottom:20 }} />
+              <div style={{ marginBottom:28 }}>
+                {pkg.features && pkg.features.split(',').map((f,j) => (
+                  <div key={j} className="check-item"><span style={{ color:i===0?S.gold:S.purple, fontSize:12, marginTop:2, flexShrink:0 }}>✦</span><span>{f.trim()}</span></div>
+                ))}
+              </div>
+              <a href={pkg.selar_link||'#'} target="_blank" className="btn" style={{ background:i===0?S.gold:S.purple, color:'#0F0E0A', width:'100%', textAlign:'center', display:'block' }}>Book — {pkg.price}</a>
+              <p style={{ fontFamily:S.mono, fontSize:10, color:S.dim, textAlign:'center', marginTop:12, letterSpacing:1, textTransform:'uppercase' }}>Includes study portal access</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <div style={{ borderTop:`1px solid ${S.border}` }} />
+
+      <section id="why" style={{ padding:'80px 48px', maxWidth:1100, margin:'0 auto' }}>
+        <span className="chapter">Chapter III — The Method</span>
+        <h2 style={{ fontFamily:"'Playfair Display',serif", fontSize:'clamp(32px,5vw,56px)', fontWeight:700, lineHeight:1.05, marginBottom:12 }}>What You'll<br /><em style={{ fontStyle:'italic', color:S.gold }}>Actually Get</em></h2>
+        <p style={{ fontSize:15, color:S.muted, maxWidth:520, marginBottom:40, fontWeight:300 }}>This is not a list of features. This is a study system built for results.</p>
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(280px,1fr))', gap:16 }}>
+          {reasons.map((r,i) => (
+            <div key={i} className="reason-card">
+              <div style={{ fontSize:28, marginBottom:14 }}>{r.icon}</div>
+              <h3 style={{ fontFamily:"'Playfair Display',serif", fontWeight:600, fontSize:17, marginBottom:8, color:S.text }}>{r.title}</h3>
+              <p style={{ fontSize:14, color:'#6A6050', lineHeight:1.7, fontWeight:300 }}>{r.desc}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {testimonials.length > 0 && (
+        <>
+          <div style={{ borderTop:`1px solid ${S.border}` }} />
+          <section style={{ padding:'80px 48px', maxWidth:1100, margin:'0 auto' }}>
+            <span className="chapter">Chapter IV — Results</span>
+            <h2 style={{ fontFamily:"'Playfair Display',serif", fontSize:'clamp(32px,5vw,56px)', fontWeight:700, lineHeight:1.05, marginBottom:40 }}>What Students<br /><em style={{ fontStyle:'italic', color:S.gold }}>Are Saying</em></h2>
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(280px,1fr))', gap:20 }}>
+              {testimonials.map((t,i) => (
+                <div key={i} className="card">
+                  <div style={{ fontSize:24, color:S.gold, marginBottom:16, opacity:0.6 }}>"</div>
+                  <p style={{ fontSize:15, color:S.muted, lineHeight:1.8, marginBottom:20, fontStyle:'italic', fontWeight:300 }}>{t.content}</p>
+                  <div style={{ borderTop:`1px solid ${S.border}`, paddingTop:16 }}>
+                    <div style={{ fontFamily:"'Playfair Display',serif", fontSize:15, color:S.text, fontWeight:600 }}>{t.name}</div>
+                    {t.title && <div style={{ fontFamily:S.mono, fontSize:10, color:S.dim, letterSpacing:1, textTransform:'uppercase', marginTop:4 }}>{t.title}</div>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        </>
+      )}
+
+      <div style={{ borderTop:`1px solid ${S.border}` }} />
+
+      <section style={{ padding:'80px 48px', maxWidth:1100, margin:'0 auto' }}>
+        <span className="chapter">Chapter V — The Process</span>
+        <h2 style={{ fontFamily:"'Playfair Display',serif", fontSize:'clamp(32px,5vw,56px)', fontWeight:700, marginBottom:40 }}>How to<br /><em style={{ fontStyle:'italic', color:S.gold }}>Get Started</em></h2>
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(220px,1fr))', borderTop:`1px solid ${S.border}`, borderLeft:`1px solid ${S.border}` }}>
+          {[{num:'I',title:'Choose a Plan',desc:'Pick the duration that works for you. All plans include full access.'},{num:'II',title:'Pay via Selar',desc:'Complete your payment securely through Selar. Takes about 2 minutes.'},{num:'III',title:'Get Approved',desc:'Your payment is verified and your account is approved.'},{num:'IV',title:'Begin Studying',desc:'Log in, complete your setup, and start your first session.'}].map((step,i) => (
+            <div key={i} style={{ padding:'32px 28px', borderRight:`1px solid ${S.border}`, borderBottom:`1px solid ${S.border}` }}>
+              <div style={{ fontFamily:"'Playfair Display',serif", fontStyle:'italic', fontSize:48, color:S.border, lineHeight:1, marginBottom:16 }}>{step.num}</div>
+              <h3 style={{ fontFamily:"'Playfair Display',serif", fontSize:17, color:S.text, marginBottom:8, fontWeight:600 }}>{step.title}</h3>
+              <p style={{ fontSize:14, color:'#6A6050', lineHeight:1.7, fontWeight:300 }}>{step.desc}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <footer style={{ borderTop:`1px solid ${S.border}`, padding:48, textAlign:'center' }}>
+        <div style={{ fontFamily:"'Playfair Display',serif", fontStyle:'italic', fontSize:28, color:S.gold, marginBottom:10 }}>Deo Fortis</div>
+        <div style={{ color:S.gold, opacity:0.4, letterSpacing:8, marginBottom:12 }}>✦ ✦ ✦</div>
+        <p style={{ fontSize:14, color:S.dim, fontWeight:300 }}>Study with purpose. Results follow.</p>
+        <button onClick={() => setPage('admin')} style={{ background:'none', border:'none', color:S.muted, cursor:'pointer', fontSize:11, marginTop:24, padding:8, fontFamily:S.mono, letterSpacing:2, textTransform:'uppercase' }}>Admin</button>
+      </footer>
+    </div>
+  );
+}
+
+function BookingModal({ packages, onClose }) {
+  const [form, setForm] = useState({ name:'', email:'', package:'', message:'' });
+  const [done, setDone] = useState(false);
+  async function handleBook() {
+    if (!form.name || !form.email || !form.package) return;
+    await supabase.from('booking_requests').insert(form);
+    setDone(true);
+  }
+  return (
+    <div onClick={onClose} style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.9)', zIndex:999, display:'flex', alignItems:'center', justifyContent:'center', padding:24 }}>
+      <div onClick={e => e.stopPropagation()} className="card" style={{ maxWidth:480, width:'100%' }}>
+        {done ? (
+          <div style={{ textAlign:'center', padding:'20px 0' }}>
+            <div style={{ fontSize:48, marginBottom:16 }}>✅</div>
+            <h2 style={{ fontFamily:"'Playfair Display',serif", fontSize:22, marginBottom:12 }}>Request Sent!</h2>
+            <p style={{ fontSize:14, color:S.muted, lineHeight:1.7 }}>You will be contacted via email to confirm your booking.</p>
+            <button className="btn btn-gold" style={{ marginTop:24 }} onClick={onClose}>Close</button>
+          </div>
+        ) : (
+          <>
+            <h2 style={{ fontFamily:"'Playfair Display',serif", fontSize:22, marginBottom:20 }}>Book a Session</h2>
+            <div style={{ marginBottom:16 }}><label className="label">Full Name</label><input className="input" placeholder="Your name" value={form.name} onChange={e => setForm({...form,name:e.target.value})} /></div>
+            <div style={{ marginBottom:16 }}><label className="label">Email</label><input className="input" type="email" placeholder="your@email.com" value={form.email} onChange={e => setForm({...form,email:e.target.value})} /></div>
+            <div style={{ marginBottom:16 }}>
+              <label className="label">Package</label>
+              <select className="input" value={form.package} onChange={e => setForm({...form,package:e.target.value})} style={{ cursor:'pointer' }}>
+                <option value="">Select a package</option>
+                {packages.map((p,i) => <option key={i} value={p.name}>{p.name} — {p.price}</option>)}
+              </select>
+            </div>
+            <div style={{ marginBottom:24 }}><label className="label">What do you need help with?</label><textarea className="input" placeholder="Tell me about your study goals..." value={form.message} onChange={e => setForm({...form,message:e.target.value})} style={{ minHeight:80, resize:'vertical' }} /></div>
+            <div style={{ display:'flex', gap:12 }}>
+              <button className="btn btn-gold" style={{ flex:1 }} onClick={handleBook}>Send Request</button>
+              <button className="btn btn-outline" onClick={onClose}>Cancel</button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function Signup({ setPage }) {
+  const [form, setForm] = useState({ name:'', email:'', password:'' });
+  const [selectedPlan, setSelectedPlan] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [done, setDone] = useState(false);
+  const [payLinks, setPayLinks] = useState({ monthly:'#', sixmonth:'#', yearly:'#' });
+
+  useEffect(() => {
+    supabase.from('admin_settings').select('*').single().then(({ data }) => {
+      if (data) setPayLinks({ monthly:data.link_monthly||'#', sixmonth:data.link_sixmonth||'#', yearly:data.link_yearly||'#' });
+    });
+  }, []);
+
+  async function handleSignup() {
+    if (!selectedPlan) { setError('Please select a plan before signing up.'); return; }
+    if (!form.name || !form.email || !form.password) { setError('Please fill in all fields.'); return; }
+    setLoading(true); setError('');
+    const { data, error } = await supabase.auth.signUp({ email:form.email, password:form.password });
+    if (error) { setError(error.message); setLoading(false); return; }
+    await supabase.from('profiles').insert({ id:data.user.id, email:form.email, full_name:form.name, status:'pending', plan:selectedPlan.name });
+    setDone(true); setLoading(false);
+  }
+
+  const plans = [
+    { name:'Monthly', price:'$10', period:'/ month', duration:'1 Month', color:S.gold, link:payLinks.monthly },
+    { name:'6 Months', price:'$39', period:'/ 6 months', duration:'6 Months', color:S.teal, popular:true, link:payLinks.sixmonth },
+    { name:'1 Year', price:'$59', period:'/ year', duration:'12 Months', color:S.purple, link:payLinks.yearly },
+  ];
+
+  return (
+    <div style={{ background:S.bg, minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center', padding:24 }}>
+      <style>{css}</style>
+      <div className="fade" style={{ width:'100%', maxWidth:560 }}>
+        {done ? (
+          <div className="card" style={{ textAlign:'center' }}>
+            <div style={{ fontSize:48, marginBottom:16 }}>📬</div>
+            <div style={{ fontFamily:"'Playfair Display',serif", fontStyle:'italic', fontSize:22, color:S.gold, marginBottom:16 }}>Deo Fortis</div>
+            <h2 style={{ fontFamily:"'Playfair Display',serif", fontSize:24, marginBottom:12 }}>Almost There!</h2>
+            <p style={{ fontSize:14, color:S.muted, lineHeight:1.8, marginBottom:24, fontWeight:300 }}>Your account has been created. Complete your payment to get approved.</p>
+            <a href={selectedPlan?.link} target="_blank" className="btn btn-gold" style={{ display:'block', textAlign:'center', marginBottom:12 }}>Complete Payment — {selectedPlan?.price} →</a>
+            <p style={{ fontFamily:S.mono, fontSize:10, color:S.dim, letterSpacing:1, textTransform:'uppercase', marginTop:16 }}>You'll be approved as soon as your payment is verified</p>
+            <button onClick={() => setPage('login')} style={{ background:'none', border:'none', color:S.muted, cursor:'pointer', fontSize:13, marginTop:16 }}>Already paid? Log in →</button>
+          </div>
+        ) : (
+          <>
+            <div className="card" style={{ marginBottom:20 }}>
+              <div style={{ fontFamily:"'Playfair Display',serif", fontStyle:'italic', fontSize:22, color:S.gold, marginBottom:4 }}>Deo Fortis</div>
+              <hr style={{ border:'none', borderTop:`1px solid ${S.border}`, margin:'16px 0' }} />
+              <h2 style={{ fontFamily:"'Playfair Display',serif", fontSize:24, marginBottom:4 }}>Create Account</h2>
+              <p style={{ fontSize:14, color:S.muted, marginBottom:24, fontWeight:300 }}>Fill in your details and select a plan to get started.</p>
+              {error && <div style={{ background:'#2a1010', border:'1px solid #5a2020', borderRadius:2, padding:'10px 14px', fontSize:13, color:'#ff8888', marginBottom:16 }}>{error}</div>}
+              <div style={{ marginBottom:16 }}><label className="label">Full Name</label><input className="input" placeholder="Your full name" value={form.name} onChange={e => setForm({...form,name:e.target.value})} /></div>
+              <div style={{ marginBottom:16 }}><label className="label">Email</label><input className="input" type="email" placeholder="your@email.com" value={form.email} onChange={e => setForm({...form,email:e.target.value})} /></div>
+              <div style={{ marginBottom:8 }}><label className="label">Password</label><input className="input" type="password" placeholder="Min. 6 characters" value={form.password} onChange={e => setForm({...form,password:e.target.value})} /></div>
+            </div>
+            <div style={{ marginBottom:20 }}>
+              <p style={{ fontFamily:S.mono, fontSize:10, letterSpacing:3, textTransform:'uppercase', color:S.gold, marginBottom:16 }}>Select Your Plan</p>
+              <div style={{ display:'grid', gap:12 }}>
+                {plans.map((plan,i) => (
+                  <div key={i} onClick={() => setSelectedPlan(plan)} style={{ background:selectedPlan?.name===plan.name?'#1a1a0f':S.card, border:`1px solid ${selectedPlan?.name===plan.name?plan.color:S.border}`, borderRadius:4, padding:'20px 24px', cursor:'pointer', transition:'all 0.2s', position:'relative' }}>
+                    {plan.popular && <span style={{ position:'absolute', top:-1, right:16, background:S.teal, color:'#0F0E0A', fontFamily:S.mono, fontSize:9, letterSpacing:2, textTransform:'uppercase', padding:'3px 10px', borderRadius:'0 0 4px 4px' }}>Best Value</span>}
+                    <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                      <div>
+                        <div style={{ fontFamily:S.mono, fontSize:10, letterSpacing:2, textTransform:'uppercase', color:S.dim, marginBottom:4 }}>{plan.name}</div>
+                        <div style={{ fontFamily:"'Playfair Display',serif", fontSize:28, color:plan.color, fontWeight:700, lineHeight:1 }}>{plan.price} <span style={{ fontSize:13, color:S.dim, fontWeight:300 }}>{plan.period}</span></div>
+                      </div>
+                      <div style={{ width:22, height:22, borderRadius:'50%', border:`2px solid ${selectedPlan?.name===plan.name?plan.color:S.border}`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                        {selectedPlan?.name===plan.name && <div style={{ width:10, height:10, borderRadius:'50%', background:plan.color }} />}
+                      </div>
+                    </div>
+                    <div style={{ fontFamily:S.mono, fontSize:10, color:plan.color, letterSpacing:1, marginTop:6, opacity:0.7 }}>{plan.duration} of full access</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <button className="btn btn-gold" style={{ width:'100%', padding:16 }} onClick={handleSignup} disabled={loading}>{loading ? 'Creating Account...' : `Create Account ${selectedPlan ? '— '+selectedPlan.price : ''}`}</button>
+            <p style={{ fontSize:13, color:S.muted, textAlign:'center', marginTop:16 }}>Already have an account?{' '}<button onClick={() => setPage('login')} style={{ background:'none', border:'none', color:S.gold, cursor:'pointer', fontSize:13 }}>Log in</button></p>
+            <p style={{ textAlign:'center', marginTop:8 }}><button onClick={() => setPage('landing')} style={{ background:'none', border:'none', color:S.dim, cursor:'pointer', fontSize:12, fontFamily:S.mono, letterSpacing:1 }}>← Back to home</button></p>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function Login({ setPage, fetchProfile }) {
+  const [form, setForm] = useState({ email:'', password:'' });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  async function handleLogin() {
+    setLoading(true); setError('');
+    const { data, error } = await supabase.auth.signInWithPassword({ email:form.email, password:form.password });
+    if (error) { setError(error.message); setLoading(false); return; }
+    await fetchProfile(data.user.id); setLoading(false);
+  }
+  return (
+    <div style={{ background:S.bg, minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center', padding:24 }}>
+      <style>{css}</style>
+      <div className="card fade" style={{ width:'100%', maxWidth:400 }}>
+        <div style={{ fontFamily:"'Playfair Display',serif", fontStyle:'italic', fontSize:22, color:S.gold, marginBottom:4 }}>Deo Fortis</div>
+        <hr style={{ border:'none', borderTop:`1px solid ${S.border}`, margin:'16px 0' }} />
+        <h2 style={{ fontFamily:"'Playfair Display',serif", fontSize:24, marginBottom:4 }}>Welcome Back</h2>
+        <p style={{ fontSize:14, color:S.muted, marginBottom:24, fontWeight:300 }}>Log in to continue your studies.</p>
+        {error && <div style={{ background:'#2a1010', border:'1px solid #5a2020', borderRadius:2, padding:'10px 14px', fontSize:13, color:'#ff8888', marginBottom:16 }}>{error}</div>}
+        <div style={{ marginBottom:16 }}><label className="label">Email</label><input className="input" type="email" placeholder="your@email.com" value={form.email} onChange={e => setForm({...form,email:e.target.value})} /></div>
+        <div style={{ marginBottom:24 }}><label className="label">Password</label><input className="input" type="password" placeholder="Your password" value={form.password} onChange={e => setForm({...form,password:e.target.value})} /></div>
+        <button className="btn btn-gold" style={{ width:'100%', marginBottom:16 }} onClick={handleLogin} disabled={loading}>{loading ? 'Logging in...' : 'Log In'}</button>
+        <hr style={{ border:'none', borderTop:`1px solid ${S.border}`, margin:'16px 0' }} />
+        <p style={{ fontSize:13, color:S.muted, textAlign:'center', marginTop:16 }}>Don't have an account?{' '}<button onClick={() => setPage('signup')} style={{ background:'none', border:'none', color:S.gold, cursor:'pointer', fontSize:13 }}>Sign up</button></p>
+        <p style={{ fontSize:13, color:S.muted, textAlign:'center', marginTop:8 }}><button onClick={() => setPage('landing')} style={{ background:'none', border:'none', color:S.dim, cursor:'pointer', fontSize:12 }}>← Back to home</button></p>
+      </div>
+    </div>
+  );
+}
+
+function Pending() {
+  return (
+    <div style={{ background:S.bg, minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center', padding:24 }}>
+      <style>{css}</style>
+      <div className="card fade" style={{ width:'100%', maxWidth:480, textAlign:'center' }}>
+        <div style={{ fontSize:48, marginBottom:20 }}>⏳</div>
+        <div style={{ fontFamily:"'Playfair Display',serif", fontStyle:'italic', fontSize:22, color:S.gold, marginBottom:16 }}>Deo Fortis</div>
+        <h2 style={{ fontFamily:"'Playfair Display',serif", fontSize:24, marginBottom:12 }}>Awaiting Approval</h2>
+        <p style={{ fontSize:15, color:S.muted, lineHeight:1.7, marginBottom:24, fontWeight:300 }}>Thanks for joining Deo Fortis! Your account is pending approval. You will be approved as soon as your payment is verified.</p>
+        <div className="quote" style={{ marginBottom:24, textAlign:'left' }}>"Great students are patient students."</div>
+        <button className="btn btn-outline" onClick={() => supabase.auth.signOut()}>Log Out</button>
+      </div>
+    </div>
+  );
+}
+
+function Dashboard({ user, profile, setPage }) {
+  const [sessions, setSessions] = useState([]);
+  const [clockedIn, setClockedIn] = useState(false);
+  const [currentSession, setCurrentSession] = useState(null);
+  const [elapsed, setElapsed] = useState(0);
+  const intervalRef = useRef(null);
+
+  useEffect(() => { fetchSessions(); return () => clearInterval(intervalRef.current); }, []);
+  useEffect(() => {
+    if (clockedIn) { intervalRef.current = setInterval(() => setElapsed(e => e+1), 1000); }
+    else { clearInterval(intervalRef.current); }
+    return () => clearInterval(intervalRef.current);
+  }, [clockedIn]);
+
+  async function fetchSessions() {
+    const { data } = await supabase.from('study_sessions').select('*').eq('user_id',user.id).order('started_at',{ascending:false}).limit(5);
+    if (data) setSessions(data);
+  }
+  async function clockIn() {
+    const { data } = await supabase.from('study_sessions').insert({ user_id:user.id, topic:'General Study' }).select().single();
+    if (data) { setCurrentSession(data); setClockedIn(true); setElapsed(0); }
+  }
+  async function clockOut() {
+    if (!currentSession) return;
+    const mins = Math.floor(elapsed/60);
+    await supabase.from('study_sessions').update({ ended_at:new Date().toISOString(), duration_minutes:mins }).eq('id',currentSession.id);
+    await supabase.from('profiles').update({ total_study_minutes:(profile.total_study_minutes||0)+mins }).eq('id',user.id);
+    setClockedIn(false); setCurrentSession(null); setElapsed(0); fetchSessions();
+  }
+
+  const totalHours = Math.floor((profile?.total_study_minutes||0)/60);
+  const totalMins = (profile?.total_study_minutes||0)%60;
+  const fmt = s => String(Math.floor(s/3600)).padStart(2,'0')+':'+String(Math.floor((s%3600)/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0');
+
+  return (
+    <div style={{ background:S.bg, minHeight:'100vh' }}>
+      <style>{css}</style>
+      <div className="page-lines" />
+      <nav style={{ background:'rgba(15,14,10,0.97)', borderBottom:`1px solid ${S.border}`, padding:'16px 48px', display:'flex', alignItems:'center', justifyContent:'space-between', position:'sticky', top:0, zIndex:100 }}>
+        <div style={{ fontFamily:"'Playfair Display',serif", fontStyle:'italic', fontSize:20, color:S.gold }}>Deo Fortis</div>
+        <div style={{ display:'flex', gap:8 }}>
+          <button className="btn btn-outline" style={{ padding:'8px 16px' }} onClick={() => setPage('study')}>📚 Study</button>
+          <button className="btn btn-outline" style={{ padding:'8px 16px' }} onClick={() => setPage('flashcards')}>🃏 Cards</button>
+          <button className="btn btn-outline" style={{ padding:'8px 16px' }} onClick={() => setPage('vignette')}>📝 Q-Bank</button>
+          <button className="btn btn-outline" style={{ padding:'8px 16px' }} onClick={() => setPage('leaderboard')}>🏆</button>
+          <button className="btn btn-outline" style={{ padding:'8px 16px' }} onClick={() => supabase.auth.signOut()}>Out</button>
+        </div>
+      </nav>
+      <div style={{ maxWidth:1000, margin:'0 auto', padding:'48px 24px' }}>
+        <div className="fade">
+          <span className="chapter">Welcome Back</span>
+          <h1 style={{ fontFamily:"'Playfair Display',serif", fontSize:40, fontWeight:700, marginBottom:4 }}>{profile?.full_name||'Scholar'} <em style={{ fontStyle:'italic', color:S.gold, fontSize:32 }}>📖</em></h1>
+          <p style={{ fontSize:14, color:S.muted, marginBottom:40, fontWeight:300 }}>Plan: <span style={{ color:S.gold }}>{profile?.plan||'Active'}</span> · Expires: <span style={{ color:S.text }}>{profile?.access_expires_at ? new Date(profile.access_expires_at).toLocaleDateString() : 'Active'}</span></p>
+        </div>
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(200px,1fr))', gap:16, marginBottom:40 }}>
+          {[{label:'Total Study Time',value:`${totalHours}h ${totalMins}m`,color:S.gold},{label:'Sessions',value:sessions.length,color:S.teal},{label:'Status',value:'Active',color:S.purple}].map((stat,i) => (
+            <div key={i} className="card" style={{ textAlign:'center' }}>
+              <div style={{ fontFamily:"'Playfair Display',serif", fontSize:32, color:stat.color, fontWeight:700, marginBottom:4 }}>{stat.value}</div>
+              <div style={{ fontFamily:S.mono, fontSize:10, color:S.dim, letterSpacing:2, textTransform:'uppercase' }}>{stat.label}</div>
+            </div>
+          ))}
+        </div>
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:24, marginBottom:24 }}>
+          <div className="card">
+            <h3 style={{ fontFamily:"'Playfair Display',serif", fontSize:20, marginBottom:20 }}>Clock In / Out</h3>
+            {clockedIn ? (
+              <>
+                <div style={{ fontFamily:S.mono, fontSize:36, color:S.gold, textAlign:'center', marginBottom:20 }}>{fmt(elapsed)}</div>
+                <button className="btn btn-red" style={{ width:'100%' }} onClick={clockOut}>Clock Out</button>
+              </>
+            ) : (
+              <>
+                <p style={{ fontSize:14, color:S.muted, marginBottom:20, fontWeight:300 }}>Ready to study? Clock in to start tracking.</p>
+                <button className="btn btn-gold" style={{ width:'100%' }} onClick={clockIn}>Clock In</button>
+              </>
+            )}
+          </div>
+          <div className="card">
+            <h3 style={{ fontFamily:"'Playfair Display',serif", fontSize:20, marginBottom:20 }}>Recent Sessions</h3>
+            {sessions.length===0 ? <p style={{ fontSize:14, color:S.dim, fontWeight:300 }}>No sessions yet. Clock in to start!</p> : sessions.map((s,i) => (
+              <div key={i} style={{ display:'flex', justifyContent:'space-between', padding:'10px 0', borderBottom:`1px solid ${S.border}`, fontSize:13 }}>
+                <span style={{ color:S.muted }}>{new Date(s.started_at).toLocaleDateString()}</span>
+                <span style={{ color:S.gold }}>{s.duration_minutes||0} mins</span>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:16 }}>
+          <button className="btn btn-gold" style={{ padding:18, fontSize:13 }} onClick={() => setPage('study')}>Start Pomodoro →</button>
+          <button className="btn btn-outline" style={{ padding:18, fontSize:13 }} onClick={() => setPage('flashcards')}>Flashcards →</button>
+          <button className="btn btn-outline" style={{ padding:18, fontSize:13 }} onClick={() => setPage('vignette')}>Q-Bank →</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Study({ user, profile, setPage }) {
+  const [step, setStep] = useState('setup');
+  const [config, setConfig] = useState({ topic:'', workMins:25, breakMins:5, sessions:4, useRecall:false, recallStyle:'', recallDetails:'' });
+  const [timer, setTimer] = useState(0);
+  const [running, setRunning] = useState(false);
+  const [currentSession, setCurrentSession] = useState(1);
+  const [isBreak, setIsBreak] = useState(false);
+  const [requestSent, setRequestSent] = useState(false);
+  const intervalRef = useRef(null);
+
+  const workTime = config.workMins*60;
+  const breakTime = config.breakMins*60;
+  const maxTime = isBreak ? breakTime : workTime;
+
+  useEffect(() => {
+    if (running) {
+      intervalRef.current = setInterval(() => {
+        setTimer(t => {
+          if (t >= maxTime-1) {
+            if (isBreak) { setIsBreak(false); setCurrentSession(s => s+1); return 0; }
+            else { setIsBreak(true); return 0; }
+          }
+          return t+1;
+        });
+      }, 1000);
+    } else { clearInterval(intervalRef.current); }
+    return () => clearInterval(intervalRef.current);
+  }, [running, isBreak, maxTime]);
+
+  async function sendRecallRequest() {
+    await supabase.from('recall_requests').insert({ user_id:user.id, user_name:profile?.full_name, user_email:profile?.email, topic:config.topic, style:config.recallStyle, details:config.recallDetails, status:'pending' });
+    setRequestSent(true);
+  }
+
+  const fmt = s => String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0');
+  const progress = timer/maxTime;
+  const r = 80; const circ = 2*Math.PI*r;
+
+  if (step==='setup') return (
+    <div style={{ background:S.bg, minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center', padding:24 }}>
+      <style>{css}</style>
+      <div className="card fade" style={{ width:'100%', maxWidth:540 }}>
+        <button onClick={() => setPage('dashboard')} style={{ background:'none', border:'none', color:S.dim, cursor:'pointer', fontSize:12, fontFamily:S.mono, letterSpacing:1, marginBottom:16 }}>← Back</button>
+        <span className="chapter">Study Setup</span>
+        <h2 style={{ fontFamily:"'Playfair Display',serif", fontSize:26, marginBottom:24 }}>Configure Your Session</h2>
+        <div style={{ marginBottom:20 }}>
+          <label className="label">What topic are you studying?</label>
+          <input className="input" placeholder="e.g. Bacteriology, Cardiology" value={config.topic} onChange={e => setConfig({...config,topic:e.target.value})} />
+        </div>
+        <div style={{ marginBottom:20 }}>
+          <label className="label">Pomodoro Configuration</label>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:12 }}>
+            <div><label className="label" style={{ fontSize:9 }}>Work (mins)</label><input className="input" type="number" min="1" max="120" value={config.workMins} onChange={e => setConfig({...config,workMins:parseInt(e.target.value)||25})} /></div>
+            <div><label className="label" style={{ fontSize:9 }}>Break (mins)</label><input className="input" type="number" min="1" max="60" value={config.breakMins} onChange={e => setConfig({...config,breakMins:parseInt(e.target.value)||5})} /></div>
+            <div><label className="label" style={{ fontSize:9 }}>Sessions</label><input className="input" type="number" min="1" max="20" value={config.sessions} onChange={e => setConfig({...config,sessions:parseInt(e.target.value)||4})} /></div>
+          </div>
+          <p style={{ fontFamily:S.mono, fontSize:10, color:S.dim, marginTop:8, letterSpacing:1 }}>Total: {config.workMins*config.sessions} mins study + {config.breakMins*(config.sessions-1)} mins break</p>
+        </div>
+        <div style={{ marginBottom:20 }}>
+          <label className="label">Request Active Recall?</label>
+          <div style={{ display:'flex', gap:12 }}>
+            {[true,false].map(v => (
+              <button key={String(v)} onClick={() => setConfig({...config,useRecall:v})} className="btn" style={{ flex:1, background:config.useRecall===v?S.gold:'transparent', color:config.useRecall===v?'#0F0E0A':S.muted, border:`1px solid ${config.useRecall===v?S.gold:S.border}` }}>{v ? 'Yes' : 'No'}</button>
+            ))}
+          </div>
+        </div>
+        {config.useRecall && (
+          <>
+            <div style={{ marginBottom:20 }}>
+              <label className="label">Recall Style</label>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:10 }}>
+                {[['flashcard','🃏 Flashcard'],['vignette','📝 Vignette'],['theory','📖 Theory']].map(([v,l]) => (
+                  <button key={v} onClick={() => setConfig({...config,recallStyle:v})} className="btn" style={{ background:config.recallStyle===v?S.gold:'transparent', color:config.recallStyle===v?'#0F0E0A':S.muted, border:`1px solid ${config.recallStyle===v?S.gold:S.border}`, fontSize:11 }}>{l}</button>
+                ))}
+              </div>
+            </div>
+            <div style={{ marginBottom:20 }}>
+              <label className="label">Be Specific (optional)</label>
+              <textarea className="input" placeholder="e.g. Focus on gram positive bacteria, NBME style, first 40 cards..." value={config.recallDetails} onChange={e => setConfig({...config,recallDetails:e.target.value})} style={{ minHeight:80, resize:'vertical' }} />
+            </div>
+            {requestSent ? (
+              <div style={{ background:'#0a1f18', border:`1px solid ${S.teal}`, borderRadius:2, padding:'12px 16px', marginBottom:20, fontSize:13, color:S.teal }}>✓ Request sent! You'll be notified when your content is ready.</div>
+            ) : (
+              <button className="btn btn-teal" style={{ width:'100%', marginBottom:20 }} onClick={sendRecallRequest} disabled={!config.recallStyle}>Send Recall Request →</button>
+            )}
+          </>
+        )}
+        <button className="btn btn-gold" style={{ width:'100%' }} onClick={() => { setStep('studying'); setRunning(true); }} disabled={!config.topic}>Start Session →</button>
+      </div>
+    </div>
+  );
+
+  return (
+    <div style={{ background:S.bg, minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center', padding:24 }}>
+      <style>{css}</style>
+      <div className="card fade" style={{ textAlign:'center', maxWidth:400, width:'100%' }}>
+        <span className="chapter">{isBreak ? '☕ Break Time' : `Session ${currentSession} of ${config.sessions}`}</span>
+        <h2 style={{ fontFamily:"'Playfair Display',serif", fontSize:20, marginBottom:8, color:isBreak?S.teal:S.text }}>{config.topic}</h2>
+        <div style={{ position:'relative', width:200, height:200, margin:'24px auto' }}>
+          <svg width="200" height="200" style={{ transform:'rotate(-90deg)' }}>
+            <circle cx="100" cy="100" r={r} fill="none" stroke={S.border} strokeWidth="6" />
+            <circle cx="100" cy="100" r={r} fill="none" stroke={isBreak?S.teal:S.gold} strokeWidth="6" strokeDasharray={circ} strokeDashoffset={circ*(1-progress)} strokeLinecap="round" className="timer-circle" />
+          </svg>
+          <div style={{ position:'absolute', inset:0, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center' }}>
+            <div style={{ fontFamily:S.mono, fontSize:32, color:isBreak?S.teal:S.gold }}>{fmt(maxTime-timer)}</div>
+            <div style={{ fontFamily:S.mono, fontSize:10, color:S.dim, letterSpacing:2, marginTop:4 }}>{isBreak?'BREAK':'FOCUS'}</div>
+          </div>
+        </div>
+        <div style={{ display:'flex', gap:12, justifyContent:'center', marginBottom:16 }}>
+          <button className="btn btn-gold" onClick={() => setRunning(r => !r)}>{running ? 'Pause' : 'Resume'}</button>
+          <button className="btn btn-outline" onClick={() => setPage('dashboard')}>End</button>
+        </div>
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
+          <button className="btn btn-outline" style={{ fontSize:11 }} onClick={() => setPage('flashcards')}>🃏 Flashcards</button>
+          <button className="btn btn-outline" style={{ fontSize:11 }} onClick={() => setPage('vignette')}>📝 Q-Bank</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Flashcards({ user, setPage }) {
+  const [decks, setDecks] = useState([]);
+  const [selectedDeck, setSelectedDeck] = useState(null);
+  const [cards, setCards] = useState([]);
+  const [queue, setQueue] = useState([]);
+  const [currentIdx, setCurrentIdx] = useState(0);
+  const [flipped, setFlipped] = useState(false);
+  const [progress, setProgress] = useState({ easy:0, iffy:0, hard:0 });
+  const [done, setDone] = useState(false);
+  const [view, setView] = useState('decks');
+
+  useEffect(() => { supabase.from('flashcard_decks').select('*').order('created_at',{ascending:false}).then(({ data }) => { if (data) setDecks(data); }); }, []);
+
+  async function loadCards(deck) {
+    setSelectedDeck(deck);
+    const { data } = await supabase.from('flashcards').select('*').eq('deck_id',deck.id);
+    if (data && data.length>0) { setCards(data); setQueue([...data]); setCurrentIdx(0); setFlipped(false); setProgress({easy:0,iffy:0,hard:0}); setDone(false); setView('studying'); }
+  }
+
+  function markCard(difficulty) {
+    const current = queue[currentIdx];
+    setProgress(p => ({...p,[difficulty]:p[difficulty]+1}));
+    let newQueue = [...queue];
+    if (difficulty==='hard') newQueue.splice(currentIdx+2, 0, current);
+    else if (difficulty==='iffy') newQueue.push(current);
+    newQueue.splice(currentIdx, 1);
+    if (newQueue.length===0) { setDone(true); return; }
+    setQueue(newQueue);
+    setCurrentIdx(Math.min(currentIdx, newQueue.length-1));
+    setFlipped(false);
+  }
+
+  const pct = cards.length>0 ? Math.round((progress.easy/cards.length)*100) : 0;
+
+  if (view==='decks') return (
+    <div style={{ background:S.bg, minHeight:'100vh' }}>
+      <style>{css}</style>
+      <nav style={{ background:'rgba(15,14,10,0.97)', borderBottom:`1px solid ${S.border}`, padding:'16px 48px', display:'flex', alignItems:'center', justifyContent:'space-between', position:'sticky', top:0, zIndex:100 }}>
+        <div style={{ fontFamily:"'Playfair Display',serif", fontStyle:'italic', fontSize:20, color:S.gold }}>Deo Fortis</div>
+        <button className="btn btn-outline" style={{ padding:'8px 16px' }} onClick={() => setPage('dashboard')}>← Dashboard</button>
+      </nav>
+      <div style={{ maxWidth:800, margin:'0 auto', padding:'48px 24px' }}>
+        <span className="chapter">Flashcard Decks</span>
+        <h1 style={{ fontFamily:"'Playfair Display',serif", fontSize:40, fontWeight:700, marginBottom:8 }}>Study <em style={{ fontStyle:'italic', color:S.gold }}>Flashcards</em></h1>
+        <p style={{ fontSize:14, color:S.muted, marginBottom:40, fontWeight:300 }}>Select a deck. Mark cards Easy, Iffy, or Hard as you go.</p>
+        {decks.length===0 ? (
+          <div className="card" style={{ textAlign:'center', padding:48 }}><div style={{ fontSize:40, marginBottom:16 }}>🃏</div><p style={{ fontSize:14, color:S.dim }}>No flashcard decks yet. Check back soon!</p></div>
+        ) : (
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(240px,1fr))', gap:16 }}>
+            {decks.map((deck,i) => (
+              <div key={i} className="card" style={{ cursor:'pointer' }} onClick={() => loadCards(deck)}>
+                <div style={{ fontSize:32, marginBottom:12 }}>🃏</div>
+                <h3 style={{ fontFamily:"'Playfair Display',serif", fontSize:18, color:S.text, marginBottom:8 }}>{deck.topic}</h3>
+                <button className="btn btn-gold" style={{ width:'100%', marginTop:16 }}>Start Deck →</button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
+  if (done) return (
+    <div style={{ background:S.bg, minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center', padding:24 }}>
+      <style>{css}</style>
+      <div className="card fade" style={{ maxWidth:440, width:'100%', textAlign:'center' }}>
+        <div style={{ fontSize:48, marginBottom:16 }}>🎉</div>
+        <span className="chapter">Deck Complete</span>
+        <h2 style={{ fontFamily:"'Playfair Display',serif", fontSize:28, marginBottom:20 }}>{selectedDeck?.topic}</h2>
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:12, marginBottom:24 }}>
+          {[{label:'Easy',val:progress.easy,color:S.teal},{label:'Iffy',val:progress.iffy,color:S.gold},{label:'Hard',val:progress.hard,color:'#ff8888'}].map((s,i) => (
+            <div key={i} className="card" style={{ padding:16, textAlign:'center' }}>
+              <div style={{ fontFamily:"'Playfair Display',serif", fontSize:28, color:s.color }}>{s.val}</div>
+              <div style={{ fontFamily:S.mono, fontSize:9, color:S.dim, letterSpacing:1, textTransform:'uppercase' }}>{s.label}</div>
+            </div>
+          ))}
+        </div>
+        <div style={{ display:'grid', gap:10 }}>
+          <button className="btn btn-gold" onClick={() => { setQueue([...cards]); setCurrentIdx(0); setFlipped(false); setProgress({easy:0,iffy:0,hard:0}); setDone(false); }}>Redo All Cards</button>
+          <button className="btn btn-outline" onClick={() => setView('decks')}>Back to Decks</button>
+          <button className="btn btn-outline" onClick={() => setPage('dashboard')}>Dashboard</button>
+        </div>
+      </div>
+    </div>
+  );
+
+  const card = queue[currentIdx];
+  if (!card) return null;
+
+  return (
+    <div style={{ background:S.bg, minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center', padding:24, flexDirection:'column' }}>
+      <style>{css}</style>
+      <div style={{ width:'100%', maxWidth:560 }}>
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:20 }}>
+          <button onClick={() => setView('decks')} style={{ background:'none', border:'none', color:S.dim, cursor:'pointer', fontSize:12, fontFamily:S.mono, letterSpacing:1 }}>← Decks</button>
+          <span style={{ fontFamily:S.mono, fontSize:11, color:S.muted }}>{selectedDeck?.topic}</span>
+          <span style={{ fontFamily:S.mono, fontSize:11, color:S.dim }}>{currentIdx+1} / {queue.length}</span>
+        </div>
+        <div style={{ marginBottom:16 }}>
+          <div className="progress-bar"><div className="progress-fill" style={{ width:`${pct}%`, background:S.teal }} /></div>
+          <div style={{ display:'flex', justifyContent:'space-between', marginTop:8 }}>
+            <span style={{ fontFamily:S.mono, fontSize:10, color:S.teal }}>✓ {progress.easy} easy</span>
+            <span style={{ fontFamily:S.mono, fontSize:10, color:S.gold }}>~ {progress.iffy} iffy</span>
+            <span style={{ fontFamily:S.mono, fontSize:10, color:'#ff8888' }}>✗ {progress.hard} hard</span>
+          </div>
+        </div>
+        <div className="flip-card" style={{ width:'100%', height:240, marginBottom:24 }} onClick={() => setFlipped(f => !f)}>
+          <div className={`flip-inner ${flipped ? 'flipped' : ''}`} style={{ height:'100%' }}>
+            <div className="flip-front card" style={{ position:'absolute', width:'100%', height:'100%', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', padding:32 }}>
+              <div style={{ fontFamily:S.mono, fontSize:10, color:S.dim, letterSpacing:2, textTransform:'uppercase', marginBottom:16 }}>Question — tap to flip</div>
+              <p style={{ fontSize:16, color:S.text, textAlign:'center', lineHeight:1.7 }}>{card.question}</p>
+            </div>
+            <div className="flip-back card" style={{ position:'absolute', width:'100%', height:'100%', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', padding:32, background:'#0a1f18', borderColor:S.teal }}>
+              <div style={{ fontFamily:S.mono, fontSize:10, color:S.teal, letterSpacing:2, textTransform:'uppercase', marginBottom:16 }}>Answer</div>
+              <p style={{ fontSize:16, color:S.teal, textAlign:'center', lineHeight:1.7 }}>{card.answer}</p>
+            </div>
+          </div>
+        </div>
+        {flipped ? (
+          <div className="fade" style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:12 }}>
+            <button className="btn" style={{ background:'#1a3a1a', color:'#7EB8A4', border:'1px solid #2a5a2a', padding:'16px 8px' }} onClick={() => markCard('easy')}>🟢<br /><span style={{ fontSize:10, letterSpacing:1 }}>EASY</span></button>
+            <button className="btn" style={{ background:'#2a1f0a', color:'#C8A96E', border:'1px solid #4a3a1a', padding:'16px 8px' }} onClick={() => markCard('iffy')}>🟡<br /><span style={{ fontSize:10, letterSpacing:1 }}>IFFY</span></button>
+            <button className="btn" style={{ background:'#3a1a1a', color:'#ff8888', border:'1px solid #5a2a2a', padding:'16px 8px' }} onClick={() => markCard('hard')}>🔴<br /><span style={{ fontSize:10, letterSpacing:1 }}>HARD</span></button>
+          </div>
+        ) : (
+          <button className="btn btn-outline" style={{ width:'100%' }} onClick={() => setFlipped(true)}>Flip Card →</button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function Vignette({ user, setPage }) {
+  const [topics, setTopics] = useState([]);
+  const [selectedTopic, setSelectedTopic] = useState('');
+  const [mode, setMode] = useState('');
+  const [timeLimit, setTimeLimit] = useState(60);
+  const [questions, setQuestions] = useState([]);
+  const [current, setCurrent] = useState(0);
+  const [answers, setAnswers] = useState({});
+  const [submitted, setSubmitted] = useState(false);
+  const [revealed, setRevealed] = useState({});
+  const [timeLeft, setTimeLeft] = useState(0);
+  const [view, setView] = useState('setup');
+  const intervalRef = useRef(null);
+
+  useEffect(() => {
+    supabase.from('vignette_questions').select('topic').then(({ data }) => {
+      if (data) { const unique = [...new Set(data.map(d => d.topic))]; setTopics(unique); }
+    });
+  }, []);
+
+  useEffect(() => {
+    if (view==='studying' && mode==='timed' && timeLeft>0) {
+      intervalRef.current = setInterval(() => {
+        setTimeLeft(t => { if (t<=1) { clearInterval(intervalRef.current); handleSubmit(); return 0; } return t-1; });
+      }, 1000);
+    }
+    return () => clearInterval(intervalRef.current);
+  }, [view, mode]);
+
+  async function startQuiz() {
+    const { data } = await supabase.from('vignette_questions').select('*').eq('topic',selectedTopic).limit(40);
+    if (data && data.length>0) { setQuestions(data); setCurrent(0); setAnswers({}); setRevealed({}); setSubmitted(false); if (mode==='timed') setTimeLeft(timeLimit*60); setView('studying'); }
+  }
+
+  function selectAnswer(qId, option) {
+    if (submitted) return;
+    setAnswers(a => ({...a,[qId]:option}));
+    if (mode==='tutor') setRevealed(r => ({...r,[qId]:true}));
+  }
+
+  async function handleSubmit() {
+    setSubmitted(true); clearInterval(intervalRef.current);
+    const correct = questions.filter(q => answers[q.id]===q.correct_answer).length;
+    await supabase.from('vignette_scores').insert({ user_id:user.id, topic:selectedTopic, score:correct, total:questions.length, mode });
+    setView('results');
+  }
+
+  const fmt = s => String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0');
+  const score = questions.filter(q => answers[q.id]===q.correct_answer).length;
+
+  if (view==='setup') return (
+    <div style={{ background:S.bg, minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center', padding:24 }}>
+      <style>{css}</style>
+      <div className="card fade" style={{ width:'100%', maxWidth:500 }}>
+        <button onClick={() => setPage('dashboard')} style={{ background:'none', border:'none', color:S.dim, cursor:'pointer', fontSize:12, fontFamily:S.mono, letterSpacing:1, marginBottom:16 }}>← Back</button>
+        <span className="chapter">Question Bank</span>
+        <h2 style={{ fontFamily:"'Playfair Display',serif", fontSize:26, marginBottom:24 }}>Configure Your Quiz</h2>
+        <div style={{ marginBottom:20 }}>
+          <label className="label">Select Topic</label>
+          {topics.length===0 ? <p style={{ fontSize:14, color:S.dim }}>No questions available yet.</p> : (
+            <select className="input" value={selectedTopic} onChange={e => setSelectedTopic(e.target.value)} style={{ cursor:'pointer' }}>
+              <option value="">Choose a topic...</option>
+              {topics.map((t,i) => <option key={i} value={t}>{t}</option>)}
+            </select>
+          )}
+        </div>
+        <div style={{ marginBottom:20 }}>
+          <label className="label">Mode</label>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+            {[['tutor','🎓 Tutor Mode'],['timed','⏱ Timed Mode']].map(([v,l]) => (
+              <button key={v} onClick={() => setMode(v)} className="btn" style={{ background:mode===v?S.gold:'transparent', color:mode===v?'#0F0E0A':S.muted, border:`1px solid ${mode===v?S.gold:S.border}` }}>{l}</button>
+            ))}
+          </div>
+          {mode==='tutor' && <p style={{ fontFamily:S.mono, fontSize:10, color:S.dim, marginTop:8, letterSpacing:1 }}>Wrong answers shown immediately</p>}
+          {mode==='timed' && <p style={{ fontFamily:S.mono, fontSize:10, color:S.dim, marginTop:8, letterSpacing:1 }}>Submit all answers at the end</p>}
+        </div>
+        {mode==='timed' && (
+          <div style={{ marginBottom:20 }}><label className="label">Time Limit (minutes)</label><input className="input" type="number" min="1" max="180" value={timeLimit} onChange={e => setTimeLimit(parseInt(e.target.value)||60)} /></div>
+        )}
+        <button className="btn btn-gold" style={{ width:'100%' }} onClick={startQuiz} disabled={!selectedTopic||!mode}>Start Quiz →</button>
+      </div>
+    </div>
+  );
+
+  if (view==='studying') {
+    const q = questions[current];
+    const options = ['a','b','c','d','e'].filter(o => q[`option_${o}`]);
+    return (
+      <div style={{ background:S.bg, minHeight:'100vh' }}>
+        <style>{css}</style>
+        <nav style={{ background:'rgba(15,14,10,0.97)', borderBottom:`1px solid ${S.border}`, padding:'12px 24px', display:'flex', alignItems:'center', justifyContent:'space-between', position:'sticky', top:0, zIndex:100 }}>
+          <span style={{ fontFamily:S.mono, fontSize:11, color:S.muted, letterSpacing:1 }}>{selectedTopic} · {mode==='tutor'?'Tutor':'Timed'}</span>
+          <div style={{ display:'flex', gap:16, alignItems:'center' }}>
+            {mode==='timed' && <span style={{ fontFamily:S.mono, fontSize:16, color:timeLeft<60?'#ff8888':S.gold }}>{fmt(timeLeft)}</span>}
+            <span style={{ fontFamily:S.mono, fontSize:11, color:S.muted }}>{current+1} / {questions.length}</span>
+          </div>
+        </nav>
+        <div style={{ display:'grid', gridTemplateColumns:'200px 1fr', maxWidth:1000, margin:'0 auto', padding:24, gap:24 }}>
+          <div>
+            <div style={{ fontFamily:S.mono, fontSize:10, color:S.dim, letterSpacing:2, textTransform:'uppercase', marginBottom:12 }}>Questions</div>
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(5,1fr)', gap:4 }}>
+              {questions.map((q,i) => (
+                <button key={i} onClick={() => setCurrent(i)} style={{ width:32, height:32, border:`1px solid ${current===i?S.gold:answers[q.id]?(answers[q.id]===q.correct_answer?S.teal:'#8B0000'):S.border}`, background:current===i?S.gold+'22':answers[q.id]?(answers[q.id]===q.correct_answer?S.teal+'22':'#8B000022'):'transparent', color:current===i?S.gold:S.muted, fontFamily:S.mono, fontSize:10, cursor:'pointer', borderRadius:2 }}>{i+1}</button>
+              ))}
+            </div>
+            {mode==='timed' && !submitted && <button className="btn btn-gold" style={{ width:'100%', marginTop:20, fontSize:11 }} onClick={handleSubmit}>Submit All →</button>}
+          </div>
+          <div>
+            <div className="card" style={{ marginBottom:16 }}>
+              <div style={{ fontFamily:S.mono, fontSize:10, color:S.dim, letterSpacing:2, textTransform:'uppercase', marginBottom:12 }}>Question {current+1}</div>
+              <p style={{ fontSize:15, color:S.text, lineHeight:1.8 }}>{q.question}</p>
+            </div>
+            {options.map(opt => {
+              const val = q[`option_${opt}`];
+              const isSelected = answers[q.id]===opt.toUpperCase();
+              const isCorrect = q.correct_answer===opt.toUpperCase();
+              const isRevealed = revealed[q.id]||submitted;
+              let cls = 'option-btn';
+              if (isRevealed && isCorrect) cls += ' correct';
+              else if (isRevealed && isSelected && !isCorrect) cls += ' wrong';
+              else if (isSelected) cls += ' selected';
+              return <button key={opt} className={cls} onClick={() => selectAnswer(q.id, opt.toUpperCase())}><strong style={{ marginRight:12 }}>{opt.toUpperCase()}.</strong>{val}</button>;
+            })}
+            {(revealed[q.id]||submitted) && q.explanation && (
+              <div style={{ background:'#0a1f18', border:`1px solid ${S.teal}22`, borderRadius:2, padding:16, marginTop:16 }}>
+                <div style={{ fontFamily:S.mono, fontSize:10, color:S.teal, letterSpacing:2, textTransform:'uppercase', marginBottom:8 }}>Explanation</div>
+                <p style={{ fontSize:14, color:S.muted, lineHeight:1.7 }}>{q.explanation}</p>
+              </div>
+            )}
+            <div style={{ display:'flex', gap:12, marginTop:16 }}>
+              {current>0 && <button className="btn btn-outline" onClick={() => setCurrent(c => c-1)}>← Prev</button>}
+              {current<questions.length-1 && <button className="btn btn-gold" onClick={() => setCurrent(c => c+1)}>Next →</button>}
+              {current===questions.length-1 && mode==='tutor' && <button className="btn btn-gold" onClick={handleSubmit}>See Results →</button>}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ background:S.bg, minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center', padding:24 }}>
+      <style>{css}</style>
+      <div className="card fade" style={{ maxWidth:500, width:'100%', textAlign:'center' }}>
+        <span className="chapter">Quiz Complete</span>
+        <div style={{ fontSize:56, margin:'16px 0' }}>{score/questions.length>=0.7?'🎉':'📚'}</div>
+        <h2 style={{ fontFamily:"'Playfair Display',serif", fontSize:36, marginBottom:4, color:S.gold }}>{score} / {questions.length}</h2>
+        <p style={{ fontFamily:S.mono, fontSize:11, color:S.dim, letterSpacing:2, textTransform:'uppercase', marginBottom:8 }}>{Math.round(score/questions.length*100)}% correct</p>
+        <p style={{ fontFamily:S.mono, fontSize:11, color:S.muted, marginBottom:24 }}>{selectedTopic} · {mode} mode</p>
+        <div className="quote" style={{ textAlign:'left', marginBottom:24 }}>
+          {score/questions.length>=0.8?'"Excellent. You know this topic well."':score/questions.length>=0.5?'"Good effort. Review the ones you missed."':'"Keep studying. Come back stronger."'}
+        </div>
+        <div style={{ display:'grid', gap:10 }}>
+          <button className="btn btn-gold" onClick={() => setView('setup')}>Try Again</button>
+          <button className="btn btn-outline" onClick={() => setPage('dashboard')}>Dashboard</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Leaderboard({ user, setPage }) {
+  const [rows, setRows] = useState([]);
+  const [bookingOpen, setBookingOpen] = useState(false);
+  const [packages, setPackages] = useState([]);
+
+  useEffect(() => {
+    supabase.from('leaderboard').select('*').then(({ data }) => { if (data) setRows(data); });
+    supabase.from('tutoring_packages').select('*').order('id').then(({ data }) => { if (data) setPackages(data); });
+  }, []);
+
+  const medals = ['🥇','🥈','🥉'];
+
+  return (
+    <div style={{ background:S.bg, minHeight:'100vh' }}>
+      <style>{css}</style>
+      <div className="page-lines" />
+      {bookingOpen && <BookingModal packages={packages} onClose={() => setBookingOpen(false)} />}
+      <nav style={{ background:'rgba(15,14,10,0.97)', borderBottom:`1px solid ${S.border}`, padding:'16px 48px', display:'flex', alignItems:'center', justifyContent:'space-between', position:'sticky', top:0, zIndex:100 }}>
+        <div style={{ fontFamily:"'Playfair Display',serif", fontStyle:'italic', fontSize:20, color:S.gold }}>Deo Fortis</div>
+        <button className="btn btn-outline" style={{ padding:'8px 16px' }} onClick={() => setPage('dashboard')}>← Dashboard</button>
+      </nav>
+      <div style={{ maxWidth:700, margin:'0 auto', padding:'48px 24px' }}>
+        <span className="chapter">Rankings</span>
+        <h1 style={{ fontFamily:"'Playfair Display',serif", fontSize:48, fontWeight:700, marginBottom:8 }}>The <em style={{ fontStyle:'italic', color:S.gold }}>Leaderboard</em></h1>
+        <p style={{ fontSize:14, color:S.muted, marginBottom:40, fontWeight:300 }}>Rankings based on total study hours. Updated in real time.</p>
+        <div className="card" style={{ marginBottom:32 }}>
+          {rows.length===0 ? <p style={{ fontSize:14, color:S.dim, textAlign:'center', padding:20 }}>No data yet. Be the first to clock in!</p> : rows.map((row,i) => (
+            <div key={i} className="leaderboard-row">
+              <span style={{ fontSize:22, width:32 }}>{medals[i]||`${i+1}.`}</span>
+              <span style={{ flex:1, fontSize:15, color:S.text }}>{row.full_name}</span>
+              <span style={{ fontFamily:S.mono, fontSize:13, color:S.gold }}>{Math.floor(row.total_study_minutes/60)}h {row.total_study_minutes%60}m</span>
+            </div>
+          ))}
+        </div>
+        <div className="card" style={{ textAlign:'center', borderColor:S.gold+'33', borderTopWidth:3, borderTopColor:S.gold }}>
+          <div style={{ fontSize:32, marginBottom:12 }}>📚</div>
+          <h3 style={{ fontFamily:"'Playfair Display',serif", fontSize:22, marginBottom:8 }}>Want Personal Tutoring?</h3>
+          <p style={{ fontSize:14, color:S.muted, lineHeight:1.7, marginBottom:20, fontWeight:300 }}>Work directly with me. Get personalised guidance and full portal access included.</p>
+          <button className="btn btn-gold" onClick={() => setBookingOpen(true)}>Book a Session →</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Admin({ setPage }) {
+  const [password, setPassword] = useState('');
+  const [authed, setAuthed] = useState(false);
+  const [tab, setTab] = useState('settings');
+  const [settings, setSettings] = useState({ video_url:'', link_monthly:'', link_sixmonth:'', link_yearly:'' });
+  const [users, setUsers] = useState([]);
+  const [recallRequests, setRecallRequests] = useState([]);
+  const [testimonials, setTestimonials] = useState([]);
+  const [packages, setPackages] = useState([]);
+  const [bookings, setBookings] = useState([]);
+  const [newT, setNewT] = useState({ name:'', title:'', content:'' });
+  const [saved, setSaved] = useState(false);
+  const [uploadStatus, setUploadStatus] = useState('');
+  const ADMIN_PASS = 'deofortis2024';
+
+  useEffect(() => { if (authed) loadAll(); }, [authed]);
+
+  async function loadAll() {
+    const { data:s } = await supabase.from('admin_settings').select('*').single(); if (s) setSettings(s);
+    const { data:u } = await supabase.from('profiles').select('*').order('created_at',{ascending:false}); if (u) setUsers(u);
+    const { data:r } = await supabase.from('recall_requests').select('*').order('created_at',{ascending:false}); if (r) setRecallRequests(r);
+    const { data:t } = await supabase.from('testimonials').select('*').order('created_at',{ascending:false}); if (t) setTestimonials(t);
+    const { data:p } = await supabase.from('tutoring_packages').select('*').order('id'); if (p) setPackages(p);
+    const { data:b } = await supabase.from('booking_requests').select('*').order('created_at',{ascending:false}); if (b) setBookings(b);
+  }
+
+  async function saveSettings() {
+    await supabase.from('admin_settings').upsert({ id:1, ...settings });
+    setSaved(true); setTimeout(() => setSaved(false), 2000);
+  }
+
+  async function savePackages() {
+    for (const pkg of packages) await supabase.from('tutoring_packages').upsert(pkg);
+    setSaved(true); setTimeout(() => setSaved(false), 2000);
+  }
+
+  async function approveUser(id) {
+    const exp = new Date(); exp.setMonth(exp.getMonth()+1);
+    await supabase.from('profiles').update({ status:'approved', access_expires_at:exp.toISOString() }).eq('id',id);
+    loadAll();
+  }
+
+  async function addTestimonial() {
+    if (!newT.name||!newT.content) return;
+    await supabase.from('testimonials').insert(newT);
+    setNewT({ name:'', title:'', content:'' }); loadAll();
+  }
+
+  async function deleteTestimonial(id) {
+    await supabase.from('testimonials').delete().eq('id',id); loadAll();
+  }
+
+  async function handleCSVUpload(e, deckName) {
+    const file = e.target.files[0]; if (!file) return;
+    setUploadStatus('Uploading...');
+    const text = await file.text();
+    const lines = text.split('\n').filter(l => l.trim());
+    const { data:deck } = await supabase.from('flashcard_decks').insert({ topic:deckName||file.name.replace('.csv','') }).select().single();
+    if (!deck) { setUploadStatus('Error creating deck'); return; }
+    const cards = lines.map(line => { const parts = line.split(','); return { deck_id:deck.id, question:parts[0]?.trim(), answer:parts.slice(1).join(',').trim() }; }).filter(c => c.question&&c.answer);
+    await supabase.from('flashcards').insert(cards);
+    setUploadStatus(`✓ Uploaded ${cards.length} cards!`);
+    setTimeout(() => setUploadStatus(''), 3000);
+  }
+
+  async function handleTXTUpload(e, topic) {
+    const file = e.target.files[0]; if (!file) return;
+    setUploadStatus('Uploading...');
+    const text = await file.text();
+    const blocks = text.split('\n\n').filter(b => b.trim());
+    const questions = [];
+    for (const block of blocks) {
+      const lines = block.split('\n').filter(l => l.trim());
+      if (lines.length<3) continue;
+      const q = { topic:topic||'General', question:'', option_a:'', option_b:'', option_c:'', option_d:'', option_e:'', correct_answer:'', explanation:'', is_global:true };
+      q.question = lines[0];
+      for (const line of lines.slice(1)) {
+        if (line.startsWith('A.')||line.startsWith('A)')) q.option_a = line.slice(2).trim();
+        else if (line.startsWith('B.')||line.startsWith('B)')) q.option_b = line.slice(2).trim();
+        else if (line.startsWith('C.')||line.startsWith('C)')) q.option_c = line.slice(2).trim();
+        else if (line.startsWith('D.')||line.startsWith('D)')) q.option_d = line.slice(2).trim();
+        else if (line.startsWith('E.')||line.startsWith('E)')) q.option_e = line.slice(2).trim();
+        else if (line.toLowerCase().startsWith('answer:')) q.correct_answer = line.split(':')[1].trim().toUpperCase();
+        else if (line.toLowerCase().startsWith('explanation:')) q.explanation = line.split(':').slice(1).join(':').trim();
+      }
+      if (q.question&&q.correct_answer) questions.push(q);
+    }
+    if (questions.length>0) { await supabase.from('vignette_questions').insert(questions); setUploadStatus(`✓ Uploaded ${questions.length} questions!`); }
+    else setUploadStatus('No valid questions found. Check format.');
+    setTimeout(() => setUploadStatus(''), 4000);
+  }
+
+  if (!authed) return (
+    <div style={{ background:S.bg, minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center', padding:24 }}>
+      <style>{css}</style>
+      <div className="card fade" style={{ maxWidth:360, width:'100%' }}>
+        <div style={{ fontFamily:"'Playfair Display',serif", fontStyle:'italic', fontSize:22, color:S.gold, marginBottom:4 }}>Deo Fortis</div>
+        <hr style={{ border:'none', borderTop:`1px solid ${S.border}`, margin:'16px 0' }} />
+        <h2 style={{ fontFamily:"'Playfair Display',serif", fontSize:22, marginBottom:16 }}>Admin Access</h2>
+        <label className="label">Password</label>
+        <input className="input" type="password" placeholder="Enter admin password" value={password} onChange={e => setPassword(e.target.value)} onKeyDown={e => e.key==='Enter'&&password===ADMIN_PASS&&setAuthed(true)} style={{ marginBottom:16 }} />
+        <button className="btn btn-gold" style={{ width:'100%', marginBottom:16 }} onClick={() => { if (password===ADMIN_PASS) setAuthed(true); }}>Enter</button>
+        <p style={{ fontSize:12, color:S.dim, textAlign:'center' }}><button onClick={() => setPage('landing')} style={{ background:'none', border:'none', color:S.dim, cursor:'pointer', fontSize:12 }}>← Back to site</button></p>
+      </div>
+    </div>
+  );
+
+  return (
+    <div style={{ background:S.bg, minHeight:'100vh' }}>
+      <style>{css}</style>
+      <nav style={{ background:'rgba(15,14,10,0.97)', borderBottom:`1px solid ${S.border}`, padding:'16px 24px', display:'flex', alignItems:'center', justifyContent:'space-between', position:'sticky', top:0, zIndex:100 }}>
+        <div style={{ fontFamily:"'Playfair Display',serif", fontStyle:'italic', fontSize:20, color:S.gold }}>Admin — Deo Fortis</div>
+        <button className="btn btn-outline" style={{ padding:'8px 16px' }} onClick={() => setPage('landing')}>← Site</button>
+      </nav>
+      <div style={{ borderBottom:`1px solid ${S.border}`, display:'flex', overflowX:'auto' }}>
+        {[['settings','⚙ Settings'],['users','👥 Users'],['recalls','🧠 Recalls'],['flashcards','🃏 Flashcards'],['questions','📝 Q-Bank'],['testimonials','💬 Reviews'],['packages','📦 Packages'],['bookings','📅 Bookings']].map(([id,label]) => (
+          <button key={id} onClick={() => setTab(id)} className={`tab-btn ${tab===id?'active':''}`}>{label}</button>
+        ))}
+      </div>
+      <div style={{ maxWidth:900, margin:'0 auto', padding:'48px 24px' }}>
+
+        {tab==='settings' && (
+          <div className="card fade">
+            <h2 style={{ fontFamily:"'Playfair Display',serif", fontSize:22, marginBottom:24 }}>Site Settings</h2>
+            <div style={{ marginBottom:20 }}>
+              <label className="label">Demo Video URL</label>
+              <input className="input" placeholder="https://www.youtube.com/embed/..." value={settings.video_url||''} onChange={e => setSettings({...settings,video_url:e.target.value})} />
+              <p style={{ fontFamily:S.mono, fontSize:10, color:S.dim, marginTop:6, letterSpacing:1 }}>YouTube: Share → Embed → copy the src URL only</p>
+            </div>
+            <hr style={{ border:'none', borderTop:`1px solid ${S.border}`, margin:'24px 0' }} />
+            <h3 style={{ fontFamily:"'Playfair Display',serif", fontSize:18, marginBottom:16 }}>Study Portal Payment Links</h3>
+            <div style={{ display:'grid', gap:16, marginBottom:24 }}>
+              {[['link_monthly','Monthly ($10)'],['link_sixmonth','6 Months ($39)'],['link_yearly','1 Year ($59)']].map(([key,label]) => (
+                <div key={key}><label className="label">{label}</label><input className="input" placeholder="https://selar.co/..." value={settings[key]||''} onChange={e => setSettings({...settings,[key]:e.target.value})} /></div>
+              ))}
+            </div>
+            <button className="btn btn-gold" onClick={saveSettings}>{saved?'✓ Saved!':'Save Settings'}</button>
+          </div>
+        )}
+
+        {tab==='users' && (
+          <div className="card fade">
+            <h2 style={{ fontFamily:"'Playfair Display',serif", fontSize:22, marginBottom:8 }}>Users</h2>
+            <p style={{ fontSize:14, color:S.muted, marginBottom:24, fontWeight:300 }}>{users.filter(u => u.status==='pending').length} pending approval</p>
+            {users.map((u,i) => (
+              <div key={i} style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'14px 0', borderBottom:`1px solid ${S.border}` }}>
+                <div>
+                  <div style={{ fontSize:15, color:S.text, marginBottom:2 }}>{u.full_name}</div>
+                  <div style={{ fontSize:12, color:S.muted }}>{u.email} · {u.plan||'No plan'} · {new Date(u.created_at).toLocaleDateString()}</div>
+                </div>
+                <div style={{ display:'flex', alignItems:'center', gap:12 }}>
+                  <span style={{ fontFamily:S.mono, fontSize:10, letterSpacing:1, textTransform:'uppercase', color:u.status==='approved'?S.teal:S.gold }}>{u.status}</span>
+                  {u.status==='pending' && <button className="btn btn-teal" style={{ padding:'6px 16px', fontSize:11 }} onClick={() => approveUser(u.id)}>Approve</button>}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {tab==='recalls' && (
+          <div className="fade">
+            <h2 style={{ fontFamily:"'Playfair Display',serif", fontSize:22, marginBottom:24 }}>Recall Requests</h2>
+            {recallRequests.length===0 ? (
+              <div className="card" style={{ textAlign:'center', padding:40 }}><p style={{ fontSize:14, color:S.dim }}>No recall requests yet.</p></div>
+            ) : recallRequests.map((r,i) => (
+              <div key={i} className="card" style={{ marginBottom:16 }}>
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:12 }}>
+                  <div>
+                    <div style={{ fontSize:15, color:S.text, marginBottom:4 }}>{r.user_name}</div>
+                    <div style={{ fontSize:12, color:S.muted }}>{r.user_email}</div>
+                  </div>
+                  <span style={{ fontFamily:S.mono, fontSize:10, letterSpacing:1, textTransform:'uppercase', color:r.status==='pending'?S.gold:S.teal }}>{r.status}</span>
+                </div>
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12, marginBottom:12 }}>
+                  <div><div style={{ fontFamily:S.mono, fontSize:9, color:S.dim, letterSpacing:2, textTransform:'uppercase', marginBottom:4 }}>Topic</div><div style={{ fontSize:14, color:S.text }}>{r.topic}</div></div>
+                  <div><div style={{ fontFamily:S.mono, fontSize:9, color:S.dim, letterSpacing:2, textTransform:'uppercase', marginBottom:4 }}>Style</div><div style={{ fontSize:14, color:S.gold }}>{r.style}</div></div>
+                </div>
+                {r.details && <div style={{ background:'#0F0E0A', border:`1px solid ${S.border}`, borderRadius:2, padding:12, marginBottom:12 }}><div style={{ fontFamily:S.mono, fontSize:9, color:S.dim, letterSpacing:2, textTransform:'uppercase', marginBottom:4 }}>Notes</div><p style={{ fontSize:13, color:S.muted }}>{r.details}</p></div>}
+                <div style={{ display:'flex', gap:12 }}>
+                  {r.style==='flashcard' && <div style={{ flex:1 }}><label className="label">Upload CSV</label><input type="file" accept=".csv" onChange={e => handleCSVUpload(e,r.topic)} style={{ color:S.muted, fontSize:12, fontFamily:S.mono }} /></div>}
+                  {(r.style==='vignette'||r.style==='theory') && <div style={{ flex:1 }}><label className="label">Upload TXT</label><input type="file" accept=".txt" onChange={e => handleTXTUpload(e,r.topic)} style={{ color:S.muted, fontSize:12, fontFamily:S.mono }} /></div>}
+                  <button className="btn btn-teal" style={{ fontSize:11, padding:'8px 16px' }} onClick={async () => { await supabase.from('recall_requests').update({status:'fulfilled'}).eq('id',r.id); loadAll(); }}>Mark Done</button>
+                </div>
+              </div>
+            ))}
+            {uploadStatus && <div style={{ background:'#0a1f18', border:`1px solid ${S.teal}`, borderRadius:2, padding:'12px 16px', marginTop:16, fontSize:13, color:S.teal }}>{uploadStatus}</div>}
+          </div>
+        )}
+
+        {tab==='flashcards' && (
+          <div className="card fade">
+            <h2 style={{ fontFamily:"'Playfair Display',serif", fontSize:22, marginBottom:8 }}>Upload Flashcard Deck</h2>
+            <p style={{ fontSize:14, color:S.muted, marginBottom:24, fontWeight:300 }}>CSV format: one card per line, question comma answer.</p>
+            <div style={{ background:'#0F0E0A', border:`1px dashed ${S.border}`, borderRadius:4, padding:32, marginBottom:20 }}>
+              <div style={{ fontFamily:S.mono, fontSize:11, color:S.dim, letterSpacing:1, textTransform:'uppercase', marginBottom:12 }}>Example:</div>
+              <div style={{ background:'#141309', border:`1px solid ${S.border}`, borderRadius:2, padding:12, marginBottom:16 }}>
+                <p style={{ fontFamily:S.mono, fontSize:12, color:S.muted, lineHeight:1.8 }}>What causes malaria?, Plasmodium falciparum<br />What stain is used for TB?, Ziehl-Neelsen stain</p>
+              </div>
+              <div style={{ marginBottom:16 }}><label className="label">Deck Name</label><input className="input" id="csv-deck-name" placeholder="e.g. Bacteriology Basics" /></div>
+              <input type="file" accept=".csv" onChange={e => handleCSVUpload(e, document.getElementById('csv-deck-name')?.value||'')} style={{ color:S.muted, fontSize:13, fontFamily:S.mono }} />
+            </div>
+            {uploadStatus && <div style={{ background:'#0a1f18', border:`1px solid ${S.teal}`, borderRadius:2, padding:'12px 16px', fontSize:13, color:S.teal }}>{uploadStatus}</div>}
+          </div>
+        )}
+
+        {tab==='questions' && (
+          <div className="card fade">
+            <h2 style={{ fontFamily:"'Playfair Display',serif", fontSize:22, marginBottom:8 }}>Upload Vignette Questions</h2>
+            <p style={{ fontSize:14, color:S.muted, marginBottom:24, fontWeight:300 }}>TXT format: separate questions with a blank line.</p>
+            <div style={{ background:'#0F0E0A', border:`1px dashed ${S.border}`, borderRadius:4, padding:32, marginBottom:20 }}>
+              <div style={{ fontFamily:S.mono, fontSize:11, color:S.dim, letterSpacing:1, textTransform:'uppercase', marginBottom:12 }}>Example format:</div>
+              <div style={{ background:'#141309', border:`1px solid ${S.border}`, borderRadius:2, padding:12, marginBottom:16 }}>
+                <p style={{ fontFamily:S.mono, fontSize:12, color:S.muted, lineHeight:2 }}>A 25-year-old presents with fever...<br />A. Streptococcus pyogenes<br />B. Staphylococcus aureus<br />C. Neisseria meningitidis<br />D. Haemophilus influenzae<br />Answer: C<br />Explanation: Classic presentation for...</p>
+              </div>
+              <div style={{ marginBottom:16 }}><label className="label">Topic Name</label><input className="input" id="txt-topic" placeholder="e.g. Bacteriology" /></div>
+              <input type="file" accept=".txt" onChange={e => handleTXTUpload(e, document.getElementById('txt-topic')?.value||'General')} style={{ color:S.muted, fontSize:13, fontFamily:S.mono }} />
+            </div>
+            {uploadStatus && <div style={{ background:'#0a1f18', border:`1px solid ${S.teal}`, borderRadius:2, padding:'12px 16px', fontSize:13, color:S.teal }}>{uploadStatus}</div>}
+          </div>
+        )}
+
+        {tab==='testimonials' && (
+          <div className="fade">
+            <div className="card" style={{ marginBottom:24 }}>
+              <h2 style={{ fontFamily:"'Playfair Display',serif", fontSize:22, marginBottom:20 }}>Add Testimonial</h2>
+              <div style={{ marginBottom:16 }}><label className="label">Student Name</label><input className="input" placeholder="e.g. Sarah K." value={newT.name} onChange={e => setNewT({...newT,name:e.target.value})} /></div>
+              <div style={{ marginBottom:16 }}><label className="label">Title / Course (optional)</label><input className="input" placeholder="e.g. USMLE Step 1 Student" value={newT.title} onChange={e => setNewT({...newT,title:e.target.value})} /></div>
+              <div style={{ marginBottom:20 }}><label className="label">Testimonial</label><textarea className="input" placeholder="What did they say?" value={newT.content} onChange={e => setNewT({...newT,content:e.target.value})} style={{ minHeight:100, resize:'vertical' }} /></div>
+              <button className="btn btn-gold" onClick={addTestimonial} disabled={!newT.name||!newT.content}>Add Testimonial</button>
+            </div>
+            {testimonials.length>0 && (
+              <div className="card">
+                <h3 style={{ fontFamily:"'Playfair Display',serif", fontSize:18, marginBottom:16 }}>Current Testimonials ({testimonials.length})</h3>
+                {testimonials.map((t,i) => (
+                  <div key={i} style={{ padding:'16px 0', borderBottom:`1px solid ${S.border}`, display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
+                    <div style={{ flex:1 }}>
+                      <div style={{ fontSize:14, color:S.text, marginBottom:4 }}>{t.name} {t.title&&<span style={{ color:S.dim, fontSize:12 }}>· {t.title}</span>}</div>
+                      <p style={{ fontSize:13, color:S.muted, fontStyle:'italic' }}>{t.content}</p>
+                    </div>
+                    <button onClick={() => deleteTestimonial(t.id)} style={{ background:'none', border:'none', color:'#8B0000', cursor:'pointer', fontSize:16, marginLeft:12 }}>✕</button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {tab==='packages' && (
+          <div className="card fade">
+            <h2 style={{ fontFamily:"'Playfair Display',serif", fontSize:22, marginBottom:24 }}>Tutoring Packages</h2>
+            {packages.map((pkg,i) => (
+              <div key={i} style={{ marginBottom:24, padding:20, border:`1px solid ${S.border}`, borderRadius:4 }}>
+                <div style={{ fontFamily:S.mono, fontSize:10, color:S.dim, letterSpacing:2, textTransform:'uppercase', marginBottom:12 }}>Package {i+1}</div>
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12, marginBottom:12 }}>
+                  <div><label className="label">Name</label><input className="input" value={pkg.name||''} onChange={e => { const p=[...packages]; p[i]={...p[i],name:e.target.value}; setPackages(p); }} /></div>
+                  <div><label className="label">Price</label><input className="input" value={pkg.price||''} onChange={e => { const p=[...packages]; p[i]={...p[i],price:e.target.value}; setPackages(p); }} /></div>
+                </div>
+                <div style={{ marginBottom:12 }}><label className="label">Sessions Description</label><input className="input" value={pkg.sessions||''} onChange={e => { const p=[...packages]; p[i]={...p[i],sessions:e.target.value}; setPackages(p); }} /></div>
+                <div style={{ marginBottom:12 }}><label className="label">Features (comma separated)</label><input className="input" value={pkg.features||''} onChange={e => { const p=[...packages]; p[i]={...p[i],features:e.target.value}; setPackages(p); }} /></div>
+                <div><label className="label">Selar Payment Link</label><input className="input" placeholder="https://selar.co/..." value={pkg.selar_link||''} onChange={e => { const p=[...packages]; p[i]={...p[i],selar_link:e.target.value}; setPackages(p); }} /></div>
+              </div>
+            ))}
+            <button className="btn btn-gold" onClick={savePackages}>{saved?'✓ Saved!':'Save Packages'}</button>
+          </div>
+        )}
+
+        {tab==='bookings' && (
+          <div className="card fade">
+            <h2 style={{ fontFamily:"'Playfair Display',serif", fontSize:22, marginBottom:8 }}>Booking Requests</h2>
+            <p style={{ fontSize:14, color:S.muted, marginBottom:24, fontWeight:300 }}>{bookings.filter(b => b.status==='pending').length} new bookings</p>
+            {bookings.length===0 ? <p style={{ fontSize:14, color:S.dim, textAlign:'center', padding:20 }}>No bookings yet.</p> : bookings.map((b,i) => (
+              <div key={i} style={{ padding:'16px 0', borderBottom:`1px solid ${S.border}` }}>
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
+                  <div>
+                    <div style={{ fontSize:15, color:S.text, marginBottom:4 }}>{b.name}</div>
+                    <div style={{ fontSize:12, color:S.muted, marginBottom:4 }}>{b.email} · {b.package}</div>
+                    {b.message && <p style={{ fontSize:13, color:S.dim, fontStyle:'italic' }}>{b.message}</p>}
+                    <div style={{ fontFamily:S.mono, fontSize:10, color:S.dim, marginTop:4 }}>{new Date(b.created_at).toLocaleDateString()}</div>
+                  </div>
+                  <span style={{ fontFamily:S.mono, fontSize:10, letterSpacing:1, textTransform:'uppercase', color:b.status==='pending'?S.gold:S.teal }}>{b.status}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
   </script>
 </body>
 </html>
