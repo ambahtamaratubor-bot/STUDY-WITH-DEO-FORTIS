@@ -300,60 +300,122 @@ function Landing({ setPage }) {
 
 function Signup({ setPage }) {
   const [form, setForm] = useState({ name: '', email: '', password: '' });
+  const [selectedPlan, setSelectedPlan] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [done, setDone] = useState(false);
+  const [payLinks, setPayLinks] = useState({ monthly: '#', sixmonth: '#', yearly: '#' });
+
+  useEffect(() => { loadLinks(); }, []);
+
+  async function loadLinks() {
+    const { data } = await supabase.from('admin_settings').select('*').single();
+    if (data) setPayLinks({ monthly: data.link_monthly || '#', sixmonth: data.link_sixmonth || '#', yearly: data.link_yearly || '#' });
+  }
 
   async function handleSignup() {
+    if (!selectedPlan) { setError('Please select a plan before signing up.'); return; }
+    if (!form.name || !form.email || !form.password) { setError('Please fill in all fields.'); return; }
     setLoading(true);
     setError('');
     const { data, error } = await supabase.auth.signUp({ email: form.email, password: form.password });
     if (error) { setError(error.message); setLoading(false); return; }
-    await supabase.from('profiles').insert({ id: data.user.id, email: form.email, full_name: form.name, status: 'pending' });
+    await supabase.from('profiles').insert({ id: data.user.id, email: form.email, full_name: form.name, status: 'pending', plan: selectedPlan.name });
     setDone(true);
     setLoading(false);
   }
 
+  const plans = [
+    { name: 'Monthly', price: '$10', period: '/ month', duration: '1 Month', color: S.gold, link: payLinks.monthly },
+    { name: '6 Months', price: '$39', period: '/ 6 months', duration: '6 Months', color: S.teal, popular: true, link: payLinks.sixmonth },
+    { name: '1 Year', price: '$59', period: '/ year', duration: '12 Months', color: S.purple, link: payLinks.yearly },
+  ];
+
   return (
     <div style={{ background: S.bg, minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
       <style>{css}</style>
-      <div className="card fade" style={{ width: '100%', maxWidth: 440 }}>
-        <div style={{ fontFamily: "'Playfair Display',serif", fontStyle: 'italic', fontSize: 22, color: S.gold, marginBottom: 4 }}>Deo Fortis</div>
-        <hr style={{ border: 'none', borderTop: `1px solid ${S.border}`, margin: '16px 0' }} />
+      <div className="fade" style={{ width: '100%', maxWidth: 560 }}>
         {done ? (
-          <div style={{ textAlign: 'center', padding: '20px 0' }}>
-            <div style={{ fontSize: 40, marginBottom: 16 }}>📬</div>
-            <h2 style={{ fontFamily: "'Playfair Display',serif", fontSize: 22, marginBottom: 12 }}>Check Your Email</h2>
-            <p style={{ fontSize: 14, color: S.muted, lineHeight: 1.7, marginBottom: 20 }}>We've sent a confirmation link to <strong style={{ color: S.text }}>{form.email}</strong>. Once confirmed, your account will be reviewed and approved after payment.</p>
-            <p style={{ fontFamily: S.mono, fontSize: 11, color: S.dim, letterSpacing: 1, textTransform: 'uppercase' }}>Thanks for joining Deo Fortis. You'll be approved as soon as your payment is verified.</p>
+          <div className="card" style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: 48, marginBottom: 16 }}>📬</div>
+            <div style={{ fontFamily: "'Playfair Display',serif", fontStyle: 'italic', fontSize: 22, color: S.gold, marginBottom: 16 }}>Deo Fortis</div>
+            <h2 style={{ fontFamily: "'Playfair Display',serif", fontSize: 24, marginBottom: 12 }}>Almost There!</h2>
+            <p style={{ fontSize: 14, color: S.muted, lineHeight: 1.8, marginBottom: 24, fontWeight: 300 }}>
+              Your account has been created. Now complete your payment to get approved and gain full access.
+            </p>
+            <a href={selectedPlan?.link} target="_blank" className="btn btn-gold" style={{ display: 'block', textAlign: 'center', marginBottom: 12 }}>
+              Complete Payment — {selectedPlan?.price} →
+            </a>
+            <p style={{ fontFamily: S.mono, fontSize: 10, color: S.dim, letterSpacing: 1, textTransform: 'uppercase', marginTop: 16 }}>
+              You'll be approved as soon as your payment is verified
+            </p>
+            <button onClick={() => setPage('login')} style={{ background: 'none', border: 'none', color: S.muted, cursor: 'pointer', fontSize: 13, marginTop: 16 }}>
+              Already paid? Log in →
+            </button>
           </div>
         ) : (
           <>
-            <h2 style={{ fontFamily: "'Playfair Display',serif", fontSize: 24, marginBottom: 4 }}>Create Account</h2>
-            <p style={{ fontSize: 14, color: S.muted, marginBottom: 24, fontWeight: 300 }}>Sign up then complete payment to gain access.</p>
-            {error && <div style={{ background: '#2a1010', border: '1px solid #5a2020', borderRadius: 2, padding: '10px 14px', fontSize: 13, color: '#ff8888', marginBottom: 16 }}>{error}</div>}
-            <div style={{ marginBottom: 16 }}>
-              <label className="label">Full Name</label>
-              <input className="input" placeholder="Your full name" value={form.name} onChange={e => setForm({...form, name: e.target.value})} />
+            <div className="card" style={{ marginBottom: 20 }}>
+              <div style={{ fontFamily: "'Playfair Display',serif", fontStyle: 'italic', fontSize: 22, color: S.gold, marginBottom: 4 }}>Deo Fortis</div>
+              <hr style={{ border: 'none', borderTop: `1px solid ${S.border}`, margin: '16px 0' }} />
+              <h2 style={{ fontFamily: "'Playfair Display',serif", fontSize: 24, marginBottom: 4 }}>Create Account</h2>
+              <p style={{ fontSize: 14, color: S.muted, marginBottom: 24, fontWeight: 300 }}>Fill in your details and select a plan to get started.</p>
+              {error && <div style={{ background: '#2a1010', border: '1px solid #5a2020', borderRadius: 2, padding: '10px 14px', fontSize: 13, color: '#ff8888', marginBottom: 16 }}>{error}</div>}
+              <div style={{ marginBottom: 16 }}>
+                <label className="label">Full Name</label>
+                <input className="input" placeholder="Your full name" value={form.name} onChange={e => setForm({...form, name: e.target.value})} />
+              </div>
+              <div style={{ marginBottom: 16 }}>
+                <label className="label">Email</label>
+                <input className="input" type="email" placeholder="your@email.com" value={form.email} onChange={e => setForm({...form, email: e.target.value})} />
+              </div>
+              <div style={{ marginBottom: 8 }}>
+                <label className="label">Password</label>
+                <input className="input" type="password" placeholder="Min. 6 characters" value={form.password} onChange={e => setForm({...form, password: e.target.value})} />
+              </div>
             </div>
-            <div style={{ marginBottom: 16 }}>
-              <label className="label">Email</label>
-              <input className="input" type="email" placeholder="your@email.com" value={form.email} onChange={e => setForm({...form, email: e.target.value})} />
+
+            <div style={{ marginBottom: 20 }}>
+              <p style={{ fontFamily: S.mono, fontSize: 10, letterSpacing: 3, textTransform: 'uppercase', color: S.gold, marginBottom: 16 }}>Select Your Plan</p>
+              <div style={{ display: 'grid', gap: 12 }}>
+                {plans.map((plan, i) => (
+                  <div key={i} onClick={() => setSelectedPlan(plan)} style={{
+                    background: selectedPlan?.name === plan.name ? '#1a1a0f' : S.card,
+                    border: `1px solid ${selectedPlan?.name === plan.name ? plan.color : S.border}`,
+                    borderRadius: 4, padding: '20px 24px', cursor: 'pointer',
+                    transition: 'all 0.2s', position: 'relative',
+                    boxShadow: selectedPlan?.name === plan.name ? `0 0 20px ${plan.color}15` : 'none'
+                  }}>
+                    {plan.popular && (
+                      <span style={{ position: 'absolute', top: -1, right: 16, background: S.teal, color: '#0F0E0A', fontFamily: S.mono, fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', padding: '3px 10px', borderRadius: '0 0 4px 4px' }}>Best Value</span>
+                    )}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <div>
+                        <div style={{ fontFamily: S.mono, fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', color: S.dim, marginBottom: 4 }}>{plan.name}</div>
+                        <div style={{ fontFamily: "'Playfair Display',serif", fontSize: 28, color: plan.color, fontWeight: 700, lineHeight: 1 }}>
+                          {plan.price} <span style={{ fontSize: 13, color: S.dim, fontWeight: 300 }}>{plan.period}</span>
+                        </div>
+                      </div>
+                      <div style={{ width: 22, height: 22, borderRadius: '50%', border: `2px solid ${selectedPlan?.name === plan.name ? plan.color : S.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        {selectedPlan?.name === plan.name && <div style={{ width: 10, height: 10, borderRadius: '50%', background: plan.color }} />}
+                      </div>
+                    </div>
+                    <div style={{ fontFamily: S.mono, fontSize: 10, color: plan.color, letterSpacing: 1, marginTop: 6, opacity: 0.7 }}>{plan.duration} of full access</div>
+                  </div>
+                ))}
+              </div>
             </div>
-            <div style={{ marginBottom: 24 }}>
-              <label className="label">Password</label>
-              <input className="input" type="password" placeholder="Min. 6 characters" value={form.password} onChange={e => setForm({...form, password: e.target.value})} />
-            </div>
-            <button className="btn btn-gold" style={{ width: '100%', marginBottom: 16 }} onClick={handleSignup} disabled={loading}>
-              {loading ? 'Creating Account...' : 'Create Account'}
+
+            <button className="btn btn-gold" style={{ width: '100%', padding: 16 }} onClick={handleSignup} disabled={loading}>
+              {loading ? 'Creating Account...' : `Create Account ${selectedPlan ? '— ' + selectedPlan.price : ''}`}
             </button>
-            <p style={{ fontFamily: S.mono, fontSize: 10, color: S.dim, textAlign: 'center', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 16 }}>
-              After signing up, complete payment via Selar to get approved
-            </p>
-            <hr style={{ border: 'none', borderTop: `1px solid ${S.border}`, margin: '16px 0' }} />
+
             <p style={{ fontSize: 13, color: S.muted, textAlign: 'center', marginTop: 16 }}>
               Already have an account?{' '}
               <button onClick={() => setPage('login')} style={{ background: 'none', border: 'none', color: S.gold, cursor: 'pointer', fontSize: 13 }}>Log in</button>
+            </p>
+            <p style={{ textAlign: 'center', marginTop: 8 }}>
+              <button onClick={() => setPage('landing')} style={{ background: 'none', border: 'none', color: S.dim, cursor: 'pointer', fontSize: 12, fontFamily: S.mono, letterSpacing: 1 }}>← Back to home</button>
             </p>
           </>
         )}
@@ -361,6 +423,8 @@ function Signup({ setPage }) {
     </div>
   );
 }
+
+
 
 function Login({ setPage, fetchProfile }) {
   const [form, setForm] = useState({ email: '', password: '' });
