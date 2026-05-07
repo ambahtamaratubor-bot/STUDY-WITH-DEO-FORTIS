@@ -10,6 +10,9 @@ function App() {
   const [profile, setProfile] = useState(null);
 
   useEffect(() => {
+    // Check for admin in URL
+    if (window.location.hash === '#admin') setPage('admin');
+    
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) {
         setUser(session.user);
@@ -48,19 +51,10 @@ function App() {
   return <Landing setPage={setPage} />;
 }
 
-// ─── STYLES ───────────────────────────────────────────────
 const S = {
-  bg: '#0F0E0A',
-  gold: '#C8A96E',
-  teal: '#7EB8A4',
-  purple: '#A89BC8',
-  text: '#E8E0D0',
-  muted: '#8A7F6E',
-  dim: '#4A4035',
-  border: '#2A2519',
-  card: '#141309',
-  font: "'Georgia', serif",
-  mono: "'Courier New', monospace",
+  bg: '#0F0E0A', gold: '#C8A96E', teal: '#7EB8A4', purple: '#A89BC8',
+  text: '#E8E0D0', muted: '#8A7F6E', dim: '#4A4035', border: '#2A2519',
+  card: '#141309', font: "'Georgia', serif", mono: "'Courier New', monospace",
 };
 
 const css = `
@@ -101,7 +95,6 @@ const css = `
   .leaderboard-row:hover { background:#131209; }
 `;
 
-// ─── LANDING ──────────────────────────────────────────────
 function Landing({ setPage }) {
   const [scrolled, setScrolled] = useState(false);
   const [videoOpen, setVideoOpen] = useState(false);
@@ -177,7 +170,6 @@ function Landing({ setPage }) {
         </div>
       </nav>
 
-      {/* HERO */}
       <section style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '140px 48px 80px', maxWidth: 1100, margin: '0 auto', position: 'relative' }}>
         <div style={{ position: 'absolute', top: 100, right: 0, opacity: 0.1, display: 'flex', alignItems: 'flex-end', gap: 3, borderBottom: '4px solid #3A3020' }}>
           {[{h:160,w:22,c:'#8B4513'},{h:200,w:30,c:'#2F4F4F'},{h:140,w:18,c:'#8B0000'},{h:185,w:26,c:'#4B0082'},{h:220,w:34,c:'#556B2F'},{h:150,w:20,c:'#8B6914'},{h:175,w:28,c:'#1C3A5E'},{h:130,w:16,c:'#6B3A2A'},{h:195,w:24,c:'#2E4A1E'},{h:210,w:32,c:'#4A1942'}].map((b,i)=>(
@@ -189,13 +181,13 @@ function Landing({ setPage }) {
           <h1 style={{ fontFamily: "'Playfair Display',serif", fontSize: 'clamp(52px,9vw,110px)', fontWeight: 700, lineHeight: 0.95, letterSpacing: -1 }}>
             Study with<br /><em style={{ fontStyle: 'italic', color: S.gold }}>Deo Fortis!</em>
           </h1>
-          <hr className="ruled" style={{ maxWidth: 480 }} />
+          <hr style={{ border: 'none', borderTop: `1px solid ${S.border}`, margin: '28px 0', maxWidth: 480 }} />
           <p style={{ fontSize: 16, lineHeight: 1.8, color: S.muted, maxWidth: 520, fontWeight: 300 }}>
             A structured, evidence-based study system built for students who are done making excuses and ready to actually retain what they learn.
           </p>
           <div style={{ display: 'flex', gap: 16, marginTop: 32, flexWrap: 'wrap', alignItems: 'center' }}>
             <a href="#plans" className="btn btn-gold">View Plans →</a>
-            <button onClick={() => setVideoOpen(true)} style={{ display: 'inline-flex', alignItems: 'center', gap: 10, padding: '12px 24px', border: `1px solid ${S.border}`, borderRadius: 2, fontFamily: S.mono, fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', color: S.muted, cursor: 'pointer', background: 'transparent', transition: 'all 0.25s' }}>
+            <button onClick={() => setVideoOpen(true)} style={{ display: 'inline-flex', alignItems: 'center', gap: 10, padding: '12px 24px', border: `1px solid ${S.border}`, borderRadius: 2, fontFamily: S.mono, fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', color: S.muted, cursor: 'pointer', background: 'transparent' }}>
               <span style={{ width: 24, height: 24, borderRadius: '50%', border: `1px solid ${S.dim}`, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, color: S.gold }}>▶</span>
               Watch Demo (Optional)
             </button>
@@ -213,7 +205,6 @@ function Landing({ setPage }) {
 
       <div style={{ borderTop: `1px solid ${S.border}` }} />
 
-      {/* PLANS */}
       <section id="plans" style={{ padding: '80px 48px', maxWidth: 1100, margin: '0 auto' }}>
         <span className="chapter">Chapter I — Enrolment</span>
         <h2 style={{ fontFamily: "'Playfair Display',serif", fontSize: 'clamp(32px,5vw,56px)', fontWeight: 700, lineHeight: 1.05, marginBottom: 12 }}>
@@ -231,7 +222,7 @@ function Landing({ setPage }) {
                 <span style={{ fontSize: 14, color: S.dim, fontWeight: 300 }}>{plan.period}</span>
               </div>
               <div style={{ fontFamily: S.mono, fontSize: 11, color: plan.color, letterSpacing: 1, marginBottom: 24, opacity: 0.8 }}>{plan.duration} of full access</div>
-              <hr className="ruled" style={{ marginBottom: 20 }} />
+              <hr style={{ border: 'none', borderTop: `1px solid ${S.border}`, marginBottom: 20 }} />
               <div style={{ marginBottom: 28 }}>
                 {features.map((f, j) => (
                   <div key={j} className="check-item">
@@ -240,7 +231,7 @@ function Landing({ setPage }) {
                   </div>
                 ))}
               </div>
-              <a href={plan.link} className="btn btn-gold" style={{ background: plan.color, color: '#0F0E0A', width: '100%', textAlign: 'center', display: 'block' }}>
+              <a href={plan.link} className="btn" style={{ background: plan.color, color: '#0F0E0A', width: '100%', textAlign: 'center', display: 'block' }}>
                 Enrol — {plan.price}
               </a>
               <p style={{ fontFamily: S.mono, fontSize: 10, color: S.dim, textAlign: 'center', marginTop: 12, letterSpacing: 1, textTransform: 'uppercase' }}>
@@ -253,7 +244,6 @@ function Landing({ setPage }) {
 
       <div style={{ borderTop: `1px solid ${S.border}` }} />
 
-      {/* WHY JOIN */}
       <section id="why" style={{ padding: '80px 48px', maxWidth: 1100, margin: '0 auto' }}>
         <span className="chapter">Chapter II — The Method</span>
         <h2 style={{ fontFamily: "'Playfair Display',serif", fontSize: 'clamp(32px,5vw,56px)', fontWeight: 700, lineHeight: 1.05, marginBottom: 12 }}>
@@ -273,7 +263,6 @@ function Landing({ setPage }) {
 
       <div style={{ borderTop: `1px solid ${S.border}` }} />
 
-      {/* HOW IT WORKS */}
       <section style={{ padding: '80px 48px', maxWidth: 1100, margin: '0 auto' }}>
         <span className="chapter">Chapter III — The Process</span>
         <h2 style={{ fontFamily: "'Playfair Display',serif", fontSize: 'clamp(32px,5vw,56px)', fontWeight: 700, marginBottom: 40 }}>
@@ -299,12 +288,13 @@ function Landing({ setPage }) {
         <div style={{ fontFamily: "'Playfair Display',serif", fontStyle: 'italic', fontSize: 28, color: S.gold, marginBottom: 10 }}>Deo Fortis</div>
         <div style={{ color: S.gold, opacity: 0.4, letterSpacing: 8, marginBottom: 12 }}>✦ ✦ ✦</div>
         <p style={{ fontSize: 14, color: S.dim, fontWeight: 300 }}>Premium study. Real results. No shortcuts.</p>
+        {/* Hidden admin link - only you know this is here */}
+        <button onClick={() => setPage('admin')} style={{ background: 'none', border: 'none', color: '#0F0E0A', cursor: 'pointer', fontSize: 10, marginTop: 24, padding: 8 }}>⚙</button>
       </footer>
     </div>
   );
 }
 
-// ─── SIGNUP ───────────────────────────────────────────────
 function Signup({ setPage }) {
   const [form, setForm] = useState({ name: '', email: '', password: '' });
   const [loading, setLoading] = useState(false);
@@ -326,7 +316,7 @@ function Signup({ setPage }) {
       <style>{css}</style>
       <div className="card fade" style={{ width: '100%', maxWidth: 440 }}>
         <div style={{ fontFamily: "'Playfair Display',serif", fontStyle: 'italic', fontSize: 22, color: S.gold, marginBottom: 4 }}>Deo Fortis</div>
-        <hr className="ruled" />
+        <hr style={{ border: 'none', borderTop: `1px solid ${S.border}`, margin: '16px 0' }} />
         {done ? (
           <div style={{ textAlign: 'center', padding: '20px 0' }}>
             <div style={{ fontSize: 40, marginBottom: 16 }}>📬</div>
@@ -357,7 +347,7 @@ function Signup({ setPage }) {
             <p style={{ fontFamily: S.mono, fontSize: 10, color: S.dim, textAlign: 'center', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 16 }}>
               After signing up, complete payment via Selar to get approved
             </p>
-            <hr className="ruled" />
+            <hr style={{ border: 'none', borderTop: `1px solid ${S.border}`, margin: '16px 0' }} />
             <p style={{ fontSize: 13, color: S.muted, textAlign: 'center', marginTop: 16 }}>
               Already have an account?{' '}
               <button onClick={() => setPage('login')} style={{ background: 'none', border: 'none', color: S.gold, cursor: 'pointer', fontSize: 13 }}>Log in</button>
@@ -369,7 +359,6 @@ function Signup({ setPage }) {
   );
 }
 
-// ─── LOGIN ────────────────────────────────────────────────
 function Login({ setPage, fetchProfile }) {
   const [form, setForm] = useState({ email: '', password: '' });
   const [loading, setLoading] = useState(false);
@@ -389,7 +378,7 @@ function Login({ setPage, fetchProfile }) {
       <style>{css}</style>
       <div className="card fade" style={{ width: '100%', maxWidth: 400 }}>
         <div style={{ fontFamily: "'Playfair Display',serif", fontStyle: 'italic', fontSize: 22, color: S.gold, marginBottom: 4 }}>Deo Fortis</div>
-        <hr className="ruled" />
+        <hr style={{ border: 'none', borderTop: `1px solid ${S.border}`, margin: '16px 0' }} />
         <h2 style={{ fontFamily: "'Playfair Display',serif", fontSize: 24, marginBottom: 4 }}>Welcome Back</h2>
         <p style={{ fontSize: 14, color: S.muted, marginBottom: 24, fontWeight: 300 }}>Log in to continue your studies.</p>
         {error && <div style={{ background: '#2a1010', border: '1px solid #5a2020', borderRadius: 2, padding: '10px 14px', fontSize: 13, color: '#ff8888', marginBottom: 16 }}>{error}</div>}
@@ -404,7 +393,7 @@ function Login({ setPage, fetchProfile }) {
         <button className="btn btn-gold" style={{ width: '100%', marginBottom: 16 }} onClick={handleLogin} disabled={loading}>
           {loading ? 'Logging in...' : 'Log In'}
         </button>
-        <hr className="ruled" />
+        <hr style={{ border: 'none', borderTop: `1px solid ${S.border}`, margin: '16px 0' }} />
         <p style={{ fontSize: 13, color: S.muted, textAlign: 'center', marginTop: 16 }}>
           Don't have an account?{' '}
           <button onClick={() => setPage('signup')} style={{ background: 'none', border: 'none', color: S.gold, cursor: 'pointer', fontSize: 13 }}>Sign up</button>
@@ -417,7 +406,6 @@ function Login({ setPage, fetchProfile }) {
   );
 }
 
-// ─── PENDING ──────────────────────────────────────────────
 function Pending() {
   async function handleLogout() { await supabase.auth.signOut(); }
   return (
@@ -430,16 +418,13 @@ function Pending() {
         <p style={{ fontSize: 15, color: S.muted, lineHeight: 1.7, marginBottom: 24, fontWeight: 300 }}>
           Thanks for joining Deo Fortis! Your account is currently pending approval. You'll be approved as soon as your payment is verified.
         </p>
-        <div className="quote" style={{ marginBottom: 24, textAlign: 'left' }}>
-          "Great students are patient students."
-        </div>
+        <div className="quote" style={{ marginBottom: 24, textAlign: 'left' }}>"Great students are patient students."</div>
         <button className="btn btn-outline" onClick={handleLogout}>Log Out</button>
       </div>
     </div>
   );
 }
 
-// ─── DASHBOARD ────────────────────────────────────────────
 function Dashboard({ user, profile, setPage }) {
   const [sessions, setSessions] = useState([]);
   const [clockedIn, setClockedIn] = useState(false);
@@ -449,10 +434,10 @@ function Dashboard({ user, profile, setPage }) {
   useEffect(() => {
     fetchSessions();
     const interval = setInterval(() => {
-      if (clockedIn && currentSession) setElapsed(e => e + 1);
+      if (clockedIn) setElapsed(e => e + 1);
     }, 1000);
     return () => clearInterval(interval);
-  }, [clockedIn, currentSession]);
+  }, [clockedIn]);
 
   async function fetchSessions() {
     const { data } = await supabase.from('study_sessions').select('*').eq('user_id', user.id).order('started_at', { ascending: false }).limit(5);
@@ -478,7 +463,7 @@ function Dashboard({ user, profile, setPage }) {
   const fmt = s => String(Math.floor(s/3600)).padStart(2,'0')+':'+String(Math.floor((s%3600)/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0');
 
   return (
-    <div style={{ background: S.bg, minHeight: '100vh', padding: '0' }}>
+    <div style={{ background: S.bg, minHeight: '100vh' }}>
       <style>{css}</style>
       <div className="page-lines" />
       <nav style={{ background: 'rgba(15,14,10,0.97)', borderBottom: `1px solid ${S.border}`, padding: '16px 48px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, zIndex: 100 }}>
@@ -495,9 +480,10 @@ function Dashboard({ user, profile, setPage }) {
           <h1 style={{ fontFamily: "'Playfair Display',serif", fontSize: 40, fontWeight: 700, marginBottom: 4 }}>
             {profile?.full_name || 'Scholar'} <em style={{ fontStyle: 'italic', color: S.gold, fontSize: 32 }}>📖</em>
           </h1>
-          <p style={{ fontSize: 14, color: S.muted, marginBottom: 40, fontWeight: 300 }}>Plan: <span style={{ color: S.gold, textTransform: 'capitalize' }}>{profile?.plan || 'Active'}</span> · Access expires: <span style={{ color: S.text }}>{profile?.access_expires_at ? new Date(profile.access_expires_at).toLocaleDateString() : 'Active'}</span></p>
+          <p style={{ fontSize: 14, color: S.muted, marginBottom: 40, fontWeight: 300 }}>
+            Plan: <span style={{ color: S.gold, textTransform: 'capitalize' }}>{profile?.plan || 'Active'}</span> · Access expires: <span style={{ color: S.text }}>{profile?.access_expires_at ? new Date(profile.access_expires_at).toLocaleDateString() : 'Active'}</span>
+          </p>
         </div>
-
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(200px,1fr))', gap: 16, marginBottom: 40 }}>
           {[
             { label: 'Total Study Time', value: `${totalHours}h ${totalMins}m`, color: S.gold },
@@ -510,7 +496,6 @@ function Dashboard({ user, profile, setPage }) {
             </div>
           ))}
         </div>
-
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
           <div className="card">
             <h3 style={{ fontFamily: "'Playfair Display',serif", fontSize: 20, marginBottom: 20 }}>Clock In / Out</h3>
@@ -526,7 +511,6 @@ function Dashboard({ user, profile, setPage }) {
               </>
             )}
           </div>
-
           <div className="card">
             <h3 style={{ fontFamily: "'Playfair Display',serif", fontSize: 20, marginBottom: 20 }}>Recent Sessions</h3>
             {sessions.length === 0 ? (
@@ -539,7 +523,6 @@ function Dashboard({ user, profile, setPage }) {
             ))}
           </div>
         </div>
-
         <div style={{ marginTop: 24 }}>
           <button className="btn btn-gold" style={{ width: '100%', padding: 18, fontSize: 13 }} onClick={() => setPage('study')}>
             Start a Study Session →
@@ -550,7 +533,6 @@ function Dashboard({ user, profile, setPage }) {
   );
 }
 
-// ─── STUDY ────────────────────────────────────────────────
 function Study({ profile, setPage }) {
   const [step, setStep] = useState('setup');
   const [config, setConfig] = useState({ topic: '', usePomodoro: null, sessions: '30x5', useRecall: null, recallType: 'anki', recallTiming: 'after' });
@@ -586,15 +568,15 @@ function Study({ profile, setPage }) {
       }, 1000);
     }
     return () => clearInterval(interval);
-  }, [running, isBreak, maxTime]);
+  }, [running, isBreak, maxTime, questions]);
 
   async function loadQuestions() {
     const { data } = await supabase.from('recall_questions').select('*').eq('topic', config.topic).eq('type', config.recallType).limit(10);
     if (data && data.length > 0) setQuestions(data);
     else {
       setQuestions([
-        { id: 1, question: `What is the most important concept in ${config.topic}?`, answer: 'Review your notes on this topic.', type: config.recallType },
-        { id: 2, question: `Explain the key mechanism of ${config.topic} in your own words.`, answer: 'Think through the core principles.', type: config.recallType },
+        { id: 1, question: `What is the most important concept in ${config.topic}?`, answer: 'Review your notes on this topic carefully.', type: config.recallType },
+        { id: 2, question: `Explain the key mechanism of ${config.topic} in your own words.`, answer: 'Think through the core principles step by step.', type: config.recallType },
       ]);
     }
   }
@@ -610,7 +592,7 @@ function Study({ profile, setPage }) {
     setAnswered(a => [...a, correct]);
     if (correct) setScore(s => s + 1);
     if (currentQ < questions.length - 1) { setCurrentQ(q => q + 1); setShowAnswer(false); }
-    else setStep('results');
+    else { setShowRecall(false); setStep('results'); }
   }
 
   const fmt = s => String(Math.floor(s/60)).padStart(2,'0') + ':' + String(s%60).padStart(2,'0');
@@ -624,12 +606,10 @@ function Study({ profile, setPage }) {
         <button onClick={() => setPage('dashboard')} style={{ background: 'none', border: 'none', color: S.dim, cursor: 'pointer', fontSize: 12, fontFamily: S.mono, letterSpacing: 1, marginBottom: 16 }}>← Back</button>
         <span className="chapter">Study Setup</span>
         <h2 style={{ fontFamily: "'Playfair Display',serif", fontSize: 26, marginBottom: 24 }}>Configure Your Session</h2>
-
         <div style={{ marginBottom: 20 }}>
           <label className="label">What topic are you studying?</label>
           <input className="input" placeholder="e.g. Bacteriology, Cardiology, Biochemistry" value={config.topic} onChange={e => setConfig({...config, topic: e.target.value})} />
         </div>
-
         <div style={{ marginBottom: 20 }}>
           <label className="label">Use Pomodoro Technique?</label>
           <div style={{ display: 'flex', gap: 12 }}>
@@ -640,7 +620,6 @@ function Study({ profile, setPage }) {
             ))}
           </div>
         </div>
-
         {config.usePomodoro === 'yes' && (
           <div style={{ marginBottom: 20 }}>
             <label className="label">Session Structure</label>
@@ -653,7 +632,6 @@ function Study({ profile, setPage }) {
             </div>
           </div>
         )}
-
         <div style={{ marginBottom: 20 }}>
           <label className="label">Use Active Recall?</label>
           <div style={{ display: 'flex', gap: 12 }}>
@@ -664,7 +642,6 @@ function Study({ profile, setPage }) {
             ))}
           </div>
         </div>
-
         {config.useRecall === 'yes' && (
           <>
             <div style={{ marginBottom: 20 }}>
@@ -689,7 +666,6 @@ function Study({ profile, setPage }) {
             </div>
           </>
         )}
-
         <button className="btn btn-gold" style={{ width: '100%' }} onClick={startStudy} disabled={!config.topic || !config.usePomodoro || !config.useRecall}>
           Start Session →
         </button>
@@ -700,7 +676,6 @@ function Study({ profile, setPage }) {
   if (step === 'studying') return (
     <div style={{ background: S.bg, minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, flexDirection: 'column' }}>
       <style>{css}</style>
-
       {showRecall && questions.length > 0 && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.9)', zIndex: 999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
           <div className="card" style={{ maxWidth: 500, width: '100%' }}>
@@ -715,19 +690,17 @@ function Study({ profile, setPage }) {
                   <p style={{ fontSize: 14, color: S.teal, lineHeight: 1.7 }}>{questions[currentQ]?.answer}</p>
                 </div>
                 <div style={{ display: 'flex', gap: 12 }}>
-                  <button className="btn" style={{ flex: 1, background: '#1a3a1a', color: '#7EB8A4', border: '1px solid #2a5a2a' }} onClick={() => { handleAnswer(true); setShowRecall(false); }}>✓ Got it</button>
-                  <button className="btn" style={{ flex: 1, background: '#3a1a1a', color: '#ff8888', border: '1px solid #5a2a2a' }} onClick={() => { handleAnswer(false); setShowRecall(false); }}>✗ Missed it</button>
+                  <button className="btn" style={{ flex: 1, background: '#1a3a1a', color: '#7EB8A4', border: '1px solid #2a5a2a' }} onClick={() => { handleAnswer(true); setShowAnswer(false); }}>✓ Got it</button>
+                  <button className="btn" style={{ flex: 1, background: '#3a1a1a', color: '#ff8888', border: '1px solid #5a2a2a' }} onClick={() => { handleAnswer(false); setShowAnswer(false); }}>✗ Missed it</button>
                 </div>
               </>
             )}
           </div>
         </div>
       )}
-
       <div className="card fade" style={{ textAlign: 'center', maxWidth: 400, width: '100%' }}>
         <span className="chapter">{isBreak ? '☕ Break Time' : `Session ${pomSession} of ${totalSessions}`}</span>
         <h2 style={{ fontFamily: "'Playfair Display',serif", fontSize: 20, marginBottom: 8, color: isBreak ? S.teal : S.text }}>{config.topic}</h2>
-
         <div style={{ position: 'relative', width: 200, height: 200, margin: '24px auto' }}>
           <svg width="200" height="200" style={{ transform: 'rotate(-90deg)' }}>
             <circle cx="100" cy="100" r={r} fill="none" stroke={S.border} strokeWidth="6" />
@@ -739,12 +712,10 @@ function Study({ profile, setPage }) {
             <div style={{ fontFamily: S.mono, fontSize: 10, color: S.dim, letterSpacing: 2, marginTop: 4 }}>{isBreak ? 'BREAK' : 'FOCUS'}</div>
           </div>
         </div>
-
         <div style={{ display: 'flex', gap: 12, justifyContent: 'center', marginBottom: 16 }}>
           <button className="btn btn-gold" onClick={() => setRunning(r => !r)}>{running ? 'Pause' : 'Resume'}</button>
           <button className="btn btn-outline" onClick={() => setPage('dashboard')}>End Session</button>
         </div>
-
         {config.useRecall === 'yes' && (
           <button className="btn btn-outline" style={{ width: '100%', fontSize: 11 }} onClick={() => setShowRecall(true)}>
             📝 Request Recall Now
@@ -760,9 +731,7 @@ function Study({ profile, setPage }) {
       <div className="card fade" style={{ maxWidth: 440, width: '100%', textAlign: 'center' }}>
         <span className="chapter">Session Complete</span>
         <div style={{ fontSize: 56, margin: '16px 0' }}>{score / questions.length >= 0.7 ? '🎉' : '📚'}</div>
-        <h2 style={{ fontFamily: "'Playfair Display',serif", fontSize: 28, marginBottom: 8 }}>
-          {score} / {questions.length}
-        </h2>
+        <h2 style={{ fontFamily: "'Playfair Display',serif", fontSize: 28, marginBottom: 8 }}>{score} / {questions.length}</h2>
         <p style={{ fontFamily: S.mono, fontSize: 11, color: S.dim, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 16 }}>
           {Math.round(score/questions.length*100)}% Score
         </p>
@@ -770,7 +739,7 @@ function Study({ profile, setPage }) {
           {score/questions.length >= 0.8 ? '"Excellent recall. Keep this up."' : score/questions.length >= 0.5 ? '"Good effort. Review what you missed."' : '"Study more. Come back stronger."'}
         </div>
         <div style={{ display: 'flex', gap: 12 }}>
-          <button className="btn btn-gold" style={{ flex: 1 }} onClick={() => setPage('study')}>Study Again</button>
+          <button className="btn btn-gold" style={{ flex: 1 }} onClick={() => { setStep('setup'); setScore(0); setCurrentQ(0); setAnswered([]); }}>Study Again</button>
           <button className="btn btn-outline" style={{ flex: 1 }} onClick={() => setPage('dashboard')}>Dashboard</button>
         </div>
       </div>
@@ -778,7 +747,6 @@ function Study({ profile, setPage }) {
   );
 }
 
-// ─── LEADERBOARD ──────────────────────────────────────────
 function Leaderboard({ setPage }) {
   const [rows, setRows] = useState([]);
 
@@ -820,7 +788,6 @@ function Leaderboard({ setPage }) {
   );
 }
 
-// ─── ADMIN ────────────────────────────────────────────────
 function Admin({ setPage }) {
   const [password, setPassword] = useState('');
   const [authed, setAuthed] = useState(false);
@@ -829,6 +796,7 @@ function Admin({ setPage }) {
   const [questions, setQuestions] = useState([]);
   const [newQ, setNewQ] = useState({ topic: '', type: 'anki', question: '', answer: '' });
   const [saved, setSaved] = useState(false);
+  const [tab, setTab] = useState('settings');
   const ADMIN_PASS = 'deofortis2024';
 
   useEffect(() => { if (authed) { loadSettings(); loadUsers(); loadQuestions(); } }, [authed]);
@@ -868,12 +836,18 @@ function Admin({ setPage }) {
   if (!authed) return (
     <div style={{ background: S.bg, minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
       <style>{css}</style>
-      <div className="card" style={{ maxWidth: 360, width: '100%' }}>
-        <div style={{ fontFamily: "'Playfair Display',serif", fontStyle: 'italic', fontSize: 22, color: S.gold, marginBottom: 16 }}>Admin Access</div>
-        <label className="label">Admin Password</label>
-        <input className="input" type="password" placeholder="Enter password" value={password} onChange={e => setPassword(e.target.value)} style={{ marginBottom: 16 }} />
-        <button className="btn btn-gold" style={{ width: '100%' }} onClick={() => { if (password === ADMIN_PASS) setAuthed(true); }}>Enter</button>
-        <p style={{ fontSize: 12, color: S.dim, textAlign: 'center', marginTop: 12 }}>
+      <div className="card fade" style={{ maxWidth: 360, width: '100%' }}>
+        <div style={{ fontFamily: "'Playfair Display',serif", fontStyle: 'italic', fontSize: 22, color: S.gold, marginBottom: 4 }}>Deo Fortis</div>
+        <hr style={{ border: 'none', borderTop: `1px solid ${S.border}`, margin: '16px 0' }} />
+        <h2 style={{ fontFamily: "'Playfair Display',serif", fontSize: 22, marginBottom: 16 }}>Admin Access</h2>
+        <label className="label">Password</label>
+        <input className="input" type="password" placeholder="Enter admin password" value={password} onChange={e => setPassword(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && password === ADMIN_PASS && setAuthed(true)}
+          style={{ marginBottom: 16 }} />
+        <button className="btn btn-gold" style={{ width: '100%', marginBottom: 16 }} onClick={() => { if (password === ADMIN_PASS) setAuthed(true); }}>
+          Enter
+        </button>
+        <p style={{ fontSize: 12, color: S.dim, textAlign: 'center' }}>
           <button onClick={() => setPage('landing')} style={{ background: 'none', border: 'none', color: S.dim, cursor: 'pointer', fontSize: 12 }}>← Back to site</button>
         </p>
       </div>
@@ -888,87 +862,109 @@ function Admin({ setPage }) {
         <button className="btn btn-outline" style={{ padding: '8px 16px' }} onClick={() => setPage('landing')}>← Back to Site</button>
       </nav>
 
+      {/* Tabs */}
+      <div style={{ borderBottom: `1px solid ${S.border}`, padding: '0 48px', display: 'flex', gap: 0 }}>
+        {[['settings','⚙ Settings'],['users','👥 Users'],['questions','📝 Questions']].map(([id,label]) => (
+          <button key={id} onClick={() => setTab(id)} style={{ background: 'none', border: 'none', borderBottom: tab === id ? `2px solid ${S.gold}` : '2px solid transparent', color: tab === id ? S.gold : S.muted, fontFamily: S.mono, fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', padding: '16px 24px', cursor: 'pointer', transition: 'all 0.2s' }}>
+            {label}
+          </button>
+        ))}
+      </div>
+
       <div style={{ maxWidth: 900, margin: '0 auto', padding: '48px 24px' }}>
 
-        {/* Settings */}
-        <div className="card fade" style={{ marginBottom: 32 }}>
-          <h2 style={{ fontFamily: "'Playfair Display',serif", fontSize: 22, marginBottom: 20 }}>Site Settings</h2>
-          <div style={{ marginBottom: 16 }}>
-            <label className="label">Demo Video URL (YouTube embed or direct link)</label>
-            <input className="input" placeholder="https://www.youtube.com/embed/..." value={settings.video_url} onChange={e => setSettings({...settings, video_url: e.target.value})} />
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16, marginBottom: 20 }}>
-            {[['link_monthly','Monthly ($10) Selar Link'],['link_sixmonth','6 Month ($39) Selar Link'],['link_yearly','1 Year ($59) Selar Link']].map(([key,label]) => (
-              <div key={key}>
-                <label className="label">{label}</label>
-                <input className="input" placeholder="https://selar.co/..." value={settings[key]} onChange={e => setSettings({...settings, [key]: e.target.value})} />
-              </div>
-            ))}
-          </div>
-          <button className="btn btn-gold" onClick={saveSettings}>{saved ? '✓ Saved!' : 'Save Settings'}</button>
-        </div>
-
-        {/* Pending Users */}
-        <div className="card fade" style={{ marginBottom: 32 }}>
-          <h2 style={{ fontFamily: "'Playfair Display',serif", fontSize: 22, marginBottom: 20 }}>Users</h2>
-          {users.length === 0 ? (
-            <p style={{ fontSize: 14, color: S.dim }}>No users yet.</p>
-          ) : users.map((u, i) => (
-            <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 0', borderBottom: `1px solid ${S.border}` }}>
-              <div>
-                <div style={{ fontSize: 14, color: S.text }}>{u.full_name}</div>
-                <div style={{ fontSize: 12, color: S.muted }}>{u.email}</div>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <span style={{ fontFamily: S.mono, fontSize: 10, letterSpacing: 1, textTransform: 'uppercase', color: u.status === 'approved' ? S.teal : S.gold }}>{u.status}</span>
-                {u.status === 'pending' && (
-                  <button className="btn" style={{ background: S.teal, color: '#0F0E0A', padding: '6px 14px', fontSize: 11 }} onClick={() => approveUser(u.id)}>Approve</button>
-                )}
-              </div>
+        {tab === 'settings' && (
+          <div className="card fade">
+            <h2 style={{ fontFamily: "'Playfair Display',serif", fontSize: 22, marginBottom: 24 }}>Site Settings</h2>
+            <div style={{ marginBottom: 20 }}>
+              <label className="label">Demo Video URL</label>
+              <input className="input" placeholder="Paste YouTube embed URL e.g. https://www.youtube.com/embed/..." value={settings.video_url} onChange={e => setSettings({...settings, video_url: e.target.value})} />
+              <p style={{ fontFamily: S.mono, fontSize: 10, color: S.dim, marginTop: 6, letterSpacing: 1 }}>For YouTube: go to the video → Share → Embed → copy the src URL</p>
             </div>
-          ))}
-        </div>
-
-        {/* Add Questions */}
-        <div className="card fade">
-          <h2 style={{ fontFamily: "'Playfair Display',serif", fontSize: 22, marginBottom: 20 }}>Add Recall Questions</h2>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
-            <div>
-              <label className="label">Topic</label>
-              <input className="input" placeholder="e.g. Bacteriology" value={newQ.topic} onChange={e => setNewQ({...newQ, topic: e.target.value})} />
-            </div>
-            <div>
-              <label className="label">Type</label>
-              <select className="input" value={newQ.type} onChange={e => setNewQ({...newQ, type: e.target.value})} style={{ cursor: 'pointer' }}>
-                <option value="anki">Anki</option>
-                <option value="theory">Theory</option>
-                <option value="vignette">Vignette</option>
-              </select>
-            </div>
-          </div>
-          <div style={{ marginBottom: 16 }}>
-            <label className="label">Question</label>
-            <textarea className="input" placeholder="Enter the question..." value={newQ.question} onChange={e => setNewQ({...newQ, question: e.target.value})} style={{ minHeight: 80, resize: 'vertical' }} />
-          </div>
-          <div style={{ marginBottom: 20 }}>
-            <label className="label">Answer</label>
-            <textarea className="input" placeholder="Enter the answer..." value={newQ.answer} onChange={e => setNewQ({...newQ, answer: e.target.value})} style={{ minHeight: 80, resize: 'vertical' }} />
-          </div>
-          <button className="btn btn-gold" onClick={addQuestion} disabled={!newQ.topic || !newQ.question || !newQ.answer}>Add Question</button>
-
-          {questions.length > 0 && (
-            <div style={{ marginTop: 24 }}>
-              <hr className="ruled" />
-              <p style={{ fontFamily: S.mono, fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', color: S.dim, margin: '16px 0' }}>Recent Questions</p>
-              {questions.slice(0,5).map((q, i) => (
-                <div key={i} style={{ padding: '10px 0', borderBottom: `1px solid ${S.border}` }}>
-                  <div style={{ fontSize: 13, color: S.text, marginBottom: 4 }}>{q.question}</div>
-                  <div style={{ fontFamily: S.mono, fontSize: 10, color: S.dim, letterSpacing: 1 }}>{q.topic} · {q.type}</div>
+            <hr style={{ border: 'none', borderTop: `1px solid ${S.border}`, margin: '24px 0' }} />
+            <h3 style={{ fontFamily: "'Playfair Display',serif", fontSize: 18, marginBottom: 16 }}>Selar Payment Links</h3>
+            <div style={{ display: 'grid', gap: 16, marginBottom: 24 }}>
+              {[['link_monthly','Monthly Plan ($10)'],['link_sixmonth','6 Month Plan ($39)'],['link_yearly','1 Year Plan ($59)']].map(([key,label]) => (
+                <div key={key}>
+                  <label className="label">{label}</label>
+                  <input className="input" placeholder="https://selar.co/..." value={settings[key] || ''} onChange={e => setSettings({...settings, [key]: e.target.value})} />
                 </div>
               ))}
             </div>
-          )}
-        </div>
+            <button className="btn btn-gold" onClick={saveSettings} style={{ minWidth: 160 }}>
+              {saved ? '✓ Saved!' : 'Save Settings'}
+            </button>
+          </div>
+        )}
+
+        {tab === 'users' && (
+          <div className="card fade">
+            <h2 style={{ fontFamily: "'Playfair Display',serif", fontSize: 22, marginBottom: 8 }}>Users</h2>
+            <p style={{ fontSize: 14, color: S.muted, marginBottom: 24, fontWeight: 300 }}>{users.filter(u => u.status === 'pending').length} pending approval</p>
+            {users.length === 0 ? (
+              <p style={{ fontSize: 14, color: S.dim }}>No users yet.</p>
+            ) : users.map((u, i) => (
+              <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 0', borderBottom: `1px solid ${S.border}` }}>
+                <div>
+                  <div style={{ fontSize: 15, color: S.text, marginBottom: 2 }}>{u.full_name}</div>
+                  <div style={{ fontSize: 12, color: S.muted }}>{u.email} · Joined {new Date(u.created_at).toLocaleDateString()}</div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <span style={{ fontFamily: S.mono, fontSize: 10, letterSpacing: 1, textTransform: 'uppercase', color: u.status === 'approved' ? S.teal : S.gold }}>{u.status}</span>
+                  {u.status === 'pending' && (
+                    <button className="btn" style={{ background: S.teal, color: '#0F0E0A', padding: '6px 16px', fontSize: 11 }} onClick={() => approveUser(u.id)}>Approve</button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {tab === 'questions' && (
+          <div className="fade">
+            <div className="card" style={{ marginBottom: 24 }}>
+              <h2 style={{ fontFamily: "'Playfair Display',serif", fontSize: 22, marginBottom: 20 }}>Add Recall Question</h2>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
+                <div>
+                  <label className="label">Topic</label>
+                  <input className="input" placeholder="e.g. Bacteriology" value={newQ.topic} onChange={e => setNewQ({...newQ, topic: e.target.value})} />
+                </div>
+                <div>
+                  <label className="label">Type</label>
+                  <select className="input" value={newQ.type} onChange={e => setNewQ({...newQ, type: e.target.value})} style={{ cursor: 'pointer' }}>
+                    <option value="anki">Anki</option>
+                    <option value="theory">Theory</option>
+                    <option value="vignette">Vignette</option>
+                  </select>
+                </div>
+              </div>
+              <div style={{ marginBottom: 16 }}>
+                <label className="label">Question</label>
+                <textarea className="input" placeholder="Enter the question..." value={newQ.question} onChange={e => setNewQ({...newQ, question: e.target.value})} style={{ minHeight: 80, resize: 'vertical' }} />
+              </div>
+              <div style={{ marginBottom: 20 }}>
+                <label className="label">Answer</label>
+                <textarea className="input" placeholder="Enter the answer..." value={newQ.answer} onChange={e => setNewQ({...newQ, answer: e.target.value})} style={{ minHeight: 80, resize: 'vertical' }} />
+              </div>
+              <button className="btn btn-gold" onClick={addQuestion} disabled={!newQ.topic || !newQ.question || !newQ.answer}>
+                Add Question
+              </button>
+            </div>
+
+            {questions.length > 0 && (
+              <div className="card">
+                <h3 style={{ fontFamily: "'Playfair Display',serif", fontSize: 18, marginBottom: 16 }}>Recent Questions ({questions.length})</h3>
+                {questions.map((q, i) => (
+                  <div key={i} style={{ padding: '12px 0', borderBottom: `1px solid ${S.border}` }}>
+                    <div style={{ fontSize: 14, color: S.text, marginBottom: 4 }}>{q.question}</div>
+                    <div style={{ fontSize: 13, color: S.teal, marginBottom: 4 }}>{q.answer}</div>
+                    <div style={{ fontFamily: S.mono, fontSize: 10, color: S.dim, letterSpacing: 1 }}>{q.topic} · {q.type}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
