@@ -11,7 +11,9 @@ function App() {
 
   useEffect(() => {
     // Check for admin in URL
-    if (window.location.hash === '#admin') setPage('admin');
+   const params = new URLSearchParams(window.location.search);
+if (params.get('page') === 'admin') setPage('admin');
+
     
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) {
