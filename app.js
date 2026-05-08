@@ -200,29 +200,63 @@ function showEnrollModal(plan, selarLink){
   const ov=div({cls:'modal-bg'});
   ov.onclick=e=>{if(e.target===ov)ov.remove();};
   const box=div({cls:'card',style:{maxWidth:'480px',width:'100%',maxHeight:'90vh',overflowY:'auto'}});
-  const errEl=div({cls:'err hidden'});
-  const nameI=inp('Your full name');
-  const emailI=inp('your@email.com','email');
-  const passI=inp('Min. 6 characters','password');
+  
   const badge=div({style:{background:plan.color,color:'#0F0E0A',borderRadius:'4px',padding:'12px 16px',marginBottom:'20px',display:'flex',justifyContent:'space-between',alignItems:'center'}});
   badge.append(div({},[div({style:{fontFamily:"'DM Mono',monospace",fontSize:'9px',letterSpacing:'2px',textTransform:'uppercase',marginBottom:'4px'},html:'Selected Plan'}),div({style:{fontFamily:"'Playfair Display',serif",fontSize:'20px',fontWeight:'700'},html:plan.name+' — '+plan.price})]),div({style:{fontFamily:"'DM Mono',monospace",fontSize:'10px',letterSpacing:'1px'},html:plan.dur+' access'}));
-  const submitBtn=btn('Create Account & Pay','btn-gold',async()=>{
-    errEl.classList.add('hidden');
-    if(!nameI.value||!emailI.value||!passI.value){errEl.classList.remove('hidden');errEl.textContent='Please fill in all fields.';return;}
-    if(passI.value.length<6){errEl.classList.remove('hidden');errEl.textContent='Password must be at least 6 characters.';return;}
+
+  const errEl=div({cls:'err hidden',id:'enroll-err'});
+
+  // Use regular HTML inputs with IDs so we can reliably read values
+  const nameField=div({style:{marginBottom:'16px'}});
+  nameField.append(h('label',{cls:'label',html:'Full Name'}));
+  const nameInput=document.createElement('input');
+  nameInput.className='input';nameInput.placeholder='Your full name';nameInput.id='enroll-name';nameInput.type='text';
+  nameField.append(nameInput);
+
+  const emailField=div({style:{marginBottom:'16px'}});
+  emailField.append(h('label',{cls:'label',html:'Email'}));
+  const emailInput=document.createElement('input');
+  emailInput.className='input';emailInput.placeholder='your@email.com';emailInput.id='enroll-email';emailInput.type='email';
+  emailField.append(emailInput);
+
+  const passField=div({style:{marginBottom:'16px'}});
+  passField.append(h('label',{cls:'label',html:'Password'}));
+  const passInput=document.createElement('input');
+  passInput.className='input';passInput.placeholder='Min. 6 characters';passInput.id='enroll-pass';passInput.type='password';
+  passField.append(passInput);
+
+  const submitBtn=h('button',{cls:'btn btn-gold',style:{width:'100%',padding:'16px',marginTop:'8px'},html:'Create Account & Pay'});
+  submitBtn.onclick=async()=>{
+    const nameVal=document.getElementById('enroll-name').value.trim();
+    const emailVal=document.getElementById('enroll-email').value.trim();
+    const passVal=document.getElementById('enroll-pass').value;
+    const err=document.getElementById('enroll-err');
+    err.classList.add('hidden');
+    if(!nameVal||!emailVal||!passVal){err.classList.remove('hidden');err.textContent='Please fill in all fields.';return;}
+    if(passVal.length<6){err.classList.remove('hidden');err.textContent='Password must be at least 6 characters.';return;}
     submitBtn.textContent='Creating Account...';submitBtn.disabled=true;
-    const{data,error}=await sb.auth.signUp({email:emailI.value,password:passI.value});
-    if(error){errEl.classList.remove('hidden');errEl.textContent=error.message;submitBtn.textContent='Create Account & Pay';submitBtn.disabled=false;return;}
-    await sb.from('profiles').upsert({id:data.user.id,email:emailI.value,full_name:nameI.value,status:'pending',plan:plan.name},{onConflict:'id'});
-    sendAdminEmail('New Signup — Deo Fortis','<h2>New Student Signed Up</h2><p><b>Name:</b> '+nameI.value+'</p><p><b>Email:</b> '+emailI.value+'</p><p><b>Plan:</b> '+plan.name+'</p>');
+    const{data,error}=await sb.auth.signUp({email:emailVal,password:passVal});
+    if(error){err.classList.remove('hidden');err.textContent=error.message;submitBtn.textContent='Create Account & Pay';submitBtn.disabled=false;return;}
+    if(data&&data.user){
+      await sb.from('profiles').upsert({id:data.user.id,email:emailVal,full_name:nameVal,status:'pending',plan:plan.name},{onConflict:'id'});
+      sendAdminEmail('New Signup — Deo Fortis','<h2>New Student Signed Up</h2><p><b>Name:</b> '+nameVal+'</p><p><b>Email:</b> '+emailVal+'</p><p><b>Plan:</b> '+plan.name+'</p>');
+    }
     ov.remove();
     window.open(selarLink,'_blank');
-    showSignupSuccess(nameI.value,selarLink);
-  },{style:{width:'100%',padding:'16px',marginTop:'8px'}});
-  box.append(div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'16px'}},[h('h2',{style:{fontFamily:"'Playfair Display',serif",fontSize:'22px'},html:'Create Account'}),btn('x','',()=>ov.remove(),{style:{background:'none',border:'none',color:'var(--muted)',fontSize:'18px',cursor:'pointer'}})]),badge,errEl,field('Full Name',nameI),field('Email',emailI),field('Password',passI),submitBtn,h('p',{style:{fontSize:'12px',color:'var(--dim)',textAlign:'center',marginTop:'12px',fontFamily:"'DM Mono',monospace",letterSpacing:'1px'},html:'You will be redirected to Selar to complete payment'}),h('p',{style:{fontSize:'13px',color:'var(--muted)',textAlign:'center',marginTop:'12px'},html:'Already have an account? <button onclick="go(\'login\')" style="background:none;border:none;color:var(--gold);cursor:pointer;font-size:13px">Log in</button>'}));
+    showSignupSuccess(nameVal,selarLink);
+  };
+
+  box.append(
+    div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'16px'}},[
+      h('h2',{style:{fontFamily:"'Playfair Display',serif",fontSize:'22px'},html:'Create Account'}),
+      h('button',{style:{background:'none',border:'none',color:'var(--muted)',fontSize:'18px',cursor:'pointer'},html:'✕',onclick:()=>ov.remove()})
+    ]),
+    badge,errEl,nameField,emailField,passField,submitBtn,
+    h('p',{style:{fontSize:'12px',color:'var(--dim)',textAlign:'center',marginTop:'12px',fontFamily:"'DM Mono',monospace",letterSpacing:'1px'},html:'After account creation you will be redirected to Selar to pay'}),
+    h('p',{style:{fontSize:'13px',color:'var(--muted)',textAlign:'center',marginTop:'12px'},html:'Already have an account? <button onclick="go('login')" style="background:none;border:none;color:var(--gold);cursor:pointer;font-size:13px">Log in</button>'})
+  );
   ov.append(box);document.body.append(ov);
 }
-
 function showSignupSuccess(name,selarLink){
   const ov=div({cls:'modal-bg'});
   const box=div({cls:'card',style:{maxWidth:'440px',width:'100%',textAlign:'center'}});
@@ -864,6 +898,7 @@ function admin(){
           const right=div({style:{display:'flex',alignItems:'center',gap:'12px'}});
           right.append(h('span',{style:{fontFamily:"'DM Mono',monospace",fontSize:'10px',letterSpacing:'1px',textTransform:'uppercase',color:u.status==='approved'?'var(--teal)':'var(--gold)'},html:u.status||'pending'}));
           if(u.status!=='approved'){right.append(btn('Approve','btn-teal',async()=>{const exp=new Date();exp.setMonth(exp.getMonth()+1);await sb.from('profiles').update({status:'approved',access_expires_at:exp.toISOString()}).eq('id',u.id);loadTab('users');},{style:{padding:'6px 16px',fontSize:'11px'}}));}
+          right.append(btn('🗑️','',async()=>{if(!confirm('Delete this user?'))return;await sb.from('profiles').delete().eq('id',u.id);loadTab('users');},{style:{background:'none',border:'1px solid #5a2020',color:'#ff8888',padding:'6px 10px',fontSize:'11px',cursor:'pointer'}}));
           row.append(info,right);card.append(row);
         });
         content.innerHTML='';content.append(card);
