@@ -196,9 +196,8 @@ const nameVal=nameI.value.trim();
 const emailVal=emailI.value.trim();
 const passVal=passI.value;
 submitBtn.textContent='Creating Account...';submitBtn.disabled=true;
-const{data,error}=await sb.auth.signUp({email:emailVal,password:passVal});
+const{data,error}=await sb.auth.signUp({email:emailVal,password:passVal,options:{data:{full_name:nameVal,plan:plan.name}}});
 if(error){errEl.classList.remove('hidden');errEl.textContent=error.message;submitBtn.textContent='Create Account & Pay';submitBtn.disabled=false;return;}
-await sb.from('profiles').insert({id:data.user.id,email:emailVal,full_name:nameVal,status:'pending',plan:plan.name});
 sendAdminEmail('New Signup — Deo Fortis','<h2>New Student Signed Up</h2><p><b>Name:</b> '+nameVal+'</p><p><b>Email:</b> '+emailVal+'</p><p><b>Plan:</b> '+plan.name+'</p>');
 ov.remove();
 window.open(selarLink,'_blank');
