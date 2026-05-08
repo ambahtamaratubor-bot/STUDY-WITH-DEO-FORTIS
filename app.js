@@ -382,7 +382,13 @@ const sc2=div({cls:'card'});
 sc2.append(h('h3',{style:{fontFamily:"'Playfair Display',serif",fontSize:'20px',marginBottom:'20px'},html:'Recent Sessions'}),div({id:'slist',html:'<p style="font-size:14px;color:var(--dim)">Loading...</p>'}));
 cg.append(cc,sc2);inner.append(cg);
 const ag=div({style:{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:'16px'}});
-ag.append(btn('Start Pomodoro →','btn-gold',()=>go('study'),{style:{padding:'18px',fontSize:'13px'}}),btn('Flashcards →','btn-outline',()=>go('flashcards'),{style:{padding:'18px',fontSize:'13px'}}),btn('Q-Bank →','btn-outline',()=>go('vignette'),{style:{padding:'18px',fontSize:'13px'}}));
+ag.append(btn('Start Pomodoro →','btn-gold',async()=>{
+const{data:sess,error:sessErr}=await sb.from('study_sessions').insert({user_id:S.user.id,topic:'General Study',started_at:new Date().toISOString()}).select().single();
+if(sessErr){console.log('Clock in error:',sessErr);return;}
+window.activeSessionId=sess.id;
+window.sessionStartTime=Date.now();
+go('study');
+},{style:{padding:'18px',fontSize:'13px'}}),btn('Flashcards →','btn-outline',()=>go('flashcards'),{style:{padding:'18px',fontSize:'13px'}}),btn('Q-Bank →','btn-outline',()=>go('vignette'),{style:{padding:'18px',fontSize:'13px'}}));
 inner.append(ag);
 // Community button
 const commCard=div({cls:'card',style:{marginTop:'16px',background:'linear-gradient(135deg,#1a1509,#141309)',border:'1px solid #C8A96E44',borderRadius:'4px',padding:'20px 24px',display:'flex',alignItems:'center',justifyContent:'space-between',gap:'16px'}});
@@ -476,7 +482,12 @@ const b=btn(l,'btn-outline',()=>{cfg.noise=v;noiseRow.querySelectorAll('button')
 b.style.fontSize='10px';b.style.padding='8px 4px';if(v==='none'){b.style.background='var(--gold)';b.style.color='#0F0E0A';b.style.border='1px solid var(--gold)';}noiseRow.append(b);
 });
 card.append(noiseRow);
-const startBtn=btn('Start Session →','btn-gold',()=>{cfg.topic=topI.value?.trim();if(!cfg.topic)return;showTimer();},{style:{width:'100%'}});
+const startBtn=btn('Start Session →','btn-gold',async()=>{
+cfg.topic=topI.value?.trim();if(!cfg.topic)return;
+const{data:nd}=await sb.from('admin_settings').select('noise_rain,noise_ocean,noise_cafe,noise_white').single();
+if(nd)noiseLinks2={rain:nd.noise_rain||'',ocean:nd.noise_ocean||'',cafe:nd.noise_cafe||'',white:nd.noise_white||''};
+showTimer();
+},{style:{width:'100%'}});
 card.append(startBtn);
 page.append(card);
 }
@@ -507,12 +518,22 @@ card.append(qr);page.append(card);
 function tick(){
 timer++;const mt=isBreak?cfg.breakMins*60:cfg.workMins*60;const rem=mt-timer;
 td.textContent=fmtMS(rem);fgC.setAttribute('stroke-dashoffset',String(circ*(1-timer/mt)));
-if(timer>=mt){clearInterval(interval);timer=0;if(isBreak){isBreak=false;curSess++;if(curSess>cfg.sessions){go('dashboard');return;}}else isBreak=true;showTimer();if(running)interval=setInterval(tick,1000);}
+if(timer>=mt){clearInterval(interval);timer=0;if(isBreak){isBreak=false;curSess++;if(curSess>cfg.sessions){
+// Auto clock out
+if(window.activeSessionId){
+const mins=Math.round((Date.now()-window.sessionStartTime)/60000);
+await sb.from('study_sessions').update({ended_at:new Date().toISOString(),duration_minutes:mins}).eq('id',window.activeSessionId);
+await sb.from('profiles').update({total_study_minutes:(S.profile?.total_study_minutes||0)+mins}).eq('id',S.user.id);
+window.activeSessionId=null;window.sessionStartTime=null;
+}
+go('dashboard');return;}}else isBreak=true;showTimer();if(running)interval=setInterval(tick,1000);}
 }
 // Play white noise
 let audio=null;
-const nUrl={rain:noiseLinks2?.rain,ocean:noiseLinks2?.ocean,cafe:noiseLinks2?.cafe,white:noiseLinks2?.white}[cfg.noise||'none'];
-if(nUrl&&cfg.noise!=='none'){audio=new Audio(nUrl);audio.loop=true;audio.volume=0.4;audio.play().catch(()=>{});}
+const noiseKey=cfg.noise||'none';
+const nUrl=noiseKey!=='none'?noiseLinks2[noiseKey]:null;
+console.log('Noise key:',noiseKey,'URL:',nUrl,'Links:',JSON.stringify(noiseLinks2));
+if(nUrl){audio=new Audio(nUrl);audio.loop=true;audio.volume=0.4;audio.play().catch(e=>console.log('Audio play error:',e));}
 // Stop audio when leaving
 const _origGo=go;window.go=function(p){if(audio){audio.pause();audio=null;}window.go=_origGo;go(p);};
 running=true;interval=setInterval(tick,1000);
