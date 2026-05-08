@@ -153,7 +153,7 @@ plansSection.append(plansGrid);
 page.append(plansSection);
 // TUTORING
 const tutSection=div({cls:'section',id:'tutoring'});
-tutSection.append(div({cls:'divider'}),h('br'),h('span',{cls:'chapter',html:'Chapter II — Personal Tutoring'}),h('h2',{cls:'big',style:{marginBottom:'12px'},html:'Work With Me<br><em class="gold-em">Directly</em>'}),h('p',{cls:'muted',style:{maxWidth:'500px',fontSize:'15px',marginBottom:'8px'},html:'Personal tutoring packages include full access to the study portal.'}),div({cls:'quote',style:{maxWidth:'480px',marginBottom:'40px',marginTop:'24px'},html:'"One-on-one guidance accelerates everything."'}));
+tutSection.append(div({cls:'divider'}),h('br'),h('span',{cls:'chapter',html:'Chapter II — Personal Tutoring'}),h('h2',{cls:'big',style:{marginBottom:'12px'},html:'Work With Our<br><em class="gold-em">Tutors</em>'}),h('p',{cls:'muted',style:{maxWidth:'500px',fontSize:'15px',marginBottom:'8px'},html:"Book a session with one of our tutors — we'll work through it with you at your pace."}),div({cls:'quote',style:{maxWidth:'480px',marginBottom:'40px',marginTop:'24px'},html:'"The right guidance at the right time changes everything."'}));
 tutSection.append(div({cls:'grid-auto',id:'pkg-grid'}));
 page.append(tutSection);
 // WHY
@@ -204,7 +204,22 @@ const ab=h('a',{cls:'btn',style:{background:i===0?'var(--gold)':'var(--purple)',
 ab.href=pkg.selar_link||'#';ab.target='_blank';
 card.append(ab,h('p',{style:{fontFamily:"'DM Mono',monospace",fontSize:'10px',color:'var(--dim)',textAlign:'center',marginTop:'12px',letterSpacing:'1px',textTransform:'uppercase'},html:'Includes study portal access'}));
 pg.append(card);
-});}
+});
+// Custom session card
+if(pg){
+const customCard=div({cls:'plan-card',style:{borderTopWidth:'3px',borderTopColor:'var(--gold)',borderColor:'#C8A96E33'}});
+customCard.append(
+div({cls:'mono',style:{marginBottom:'8px'},html:'Custom Session'}),
+div({style:{fontFamily:"'Playfair Display',serif",fontSize:'48px',color:'var(--gold)',lineHeight:'1',fontWeight:'700',marginBottom:'8px'},html:'$15'}),
+div({style:{fontFamily:"'DM Mono',monospace",fontSize:'11px',color:'var(--gold)',letterSpacing:'1px',marginBottom:'24px',opacity:'.8'},html:'per session'}),
+h('hr',{style:{border:'none',borderTop:'1px solid var(--border)',marginBottom:'20px'}}),
+h('p',{style:{fontSize:'14px',color:'var(--muted)',lineHeight:'1.8',marginBottom:'28px'},html:"Need help with a specific topic, your study timetable, or just not sure where to start? Book a single session with one of our tutors — we'll figure it out together. No commitment, no package required."})
+);
+const customBtn=h('a',{cls:'btn',style:{background:'var(--gold)',color:'#0F0E0A',width:'100%',textAlign:'center',display:'block'},html:'Book a Session — $15',id:'custom-session-btn'});
+customBtn.href=s?.link_custom||'#';customBtn.target='_blank';
+customCard.append(customBtn,h('p',{style:{fontFamily:"'DM Mono',monospace",fontSize:'10px',color:'var(--dim)',textAlign:'center',marginTop:'12px',letterSpacing:'1px',textTransform:'uppercase'},html:'One session · No commitment'}));
+pg.append(customCard);
+}}
 const{data:ts}=await sb.from('testimonials').select('*').order('created_at',{ascending:false});
 const tss=document.getElementById('ts-section');
 const tsg=document.getElementById('ts-grid');
@@ -453,13 +468,19 @@ return page;
 // ═══════════════════════════════
 // STUDY (POMODORO)
 // ═══════════════════════════════
-function study(){
+async function study(){
 const page=div({cls:'center',style:{minHeight:'100vh',padding:'24px',flexDirection:'column'}});
 let cfg={topic:'',workMins:25,breakMins:5,sessions:4,useRecall:false,recallStyle:'',recallDetails:''};
 let timer=0,running=false,curSess=1,isBreak=false,interval=null,reqSent=false;
 // Restore timer state from localStorage if exists
 const _saved=localStorage.getItem('pomodoroState');
 if(_saved){try{const st=JSON.parse(_saved);timer=st.timer||0;curSess=st.curSess||1;isBreak=st.isBreak||false;cfg=Object.assign(cfg,st.cfg||{});window.activeSessionId=st.activeSessionId||null;window.sessionStartTime=st.sessionStartTime||null;}catch(e){}}
+// If there's an active session, go straight to timer
+if(window.activeSessionId){
+  const{data:nd}=await sb.from('admin_settings').select('noise_rain,noise_ocean,noise_cafe,noise_white').single().catch(()=>({data:null}));
+  if(nd)noiseLinks2={rain:nd.noise_rain||'',ocean:nd.noise_ocean||'',cafe:nd.noise_cafe||'',white:nd.noise_white||''};
+  showTimer();return page;
+}
 function showSetup(){
 page.innerHTML='';
 const card=div({cls:'card fade',style:{width:'100%',maxWidth:'540px'}});
@@ -560,6 +581,8 @@ page.append(card);
 function showTimer(){
 page.innerHTML='';
 const maxTime=isBreak?cfg.breakMins*60:cfg.workMins*60;
+// Use wall clock for accuracy across tab switches
+const segmentStartTime=Date.now()-(timer*1000);
 const r=80,circ=2*Math.PI*r;
 const card=div({cls:'card fade',style:{textAlign:'center',maxWidth:'400px',width:'100%'}});
 card.append(h('span',{cls:'chapter',html:isBreak?' Break Time':'Session '+curSess+' of '+cfg.sessions}),h('h2',{style:{fontFamily:"'Playfair Display',serif",fontSize:'20px',marginBottom:'8px',color:isBreak?'var(--teal)':'var(--text)'},html:cfg.topic}));
@@ -576,14 +599,24 @@ const ml=div({cls:'mono',style:{marginTop:'4px'},html:isBreak?'BREAK':'FOCUS'});
 tc.append(td,ml);tw.append(tc);card.append(tw);
 const br=div({style:{display:'flex',gap:'12px',justifyContent:'center',marginBottom:'16px'}});
 const pauseBtn=btn('Pause','btn-gold',()=>{running=!running;if(running){interval=setInterval(tick,1000);pauseBtn.textContent='Pause';}else{clearInterval(interval);pauseBtn.textContent='Resume';}});
-br.append(pauseBtn,btn('End','btn-outline',()=>{clearInterval(interval);go('dashboard');}));
+br.append(pauseBtn,btn('End Session','btn-outline',()=>{clearInterval(interval);showClockOut();}));
 card.append(br);
 const qr=div({style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'10px'}});
-qr.append(btn(' Flashcards','btn-outline',()=>{clearInterval(interval);go('flashcards');},{style:{fontSize:'11px'}}),btn(' Q-Bank','btn-outline',()=>{clearInterval(interval);go('vignette');},{style:{fontSize:'11px'}}));
-card.append(qr);page.append(card);
+qr.append(
+  btn('🃏 Flashcards','btn-outline',()=>{go('flashcards');},{style:{fontSize:'11px'}}),
+  btn('📝 Q-Bank','btn-outline',()=>{go('vignette');},{style:{fontSize:'11px'}})
+);
+card.append(qr);
+const resumeNote=div({style:{fontFamily:"'DM Mono',monospace",fontSize:'9px',color:'var(--dim)',textAlign:'center',marginTop:'8px',letterSpacing:'1px'}});
+resumeNote.textContent='Timer keeps running while you study — come back anytime';
+card.append(resumeNote);
+page.append(card);
 function tick(){
-timer++;const mt=isBreak?cfg.breakMins*60:cfg.workMins*60;const rem=mt-timer;
-td.textContent=fmtMS(rem);fgC.setAttribute('stroke-dashoffset',String(circ*(1-timer/mt)));localStorage.setItem('pomodoroState',JSON.stringify({timer,curSess,isBreak,cfg,activeSessionId:window.activeSessionId,sessionStartTime:window.sessionStartTime}));
+const mt=isBreak?cfg.breakMins*60:cfg.workMins*60;
+timer=Math.floor((Date.now()-segmentStartTime)/1000);
+const rem=Math.max(0,mt-timer);
+td.textContent=fmtMS(rem);fgC.setAttribute('stroke-dashoffset',String(circ*(1-timer/mt)));
+localStorage.setItem('pomodoroState',JSON.stringify({timer,curSess,isBreak,cfg,activeSessionId:window.activeSessionId,sessionStartTime:window.sessionStartTime}));
 if(timer>=mt){clearInterval(interval);timer=0;if(isBreak){isBreak=false;curSess++;if(curSess>cfg.sessions){showClockOut();return;}}else isBreak=true;showTimer();if(running)interval=setInterval(tick,1000);}
 }
 // White noise YouTube players
@@ -602,6 +635,14 @@ noiseSection.append(noiseGrid);
 page.append(noiseSection);
 }
 running=true;interval=setInterval(tick,1000);
+// Re-sync when tab becomes visible
+document.addEventListener('visibilitychange',function onVisible(){
+  if(!document.hidden&&running){
+    clearInterval(interval);
+    interval=setInterval(tick,1000);
+    tick();
+  }
+},true);
 }
 showSetup();return page;
 }
@@ -911,7 +952,7 @@ card.append(field('Demo Video URL',vI),h('p',{cls:'mono',style:{marginBottom:'20
 // Payment links
 card.append(h('hr',{style:{border:'none',borderTop:'1px solid var(--border)',margin:'24px 0'}}),h('h3',{style:{fontFamily:"'Playfair Display',serif",fontSize:'18px',marginBottom:'16px'},html:'Study Portal Payment Links'}));
 const lIs={};
-[['link_monthly','Monthly ($10)'],['link_sixmonth','6 Months ($39)'],['link_yearly','1 Year ($59)']].forEach(([k,l])=>{const i=inp('https://selar.co/...','text',set[k]||'');lIs[k]=i;card.append(field(l,i));});
+[['link_monthly','Monthly ($10)'],['link_sixmonth','6 Months ($39)'],['link_yearly','1 Year ($59)'],['link_custom','Custom Session ($15)']].forEach(([k,l])=>{const i=inp('https://selar.co/...','text',set[k]||'');lIs[k]=i;card.append(field(l,i));});
 // Community & support
 card.append(h('hr',{style:{border:'none',borderTop:'1px solid var(--border)',margin:'24px 0'}}));
 card.append(h('h3',{style:{fontFamily:"'Playfair Display',serif",fontSize:'18px',marginBottom:'16px'},html:'Platform Links'}));
