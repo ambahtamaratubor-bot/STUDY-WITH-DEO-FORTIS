@@ -119,9 +119,12 @@ function landing(){
     const fl=div({style:{marginBottom:'28px'}});
     features.forEach(f=>{const item=div({cls:'check-item'});item.append(h('span',{style:{color:plan.color,fontSize:'12px',marginTop:'2px',flexShrink:'0'},html:'✦'}),h('span',{},[f]));fl.append(item);});
     card.append(fl);
-    const eb=h('a',{cls:'btn btn-gold',style:{background:plan.color,color:'#0F0E0A',width:'100%',textAlign:'center',display:'block'},html:'Enroll — '+plan.price,id:'enroll-'+plan.key});
-    eb.href='#';
-    eb.onclick=e=>{e.preventDefault();showEnrollModal(plan,cfg.links[plan.key]||'#');};
+    const eb=h('button',{cls:'btn',style:{background:plan.color,color:'#0F0E0A',width:'100%',textAlign:'center',display:'block'},html:'Enroll — '+plan.price,id:'enroll-'+plan.key});
+    eb.onclick=()=>{
+      // Store selected plan in sessionStorage so signup page can read it
+      sessionStorage.setItem('selectedPlan',JSON.stringify({name:plan.name,price:plan.price,dur:plan.dur,color:plan.color,key:plan.key,link:cfg.links[plan.key]||'#'}));
+      go('signup');
+    };
     card.append(eb);
     card.append(h('p',{style:{fontFamily:"'DM Mono',monospace",fontSize:'10px',color:'var(--dim)',textAlign:'center',marginTop:'12px',letterSpacing:'1px',textTransform:'uppercase'},html:'Click Enroll → Create account → Pay on Selar'}));
     plansGrid.append(card);
@@ -282,54 +285,140 @@ function showVidModal(url){
 // ═══════════════════════════════
 function signup(){
   const page=div({cls:'center',style:{minHeight:'100vh',padding:'24px'}});
-  let sel=null;let links={monthly:'#',sixmonth:'#',yearly:'#'};
+  
+  // Read pre-selected plan from sessionStorage
+  let sel=null;
+  try{const stored=sessionStorage.getItem('selectedPlan');if(stored)sel=JSON.parse(stored);}catch(e){}
+  
   const wrap=div({cls:'fade',style:{width:'100%',maxWidth:'560px'}});
-  sb.from('admin_settings').select('*').single().then(({data})=>{if(data)links={monthly:data.link_monthly||'#',sixmonth:data.link_sixmonth||'#',yearly:data.link_yearly||'#'};});
+
+  // Plan badge if pre-selected
+  const planBadge=sel?div({style:{background:sel.color,color:'#0F0E0A',borderRadius:'4px',padding:'12px 16px',marginBottom:'16px',display:'flex',justifyContent:'space-between',alignItems:'center'}}):'';
+  if(sel&&planBadge){
+    planBadge.append(div({},[div({style:{fontFamily:"'DM Mono',monospace",fontSize:'9px',letterSpacing:'2px',textTransform:'uppercase',marginBottom:'4px'},html:'Selected Plan'}),div({style:{fontFamily:"'Playfair Display',serif",fontSize:'20px',fontWeight:'700'},html:sel.name+' — '+sel.price})]),div({style:{fontFamily:"'DM Mono',monospace",fontSize:'10px'},html:sel.dur+' access'}));
+  }
+
   const fc=div({cls:'card',style:{marginBottom:'20px'}});
-  const errEl=div({cls:'err hidden',id:'serr'});
-  const nameI=inp('Your full name');const emailI=inp('your@email.com','email');const passI=inp('Min. 6 characters','password');
-  fc.append(div({style:{fontFamily:"'Playfair Display',serif",fontStyle:'italic',fontSize:'22px',color:'var(--gold)',marginBottom:'4px'},html:'Deo Fortis'}),h('hr',{style:{border:'none',borderTop:'1px solid var(--border)',margin:'16px 0'}}),h('h2',{style:{fontFamily:"'Playfair Display',serif",fontSize:'24px',marginBottom:'4px'},html:'Create Account'}),h('p',{cls:'muted',style:{fontSize:'14px',marginBottom:'24px'},html:'Fill in your details and select a plan.'}),errEl,field('Full Name',nameI),field('Email',emailI),field('Password',passI));
-  const ps=div({style:{marginBottom:'20px'}});
-  ps.append(h('p',{style:{fontFamily:"'DM Mono',monospace",fontSize:'10px',letterSpacing:'3px',textTransform:'uppercase',color:'var(--gold)',marginBottom:'16px'},html:'Select Your Plan'}));
-  const pl=div({style:{display:'grid',gap:'12px'}});
-  const planDefs=[{name:'Monthly',price:'$10',period:'/ month',dur:'1 Month',color:'var(--gold)',key:'monthly'},{name:'6 Months',price:'$39',period:'/ 6 months',dur:'6 Months',color:'var(--teal)',popular:true,key:'sixmonth'},{name:'1 Year',price:'$59',period:'/ year',dur:'12 Months',color:'var(--purple)',key:'yearly'}];
-  planDefs.forEach(plan=>{
-    const card=div({style:{background:'var(--card)',border:'1px solid var(--border)',borderRadius:'4px',padding:'20px 24px',cursor:'pointer',transition:'all .2s',position:'relative'},id:'pc-'+plan.key});
-    if(plan.popular)card.append(h('span',{style:{position:'absolute',top:'-1px',right:'16px',background:'var(--teal)',color:'#0F0E0A',fontFamily:"'DM Mono',monospace",fontSize:'9px',letterSpacing:'2px',textTransform:'uppercase',padding:'3px 10px',borderRadius:'0 0 4px 4px'},html:'Best Value'}));
-    const row=div({style:{display:'flex',alignItems:'center',justifyContent:'space-between'}});
-    row.append(div({},[div({cls:'mono',style:{marginBottom:'4px'},html:plan.name}),div({style:{fontFamily:"'Playfair Display',serif",fontSize:'28px',color:plan.color,fontWeight:'700',lineHeight:'1'},html:plan.price+' <span style="font-size:13px;color:var(--dim);font-weight:300">'+plan.period+'</span>'})]),div({style:{width:'22px',height:'22px',borderRadius:'50%',border:'2px solid var(--border)',flexShrink:'0'},id:'pr-'+plan.key}));
-    card.append(row,div({style:{fontFamily:"'DM Mono',monospace",fontSize:'10px',color:plan.color,letterSpacing:'1px',marginTop:'6px',opacity:'.7'},html:plan.dur+' of full access'}));
-    card.onclick=()=>{
-      planDefs.forEach(p=>{const c=document.getElementById('pc-'+p.key);const r=document.getElementById('pr-'+p.key);if(c){c.style.border='1px solid var(--border)';c.style.background='var(--card)';}if(r){r.innerHTML='';r.style.border='2px solid var(--border)';}});
-      card.style.border='1px solid '+plan.color;card.style.background='#1a1a0f';
-      const radio=document.getElementById('pr-'+plan.key);
-      if(radio){radio.style.border='2px solid '+plan.color;radio.innerHTML='<div style="width:10px;height:10px;border-radius:50%;background:'+plan.color+'"></div>';}
-      sel=plan;sb.textContent='Create Account — '+plan.price;
-    };
-    pl.append(card);
-  });
-  ps.append(pl);
-  const sb2=btn('Create Account','btn-gold',async()=>{
-    const err=document.getElementById('serr');
-    if(!sel){err.classList.remove('hidden');err.textContent='Please select a plan.';return;}
-    if(!nameI.value||!emailI.value||!passI.value){err.classList.remove('hidden');err.textContent='Please fill in all fields.';return;}
-    sb2.textContent='Creating...';sb2.disabled=true;
-    const{data,error}=await sb.auth.signUp({email:emailI.value,password:passI.value});
-    if(error){err.classList.remove('hidden');err.textContent=error.message;sb2.textContent='Create Account';sb2.disabled=false;return;}
-    await sb.from('profiles').upsert({id:data.user.id,email:emailI.value,full_name:nameI.value,status:'pending',plan:sel.name},{onConflict:'id'});
-    sendAdminEmail('🎓 New Signup — Deo Fortis','<h2>New Student Signed Up</h2><p><b>Name:</b> '+nameI.value+'</p><p><b>Email:</b> '+emailI.value+'</p><p><b>Plan:</b> '+sel.name+'</p><p>Log in to your admin panel to approve them after payment is verified.</p>');
-    wrap.innerHTML='';
-    const dc=div({cls:'card',style:{textAlign:'center'}});
-    dc.append(div({style:{fontSize:'48px',marginBottom:'16px'},html:'📬'}),div({style:{fontFamily:"'Playfair Display',serif",fontStyle:'italic',fontSize:'22px',color:'var(--gold)',marginBottom:'16px'},html:'Deo Fortis'}),h('h2',{style:{fontFamily:"'Playfair Display',serif",fontSize:'24px',marginBottom:'12px'},html:'Almost There!'}),h('p',{cls:'muted',style:{fontSize:'14px',lineHeight:'1.8',marginBottom:'24px'},html:'Your account has been created. Complete your payment to get approved.'}),h('a',{cls:'btn btn-gold',style:{display:'block',textAlign:'center',marginBottom:'12px'},href:links[sel.key]||'#',target:'_blank',html:'Complete Payment — '+sel.price}),h('p',{style:{fontFamily:"'DM Mono',monospace",fontSize:'10px',color:'var(--dim)',letterSpacing:'1px',textTransform:'uppercase',marginTop:'16px'},html:"You'll be approved as soon as your payment is verified"}),btn('Already paid? Log in →','',()=>go('login'),{style:{background:'none',border:'none',color:'var(--muted)',fontSize:'13px',marginTop:'16px'}}));
-    wrap.append(dc);
-  },{style:{width:'100%',padding:'16px'}});
-  wrap.append(fc,ps,sb2,h('p',{style:{fontSize:'13px',color:'var(--muted)',textAlign:'center',marginTop:'16px'},html:'Already have an account? <button onclick="go(\'login\')" style="background:none;border:none;color:var(--gold);cursor:pointer;font-size:13px">Log in</button>'}),h('p',{style:{textAlign:'center',marginTop:'8px'},html:'<button onclick="go(\'landing\')" style="background:none;border:none;color:var(--dim);cursor:pointer;font-size:12px;font-family:\'DM Mono\',monospace;letter-spacing:1px">← Back to home</button>'}));
-  page.append(wrap);return page;
+  fc.append(
+    div({style:{fontFamily:"'Playfair Display',serif",fontStyle:'italic',fontSize:'22px',color:'var(--gold)',marginBottom:'4px'},html:'Deo Fortis'}),
+    h('hr',{style:{border:'none',borderTop:'1px solid var(--border)',margin:'16px 0'}}),
+    h('h2',{style:{fontFamily:"'Playfair Display',serif",fontSize:'24px',marginBottom:'4px'},html:'Create Account'}),
+    h('p',{cls:'muted',style:{fontSize:'14px',marginBottom:'20px'},html:'Fill in your details to get started.'})
+  );
+  if(sel&&planBadge)fc.append(planBadge);
+  
+  // Error message
+  const errEl=div({cls:'err hidden',id:'signup-err'});
+  fc.append(errEl);
+
+  // Use a real HTML form so values are always accessible
+  const form=document.createElement('form');
+  form.onsubmit=e=>e.preventDefault();
+  
+  const nameLbl=document.createElement('label');nameLbl.className='label';nameLbl.textContent='Full Name';
+  const nameInp=document.createElement('input');nameInp.className='input';nameInp.placeholder='Your full name';nameInp.type='text';nameInp.id='su-name';nameInp.name='fullname';nameInp.autocomplete='name';
+  const nameWrap=document.createElement('div');nameWrap.style.marginBottom='16px';nameWrap.append(nameLbl,nameInp);
+
+  const emailLbl=document.createElement('label');emailLbl.className='label';emailLbl.textContent='Email';
+  const emailInp=document.createElement('input');emailInp.className='input';emailInp.placeholder='your@email.com';emailInp.type='email';emailInp.id='su-email';emailInp.name='email';emailInp.autocomplete='email';
+  const emailWrap=document.createElement('div');emailWrap.style.marginBottom='16px';emailWrap.append(emailLbl,emailInp);
+
+  const passLbl=document.createElement('label');passLbl.className='label';passLbl.textContent='Password';
+  const passInp=document.createElement('input');passInp.className='input';passInp.placeholder='Min. 6 characters';passInp.type='password';passInp.id='su-pass';passInp.name='password';passInp.autocomplete='new-password';
+  const passWrap=document.createElement('div');passWrap.style.marginBottom='20px';passWrap.append(passLbl,passInp);
+
+  form.append(nameWrap,emailWrap,passWrap);
+  fc.append(form);
+
+  // Submit button
+  const submitBtn=document.createElement('button');
+  submitBtn.className='btn btn-gold';
+  submitBtn.style.cssText='width:100%;padding:16px;margin-top:8px;';
+  submitBtn.textContent=sel?'Create Account — '+sel.price:'Create Account';
+  submitBtn.type='button';
+  submitBtn.onclick=async()=>{
+    const nameVal=document.getElementById('su-name').value.trim();
+    const emailVal=document.getElementById('su-email').value.trim();
+    const passVal=document.getElementById('su-pass').value;
+    const err=document.getElementById('signup-err');
+    err.classList.add('hidden');
+    if(!nameVal){err.classList.remove('hidden');err.textContent='Please enter your full name.';return;}
+    if(!emailVal){err.classList.remove('hidden');err.textContent='Please enter your email.';return;}
+    if(!passVal||passVal.length<6){err.classList.remove('hidden');err.textContent='Password must be at least 6 characters.';return;}
+    submitBtn.textContent='Creating Account...';submitBtn.disabled=true;
+    try{
+      const{data,error}=await sb.auth.signUp({email:emailVal,password:passVal});
+      if(error){err.classList.remove('hidden');err.textContent=error.message;submitBtn.textContent=sel?'Create Account — '+sel.price:'Create Account';submitBtn.disabled=false;return;}
+      if(data&&data.user){
+        const profileData={id:data.user.id,email:emailVal,full_name:nameVal,status:'pending'};
+        if(sel)profileData.plan=sel.name;
+        const{error:pe}=await sb.from('profiles').upsert(profileData,{onConflict:'id'});
+        if(pe)console.error('Profile error:',pe);
+        sendAdminEmail('New Signup — Deo Fortis','<h2>New Student</h2><p><b>Name:</b> '+nameVal+'</p><p><b>Email:</b> '+emailVal+'</p><p><b>Plan:</b> '+(sel?sel.name:'Not selected')+'</p>');
+        sessionStorage.removeItem('selectedPlan');
+        // Show success and redirect to Selar
+        wrap.innerHTML='';
+        const dc=div({cls:'card',style:{textAlign:'center'}});
+        dc.append(
+          div({style:{fontSize:'48px',marginBottom:'16px'},html:'🎉'}),
+          div({style:{fontFamily:"'Playfair Display',serif",fontStyle:'italic',fontSize:'22px',color:'var(--gold)',marginBottom:'16px'},html:'Deo Fortis'}),
+          h('h2',{style:{fontFamily:"'Playfair Display',serif",fontSize:'24px',marginBottom:'12px'},html:'Account Created!'}),
+          h('p',{cls:'muted',style:{fontSize:'14px',lineHeight:'1.8',marginBottom:'24px'},html:'Hi '+nameVal+'! Your account has been created. Complete your payment to get approved.'})
+        );
+        if(sel){
+          const payBtn=document.createElement('a');payBtn.className='btn btn-gold';payBtn.style.cssText='display:block;text-align:center;margin-bottom:12px;';payBtn.href=sel.link;payBtn.target='_blank';payBtn.textContent='Complete Payment — '+sel.price+' →';
+          dc.append(payBtn);
+          window.open(sel.link,'_blank');
+        }
+        dc.append(
+          h('p',{style:{fontFamily:"'DM Mono',monospace",fontSize:'10px',color:'var(--dim)',letterSpacing:'1px',textTransform:'uppercase',marginTop:'16px'},html:"You'll be approved as soon as your payment is verified"}),
+          btn('Log In After Paying','btn-outline',()=>go('login'),{style:{marginTop:'16px',width:'100%'}})
+        );
+        wrap.append(dc);
+      }
+    }catch(e){err.classList.remove('hidden');err.textContent='Something went wrong. Please try again.';submitBtn.textContent=sel?'Create Account — '+sel.price:'Create Account';submitBtn.disabled=false;}
+  };
+  fc.append(submitBtn);
+
+  // Plan selector if no plan pre-selected
+  if(!sel){
+    const ps=div({style:{marginBottom:'20px'}});
+    ps.append(h('p',{style:{fontFamily:"'DM Mono',monospace",fontSize:'10px',letterSpacing:'3px',textTransform:'uppercase',color:'var(--gold)',marginBottom:'16px'},html:'Select Your Plan'}));
+    const pl=div({style:{display:'grid',gap:'12px'}});
+    let links={monthly:'#',sixmonth:'#',yearly:'#'};
+    sb.from('admin_settings').select('*').single().then(({data})=>{if(data)links={monthly:data.link_monthly||'#',sixmonth:data.link_sixmonth||'#',yearly:data.link_yearly||'#'};});
+    const planDefs=[{name:'Monthly',price:'$10',period:'/ month',dur:'1 Month',color:'var(--gold)',key:'monthly'},{name:'6 Months',price:'$39',period:'/ 6 months',dur:'6 Months',color:'var(--teal)',popular:true,key:'sixmonth'},{name:'1 Year',price:'$59',period:'/ year',dur:'12 Months',color:'var(--purple)',key:'yearly'}];
+    planDefs.forEach(plan=>{
+      const card=div({style:{background:'var(--card)',border:'1px solid var(--border)',borderRadius:'4px',padding:'20px 24px',cursor:'pointer',transition:'all .2s',position:'relative'},id:'pc-'+plan.key});
+      if(plan.popular)card.append(h('span',{style:{position:'absolute',top:'-1px',right:'16px',background:'var(--teal)',color:'#0F0E0A',fontFamily:"'DM Mono',monospace",fontSize:'9px',letterSpacing:'2px',textTransform:'uppercase',padding:'3px 10px',borderRadius:'0 0 4px 4px'},html:'Best Value'}));
+      const row=div({style:{display:'flex',alignItems:'center',justifyContent:'space-between'}});
+      row.append(div({},[div({cls:'mono',style:{marginBottom:'4px'},html:plan.name}),div({style:{fontFamily:"'Playfair Display',serif",fontSize:'28px',color:plan.color,fontWeight:'700',lineHeight:'1'},html:plan.price+' <span style="font-size:13px;color:var(--dim);font-weight:300">'+plan.period+'</span>'})]),div({style:{width:'22px',height:'22px',borderRadius:'50%',border:'2px solid var(--border)',flexShrink:'0'},id:'pr-'+plan.key}));
+      card.append(row,div({style:{fontFamily:"'DM Mono',monospace",fontSize:'10px',color:plan.color,letterSpacing:'1px',marginTop:'6px',opacity:'.7'},html:plan.dur+' of full access'}));
+      card.onclick=()=>{
+        planDefs.forEach(p=>{const c=document.getElementById('pc-'+p.key);const r=document.getElementById('pr-'+p.key);if(c){c.style.border='1px solid var(--border)';c.style.background='var(--card)';}if(r){r.innerHTML='';r.style.border='2px solid var(--border)';}});
+        card.style.border='1px solid '+plan.color;card.style.background='#1a1a0f';
+        const radio=document.getElementById('pr-'+plan.key);
+        if(radio){radio.style.border='2px solid '+plan.color;radio.innerHTML='<div style="width:10px;height:10px;border-radius:50%;background:'+plan.color+'"></div>';}
+        sel={...plan,link:links[plan.key]||'#'};
+        submitBtn.textContent='Create Account — '+plan.price;
+      };
+      pl.append(card);
+    });
+    ps.append(pl);
+    wrap.append(fc,ps);
+  }else{
+    wrap.append(fc);
+  }
+
+  wrap.append(
+    submitBtn,
+    h('p',{style:{fontSize:'13px',color:'var(--muted)',textAlign:'center',marginTop:'16px'},html:'Already have an account? <button onclick="go('login')" style="background:none;border:none;color:var(--gold);cursor:pointer;font-size:13px">Log in</button>'}),
+    h('p',{style:{textAlign:'center',marginTop:'8px'},html:'<button onclick="go('landing')" style="background:none;border:none;color:var(--dim);cursor:pointer;font-size:12px;font-family:'DM Mono',monospace;letter-spacing:1px">← Back to home</button>'})
+  );
+  page.append(wrap);
+  return page;
 }
 
-// ═══════════════════════════════
-// LOGIN
-// ═══════════════════════════════
 function login(){
   const page=div({cls:'center',style:{minHeight:'100vh',padding:'24px'}});
   const card=div({cls:'card fade',style:{width:'100%',maxWidth:'400px'}});
