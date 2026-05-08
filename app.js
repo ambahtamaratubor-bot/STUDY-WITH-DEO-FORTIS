@@ -45,6 +45,40 @@ const root=document.getElementById('root');
 root.innerHTML='';
 const pages={landing,signup,login,pending,dashboard,study,flashcards,vignette,leaderboard,admin};
 root.append((pages[S.page]||landing)());
+if(window.activeSessionId)showNoiseBar();else removeNoiseBar();
+}
+
+function showNoiseBar(){
+if(document.getElementById('noise-bar'))return;
+sb.from('admin_settings').select('noise_rain,noise_ocean,noise_cafe,noise_white').single().then(({data})=>{
+if(!data)return;
+const links={rain:data.noise_rain||'',ocean:data.noise_ocean||'',cafe:data.noise_cafe||'',white:data.noise_white||''};
+if(!links.rain&&!links.ocean&&!links.cafe&&!links.white)return;
+const bar=document.createElement('div');bar.id='noise-bar';bar.style.cssText='position:fixed;bottom:0;left:0;right:0;background:rgba(15,14,10,0.97);border-top:1px solid var(--border);padding:8px 24px;display:flex;align-items:center;gap:12px;z-index:9999;';
+const ifr=document.createElement('iframe');ifr.id='noise-ifr';ifr.allow='autoplay';ifr.style.cssText='display:none;width:0;height:0;border:none;';
+const label=document.createElement('span');label.style.cssText="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2px;color:var(--dim);flex-shrink:0;text-transform:uppercase;";label.textContent='White Noise';
+bar.append(label);
+let activeKey=null;
+[['rain','🌧️ Rain',links.rain],['ocean','🌊 Ocean',links.ocean],['cafe','☕ Cafe',links.cafe],['white','🤍 White',links.white]].forEach(([key,lbl2,url])=>{
+if(!url)return;
+const b=document.createElement('button');b.textContent=lbl2;b.style.cssText="font-family:'DM Mono',monospace;font-size:10px;padding:6px 10px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;border-radius:2px;";
+b.onclick=()=>{
+if(activeKey===key){ifr.src='';b.style.background='transparent';b.style.color='var(--muted)';b.style.border='1px solid var(--border)';activeKey=null;return;}
+bar.querySelectorAll('button').forEach(b2=>{b2.style.background='transparent';b2.style.color='var(--muted)';b2.style.border='1px solid var(--border)';});
+ifr.src=url+'?autoplay=1';b.style.background='var(--gold)';b.style.color='#0F0E0A';b.style.border='1px solid var(--gold)';activeKey=key;
+};
+bar.append(b);
+});
+bar.append(ifr);
+document.body.style.paddingBottom='56px';
+document.body.append(bar);
+});
+}
+
+function removeNoiseBar(){
+const bar=document.getElementById('noise-bar');
+if(bar)bar.remove();
+document.body.style.paddingBottom='0';
 }
 // ═══════════════════════════════
 // LANDING
@@ -423,6 +457,9 @@ function study(){
 const page=div({cls:'center',style:{minHeight:'100vh',padding:'24px',flexDirection:'column'}});
 let cfg={topic:'',workMins:25,breakMins:5,sessions:4,useRecall:false,recallStyle:'',recallDetails:''};
 let timer=0,running=false,curSess=1,isBreak=false,interval=null,reqSent=false;
+// Restore timer state from localStorage if exists
+const _saved=localStorage.getItem('pomodoroState');
+if(_saved){try{const st=JSON.parse(_saved);timer=st.timer||0;curSess=st.curSess||1;isBreak=st.isBreak||false;cfg=Object.assign(cfg,st.cfg||{});window.activeSessionId=st.activeSessionId||null;window.sessionStartTime=st.sessionStartTime||null;}catch(e){}}
 function showSetup(){
 page.innerHTML='';
 const card=div({cls:'card fade',style:{width:'100%',maxWidth:'540px'}});
@@ -462,7 +499,7 @@ const sendBtn=btn('Send Recall Request →','btn-teal',async()=>{
 if(!cfg.recallStyle)return;
 await sb.from('recall_requests').insert({user_id:S.user.id,user_name:S.profile?.full_name,user_email:S.profile?.email,topic:cfg.topic,style:cfg.recallStyle,details:cfg.recallDetails,status:'pending'});
 sendAdminEmail(' New Recall Request — Deo Fortis','<h2>New Active Recall Request</h2><p><b>Student:</b> '+S.profile?.full_name+'</p><p><b>Email:</b> '+S.profile?.email+'</p><p><b>Topic:</b> '+cfg.topic+'</p><p><b>Style:</b> '+cfg.recallStyle+'</p><p><b>Details:</b> '+(cfg.recallDetails||'None')+'</p>');
-reqSent=true;sentMsg.style.display='block';sendBtn.style.display='none';
+reqSent=true;sentMsg.style.display='block';sendBtn.style.display='none';await sb.from('profiles').update({total_points:(S.profile?.total_points||0)+50}).eq('id',S.user.id);
 },{style:{width:'100%',marginBottom:'20px',display:reqSent?'none':'block'}});
 ro.append(sentMsg,sendBtn);
 card.append(ro);
@@ -490,8 +527,7 @@ const cinBtn=btn('⏵ Clock In & Start Timer','btn-gold',async()=>{
   if(error){cinBtn.textContent='⏵ Clock In & Start Timer';cinBtn.disabled=false;alert('Failed to clock in. Try again.');return;}
   window.activeSessionId=sess.id;
   window.sessionStartTime=Date.now();
-  const{data:nd}=await sb.from('admin_settings').select('noise_rain,noise_ocean,noise_cafe,noise_white').single();
-  if(nd)noiseLinks2={rain:nd.noise_rain||'',ocean:nd.noise_ocean||'',cafe:nd.noise_cafe||'',white:nd.noise_white||''};
+  showNoiseBar();
   showTimer();
 },{style:{width:'100%',padding:'16px'}});
 card.append(cinBtn);
@@ -512,8 +548,9 @@ const coutBtn=btn('⏹ Clock Out & Save Session','btn-gold',async()=>{
   coutBtn.textContent='Saving...';coutBtn.disabled=true;
   if(window.activeSessionId){
     await sb.from('study_sessions').update({ended_at:new Date().toISOString(),duration_minutes:mins}).eq('id',window.activeSessionId);
-    await sb.from('profiles').update({total_study_minutes:(S.profile?.total_study_minutes||0)+mins}).eq('id',S.user.id);
-    window.activeSessionId=null;window.sessionStartTime=null;
+    const studyPts=Math.floor(mins/60)*10;
+    await sb.from('profiles').update({total_study_minutes:(S.profile?.total_study_minutes||0)+mins,total_points:(S.profile?.total_points||0)+studyPts}).eq('id',S.user.id);
+    window.activeSessionId=null;window.sessionStartTime=null;localStorage.removeItem('pomodoroState');removeNoiseBar();
   }
   go('dashboard');
 },{style:{width:'100%',padding:'16px'}});
@@ -546,7 +583,7 @@ qr.append(btn(' Flashcards','btn-outline',()=>{clearInterval(interval);go('flash
 card.append(qr);page.append(card);
 function tick(){
 timer++;const mt=isBreak?cfg.breakMins*60:cfg.workMins*60;const rem=mt-timer;
-td.textContent=fmtMS(rem);fgC.setAttribute('stroke-dashoffset',String(circ*(1-timer/mt)));
+td.textContent=fmtMS(rem);fgC.setAttribute('stroke-dashoffset',String(circ*(1-timer/mt)));localStorage.setItem('pomodoroState',JSON.stringify({timer,curSess,isBreak,cfg,activeSessionId:window.activeSessionId,sessionStartTime:window.sessionStartTime}));
 if(timer>=mt){clearInterval(interval);timer=0;if(isBreak){isBreak=false;curSess++;if(curSess>cfg.sessions){showClockOut();return;}}else isBreak=true;showTimer();if(running)interval=setInterval(tick,1000);}
 }
 // White noise YouTube players
@@ -639,10 +676,25 @@ nq.splice(curIdx,1);
 if(!nq.length){showDone();return;}
 queue=nq;curIdx=Math.min(curIdx,queue.length-1);flipped=false;showCard();
 }
-function showDone(){
+async function showDone(){
 inner.innerHTML='';
+const total=prog.easy+prog.iffy+prog.hard;
+const grade=prog.easy>=prog.iffy&&prog.easy>=prog.hard?'A':prog.iffy>=prog.hard?'B':'C';
+const gradeColor=grade==='A'?'var(--teal)':grade==='B'?'var(--gold)':'#ff8888';
+const gradeMsg=grade==='A'?'Excellent mastery!':grade==='B'?'Good effort, keep reviewing.':'Needs more practice.';
+// Save result and award points
+await sb.from('anki_results').insert({user_id:S.user.id,deck_id:selDeck?.id,deck_topic:selDeck?.topic,grade,easy_count:prog.easy,iffy_count:prog.iffy,hard_count:prog.hard});
+const pts=15;
+await sb.from('profiles').update({total_points:(S.profile?.total_points||0)+pts,total_anki_sessions:(S.profile?.total_anki_sessions||0)+1}).eq('id',S.user.id);
 const card=div({cls:'card fade',style:{textAlign:'center'}});
-card.append(div({style:{fontSize:'48px',marginBottom:'16px'},html:' '}),h('span',{cls:'chapter',html:'Deck Complete'}),h('h2',{style:{fontFamily:"'Playfair Display',serif",fontSize:'28px',marginBottom:'20px'},html:selDeck?.topic||''}));
+card.append(
+  div({style:{fontSize:'48px',marginBottom:'16px'},html:'🎉'}),
+  h('span',{cls:'chapter',html:'Deck Complete'}),
+  h('h2',{style:{fontFamily:"'Playfair Display',serif",fontSize:'28px',marginBottom:'8px'},html:selDeck?.topic||''}),
+  div({style:{fontFamily:"'Playfair Display',serif",fontSize:'80px',color:gradeColor,lineHeight:'1',marginBottom:'8px'},html:grade}),
+  div({cls:'mono',style:{marginBottom:'4px'},html:gradeMsg}),
+  div({style:{fontFamily:"'DM Mono',monospace",fontSize:'11px',color:'var(--gold)',marginBottom:'24px'},html:'+'+pts+' points earned'})
+);
 const sg=div({style:{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:'12px',marginBottom:'24px'}});
 [{l:'Easy',v:prog.easy,c:'var(--teal)'},{l:'Iffy',v:prog.iffy,c:'var(--gold)'},{l:'Hard',v:prog.hard,c:'#ff8888'}].forEach(s=>{const c=div({cls:'card',style:{padding:'16px',textAlign:'center'}});c.append(div({style:{fontFamily:"'Playfair Display',serif",fontSize:'28px',color:s.c},html:String(s.v)}),div({cls:'mono',html:s.l}));sg.append(c);});
 card.append(sg);
@@ -755,6 +807,8 @@ async function submitQuiz(){
 clearInterval(tInterval);submitted=true;
 const score=questions.filter(q=>answers[q.id]===q.correct_answer).length;
 await sb.from('vignette_scores').insert({user_id:S.user.id,topic:selTopic,score,total:questions.length,mode});
+const pts=20;
+await sb.from('profiles').update({total_points:(S.profile?.total_points||0)+pts}).eq('id',S.user.id);
 showResults(score);
 }
 function showResults(score){
@@ -784,11 +838,11 @@ const bc=div({cls:'card',style:{textAlign:'center',borderColor:'#C8A96E33',borde
 bc.append(div({style:{fontSize:'32px',marginBottom:'12px'},html:' '}),h('h3',{style:{fontFamily:"'Playfair Display',serif",fontSize:'22px',marginBottom:'8px'},html:'Want Personal Tutoring?'}),h('p',{cls:'muted',style:{fontSize:'14px',lineHeight:'1.7',marginBottom:'20px'},html:'Work directly with me. Get personalised guidance and full portal access.'}),btn('Book a Session →','btn-gold',()=>showBooking()));
 inner.append(bc);page.append(inner);
 const medals=[' ',' ',' '];
-sb.from('leaderboard').select('*').then(({data})=>{
+sb.from('profiles').select('full_name,total_points,total_study_minutes').eq('status','approved').order('total_points',{ascending:false}).limit(20).then(({data})=>{
 const b=document.getElementById('board');if(!b)return;
 if(!data||!data.length){b.innerHTML='<p style="font-size:14px;color:var(--dim);text-align:center;padding:20px">No data yet. Be the first to clock in!</p>';return;}
 b.innerHTML='';
-data.forEach((row,i)=>{const r=div({cls:'leaderboard-row'});r.append(h('span',{style:{fontSize:'22px',width:'32px'},html:medals[i]||(i+1)+'.'}),h('span',{style:{flex:'1',fontSize:'15px',color:'var(--text)'},html:row.full_name}),h('span',{style:{fontFamily:"'DM Mono',monospace",fontSize:'13px',color:'var(--gold)'},html:Math.floor(row.total_study_minutes/60)+'h '+row.total_study_minutes%60+'m'}));b.append(r);});
+data.forEach((row,i)=>{const r=div({cls:'leaderboard-row'});r.append(h('span',{style:{fontSize:'22px',width:'32px'},html:medals[i]||(i+1)+'.'}),h('span',{style:{flex:'1',fontSize:'15px',color:'var(--text)'},html:row.full_name}),h('span',{style:{fontFamily:"'DM Mono',monospace",fontSize:'13px',color:'var(--gold)'},html:(row.total_points||0)+' pts'}),h('span',{style:{fontFamily:"'DM Mono',monospace",fontSize:'11px',color:'var(--dim)',marginLeft:'8px'},html:Math.floor((row.total_study_minutes||0)/60)+'h'}));b.append(r);});
 });
 async function showBooking(){
 const{data:pkgs}=await sb.from('tutoring_packages').select('*').order('id');
