@@ -341,6 +341,16 @@ function dashboard(){
     page.append(banner);
   }
 
+  // Load community link and show button
+  let communityLink='';
+  sb.from('admin_settings').select('community_link').single().then(({data})=>{
+    if(data&&data.community_link){
+      communityLink=data.community_link;
+      const cb=document.getElementById('community-btn');
+      if(cb){cb.href=communityLink;cb.style.display='block';}
+    }
+  });
+
   const inner=div({cls:'inner'});
   const th=Math.floor((p.total_study_minutes||0)/60),tm=(p.total_study_minutes||0)%60;
   inner.append(div({cls:'fade'},[h('span',{cls:'chapter',html:'Welcome Back'}),h('h1',{style:{fontFamily:"'Playfair Display',serif",fontSize:'40px',fontWeight:'700',marginBottom:'4px'},html:(p.full_name||'Scholar')+' <em style="font-style:italic;color:var(--gold);font-size:32px">📖</em>'}),h('p',{cls:'muted',style:{fontSize:'14px',marginBottom:'40px'},html:'Plan: <span style="color:var(--gold)">'+(p.plan||'Active')+'</span> · Expires: <span style="color:var(--text)">'+(p.access_expires_at?new Date(p.access_expires_at).toLocaleDateString():'Active')+'</span>'})]));
@@ -376,6 +386,10 @@ function dashboard(){
   const ag=div({style:{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:'16px'}});
   ag.append(btn('Start Pomodoro →','btn-gold',()=>go('study'),{style:{padding:'18px',fontSize:'13px'}}),btn('Flashcards →','btn-outline',()=>go('flashcards'),{style:{padding:'18px',fontSize:'13px'}}),btn('Q-Bank →','btn-outline',()=>go('vignette'),{style:{padding:'18px',fontSize:'13px'}}));
   inner.append(ag);
+  // Community button
+  const communityCard=div({style:{marginTop:'16px',background:'linear-gradient(135deg,#1a1509,#141309)',border:'1px solid #C8A96E44',borderRadius:'4px',padding:'20px 24px',display:'flex',alignItems:'center',justifyContent:'space-between',gap:'16px'}});
+  communityCard.append(div({style:{display:'flex',alignItems:'center',gap:'12px'}},[div({style:{fontSize:'28px'},html:'👥'}),div({},[div({style:{fontFamily:"'Playfair Display',serif",fontSize:'17px',color:'var(--text)',fontWeight:'600',marginBottom:'2px'},html:'Join Our Community'}),div({style:{fontSize:'13px',color:'var(--muted)'},html:'Connect with other students, share tips and stay accountable.'})])]),h('a',{cls:'btn btn-gold',href:'#',target:'_blank',id:'community-btn',style:{padding:'10px 20px',fontSize:'11px',display:'none',flexShrink:'0'},html:'Join Now →'}));
+  inner.append(communityCard);
   page.append(inner);
 
   async function loadSess(){
@@ -784,11 +798,13 @@ function admin(){
         card.append(h('h2',{style:{fontFamily:"'Playfair Display',serif",fontSize:'22px',marginBottom:'24px'},html:'Site Settings'}));
         const vI=inp('https://www.youtube.com/embed/...','text',set.video_url||'');
         card.append(field('Demo Video URL',vI),h('p',{cls:'mono',style:{marginBottom:'20px'},html:'YouTube: Share → Embed → copy the src URL only'}));
+        const comI=inp('https://...','text',set.community_link||'');
+        card.append(field('Community Link (Forum / Discord / WhatsApp)',comI));
         card.append(h('hr',{style:{border:'none',borderTop:'1px solid var(--border)',margin:'24px 0'}}),h('h3',{style:{fontFamily:"'Playfair Display',serif",fontSize:'18px',marginBottom:'16px'},html:'Study Portal Payment Links'}));
         const lIs={};
         [['link_monthly','Monthly ($10)'],['link_sixmonth','6 Months ($39)'],['link_yearly','1 Year ($59)']].forEach(([k,l])=>{const i=inp('https://selar.co/...','text',set[k]||'');lIs[k]=i;card.append(field(l,i));});
         const sm=div({cls:'ok',style:{display:'none',marginTop:'12px'},html:'✓ Settings saved!'});
-        card.append(btn('Save Settings','btn-gold',async()=>{const obj={id:1,video_url:vI.value};Object.keys(lIs).forEach(k=>obj[k]=lIs[k].value);await sb.from('admin_settings').upsert(obj);sm.style.display='block';setTimeout(()=>sm.style.display='none',2000);}),sm);
+        card.append(btn('Save Settings','btn-gold',async()=>{const obj={id:1,video_url:vI.value,community_link:comI.value};Object.keys(lIs).forEach(k=>obj[k]=lIs[k].value);await sb.from('admin_settings').upsert(obj);sm.style.display='block';setTimeout(()=>sm.style.display='none',2000);}),sm);
         content.innerHTML='';content.append(card);
       }
 
