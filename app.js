@@ -192,14 +192,17 @@ const submitBtn=btn('Create Account & Pay','btn-gold',async()=>{
 errEl.classList.add('hidden');
 if(!nameI.value||!emailI.value||!passI.value){errEl.classList.remove('hidden');errEl.textContent='Please fill in all fields.';return;}
 if(passI.value.length<6){errEl.classList.remove('hidden');errEl.textContent='Password must be at least 6 characters.';return;}
+const nameVal=nameI.value.trim();
+const emailVal=emailI.value.trim();
+const passVal=passI.value;
 submitBtn.textContent='Creating Account...';submitBtn.disabled=true;
-const{data,error}=await sb.auth.signUp({email:emailI.value,password:passI.value});
+const{data,error}=await sb.auth.signUp({email:emailVal,password:passVal});
 if(error){errEl.classList.remove('hidden');errEl.textContent=error.message;submitBtn.textContent='Create Account & Pay';submitBtn.disabled=false;return;}
-await sb.from('profiles').insert({id:data.user.id,email:emailI.value,full_name:nameI.value,status:'pending',plan:plan.name});
-sendAdminEmail('New Signup — Deo Fortis','<h2>New Student Signed Up</h2><p><b>Name:</b> '+nameI.value+'</p><p><b>Email:</b> '+emailI.value+'</p><p><b>Plan:</b> '+plan.name+'</p>');
+await sb.from('profiles').insert({id:data.user.id,email:emailVal,full_name:nameVal,status:'pending',plan:plan.name});
+sendAdminEmail('New Signup — Deo Fortis','<h2>New Student Signed Up</h2><p><b>Name:</b> '+nameVal+'</p><p><b>Email:</b> '+emailVal+'</p><p><b>Plan:</b> '+plan.name+'</p>');
 ov.remove();
 window.open(selarLink,'_blank');
-showSignupSuccess(nameI.value,selarLink);
+showSignupSuccess(nameVal,selarLink);
 },{style:{width:'100%',padding:'16px',marginTop:'8px'}});
 box.append(div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'16px'}},[h('h2',{style:{fontFamily:"'Playfair Display',serif",fontSize:'22px'},html:'Create Account'}),btn('x','',()=>ov.remove(),{style:{background:'none',border:'none',color:'var(--muted)',fontSize:'18px',cursor:'pointer'}})]),badge,errEl,field('Full Name',nameI),field('Email',emailI),field('Password',passI),submitBtn,h('p',{style:{fontSize:'12px',color:'var(--dim)',textAlign:'center',marginTop:'12px',fontFamily:"'DM Mono',monospace",letterSpacing:'1px'},html:'You will be redirected to Selar to complete payment'}),h('p',{style:{fontSize:'13px',color:'var(--muted)',textAlign:'center',marginTop:'12px'},html:'Already have an account? <button onclick="go(\'login\')" style="background:none;border:none;color:var(--gold);cursor:pointer;font-size:13px">Log in</button>'}));
 ov.append(box);document.body.append(ov);
