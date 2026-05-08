@@ -247,150 +247,113 @@ function showVidModal(url){
 // SIGNUP
 // ═══════════════════════════════
 function signup(){
-  const page=document.createElement('div');
-  page.className='center';
-  page.style.cssText='min-height:100vh;padding:24px;';
-
+  const page=div({cls:'center',style:{minHeight:'100vh',padding:'24px'}});
   let sel=null;
-  try{const stored=sessionStorage.getItem('selectedPlan');if(stored)sel=JSON.parse(stored);}catch(e){}
+  try{const s=sessionStorage.getItem('selPlan');if(s)sel=JSON.parse(s);}catch(e){}
+  let payLinks={monthly:'#',sixmonth:'#',yearly:'#'};
+  sb.from('admin_settings').select('link_monthly,link_sixmonth,link_yearly').single().then(({data})=>{if(data)payLinks={monthly:data.link_monthly||'#',sixmonth:data.link_sixmonth||'#',yearly:data.link_yearly||'#'};});
 
-  const wrap=document.createElement('div');
-  wrap.className='fade';
-  wrap.style.cssText='width:100%;max-width:560px;';
-
-  const fc=document.createElement('div');
-  fc.className='card';
-  fc.style.marginBottom='20px';
-
-  const logoDiv=document.createElement('div');
-  logoDiv.style.cssText="font-family:'Playfair Display',serif;font-style:italic;font-size:22px;color:var(--gold);margin-bottom:4px;";
-  logoDiv.textContent='Deo Fortis';
-
-  const hr=document.createElement('hr');
-  hr.style.cssText='border:none;border-top:1px solid var(--border);margin:16px 0;';
-
-  const title=document.createElement('h2');
-  title.style.cssText="font-family:'Playfair Display',serif;font-size:24px;margin-bottom:4px;";
-  title.textContent='Create Account';
-
-  const subtitle=document.createElement('p');
-  subtitle.className='muted';
-  subtitle.style.cssText='font-size:14px;margin-bottom:20px;';
-  subtitle.textContent='Fill in your details to get started.';
+  const wrap=div({cls:'fade',style:{width:'100%',maxWidth:'560px'}});
+  const fc=div({cls:'card',style:{marginBottom:'20px'}});
+  fc.append(
+    h('div',{style:{fontFamily:"'Playfair Display',serif",fontStyle:'italic',fontSize:'22px',color:'var(--gold)',marginBottom:'4px'},html:'Deo Fortis'}),
+    h('hr',{style:{border:'none',borderTop:'1px solid var(--border)',margin:'16px 0'}}),
+    h('h2',{style:{fontFamily:"'Playfair Display',serif",fontSize:'24px',marginBottom:'4px'},html:'Create Account'}),
+    h('p',{cls:'muted',style:{fontSize:'14px',marginBottom:'20px'},html:'Fill in your details to get started.'})
+  );
 
   if(sel){
-    const badge=document.createElement('div');
-    badge.style.cssText='border-radius:4px;padding:12px 16px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center;background:'+sel.color+';color:#0F0E0A;';
-    const bl=document.createElement('div');
-    const blt=document.createElement('div');
-    blt.style.cssText="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2px;text-transform:uppercase;margin-bottom:4px;";
-    blt.textContent='Selected Plan';
-    const blv=document.createElement('div');
-    blv.style.cssText="font-family:'Playfair Display',serif;font-size:20px;font-weight:700;";
-    blv.textContent=sel.name+' — '+sel.price;
-    bl.append(blt,blv);
-    const br2=document.createElement('div');
-    br2.style.cssText="font-family:'DM Mono',monospace;font-size:10px;";
-    br2.textContent=sel.dur+' access';
-    badge.append(bl,br2);
-    fc.append(logoDiv,hr,title,subtitle,badge);
-  }else{
-    fc.append(logoDiv,hr,title,subtitle);
+    const badge=div({style:{borderRadius:'4px',padding:'12px 16px',marginBottom:'16px',display:'flex',justifyContent:'space-between',alignItems:'center',background:sel.color,color:'#0F0E0A'}});
+    const bl=div({});bl.append(h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'9px',letterSpacing:'2px',textTransform:'uppercase',marginBottom:'4px'},html:'Selected Plan'}),h('div',{style:{fontFamily:"'Playfair Display',serif",fontSize:'20px',fontWeight:'700'},html:sel.name+' — '+sel.price}));
+    badge.append(bl,h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'10px'},html:sel.dur+' access'}));fc.append(badge);
   }
 
-  const errEl=document.createElement('div');
-  errEl.className='err hidden';
-  errEl.id='su-err';
-  fc.append(errEl);
+  const errEl=div({cls:'err hidden',id:'su-err'});fc.append(errEl);
 
-  // Name field
-  const nl=document.createElement('label');nl.className='label';nl.textContent='Full Name';
-  const ni=document.createElement('input');ni.className='input';ni.placeholder='Your full name';ni.type='text';ni.id='su-name';ni.autocomplete='name';
-  const nw=document.createElement('div');nw.style.marginBottom='16px';nw.append(nl,ni);
+  // All inputs use unique IDs for reliable value capture
+  const nameInput=document.createElement('input');nameInput.id='su-name';nameInput.type='text';nameInput.placeholder='Your full name';nameInput.style.cssText='width:100%;background:var(--bg);border:1px solid var(--border);border-radius:2px;padding:12px 16px;color:var(--text);font-size:14px;outline:none;box-sizing:border-box;font-family:Georgia,serif;';
+  const emailInput=document.createElement('input');emailInput.id='su-email';emailInput.type='email';emailInput.placeholder='your@email.com';emailInput.style.cssText=nameInput.style.cssText;
+  const passInput=document.createElement('input');passInput.id='su-pass';passInput.type='password';passInput.placeholder='Min. 6 characters';passInput.style.cssText=nameInput.style.cssText;
+  const pass2Input=document.createElement('input');pass2Input.id='su-pass2';pass2Input.type='password';pass2Input.placeholder='Confirm your password';pass2Input.style.cssText=nameInput.style.cssText;
 
-  // Email field
-  const el2=document.createElement('label');el2.className='label';el2.textContent='Email';
-  const ei=document.createElement('input');ei.className='input';ei.placeholder='your@email.com';ei.type='email';ei.id='su-email';ei.autocomplete='email';
-  const ew=document.createElement('div');ew.style.marginBottom='16px';ew.append(el2,ei);
-
-  // Password field
-  const pl=document.createElement('label');pl.className='label';pl.textContent='Password';
-  const pi=document.createElement('input');pi.className='input';pi.placeholder='Min. 6 characters';pi.type='password';pi.id='su-pass';pi.autocomplete='new-password';
-  const pw=document.createElement('div');pw.style.marginBottom='20px';pw.append(pl,pi);
-
-  fc.append(nw,ew,pw);
+  function wrapField(labelText,input){const w=div({style:{marginBottom:'16px'}});const l=h('label',{cls:'label',html:labelText});w.append(l,input);return w;}
+  fc.append(wrapField('Full Name',nameInput),wrapField('Email',emailInput),wrapField('Password',passInput),wrapField('Confirm Password',pass2Input));
 
   const submitBtn=document.createElement('button');
-  submitBtn.className='btn btn-gold';
-  submitBtn.style.cssText='width:100%;padding:16px;';
+  submitBtn.style.cssText='width:100%;padding:16px;font-family:"DM Mono",monospace;font-size:11px;letter-spacing:2px;text-transform:uppercase;cursor:pointer;border:none;border-radius:2px;background:var(--gold);color:#0F0E0A;margin-top:8px;';
   submitBtn.textContent=sel?'Create Account — '+sel.price:'Create Account';
-
   submitBtn.onclick=async function(){
     const nameVal=document.getElementById('su-name').value.trim();
     const emailVal=document.getElementById('su-email').value.trim();
     const passVal=document.getElementById('su-pass').value;
+    const pass2Val=document.getElementById('su-pass2').value;
     const errBox=document.getElementById('su-err');
     errBox.classList.add('hidden');
     if(!nameVal){errBox.classList.remove('hidden');errBox.textContent='Please enter your full name.';return;}
     if(!emailVal){errBox.classList.remove('hidden');errBox.textContent='Please enter your email.';return;}
     if(!passVal||passVal.length<6){errBox.classList.remove('hidden');errBox.textContent='Password must be at least 6 characters.';return;}
+    if(passVal!==pass2Val){errBox.classList.remove('hidden');errBox.textContent='Passwords do not match.';return;}
     submitBtn.textContent='Creating Account...';submitBtn.disabled=true;
     try{
-      const res=await sb.auth.signUp({email:emailVal,password:passVal});
-      if(res.error){errBox.classList.remove('hidden');errBox.textContent=res.error.message;submitBtn.textContent=sel?'Create Account — '+sel.price:'Create Account';submitBtn.disabled=false;return;}
-      if(res.data&&res.data.user){
-        const profileData={id:res.data.user.id,email:emailVal,full_name:nameVal,status:'pending'};
+      const{data,error}=await sb.auth.signUp({email:emailVal,password:passVal});
+      if(error){errBox.classList.remove('hidden');errBox.textContent=error.message;submitBtn.textContent=sel?'Create Account — '+sel.price:'Create Account';submitBtn.disabled=false;return;}
+      if(data&&data.user){
+        const profileData={id:data.user.id,email:emailVal,full_name:nameVal,status:'pending'};
         if(sel)profileData.plan=sel.name;
         await sb.from('profiles').upsert(profileData,{onConflict:'id'});
-        sendAdminEmail('New Signup','<h2>New Student</h2><p>Name: '+nameVal+'</p><p>Email: '+emailVal+'</p><p>Plan: '+(sel?sel.name:'None')+'</p>');
-        sessionStorage.removeItem('selectedPlan');
-        const selarLink=sel?sel.link:'#';
-        if(selarLink&&selarLink!=='#')window.open(selarLink,'_blank');
-        // Show success
+        sendAdminEmail('New Signup — Deo Fortis','<h2>New Student</h2><p>Name: '+nameVal+'</p><p>Email: '+emailVal+'</p><p>Plan: '+(sel?sel.name:'None')+'</p>');
+        sessionStorage.removeItem('selPlan');
+        const link=sel?(payLinks[sel.key]||sel.link||'#'):'#';
+        if(link&&link!=='#')window.open(link,'_blank');
         wrap.innerHTML='';
-        const dc=document.createElement('div');dc.className='card';dc.style.textAlign='center';
-        const emoji=document.createElement('div');emoji.style.cssText='font-size:48px;margin-bottom:16px;';emoji.textContent='🎉';
-        const dLogo=document.createElement('div');dLogo.style.cssText="font-family:'Playfair Display',serif;font-style:italic;font-size:22px;color:var(--gold);margin-bottom:16px;";dLogo.textContent='Deo Fortis';
-        const dTitle=document.createElement('h2');dTitle.style.cssText="font-family:'Playfair Display',serif;font-size:24px;margin-bottom:12px;";dTitle.textContent='Account Created!';
-        const dMsg=document.createElement('p');dMsg.className='muted';dMsg.style.cssText='font-size:14px;line-height:1.8;margin-bottom:24px;';dMsg.textContent='Hi '+nameVal+'! Complete your payment to get approved.';
-        dc.append(emoji,dLogo,dTitle,dMsg);
-        if(sel&&selarLink&&selarLink!=='#'){
-          const payBtn=document.createElement('a');payBtn.className='btn btn-gold';payBtn.style.cssText='display:block;text-align:center;margin-bottom:12px;';payBtn.href=selarLink;payBtn.target='_blank';payBtn.textContent='Complete Payment — '+sel.price+' →';
-          dc.append(payBtn);
-        }
-        const note=document.createElement('p');note.style.cssText="font-family:'DM Mono',monospace;font-size:10px;color:var(--dim);letter-spacing:1px;text-transform:uppercase;margin-top:16px;";note.textContent="You'll be approved as soon as your payment is verified";
-        const loginBtn=document.createElement('button');loginBtn.className='btn btn-outline';loginBtn.style.cssText='margin-top:16px;width:100%;';loginBtn.textContent='Log In After Paying';loginBtn.onclick=function(){go('login');};
-        dc.append(note,loginBtn);
-        wrap.append(dc);
+        const dc=div({cls:'card',style:{textAlign:'center'}});
+        dc.append(h('div',{style:{fontSize:'48px',marginBottom:'16px'},html:'🎉'}),h('div',{style:{fontFamily:"'Playfair Display',serif",fontStyle:'italic',fontSize:'22px',color:'var(--gold)',marginBottom:'16px'},html:'Deo Fortis'}),h('h2',{style:{fontFamily:"'Playfair Display',serif",fontSize:'24px',marginBottom:'12px'},html:'Account Created!'}),h('p',{cls:'muted',style:{fontSize:'14px',lineHeight:'1.8',marginBottom:'24px'},html:'Hi '+nameVal+'! Complete your payment to get approved.'}));
+        if(link&&link!=='#'){const payBtn=document.createElement('a');payBtn.href=link;payBtn.target='_blank';payBtn.textContent='Complete Payment '+(sel?'— '+sel.price:'')+' →';payBtn.style.cssText='display:block;text-align:center;padding:12px 28px;font-family:"DM Mono",monospace;font-size:11px;letter-spacing:2px;text-transform:uppercase;background:var(--gold);color:#0F0E0A;text-decoration:none;border-radius:2px;margin-bottom:12px;';dc.append(payBtn);}
+        dc.append(h('p',{style:{fontFamily:"'DM Mono',monospace",fontSize:'10px',color:'var(--dim)',letterSpacing:'1px',textTransform:'uppercase',marginTop:'16px'},html:"You'll be approved as soon as your payment is verified"}));
+        const lb=btn('Log In After Paying','btn-outline',()=>go('login'),{style:{marginTop:'16px',width:'100%'}});dc.append(lb);wrap.append(dc);
       }
-    }catch(e){
-      const errBox2=document.getElementById('su-err');
-      if(errBox2){errBox2.classList.remove('hidden');errBox2.textContent='Something went wrong. Please try again.';}
-      submitBtn.textContent=sel?'Create Account — '+sel.price:'Create Account';submitBtn.disabled=false;
-    }
+    }catch(e){const eb2=document.getElementById('su-err');if(eb2){eb2.classList.remove('hidden');eb2.textContent='Something went wrong. Please try again.';}submitBtn.textContent=sel?'Create Account — '+sel.price:'Create Account';submitBtn.disabled=false;}
   };
+  fc.append(submitBtn);wrap.append(fc);
 
-  fc.append(submitBtn);
-  wrap.append(fc);
+  if(!sel){
+    const ps=div({style:{marginBottom:'20px'}});
+    ps.append(h('p',{style:{fontFamily:"'DM Mono',monospace",fontSize:'10px',letterSpacing:'3px',textTransform:'uppercase',color:'var(--gold)',marginBottom:'16px'},html:'Select Your Plan'}));
+    const pl=div({style:{display:'grid',gap:'12px'}});
+    let links2={monthly:'#',sixmonth:'#',yearly:'#'};
+    sb.from('admin_settings').select('*').single().then(({data})=>{if(data)links2={monthly:data.link_monthly||'#',sixmonth:data.link_sixmonth||'#',yearly:data.link_yearly||'#'};});
+    [{name:'Monthly',price:'$10',period:'/ month',dur:'1 Month',color:'var(--gold)',key:'monthly'},{name:'6 Months',price:'$39',period:'/ 6 months',dur:'6 Months',color:'var(--teal)',popular:true,key:'sixmonth'},{name:'1 Year',price:'$59',period:'/ year',dur:'12 Months',color:'var(--purple)',key:'yearly'}].forEach(plan=>{
+      const card=div({style:{background:'var(--card)',border:'1px solid var(--border)',borderRadius:'4px',padding:'20px 24px',cursor:'pointer',transition:'all .2s',position:'relative'},id:'pc-'+plan.key});
+      if(plan.popular)card.append(h('span',{style:{position:'absolute',top:'-1px',right:'16px',background:'var(--teal)',color:'#0F0E0A',fontFamily:"'DM Mono',monospace",fontSize:'9px',letterSpacing:'2px',textTransform:'uppercase',padding:'3px 10px',borderRadius:'0 0 4px 4px'},html:'Best Value'}));
+      const row=div({style:{display:'flex',alignItems:'center',justifyContent:'space-between'}});
+      const left=div({});left.append(h('div',{cls:'mono',style:{marginBottom:'4px'},html:plan.name}),h('div',{style:{fontFamily:"'Playfair Display',serif",fontSize:'28px',color:plan.color,fontWeight:'700',lineHeight:'1'},html:plan.price+' <span style="font-size:13px;color:var(--dim);font-weight:300">'+plan.period+'</span>'}));
+      const radio=div({style:{width:'22px',height:'22px',borderRadius:'50%',border:'2px solid var(--border)',flexShrink:'0'}});radio.id='pr-'+plan.key;row.append(left,radio);card.append(row,h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'10px',color:plan.color,letterSpacing:'1px',marginTop:'6px',opacity:'.7'},html:plan.dur+' of full access'}));
+      card.onclick=()=>{
+        [{name:'Monthly',key:'monthly'},{name:'6 Months',key:'sixmonth'},{name:'1 Year',key:'yearly'}].forEach(p2=>{const c=document.getElementById('pc-'+p2.key);const r=document.getElementById('pr-'+p2.key);if(c){c.style.border='1px solid var(--border)';c.style.background='var(--card)';}if(r){r.innerHTML='';r.style.border='2px solid var(--border)';}});
+        card.style.border='1px solid '+plan.color;card.style.background='#1a1a0f';radio.style.border='2px solid '+plan.color;radio.innerHTML='<div style="width:10px;height:10px;border-radius:50%;background:'+plan.color+'"></div>';
+        sel={...plan,link:links2[plan.key]||'#'};submitBtn.textContent='Create Account — '+plan.price;
+      };pl.append(card);
+    });
+    ps.append(pl);wrap.append(ps);
+  }
 
-  const loginP=document.createElement('p');loginP.style.cssText='font-size:13px;color:var(--muted);text-align:center;margin-top:16px;';loginP.textContent='Already have an account? ';
-  const loginLink=document.createElement('button');loginLink.style.cssText='background:none;border:none;color:var(--gold);cursor:pointer;font-size:13px;';loginLink.textContent='Log in';loginLink.onclick=function(){go('login');};
-  loginP.append(loginLink);
-
-  const backP=document.createElement('p');backP.style.textAlign='center';backP.style.marginTop='8px';
-  const backLink=document.createElement('button');backLink.style.cssText="background:none;border:none;color:var(--dim);cursor:pointer;font-size:12px;font-family:'DM Mono',monospace;letter-spacing:1px;";backLink.textContent='← Back to home';backLink.onclick=function(){go('landing');};
-  backP.append(backLink);
-
-  wrap.append(loginP,backP);
-  page.append(wrap);
-  return page;
+  const lp=div({style:{fontSize:'13px',color:'var(--muted)',textAlign:'center',marginTop:'16px'}});lp.append(document.createTextNode('Already have an account? '));const ll=document.createElement('button');ll.style.cssText='background:none;border:none;color:var(--gold);cursor:pointer;font-size:13px;';ll.textContent='Log in';ll.onclick=()=>go('login');lp.append(ll);
+  const bp=div({style:{textAlign:'center',marginTop:'8px'}});const bl2=document.createElement('button');bl2.style.cssText="background:none;border:none;color:var(--dim);cursor:pointer;font-size:12px;font-family:'DM Mono',monospace;letter-spacing:1px;";bl2.textContent='← Back to home';bl2.onclick=()=>go('landing');bp.append(bl2);
+  wrap.append(lp,bp);page.append(wrap);return page;
 }
 
+// ═══════════════════════════════
+// LOGIN
+// ═══════════════════════════════
 function login(){
   const page=div({cls:'center',style:{minHeight:'100vh',padding:'24px'}});
   const card=div({cls:'card fade',style:{width:'100%',maxWidth:'400px'}});
   const errEl=div({cls:'err hidden'});
   const emailI=inp('your@email.com','email');const passI=inp('Your password','password');
+  // Forgot password
+  const fpBtn=document.createElement('button');fpBtn.style.cssText='background:none;border:none;color:var(--gold);cursor:pointer;font-size:12px;font-family:"DM Mono",monospace;letter-spacing:1px;display:block;margin-bottom:16px;';fpBtn.textContent='Forgot password?';
+  fpBtn.onclick=async()=>{const em=emailInp.value.trim();if(!em){errEl.classList.remove('hidden');errEl.textContent='Enter your email first.';return;}const{error}=await sb.auth.resetPasswordForEmail(em,{redirectTo:window.location.origin});if(error){errEl.classList.remove('hidden');errEl.textContent=error.message;}else{errEl.classList.remove('hidden');errEl.style.background='#0a1f18';errEl.style.border='1px solid var(--teal)';errEl.style.color='var(--teal)';errEl.textContent='Password reset email sent! Check your inbox.';}};
+
   const sb2=btn('Log In','btn-gold',async()=>{
     errEl.classList.add('hidden');sb2.textContent='Logging in...';sb2.disabled=true;
     const{data,error}=await sb.auth.signInWithPassword({email:emailI.value,password:passI.value});
@@ -459,6 +422,21 @@ function dashboard(){
   const ag=div({style:{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:'16px'}});
   ag.append(btn('Start Pomodoro →','btn-gold',()=>go('study'),{style:{padding:'18px',fontSize:'13px'}}),btn('Flashcards →','btn-outline',()=>go('flashcards'),{style:{padding:'18px',fontSize:'13px'}}),btn('Q-Bank →','btn-outline',()=>go('vignette'),{style:{padding:'18px',fontSize:'13px'}}));
   inner.append(ag);
+
+  // Community button
+  const commCard=div({cls:'card',style:{marginTop:'16px',background:'linear-gradient(135deg,#1a1509,#141309)',border:'1px solid #C8A96E44',borderRadius:'4px',padding:'20px 24px',display:'flex',alignItems:'center',justifyContent:'space-between',gap:'16px'}});
+  const commLeft=div({style:{display:'flex',alignItems:'center',gap:'12px'}});
+  const commTxt=div({});commTxt.append(h('div',{style:{fontFamily:"'Playfair Display',serif",fontSize:'17px',color:'var(--text)',fontWeight:'600',marginBottom:'2px'},html:'Join Our Community'}),h('div',{style:{fontSize:'13px',color:'var(--muted)'},html:'Connect with other students and stay accountable.'}));
+  commLeft.append(h('div',{style:{fontSize:'28px'},html:'👥'}),commTxt);
+  const commBtn=document.createElement('a');commBtn.href='#';commBtn.target='_blank';commBtn.id='comm-btn';commBtn.textContent='Join Now →';commBtn.style.cssText='display:none;padding:10px 20px;font-family:"DM Mono",monospace;font-size:11px;letter-spacing:2px;text-transform:uppercase;background:var(--gold);color:#0F0E0A;text-decoration:none;border-radius:2px;flex-shrink:0;';
+  commCard.append(commLeft,commBtn);inner.append(commCard);
+
+  // Support email
+  const supCard=div({cls:'card',style:{marginTop:'12px',padding:'16px 24px',display:'flex',alignItems:'center',gap:'12px'}});
+  const supTxt=div({});supTxt.append(h('span',{style:{fontSize:'13px',color:'var(--muted)'},html:'Need help? '}));
+  const supLink=document.createElement('a');supLink.href='mailto:';supLink.id='sup-link';supLink.textContent='Contact support';supLink.style.color='var(--gold)';supLink.style.fontSize='13px';supTxt.append(supLink);
+  supCard.append(h('div',{style:{fontSize:'20px'},html:'✉️'}),supTxt);inner.append(supCard);
+
   page.append(inner);
 
   async function loadSess(){
@@ -471,6 +449,13 @@ function dashboard(){
     data.forEach(s=>{const row=div({style:{display:'flex',justifyContent:'space-between',padding:'10px 0',borderBottom:'1px solid var(--border)',fontSize:'13px'}});row.append(h('span',{style:{color:'var(--muted)'},html:new Date(s.started_at).toLocaleDateString()}),h('span',{style:{color:'var(--gold)'},html:(s.duration_minutes||0)+' mins'}));sl.append(row);});
   }
   loadSess();
+  // Load community link and support email
+  sb.from('admin_settings').select('community_link,support_email').single().then(({data})=>{
+    if(data){
+      if(data.community_link){const cb=document.getElementById('comm-btn');if(cb){cb.href=data.community_link;cb.style.display='block';}}
+      if(data.support_email){const sl=document.getElementById('sup-link');if(sl)sl.href='mailto:'+data.support_email;}
+    }
+  });
   return page;
 }
 
@@ -525,7 +510,18 @@ function study(){
     },{style:{width:'100%',marginBottom:'20px',display:reqSent?'none':'block'}});
     ro.append(sentMsg,sendBtn);
     card.append(ro);
-    const startBtn=btn('Start Session →','btn-gold',()=>{if(!cfg.topic)return;showTimer();},{style:{width:'100%'}});
+    // White noise
+    let noiseLinks2={rain:'',ocean:'',cafe:'',white:''};
+    sb.from('admin_settings').select('noise_rain,noise_ocean,noise_cafe,noise_white').single().then(({data})=>{if(data)noiseLinks2={rain:data.noise_rain||'',ocean:data.noise_ocean||'',cafe:data.noise_cafe||'',white:data.noise_white||''};});
+    card.append(h('label',{cls:'label',html:'White Noise During Session?'}));
+    const noiseRow=div({style:{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:'8px',marginBottom:'20px'}});
+    [['none','🔇 Off'],['rain','🌧️ Rain'],['ocean','🌊 Ocean'],['cafe','☕ Cafe'],['white','🤍 White']].forEach(([v,l])=>{
+      const b=btn(l,'btn-outline',()=>{cfg.noise=v;noiseRow.querySelectorAll('button').forEach(b2=>{b2.style.background='transparent';b2.style.color='var(--muted)';b2.style.border='1px solid var(--border)';});b.style.background='var(--gold)';b.style.color='#0F0E0A';b.style.border='1px solid var(--gold)';});
+      b.style.fontSize='10px';b.style.padding='8px 4px';if(v==='none'){b.style.background='var(--gold)';b.style.color='#0F0E0A';b.style.border='1px solid var(--gold)';}noiseRow.append(b);
+    });
+    card.append(noiseRow);
+
+    const startBtn=btn('Start Session →','btn-gold',()=>{cfg.topic=document.getElementById('st-topic')?.value?.trim();if(!cfg.topic)return;showTimer();},{style:{width:'100%'}});
     card.append(startBtn);
     page.append(card);
   }
@@ -559,6 +555,13 @@ function study(){
       td.textContent=fmtMS(rem);fgC.setAttribute('stroke-dashoffset',String(circ*(1-timer/mt)));
       if(timer>=mt){clearInterval(interval);timer=0;if(isBreak){isBreak=false;curSess++;if(curSess>cfg.sessions){go('dashboard');return;}}else isBreak=true;showTimer();if(running)interval=setInterval(tick,1000);}
     }
+    // Play white noise
+    let audio=null;
+    const nUrl={rain:noiseLinks2?.rain,ocean:noiseLinks2?.ocean,cafe:noiseLinks2?.cafe,white:noiseLinks2?.white}[cfg.noise||'none'];
+    if(nUrl&&cfg.noise!=='none'){audio=new Audio(nUrl);audio.loop=true;audio.volume=0.4;audio.play().catch(()=>{});}
+    // Stop audio when leaving
+    const _origGo=go;window.go=function(p){if(audio){audio.pause();audio=null;}window.go=_origGo;go(p);};
+
     running=true;interval=setInterval(tick,1000);
   }
   showSetup();return page;
@@ -871,7 +874,7 @@ function admin(){
         const lIs={};
         [['link_monthly','Monthly ($10)'],['link_sixmonth','6 Months ($39)'],['link_yearly','1 Year ($59)']].forEach(([k,l])=>{const i=inp('https://selar.co/...','text',set[k]||'');lIs[k]=i;card.append(field(l,i));});
         const sm=div({cls:'ok',style:{display:'none',marginTop:'12px'},html:'✓ Settings saved!'});
-        card.append(btn('Save Settings','btn-gold',async()=>{const obj={id:1,video_url:vI.value};Object.keys(lIs).forEach(k=>obj[k]=lIs[k].value);await sb.from('admin_settings').upsert(obj);sm.style.display='block';setTimeout(()=>sm.style.display='none',2000);}),sm);
+        card.append(btn('Save Settings','btn-gold',async()=>{const obj={id:1,video_url:vI.value};Object.keys(lIs).forEach(k=>obj[k]=lIs[k].value);sm.style.display='block';setTimeout(()=>sm.style.display='none',2000);}),sm);
         content.innerHTML='';content.append(card);
       }
 
@@ -926,7 +929,7 @@ function admin(){
           }
           if(r.style==='flashcard'){const fi=h('input',{type:'file',accept:'.csv',style:{color:'var(--muted)',fontSize:'12px',fontFamily:"'DM Mono',monospace"}});fi.onchange=e=>{if(e.target.files[0])handleUpload(e.target.files[0],true);};br2.append(div({},[h('label',{cls:'label',html:'Upload CSV'}),fi]));}
           if(r.style==='vignette'||r.style==='theory'){const fi=h('input',{type:'file',accept:'.txt',style:{color:'var(--muted)',fontSize:'12px',fontFamily:"'DM Mono',monospace"}});fi.onchange=e=>{if(e.target.files[0])handleUpload(e.target.files[0],false);};br2.append(div({},[h('label',{cls:'label',html:'Upload TXT'}),fi]));}
-          br2.append(btn('Mark Done','btn-teal',async()=>{await sb.from('recall_requests').update({status:'fulfilled'}).eq('id',r.id);loadTab('recalls');},{style:{padding:'8px 16px',fontSize:'11px'}}));
+          br2.append(btn('Mark Done','btn-teal',async()=>{await sb.from('recall_requests').update({status:'fulfilled'}).eq('id',r.id);if(r.user_id)await sb.from('profiles').update({has_new_content:true}).eq('id',r.user_id);loadTab('recalls');},{style:{padding:'8px 16px',fontSize:'11px'}}));
           card.append(br2);content.append(card);
         });
         content.append(upSt);
