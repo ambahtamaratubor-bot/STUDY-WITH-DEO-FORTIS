@@ -368,7 +368,7 @@ const cc=div({cls:'card'});
 const timerD=div({style:{fontFamily:"'DM Mono',monospace",fontSize:'36px',color:'var(--gold)',textAlign:'center',marginBottom:'20px',display:'none'},html:'00:00:00',id:'tdis'});
 const cdesc=h('p',{cls:'muted',style:{fontSize:'14px',marginBottom:'20px'},html:'Ready to study? Clock in to start tracking.'});
 const cinBtn=btn('Clock In','btn-gold',async()=>{
-const{data}=await sb.from('study_sessions').insert({user_id:S.user.id,topic:'General Study'}).select().single();
+const{data,error}=await sb.from('study_sessions').insert({user_id:S.user.id,topic:'General Study',started_at:new Date().toISOString()}).select().single();if(error){console.log('Clock in error:',error);return;}
 if(data){curSess=data;clockedIn=true;elapsed=0;timerD.style.display='block';cdesc.style.display='none';cinBtn.style.display='none';coutBtn.style.display='block';ticker=setInterval(()=>{elapsed++;const td=document.getElementById('tdis');if(td)td.textContent=fmtHMS(elapsed);},1000);}
 },{style:{width:'100%'}});
 const coutBtn=btn('Clock Out','btn-red',async()=>{
@@ -428,7 +428,7 @@ page.innerHTML='';
 const card=div({cls:'card fade',style:{width:'100%',maxWidth:'540px'}});
 card.append(btn('← Back','',()=>go('dashboard'),{style:{background:'none',border:'none',color:'var(--dim)',cursor:'pointer',fontSize:'12px',fontFamily:"'DM Mono',monospace",letterSpacing:'1px',marginBottom:'16px'}}));
 card.append(h('span',{cls:'chapter',html:'Study Setup'}),h('h2',{style:{fontFamily:"'Playfair Display',serif",fontSize:'26px',marginBottom:'24px'},html:'Configure Your Session'}));
-const topI=inp('e.g. Bacteriology, Cardiology','text',cfg.topic);topI.oninput=e=>cfg.topic=e.target.value;
+const topI=inp('e.g. Bacteriology, Cardiology','text',cfg.topic);topI.id='st-topic';topI.oninput=e=>cfg.topic=e.target.value;
 card.append(field('What topic are you studying?',topI));
 card.append(h('label',{cls:'label',html:'Pomodoro Configuration'}));
 const pg=div({style:{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:'12px',marginBottom:'8px'}});
@@ -476,7 +476,7 @@ const b=btn(l,'btn-outline',()=>{cfg.noise=v;noiseRow.querySelectorAll('button')
 b.style.fontSize='10px';b.style.padding='8px 4px';if(v==='none'){b.style.background='var(--gold)';b.style.color='#0F0E0A';b.style.border='1px solid var(--gold)';}noiseRow.append(b);
 });
 card.append(noiseRow);
-const startBtn=btn('Start Session →','btn-gold',()=>{cfg.topic=document.getElementById('st-topic')?.value?.trim();if(!cfg.topic)return;showTimer();},{style:{width:'100%'}});
+const startBtn=btn('Start Session →','btn-gold',()=>{cfg.topic=topI.value?.trim();if(!cfg.topic)return;showTimer();},{style:{width:'100%'}});
 card.append(startBtn);
 page.append(card);
 }
