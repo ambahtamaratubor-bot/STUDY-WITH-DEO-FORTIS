@@ -347,6 +347,12 @@ page.append(card);return page;
 // DASHBOARD
 // ═══════════════════════════════
 function dashboard(){
+          // ADD THIS SAFETY CHECK RIGHT HERE
+    if (!S.user || !S.user.id) {
+        console.log('No user in dashboard, redirecting to login');
+        go('login');
+        return div({}, ['Loading...']);
+    }
 const page=div({});
 let clockedIn=false,curSess=null,elapsed=0,ticker=null;
 const p=S.profile||{};
@@ -367,11 +373,47 @@ const cg=div({style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'24px',mar
 const cc=div({cls:'card'});
 const timerD=div({style:{fontFamily:"'DM Mono',monospace",fontSize:'36px',color:'var(--gold)',textAlign:'center',marginBottom:'20px',display:'none'},html:'00:00:00',id:'tdis'});
 const cdesc=h('p',{cls:'muted',style:{fontSize:'14px',marginBottom:'20px'},html:'Ready to study? Clock in to start tracking.'});
-const cinBtn=btn('Clock In','btn-gold',async()=>{
-const{data,error}=await sb.from('study_sessions').insert({user_id:S.user.id,topic:'General Study',started_at:new Date().toISOString()}).select().single();if(error){console.log('Clock in error:',error);return;}
-if(data){curSess=data;clockedIn=true;elapsed=0;timerD.style.display='block';cdesc.style.display='none';cinBtn.style.display='none';coutBtn.style.display='block';ticker=setInterval(()=>{elapsed++;const td=document.getElementById('tdis');if(td)td.textContent=fmtHMS(elapsed);},1000);}
-},{style:{width:'100%'}});
-const coutBtn=btn('Clock Out','btn-red',async()=>{
+const cinBtn = btn('Clock In', 'btn-gold', async () => {
+    console.log('=== CLOCK IN DEBUG ===');
+    console.log('S.user:', S.user);
+    console.log('S.user.id:', S.user?.id);
+    
+    if (!S.user?.id) {
+        console.error('❌ No user ID! User not logged in properly');
+        alert('Please log out and log in again');
+        return;
+    }
+    
+    const { data, error } = await sb.from('study_sessions').insert({ 
+        user_id: S.user.id, 
+        topic: 'General Study', 
+        started_at: new Date().toISOString() 
+    }).select().single();
+    
+    console.log('Insert result:', { data, error });
+    
+    if (error) {
+        console.log('Clock in error:', error);
+        alert('Failed to clock in: ' + error.message);
+        return;
+    }
+    
+    if (data) {
+        console.log('✅ Success! Session started');
+        curSess = data;
+        clockedIn = true;
+        elapsed = 0;
+        timerD.style.display = 'block';
+        cdesc.style.display = 'none';
+        cinBtn.style.display = 'none';
+        coutBtn.style.display = 'block';
+        ticker = setInterval(() => {
+            elapsed++;
+            const td = document.getElementById('tdis');
+            if (td) td.textContent = fmtHMS(elapsed);
+        }, 1000);
+    }
+}, { style: { width: '100%' } });
 clearInterval(ticker);const mins=Math.floor(elapsed/60);
 if(curSess)await sb.from('study_sessions').update({ended_at:new Date().toISOString(),duration_minutes:mins}).eq('id',curSess.id);
 await sb.from('profiles').update({total_study_minutes:(p.total_study_minutes||0)+mins}).eq('id',S.user.id);
@@ -476,7 +518,19 @@ const b=btn(l,'btn-outline',()=>{cfg.noise=v;noiseRow.querySelectorAll('button')
 b.style.fontSize='10px';b.style.padding='8px 4px';if(v==='none'){b.style.background='var(--gold)';b.style.color='#0F0E0A';b.style.border='1px solid var(--gold)';}noiseRow.append(b);
 });
 card.append(noiseRow);
-const startBtn=btn('Start Session →','btn-gold',()=>{cfg.topic=topI.value?.trim();if(!cfg.topic)return;showTimer();},{style:{width:'100%'}});
+const startBtn = btn('Start Session →', 'btn-gold', () => {
+    console.log('Start button clicked');
+    console.log('topI element:', topI);
+    console.log('topI value:', topI?.value);
+    
+    cfg.topic = topI?.value?.trim();
+    if (!cfg.topic) {
+        alert('Please enter a topic first');
+        return;
+    }
+    console.log('Topic set to:', cfg.topic);
+    showTimer();
+}, { style: { width: '100%' } });
 card.append(startBtn);
 page.append(card);
 }
