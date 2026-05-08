@@ -106,7 +106,7 @@ function landing(){
 
   // PLANS
   const plansSection=div({cls:'section',id:'plans'});
-  plansSection.append(div({cls:'divider'}),h('br'),h('span',{cls:'chapter',html:'Chapter I — Enrollment'}),h('h2',{cls:'big',style:{marginBottom:'12px'},html:'Choose Your<br><em class="gold-em">Duration</em>'}),h('p',{cls:'muted',style:{maxWidth:'500px',fontSize:'15px',marginBottom:'8px'},html:'Every plan includes the full platform. You are simply choosing how long your access lasts.'}),div({cls:'quote',style:{maxWidth:'480px',marginBottom:'40px',marginTop:'24px'},html:'"The longer you commit, the less you pay per month."'}));
+  plansSection.append(div({cls:'divider'}),h('br'),h('span',{cls:'chapter',html:'Chapter I — Enrolment'}),h('h2',{cls:'big',style:{marginBottom:'12px'},html:'Choose Your<br><em class="gold-em">Duration</em>'}),h('p',{cls:'muted',style:{maxWidth:'500px',fontSize:'15px',marginBottom:'8px'},html:'Every plan includes the full platform. You are simply choosing how long your access lasts.'}),div({cls:'quote',style:{maxWidth:'480px',marginBottom:'40px',marginTop:'24px'},html:'"The longer you commit, the less you pay per month."'}));
   const plansGrid=div({cls:'grid-auto',id:'plans-grid'});
   const planDefs=[{name:'Monthly',price:'$10',period:'/ month',dur:'1 Month',color:'var(--gold)',key:'monthly'},{name:'6 Months',price:'$39',period:'/ 6 months',dur:'6 Months',color:'var(--teal)',popular:true,key:'sixmonth'},{name:'1 Year',price:'$59',period:'/ year',dur:'12 Months',color:'var(--purple)',key:'yearly'}];
   planDefs.forEach(plan=>{
@@ -119,14 +119,11 @@ function landing(){
     const fl=div({style:{marginBottom:'28px'}});
     features.forEach(f=>{const item=div({cls:'check-item'});item.append(h('span',{style:{color:plan.color,fontSize:'12px',marginTop:'2px',flexShrink:'0'},html:'✦'}),h('span',{},[f]));fl.append(item);});
     card.append(fl);
-    const eb=h('button',{cls:'btn',style:{background:plan.color,color:'#0F0E0A',width:'100%',textAlign:'center',display:'block'},html:'Enroll — '+plan.price,id:'enroll-'+plan.key});
-    eb.onclick=()=>{
-      // Store selected plan in sessionStorage so signup page can read it
-      sessionStorage.setItem('selectedPlan',JSON.stringify({name:plan.name,price:plan.price,dur:plan.dur,color:plan.color,key:plan.key,link:cfg.links[plan.key]||'#'}));
-      go('signup');
-    };
+    const eb=h('a',{cls:'btn btn-gold',style:{background:plan.color,color:'#0F0E0A',width:'100%',textAlign:'center',display:'block'},html:'Enrol — '+plan.price,id:'enrol-'+plan.key});
+    eb.href='#';
+    eb.onclick=e=>{e.preventDefault();showEnrolModal(plan,cfg.links[plan.key]||'#');};
     card.append(eb);
-    card.append(h('p',{style:{fontFamily:"'DM Mono',monospace",fontSize:'10px',color:'var(--dim)',textAlign:'center',marginTop:'12px',letterSpacing:'1px',textTransform:'uppercase'},html:'Click Enroll → Create account → Pay on Selar'}));
+    card.append(h('p',{style:{fontFamily:"'DM Mono',monospace",fontSize:'10px',color:'var(--dim)',textAlign:'center',marginTop:'12px',letterSpacing:'1px',textTransform:'uppercase'},html:'Approval required · Payment via Selar'}));
     plansGrid.append(card);
   });
   plansSection.append(plansGrid);
@@ -176,7 +173,7 @@ function landing(){
   (async()=>{
     const{data:s}=await sb.from('admin_settings').select('*').single();
     if(s){cfg.video=s.video_url||'';cfg.links={monthly:s.link_monthly||'#',sixmonth:s.link_sixmonth||'#',yearly:s.link_yearly||'#'};
-      planDefs.forEach(p=>{const b=document.getElementById('enroll-'+p.key);if(b)b.href=cfg.links[p.key]||'#';});
+      planDefs.forEach(p=>{const b=document.getElementById('enrol-'+p.key);if(b)b.href=cfg.links[p.key]||'#';});
     }
     const{data:pkgs}=await sb.from('tutoring_packages').select('*').order('id');
     const pg=document.getElementById('pkg-grid');
@@ -199,67 +196,33 @@ function landing(){
   return page;
 }
 
-function showEnrollModal(plan, selarLink){
+function showEnrolModal(plan, selarLink){
   const ov=div({cls:'modal-bg'});
   ov.onclick=e=>{if(e.target===ov)ov.remove();};
   const box=div({cls:'card',style:{maxWidth:'480px',width:'100%',maxHeight:'90vh',overflowY:'auto'}});
-  
+  const errEl=div({cls:'err hidden'});
+  const nameI=inp('Your full name');
+  const emailI=inp('your@email.com','email');
+  const passI=inp('Min. 6 characters','password');
   const badge=div({style:{background:plan.color,color:'#0F0E0A',borderRadius:'4px',padding:'12px 16px',marginBottom:'20px',display:'flex',justifyContent:'space-between',alignItems:'center'}});
   badge.append(div({},[div({style:{fontFamily:"'DM Mono',monospace",fontSize:'9px',letterSpacing:'2px',textTransform:'uppercase',marginBottom:'4px'},html:'Selected Plan'}),div({style:{fontFamily:"'Playfair Display',serif",fontSize:'20px',fontWeight:'700'},html:plan.name+' — '+plan.price})]),div({style:{fontFamily:"'DM Mono',monospace",fontSize:'10px',letterSpacing:'1px'},html:plan.dur+' access'}));
-
-  const errEl=div({cls:'err hidden',id:'enroll-err'});
-
-  // Use regular HTML inputs with IDs so we can reliably read values
-  const nameField=div({style:{marginBottom:'16px'}});
-  nameField.append(h('label',{cls:'label',html:'Full Name'}));
-  const nameInput=document.createElement('input');
-  nameInput.className='input';nameInput.placeholder='Your full name';nameInput.id='enroll-name';nameInput.type='text';
-  nameField.append(nameInput);
-
-  const emailField=div({style:{marginBottom:'16px'}});
-  emailField.append(h('label',{cls:'label',html:'Email'}));
-  const emailInput=document.createElement('input');
-  emailInput.className='input';emailInput.placeholder='your@email.com';emailInput.id='enroll-email';emailInput.type='email';
-  emailField.append(emailInput);
-
-  const passField=div({style:{marginBottom:'16px'}});
-  passField.append(h('label',{cls:'label',html:'Password'}));
-  const passInput=document.createElement('input');
-  passInput.className='input';passInput.placeholder='Min. 6 characters';passInput.id='enroll-pass';passInput.type='password';
-  passField.append(passInput);
-
-  const submitBtn=h('button',{cls:'btn btn-gold',style:{width:'100%',padding:'16px',marginTop:'8px'},html:'Create Account & Pay'});
-  submitBtn.onclick=async()=>{
-    const nameVal=document.getElementById('enroll-name').value.trim();
-    const emailVal=document.getElementById('enroll-email').value.trim();
-    const passVal=document.getElementById('enroll-pass').value;
-    const err=document.getElementById('enroll-err');
-    err.classList.add('hidden');
-    if(!nameVal||!emailVal||!passVal){err.classList.remove('hidden');err.textContent='Please fill in all fields.';return;}
-    if(passVal.length<6){err.classList.remove('hidden');err.textContent='Password must be at least 6 characters.';return;}
+  const submitBtn=btn('Create Account & Pay','btn-gold',async()=>{
+    errEl.classList.add('hidden');
+    if(!nameI.value||!emailI.value||!passI.value){errEl.classList.remove('hidden');errEl.textContent='Please fill in all fields.';return;}
+    if(passI.value.length<6){errEl.classList.remove('hidden');errEl.textContent='Password must be at least 6 characters.';return;}
     submitBtn.textContent='Creating Account...';submitBtn.disabled=true;
-    const{data,error}=await sb.auth.signUp({email:emailVal,password:passVal});
-    if(error){err.classList.remove('hidden');err.textContent=error.message;submitBtn.textContent='Create Account & Pay';submitBtn.disabled=false;return;}
-    if(data&&data.user){
-      await sb.from('profiles').upsert({id:data.user.id,email:emailVal,full_name:nameVal,status:'pending',plan:plan.name},{onConflict:'id'});
-      sendAdminEmail('New Signup — Deo Fortis','<h2>New Student Signed Up</h2><p><b>Name:</b> '+nameVal+'</p><p><b>Email:</b> '+emailVal+'</p><p><b>Plan:</b> '+plan.name+'</p>');
-    }
+    const{data,error}=await sb.auth.signUp({email:emailI.value,password:passI.value});
+    if(error){errEl.classList.remove('hidden');errEl.textContent=error.message;submitBtn.textContent='Create Account & Pay';submitBtn.disabled=false;return;}
+    await sb.from('profiles').insert({id:data.user.id,email:emailI.value,full_name:nameI.value,status:'pending',plan:plan.name});
+    sendAdminEmail('New Signup — Deo Fortis','<h2>New Student Signed Up</h2><p><b>Name:</b> '+nameI.value+'</p><p><b>Email:</b> '+emailI.value+'</p><p><b>Plan:</b> '+plan.name+'</p>');
     ov.remove();
     window.open(selarLink,'_blank');
-    showSignupSuccess(nameVal,selarLink);
-  };
-
-  box.append(
-    div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'16px'}},[
-      h('h2',{style:{fontFamily:"'Playfair Display',serif",fontSize:'22px'},html:'Create Account'}),
-      h('button',{style:{background:'none',border:'none',color:'var(--muted)',fontSize:'18px',cursor:'pointer'},html:'✕',onclick:()=>ov.remove()})
-    ]),
-    badge,errEl,nameField,emailField,passField,submitBtn,
-    h('p',{style:{fontSize:'12px',color:'var(--dim)',textAlign:'center',marginTop:'12px',fontFamily:"'DM Mono',monospace",letterSpacing:'1px'},html:'After account creation you will be redirected to Selar to pay'}),
-    h('p',{style:{fontSize:'13px',color:'var(--muted)',textAlign:'center',marginTop:'12px'},html:'Already have an account? <button onclick="go('login')" style="background:none;border:none;color:var(--gold);cursor:pointer;font-size:13px">Log in</button>'})
-  );
+    showSignupSuccess(nameI.value,selarLink);
+  },{style:{width:'100%',padding:'16px',marginTop:'8px'}});
+  box.append(div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'16px'}},[h('h2',{style:{fontFamily:"'Playfair Display',serif",fontSize:'22px'},html:'Create Account'}),btn('x','',()=>ov.remove(),{style:{background:'none',border:'none',color:'var(--muted)',fontSize:'18px',cursor:'pointer'}})]),badge,errEl,field('Full Name',nameI),field('Email',emailI),field('Password',passI),submitBtn,h('p',{style:{fontSize:'12px',color:'var(--dim)',textAlign:'center',marginTop:'12px',fontFamily:"'DM Mono',monospace",letterSpacing:'1px'},html:'You will be redirected to Selar to complete payment'}),h('p',{style:{fontSize:'13px',color:'var(--muted)',textAlign:'center',marginTop:'12px'},html:'Already have an account? <button onclick="go(\'login\')" style="background:none;border:none;color:var(--gold);cursor:pointer;font-size:13px">Log in</button>'}));
   ov.append(box);document.body.append(ov);
 }
+
 function showSignupSuccess(name,selarLink){
   const ov=div({cls:'modal-bg'});
   const box=div({cls:'card',style:{maxWidth:'440px',width:'100%',textAlign:'center'}});
@@ -284,137 +247,141 @@ function showVidModal(url){
 // SIGNUP
 // ═══════════════════════════════
 function signup(){
-  const page=div({cls:'center',style:{minHeight:'100vh',padding:'24px'}});
-  
-  // Read pre-selected plan from sessionStorage
+  const page=document.createElement('div');
+  page.className='center';
+  page.style.cssText='min-height:100vh;padding:24px;';
+
   let sel=null;
   try{const stored=sessionStorage.getItem('selectedPlan');if(stored)sel=JSON.parse(stored);}catch(e){}
-  
-  const wrap=div({cls:'fade',style:{width:'100%',maxWidth:'560px'}});
 
-  // Plan badge if pre-selected
-  const planBadge=sel?div({style:{background:sel.color,color:'#0F0E0A',borderRadius:'4px',padding:'12px 16px',marginBottom:'16px',display:'flex',justifyContent:'space-between',alignItems:'center'}}):'';
-  if(sel&&planBadge){
-    planBadge.append(div({},[div({style:{fontFamily:"'DM Mono',monospace",fontSize:'9px',letterSpacing:'2px',textTransform:'uppercase',marginBottom:'4px'},html:'Selected Plan'}),div({style:{fontFamily:"'Playfair Display',serif",fontSize:'20px',fontWeight:'700'},html:sel.name+' — '+sel.price})]),div({style:{fontFamily:"'DM Mono',monospace",fontSize:'10px'},html:sel.dur+' access'}));
+  const wrap=document.createElement('div');
+  wrap.className='fade';
+  wrap.style.cssText='width:100%;max-width:560px;';
+
+  const fc=document.createElement('div');
+  fc.className='card';
+  fc.style.marginBottom='20px';
+
+  const logoDiv=document.createElement('div');
+  logoDiv.style.cssText="font-family:'Playfair Display',serif;font-style:italic;font-size:22px;color:var(--gold);margin-bottom:4px;";
+  logoDiv.textContent='Deo Fortis';
+
+  const hr=document.createElement('hr');
+  hr.style.cssText='border:none;border-top:1px solid var(--border);margin:16px 0;';
+
+  const title=document.createElement('h2');
+  title.style.cssText="font-family:'Playfair Display',serif;font-size:24px;margin-bottom:4px;";
+  title.textContent='Create Account';
+
+  const subtitle=document.createElement('p');
+  subtitle.className='muted';
+  subtitle.style.cssText='font-size:14px;margin-bottom:20px;';
+  subtitle.textContent='Fill in your details to get started.';
+
+  if(sel){
+    const badge=document.createElement('div');
+    badge.style.cssText='border-radius:4px;padding:12px 16px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center;background:'+sel.color+';color:#0F0E0A;';
+    const bl=document.createElement('div');
+    const blt=document.createElement('div');
+    blt.style.cssText="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2px;text-transform:uppercase;margin-bottom:4px;";
+    blt.textContent='Selected Plan';
+    const blv=document.createElement('div');
+    blv.style.cssText="font-family:'Playfair Display',serif;font-size:20px;font-weight:700;";
+    blv.textContent=sel.name+' — '+sel.price;
+    bl.append(blt,blv);
+    const br2=document.createElement('div');
+    br2.style.cssText="font-family:'DM Mono',monospace;font-size:10px;";
+    br2.textContent=sel.dur+' access';
+    badge.append(bl,br2);
+    fc.append(logoDiv,hr,title,subtitle,badge);
+  }else{
+    fc.append(logoDiv,hr,title,subtitle);
   }
 
-  const fc=div({cls:'card',style:{marginBottom:'20px'}});
-  fc.append(
-    div({style:{fontFamily:"'Playfair Display',serif",fontStyle:'italic',fontSize:'22px',color:'var(--gold)',marginBottom:'4px'},html:'Deo Fortis'}),
-    h('hr',{style:{border:'none',borderTop:'1px solid var(--border)',margin:'16px 0'}}),
-    h('h2',{style:{fontFamily:"'Playfair Display',serif",fontSize:'24px',marginBottom:'4px'},html:'Create Account'}),
-    h('p',{cls:'muted',style:{fontSize:'14px',marginBottom:'20px'},html:'Fill in your details to get started.'})
-  );
-  if(sel&&planBadge)fc.append(planBadge);
-  
-  // Error message
-  const errEl=div({cls:'err hidden',id:'signup-err'});
+  const errEl=document.createElement('div');
+  errEl.className='err hidden';
+  errEl.id='su-err';
   fc.append(errEl);
 
-  // Use a real HTML form so values are always accessible
-  const form=document.createElement('form');
-  form.onsubmit=e=>e.preventDefault();
-  
-  const nameLbl=document.createElement('label');nameLbl.className='label';nameLbl.textContent='Full Name';
-  const nameInp=document.createElement('input');nameInp.className='input';nameInp.placeholder='Your full name';nameInp.type='text';nameInp.id='su-name';nameInp.name='fullname';nameInp.autocomplete='name';
-  const nameWrap=document.createElement('div');nameWrap.style.marginBottom='16px';nameWrap.append(nameLbl,nameInp);
+  // Name field
+  const nl=document.createElement('label');nl.className='label';nl.textContent='Full Name';
+  const ni=document.createElement('input');ni.className='input';ni.placeholder='Your full name';ni.type='text';ni.id='su-name';ni.autocomplete='name';
+  const nw=document.createElement('div');nw.style.marginBottom='16px';nw.append(nl,ni);
 
-  const emailLbl=document.createElement('label');emailLbl.className='label';emailLbl.textContent='Email';
-  const emailInp=document.createElement('input');emailInp.className='input';emailInp.placeholder='your@email.com';emailInp.type='email';emailInp.id='su-email';emailInp.name='email';emailInp.autocomplete='email';
-  const emailWrap=document.createElement('div');emailWrap.style.marginBottom='16px';emailWrap.append(emailLbl,emailInp);
+  // Email field
+  const el2=document.createElement('label');el2.className='label';el2.textContent='Email';
+  const ei=document.createElement('input');ei.className='input';ei.placeholder='your@email.com';ei.type='email';ei.id='su-email';ei.autocomplete='email';
+  const ew=document.createElement('div');ew.style.marginBottom='16px';ew.append(el2,ei);
 
-  const passLbl=document.createElement('label');passLbl.className='label';passLbl.textContent='Password';
-  const passInp=document.createElement('input');passInp.className='input';passInp.placeholder='Min. 6 characters';passInp.type='password';passInp.id='su-pass';passInp.name='password';passInp.autocomplete='new-password';
-  const passWrap=document.createElement('div');passWrap.style.marginBottom='20px';passWrap.append(passLbl,passInp);
+  // Password field
+  const pl=document.createElement('label');pl.className='label';pl.textContent='Password';
+  const pi=document.createElement('input');pi.className='input';pi.placeholder='Min. 6 characters';pi.type='password';pi.id='su-pass';pi.autocomplete='new-password';
+  const pw=document.createElement('div');pw.style.marginBottom='20px';pw.append(pl,pi);
 
-  form.append(nameWrap,emailWrap,passWrap);
-  fc.append(form);
+  fc.append(nw,ew,pw);
 
-  // Submit button
   const submitBtn=document.createElement('button');
   submitBtn.className='btn btn-gold';
-  submitBtn.style.cssText='width:100%;padding:16px;margin-top:8px;';
+  submitBtn.style.cssText='width:100%;padding:16px;';
   submitBtn.textContent=sel?'Create Account — '+sel.price:'Create Account';
-  submitBtn.type='button';
-  submitBtn.onclick=async()=>{
+
+  submitBtn.onclick=async function(){
     const nameVal=document.getElementById('su-name').value.trim();
     const emailVal=document.getElementById('su-email').value.trim();
     const passVal=document.getElementById('su-pass').value;
-    const err=document.getElementById('signup-err');
-    err.classList.add('hidden');
-    if(!nameVal){err.classList.remove('hidden');err.textContent='Please enter your full name.';return;}
-    if(!emailVal){err.classList.remove('hidden');err.textContent='Please enter your email.';return;}
-    if(!passVal||passVal.length<6){err.classList.remove('hidden');err.textContent='Password must be at least 6 characters.';return;}
+    const errBox=document.getElementById('su-err');
+    errBox.classList.add('hidden');
+    if(!nameVal){errBox.classList.remove('hidden');errBox.textContent='Please enter your full name.';return;}
+    if(!emailVal){errBox.classList.remove('hidden');errBox.textContent='Please enter your email.';return;}
+    if(!passVal||passVal.length<6){errBox.classList.remove('hidden');errBox.textContent='Password must be at least 6 characters.';return;}
     submitBtn.textContent='Creating Account...';submitBtn.disabled=true;
     try{
-      const{data,error}=await sb.auth.signUp({email:emailVal,password:passVal});
-      if(error){err.classList.remove('hidden');err.textContent=error.message;submitBtn.textContent=sel?'Create Account — '+sel.price:'Create Account';submitBtn.disabled=false;return;}
-      if(data&&data.user){
-        const profileData={id:data.user.id,email:emailVal,full_name:nameVal,status:'pending'};
+      const res=await sb.auth.signUp({email:emailVal,password:passVal});
+      if(res.error){errBox.classList.remove('hidden');errBox.textContent=res.error.message;submitBtn.textContent=sel?'Create Account — '+sel.price:'Create Account';submitBtn.disabled=false;return;}
+      if(res.data&&res.data.user){
+        const profileData={id:res.data.user.id,email:emailVal,full_name:nameVal,status:'pending'};
         if(sel)profileData.plan=sel.name;
-        const{error:pe}=await sb.from('profiles').upsert(profileData,{onConflict:'id'});
-        if(pe)console.error('Profile error:',pe);
-        sendAdminEmail('New Signup — Deo Fortis','<h2>New Student</h2><p><b>Name:</b> '+nameVal+'</p><p><b>Email:</b> '+emailVal+'</p><p><b>Plan:</b> '+(sel?sel.name:'Not selected')+'</p>');
+        await sb.from('profiles').upsert(profileData,{onConflict:'id'});
+        sendAdminEmail('New Signup','<h2>New Student</h2><p>Name: '+nameVal+'</p><p>Email: '+emailVal+'</p><p>Plan: '+(sel?sel.name:'None')+'</p>');
         sessionStorage.removeItem('selectedPlan');
-        // Show success and redirect to Selar
+        const selarLink=sel?sel.link:'#';
+        if(selarLink&&selarLink!=='#')window.open(selarLink,'_blank');
+        // Show success
         wrap.innerHTML='';
-        const dc=div({cls:'card',style:{textAlign:'center'}});
-        dc.append(
-          div({style:{fontSize:'48px',marginBottom:'16px'},html:'🎉'}),
-          div({style:{fontFamily:"'Playfair Display',serif",fontStyle:'italic',fontSize:'22px',color:'var(--gold)',marginBottom:'16px'},html:'Deo Fortis'}),
-          h('h2',{style:{fontFamily:"'Playfair Display',serif",fontSize:'24px',marginBottom:'12px'},html:'Account Created!'}),
-          h('p',{cls:'muted',style:{fontSize:'14px',lineHeight:'1.8',marginBottom:'24px'},html:'Hi '+nameVal+'! Your account has been created. Complete your payment to get approved.'})
-        );
-        if(sel){
-          const payBtn=document.createElement('a');payBtn.className='btn btn-gold';payBtn.style.cssText='display:block;text-align:center;margin-bottom:12px;';payBtn.href=sel.link;payBtn.target='_blank';payBtn.textContent='Complete Payment — '+sel.price+' →';
+        const dc=document.createElement('div');dc.className='card';dc.style.textAlign='center';
+        const emoji=document.createElement('div');emoji.style.cssText='font-size:48px;margin-bottom:16px;';emoji.textContent='🎉';
+        const dLogo=document.createElement('div');dLogo.style.cssText="font-family:'Playfair Display',serif;font-style:italic;font-size:22px;color:var(--gold);margin-bottom:16px;";dLogo.textContent='Deo Fortis';
+        const dTitle=document.createElement('h2');dTitle.style.cssText="font-family:'Playfair Display',serif;font-size:24px;margin-bottom:12px;";dTitle.textContent='Account Created!';
+        const dMsg=document.createElement('p');dMsg.className='muted';dMsg.style.cssText='font-size:14px;line-height:1.8;margin-bottom:24px;';dMsg.textContent='Hi '+nameVal+'! Complete your payment to get approved.';
+        dc.append(emoji,dLogo,dTitle,dMsg);
+        if(sel&&selarLink&&selarLink!=='#'){
+          const payBtn=document.createElement('a');payBtn.className='btn btn-gold';payBtn.style.cssText='display:block;text-align:center;margin-bottom:12px;';payBtn.href=selarLink;payBtn.target='_blank';payBtn.textContent='Complete Payment — '+sel.price+' →';
           dc.append(payBtn);
-          window.open(sel.link,'_blank');
         }
-        dc.append(
-          h('p',{style:{fontFamily:"'DM Mono',monospace",fontSize:'10px',color:'var(--dim)',letterSpacing:'1px',textTransform:'uppercase',marginTop:'16px'},html:"You'll be approved as soon as your payment is verified"}),
-          btn('Log In After Paying','btn-outline',()=>go('login'),{style:{marginTop:'16px',width:'100%'}})
-        );
+        const note=document.createElement('p');note.style.cssText="font-family:'DM Mono',monospace;font-size:10px;color:var(--dim);letter-spacing:1px;text-transform:uppercase;margin-top:16px;";note.textContent="You'll be approved as soon as your payment is verified";
+        const loginBtn=document.createElement('button');loginBtn.className='btn btn-outline';loginBtn.style.cssText='margin-top:16px;width:100%;';loginBtn.textContent='Log In After Paying';loginBtn.onclick=function(){go('login');};
+        dc.append(note,loginBtn);
         wrap.append(dc);
       }
-    }catch(e){err.classList.remove('hidden');err.textContent='Something went wrong. Please try again.';submitBtn.textContent=sel?'Create Account — '+sel.price:'Create Account';submitBtn.disabled=false;}
+    }catch(e){
+      const errBox2=document.getElementById('su-err');
+      if(errBox2){errBox2.classList.remove('hidden');errBox2.textContent='Something went wrong. Please try again.';}
+      submitBtn.textContent=sel?'Create Account — '+sel.price:'Create Account';submitBtn.disabled=false;
+    }
   };
+
   fc.append(submitBtn);
+  wrap.append(fc);
 
-  // Plan selector if no plan pre-selected
-  if(!sel){
-    const ps=div({style:{marginBottom:'20px'}});
-    ps.append(h('p',{style:{fontFamily:"'DM Mono',monospace",fontSize:'10px',letterSpacing:'3px',textTransform:'uppercase',color:'var(--gold)',marginBottom:'16px'},html:'Select Your Plan'}));
-    const pl=div({style:{display:'grid',gap:'12px'}});
-    let links={monthly:'#',sixmonth:'#',yearly:'#'};
-    sb.from('admin_settings').select('*').single().then(({data})=>{if(data)links={monthly:data.link_monthly||'#',sixmonth:data.link_sixmonth||'#',yearly:data.link_yearly||'#'};});
-    const planDefs=[{name:'Monthly',price:'$10',period:'/ month',dur:'1 Month',color:'var(--gold)',key:'monthly'},{name:'6 Months',price:'$39',period:'/ 6 months',dur:'6 Months',color:'var(--teal)',popular:true,key:'sixmonth'},{name:'1 Year',price:'$59',period:'/ year',dur:'12 Months',color:'var(--purple)',key:'yearly'}];
-    planDefs.forEach(plan=>{
-      const card=div({style:{background:'var(--card)',border:'1px solid var(--border)',borderRadius:'4px',padding:'20px 24px',cursor:'pointer',transition:'all .2s',position:'relative'},id:'pc-'+plan.key});
-      if(plan.popular)card.append(h('span',{style:{position:'absolute',top:'-1px',right:'16px',background:'var(--teal)',color:'#0F0E0A',fontFamily:"'DM Mono',monospace",fontSize:'9px',letterSpacing:'2px',textTransform:'uppercase',padding:'3px 10px',borderRadius:'0 0 4px 4px'},html:'Best Value'}));
-      const row=div({style:{display:'flex',alignItems:'center',justifyContent:'space-between'}});
-      row.append(div({},[div({cls:'mono',style:{marginBottom:'4px'},html:plan.name}),div({style:{fontFamily:"'Playfair Display',serif",fontSize:'28px',color:plan.color,fontWeight:'700',lineHeight:'1'},html:plan.price+' <span style="font-size:13px;color:var(--dim);font-weight:300">'+plan.period+'</span>'})]),div({style:{width:'22px',height:'22px',borderRadius:'50%',border:'2px solid var(--border)',flexShrink:'0'},id:'pr-'+plan.key}));
-      card.append(row,div({style:{fontFamily:"'DM Mono',monospace",fontSize:'10px',color:plan.color,letterSpacing:'1px',marginTop:'6px',opacity:'.7'},html:plan.dur+' of full access'}));
-      card.onclick=()=>{
-        planDefs.forEach(p=>{const c=document.getElementById('pc-'+p.key);const r=document.getElementById('pr-'+p.key);if(c){c.style.border='1px solid var(--border)';c.style.background='var(--card)';}if(r){r.innerHTML='';r.style.border='2px solid var(--border)';}});
-        card.style.border='1px solid '+plan.color;card.style.background='#1a1a0f';
-        const radio=document.getElementById('pr-'+plan.key);
-        if(radio){radio.style.border='2px solid '+plan.color;radio.innerHTML='<div style="width:10px;height:10px;border-radius:50%;background:'+plan.color+'"></div>';}
-        sel={...plan,link:links[plan.key]||'#'};
-        submitBtn.textContent='Create Account — '+plan.price;
-      };
-      pl.append(card);
-    });
-    ps.append(pl);
-    wrap.append(fc,ps);
-  }else{
-    wrap.append(fc);
-  }
+  const loginP=document.createElement('p');loginP.style.cssText='font-size:13px;color:var(--muted);text-align:center;margin-top:16px;';loginP.textContent='Already have an account? ';
+  const loginLink=document.createElement('button');loginLink.style.cssText='background:none;border:none;color:var(--gold);cursor:pointer;font-size:13px;';loginLink.textContent='Log in';loginLink.onclick=function(){go('login');};
+  loginP.append(loginLink);
 
-  wrap.append(
-    submitBtn,
-    h('p',{style:{fontSize:'13px',color:'var(--muted)',textAlign:'center',marginTop:'16px'},html:'Already have an account? <button onclick="go('login')" style="background:none;border:none;color:var(--gold);cursor:pointer;font-size:13px">Log in</button>'}),
-    h('p',{style:{textAlign:'center',marginTop:'8px'},html:'<button onclick="go('landing')" style="background:none;border:none;color:var(--dim);cursor:pointer;font-size:12px;font-family:'DM Mono',monospace;letter-spacing:1px">← Back to home</button>'})
-  );
+  const backP=document.createElement('p');backP.style.textAlign='center';backP.style.marginTop='8px';
+  const backLink=document.createElement('button');backLink.style.cssText="background:none;border:none;color:var(--dim);cursor:pointer;font-size:12px;font-family:'DM Mono',monospace;letter-spacing:1px;";backLink.textContent='← Back to home';backLink.onclick=function(){go('landing');};
+  backP.append(backLink);
+
+  wrap.append(loginP,backP);
   page.append(wrap);
   return page;
 }
@@ -457,25 +424,6 @@ function dashboard(){
   nav.append(div({cls:'logo',html:'Deo Fortis'}),div({style:{display:'flex',gap:'8px'}},[btn('📚 Study','btn-outline',()=>go('study'),{style:{padding:'8px 16px'}}),btn('🃏 Cards','btn-outline',()=>go('flashcards'),{style:{padding:'8px 16px'}}),btn('📝 Q-Bank','btn-outline',()=>go('vignette'),{style:{padding:'8px 16px'}}),btn('🏆','btn-outline',()=>go('leaderboard'),{style:{padding:'8px 16px'}}),btn('Log Out','btn-outline',()=>sb.auth.signOut(),{style:{padding:'8px 16px'}})]));
   page.append(nav);
 
-  // Banner alert for new assigned content
-  if(p.has_new_content){
-    const banner=div({style:{background:'linear-gradient(135deg,#1a3a2a,#0a2518)',border:'1px solid var(--teal)',padding:'16px 24px',display:'flex',alignItems:'center',justifyContent:'space-between',gap:'16px'}});
-    banner.append(div({style:{display:'flex',alignItems:'center',gap:'12px'}},[div({style:{fontSize:'24px'},html:'📬'}),div({},[div({style:{color:'var(--teal)',fontFamily:"'Playfair Display',serif",fontSize:'16px',fontWeight:'600',marginBottom:'2px'},html:'New content has been assigned to you!'}),div({style:{fontSize:'13px',color:'var(--muted)'},html:'Your tutor has uploaded new study materials for you. Check your flashcards or Q-Bank.'})])]),btn('View Now','btn-teal',async()=>{await sb.from('profiles').update({has_new_content:false}).eq('id',S.user.id);banner.remove();go('flashcards');},{style:{padding:'8px 16px',fontSize:'11px',flexShrink:'0'}}));
-    page.append(banner);
-  }
-
-  // Load community link, support email and noise links
-  let communityLink='',supportEmail='',noiseLinks={};
-  sb.from('admin_settings').select('community_link,support_email,noise_rain,noise_ocean,noise_cafe,noise_white').single().then(({data})=>{
-    if(data){
-      if(data.community_link){communityLink=data.community_link;const cb=document.getElementById('community-btn');if(cb){cb.href=communityLink;cb.style.display='block';}}
-      if(data.support_email){supportEmail=data.support_email;const se=document.getElementById('support-email');if(se)se.href='mailto:'+data.support_email;}
-      noiseLinks={rain:data.noise_rain||'',ocean:data.noise_ocean||'',cafe:data.noise_cafe||'',white:data.noise_white||''};
-      // Store noise links globally for study page
-      window._noiseLinks=noiseLinks;
-    }
-  });
-
   const inner=div({cls:'inner'});
   const th=Math.floor((p.total_study_minutes||0)/60),tm=(p.total_study_minutes||0)%60;
   inner.append(div({cls:'fade'},[h('span',{cls:'chapter',html:'Welcome Back'}),h('h1',{style:{fontFamily:"'Playfair Display',serif",fontSize:'40px',fontWeight:'700',marginBottom:'4px'},html:(p.full_name||'Scholar')+' <em style="font-style:italic;color:var(--gold);font-size:32px">📖</em>'}),h('p',{cls:'muted',style:{fontSize:'14px',marginBottom:'40px'},html:'Plan: <span style="color:var(--gold)">'+(p.plan||'Active')+'</span> · Expires: <span style="color:var(--text)">'+(p.access_expires_at?new Date(p.access_expires_at).toLocaleDateString():'Active')+'</span>'})]));
@@ -511,14 +459,6 @@ function dashboard(){
   const ag=div({style:{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:'16px'}});
   ag.append(btn('Start Pomodoro →','btn-gold',()=>go('study'),{style:{padding:'18px',fontSize:'13px'}}),btn('Flashcards →','btn-outline',()=>go('flashcards'),{style:{padding:'18px',fontSize:'13px'}}),btn('Q-Bank →','btn-outline',()=>go('vignette'),{style:{padding:'18px',fontSize:'13px'}}));
   inner.append(ag);
-  // Community button
-  const communityCard=div({style:{marginTop:'16px',background:'linear-gradient(135deg,#1a1509,#141309)',border:'1px solid #C8A96E44',borderRadius:'4px',padding:'20px 24px',display:'flex',alignItems:'center',justifyContent:'space-between',gap:'16px'}});
-  communityCard.append(div({style:{display:'flex',alignItems:'center',gap:'12px'}},[div({style:{fontSize:'28px'},html:'👥'}),div({},[div({style:{fontFamily:"'Playfair Display',serif",fontSize:'17px',color:'var(--text)',fontWeight:'600',marginBottom:'2px'},html:'Join Our Community'}),div({style:{fontSize:'13px',color:'var(--muted)'},html:'Connect with other students, share tips and stay accountable.'})])]),h('a',{cls:'btn btn-gold',href:'#',target:'_blank',id:'community-btn',style:{padding:'10px 20px',fontSize:'11px',display:'none',flexShrink:'0'},html:'Join Now →'}));
-  inner.append(communityCard);
-  // Support email
-  const supportCard=div({style:{marginTop:'12px',background:'var(--card)',border:'1px solid var(--border)',borderRadius:'4px',padding:'16px 24px',display:'flex',alignItems:'center',gap:'12px'}});
-  supportCard.append(div({style:{fontSize:'20px'},html:'✉️'}),div({},[div({style:{fontSize:'13px',color:'var(--muted)'},html:'Need help? '},),h('a',{style:{color:'var(--gold)',fontSize:'13px'},href:'mailto:',id:'support-email',html:'Contact support'})]));
-  inner.append(supportCard);
   page.append(inner);
 
   async function loadSess(){
@@ -585,21 +525,7 @@ function study(){
     },{style:{width:'100%',marginBottom:'20px',display:reqSent?'none':'block'}});
     ro.append(sentMsg,sendBtn);
     card.append(ro);
-    // White noise selection
-    card.append(h('label',{cls:'label',html:'White Noise During Session?'}));
-    const noiseRow=div({style:{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:'8px',marginBottom:'20px'}});
-    const noiseOpts=[['none','🔇 None'],['rain','🌧️ Rain'],['ocean','🌊 Ocean'],['cafe','☕ Cafe'],['white','🤍 White']];
-    let selNoise='none';
-    noiseOpts.forEach(([v,l])=>{
-      const b=btn(l,'btn-outline',()=>{selNoise=v;noiseRow.querySelectorAll('button').forEach(b2=>{b2.style.background='transparent';b2.style.color='var(--muted)';b2.style.border='1px solid var(--border)';});b.style.background='var(--gold)';b.style.color='#0F0E0A';b.style.border='1px solid var(--gold)';});
-      b.style.fontSize='10px';b.style.padding='8px 4px';
-      if(v==='none'){b.style.background='var(--gold)';b.style.color='#0F0E0A';b.style.border='1px solid var(--gold)';}
-      noiseRow.append(b);
-    });
-    card.append(noiseRow);
-    cfg.noise=selNoise;
-
-    const startBtn=btn('Start Session →','btn-gold',()=>{if(!cfg.topic)return;cfg.noise=selNoise;showTimer();},{style:{width:'100%'}});
+    const startBtn=btn('Start Session →','btn-gold',()=>{if(!cfg.topic)return;showTimer();},{style:{width:'100%'}});
     card.append(startBtn);
     page.append(card);
   }
@@ -633,20 +559,6 @@ function study(){
       td.textContent=fmtMS(rem);fgC.setAttribute('stroke-dashoffset',String(circ*(1-timer/mt)));
       if(timer>=mt){clearInterval(interval);timer=0;if(isBreak){isBreak=false;curSess++;if(curSess>cfg.sessions){go('dashboard');return;}}else isBreak=true;showTimer();if(running)interval=setInterval(tick,1000);}
     }
-    // Play white noise if selected
-    let audio=null;
-    const nl=window._noiseLinks||{};
-    const nUrl={rain:nl.rain,ocean:nl.ocean,cafe:nl.cafe,white:nl.white}[cfg.noise];
-    if(nUrl&&cfg.noise!=='none'){
-      audio=new Audio(nUrl);
-      audio.loop=true;
-      audio.volume=0.4;
-      audio.play().catch(()=>{});
-    }
-    // Stop audio when page changes
-    const origGo=window._origGo||go;
-    if(!window._origGo){window._origGo=go;window.go=function(p){if(audio){audio.pause();audio=null;}origGo(p);};}
-
     running=true;interval=setInterval(tick,1000);
   }
   showSetup();return page;
@@ -955,23 +867,11 @@ function admin(){
         card.append(h('h2',{style:{fontFamily:"'Playfair Display',serif",fontSize:'22px',marginBottom:'24px'},html:'Site Settings'}));
         const vI=inp('https://www.youtube.com/embed/...','text',set.video_url||'');
         card.append(field('Demo Video URL',vI),h('p',{cls:'mono',style:{marginBottom:'20px'},html:'YouTube: Share → Embed → copy the src URL only'}));
-        const comI=inp('https://...','text',set.community_link||'');
-        card.append(field('Community Link (Forum / Discord / WhatsApp)',comI));
-        const supI=inp('e.g. deofortistutors@gmail.com','text',set.support_email||'');
-        card.append(field('Support Email (shown on dashboard)',supI));
-        card.append(h('hr',{style:{border:'none',borderTop:'1px solid var(--border)',margin:'24px 0'}}));
-        card.append(h('h3',{style:{fontFamily:"'Playfair Display',serif",fontSize:'18px',marginBottom:'8px'},html:'White Noise Audio Links'}));
-        card.append(h('p',{cls:'mono',style:{marginBottom:'16px'},html:'Paste direct audio file URLs (.mp3) for each sound type'}));
-        const nrI=inp('🌧️ Rain audio URL (.mp3)','text',set.noise_rain||'');
-        const noI=inp('🌊 Ocean audio URL (.mp3)','text',set.noise_ocean||'');
-        const ncI=inp('☕ Cafe audio URL (.mp3)','text',set.noise_cafe||'');
-        const nwI=inp('🤍 White noise audio URL (.mp3)','text',set.noise_white||'');
-        card.append(field('🌧️ Rain',nrI),field('🌊 Ocean',noI),field('☕ Cafe',ncI),field('🤍 White Noise',nwI));
         card.append(h('hr',{style:{border:'none',borderTop:'1px solid var(--border)',margin:'24px 0'}}),h('h3',{style:{fontFamily:"'Playfair Display',serif",fontSize:'18px',marginBottom:'16px'},html:'Study Portal Payment Links'}));
         const lIs={};
         [['link_monthly','Monthly ($10)'],['link_sixmonth','6 Months ($39)'],['link_yearly','1 Year ($59)']].forEach(([k,l])=>{const i=inp('https://selar.co/...','text',set[k]||'');lIs[k]=i;card.append(field(l,i));});
         const sm=div({cls:'ok',style:{display:'none',marginTop:'12px'},html:'✓ Settings saved!'});
-        card.append(btn('Save Settings','btn-gold',async()=>{const obj={id:1,video_url:vI.value,community_link:comI.value,support_email:supI.value,noise_rain:nrI.value,noise_ocean:noI.value,noise_cafe:ncI.value,noise_white:nwI.value};Object.keys(lIs).forEach(k=>obj[k]=lIs[k].value);await sb.from('admin_settings').upsert(obj);sm.style.display='block';setTimeout(()=>sm.style.display='none',2000);}),sm);
+        card.append(btn('Save Settings','btn-gold',async()=>{const obj={id:1,video_url:vI.value};Object.keys(lIs).forEach(k=>obj[k]=lIs[k].value);await sb.from('admin_settings').upsert(obj);sm.style.display='block';setTimeout(()=>sm.style.display='none',2000);}),sm);
         content.innerHTML='';content.append(card);
       }
 
@@ -987,7 +887,6 @@ function admin(){
           const right=div({style:{display:'flex',alignItems:'center',gap:'12px'}});
           right.append(h('span',{style:{fontFamily:"'DM Mono',monospace",fontSize:'10px',letterSpacing:'1px',textTransform:'uppercase',color:u.status==='approved'?'var(--teal)':'var(--gold)'},html:u.status||'pending'}));
           if(u.status!=='approved'){right.append(btn('Approve','btn-teal',async()=>{const exp=new Date();exp.setMonth(exp.getMonth()+1);await sb.from('profiles').update({status:'approved',access_expires_at:exp.toISOString()}).eq('id',u.id);loadTab('users');},{style:{padding:'6px 16px',fontSize:'11px'}}));}
-          right.append(btn('🗑️','',async()=>{if(!confirm('Delete this user?'))return;await sb.from('profiles').delete().eq('id',u.id);loadTab('users');},{style:{background:'none',border:'1px solid #5a2020',color:'#ff8888',padding:'6px 10px',fontSize:'11px',cursor:'pointer'}}));
           row.append(info,right);card.append(row);
         });
         content.innerHTML='';content.append(card);
@@ -1027,7 +926,7 @@ function admin(){
           }
           if(r.style==='flashcard'){const fi=h('input',{type:'file',accept:'.csv',style:{color:'var(--muted)',fontSize:'12px',fontFamily:"'DM Mono',monospace"}});fi.onchange=e=>{if(e.target.files[0])handleUpload(e.target.files[0],true);};br2.append(div({},[h('label',{cls:'label',html:'Upload CSV'}),fi]));}
           if(r.style==='vignette'||r.style==='theory'){const fi=h('input',{type:'file',accept:'.txt',style:{color:'var(--muted)',fontSize:'12px',fontFamily:"'DM Mono',monospace"}});fi.onchange=e=>{if(e.target.files[0])handleUpload(e.target.files[0],false);};br2.append(div({},[h('label',{cls:'label',html:'Upload TXT'}),fi]));}
-          br2.append(btn('Mark Done','btn-teal',async()=>{await sb.from('recall_requests').update({status:'fulfilled'}).eq('id',r.id);await sb.from('profiles').update({has_new_content:true}).eq('id',r.user_id);loadTab('recalls');},{style:{padding:'8px 16px',fontSize:'11px'}}));
+          br2.append(btn('Mark Done','btn-teal',async()=>{await sb.from('recall_requests').update({status:'fulfilled'}).eq('id',r.id);loadTab('recalls');},{style:{padding:'8px 16px',fontSize:'11px'}}));
           card.append(br2);content.append(card);
         });
         content.append(upSt);
