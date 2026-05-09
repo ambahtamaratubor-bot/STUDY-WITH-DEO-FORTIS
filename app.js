@@ -534,6 +534,40 @@ sl.append(row);
 });
 }
 setTimeout(loadSess, 1000);
+// Check for orphaned sessions
+(async()=>{
+  const{data:orphans}=await sb.from('study_sessions').select('*').eq('user_id',S.user.id).is('ended_at',null).order('started_at',{ascending:false}).limit(1);
+  if(!orphans||!orphans.length)return;
+  const orphan=orphans[0];
+  const startDate=new Date(orphan.started_at);
+  const hoursAgo=Math.round((Date.now()-startDate)/3600000);
+  // Only prompt if session is older than 5 minutes
+  if((Date.now()-startDate)<5*60*1000)return;
+  const banner=div({style:{background:'linear-gradient(135deg,#1a1205,#1a0f05)',border:'1px solid var(--gold)',borderRadius:'4px',padding:'16px 20px',marginTop:'16px'}});
+  banner.append(
+    div({style:{display:'flex',alignItems:'center',gap:'10px',marginBottom:'12px'}},[
+      div({style:{fontSize:'20px'},html:'⚠️'}),
+      div({},[
+        div({style:{fontSize:'14px',color:'var(--text)',fontWeight:'600',marginBottom:'2px'},html:'Unfinished Study Session'}),
+        div({style:{fontSize:'12px',color:'var(--muted)'},html:'You have a session from '+startDate.toLocaleDateString()+' at '+startDate.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'})+' that was never clocked out.'})
+      ])
+    ]),
+    div({style:{display:'flex',gap:'10px',flexWrap:'wrap'}},[
+      btn('Clock Out Now','btn-gold',async()=>{
+        const mins=Math.max(1,Math.round((Date.now()-startDate)/60000));
+        await sb.from('study_sessions').update({ended_at:new Date().toISOString(),duration_minutes:mins}).eq('id',orphan.id);
+        await sb.from('profiles').update({total_study_minutes:(S.profile?.total_study_minutes||0)+mins,total_points:(S.profile?.total_points||0)+5}).eq('id',S.user.id);
+        banner.remove();
+        setTimeout(loadSess,500);
+      },{style:{fontSize:'11px',padding:'8px 16px'}}),
+      btn('Discard Session','btn-outline',async()=>{
+        await sb.from('study_sessions').update({ended_at:new Date().toISOString(),duration_minutes:0}).eq('id',orphan.id);
+        banner.remove();
+      },{style:{fontSize:'11px',padding:'8px 16px'}})
+    ])
+  );
+  inner.append(banner);
+})();
 // Load community link and support email
 sb.from('admin_settings').select('community_link,support_email').single().then(({data})=>{
 if(data){
@@ -648,6 +682,26 @@ const cinBtn=btn('⏵ Clock In & Start Timer','btn-gold',async()=>{
 card.append(cinBtn);
 page.append(card);
 }
+function showSessionComplete(){
+page.innerHTML='';
+const card=div({cls:'card fade',style:{width:'100%',maxWidth:'400px',textAlign:'center'}});
+card.append(
+  div({style:{fontSize:'64px',margin:'24px 0'},html:'🎉'}),
+  h('span',{cls:'chapter',html:'All Sessions Complete!'}),
+  h('h2',{style:{fontFamily:"'Playfair Display',serif",fontSize:'28px',marginBottom:'8px'},html:'Well Done!'}),
+  h('p',{cls:'muted',style:{fontSize:'14px',lineHeight:'1.8',marginBottom:'32px'},html:"You completed all your Pomodoro sessions. Ready to clock out and save your progress?"})
+);
+card.append(
+  btn('⏹ Clock Out & Save','btn-gold',()=>showClockOut(),{style:{width:'100%',padding:'16px',marginBottom:'12px'}}),
+  btn('Keep Going →','btn-outline',()=>{
+    // Let them start a new session
+    if(window.pomInterval){clearInterval(window.pomInterval);window.pomInterval=null;}
+    showSetup();
+  },{style:{width:'100%'}})
+);
+page.append(card);
+}
+
 function showClockOut(){
 page.innerHTML='';
 const mins=window.sessionStartTime?Math.max(1,Math.round((Date.now()-window.sessionStartTime)/60000)):0;
@@ -770,9 +824,15 @@ function tick(){
       // transition
       if(plan.isBreakMode){
         plan.isBreakMode=false;plan.currentCycle++;
-        if(plan.currentCycle>plan.totalSessions){window.pomPlan=null;showClockOut();return;}
+        if(plan.currentCycle>plan.totalSessions){
+          // All sessions complete — show completion screen
+          window.pomPlan=null;showSessionComplete();return;
+        }
       }else{
-        if(plan.currentCycle>=plan.totalSessions){window.pomPlan=null;showClockOut();return;}
+        if(plan.currentCycle>=plan.totalSessions){
+          // Last focus done — show completion screen
+          window.pomPlan=null;showSessionComplete();return;
+        }
         plan.isBreakMode=true;
       }
       plan.startedAtTimestamp=Date.now();
@@ -781,16 +841,15 @@ function tick(){
     }
   }finally{tickLock=false;}
 }
-const pauseBtn=btn(computeRem()<mt?'Pause':'Start','btn-gold',()=>{
-  if(window.pomInterval){clearInterval(window.pomInterval);window.pomInterval=null;pauseBtn.textContent='Resume';}
-  else{plan.startedAtTimestamp=Date.now()-(mt-computeRem())*1000;window.pomInterval=setInterval(tick,250);pauseBtn.textContent='Pause';}
-});
-br.append(pauseBtn,btn('End Session','btn-outline',()=>{if(window.pomInterval){clearInterval(window.pomInterval);window.pomInterval=null;}window.pomPlan=null;showClockOut();}),btn('← Dashboard','btn-outline',()=>go('dashboard'),{style:{fontSize:'11px'}}));
+br.append(
+  btn('End Session','btn-gold',()=>{if(window.pomInterval){clearInterval(window.pomInterval);window.pomInterval=null;}window.pomPlan=null;showClockOut();}),
+  btn('← Dashboard','btn-outline',()=>go('dashboard'),{style:{fontSize:'11px'}})
+);
 card.append(br);
 const qr=div({style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'10px'}});
 qr.append(btn('🃏 Flashcards','btn-outline',()=>go('flashcards'),{style:{fontSize:'11px'}}),btn('📝 Q-Bank','btn-outline',()=>go('vignette'),{style:{fontSize:'11px'}}));
 card.append(qr);
-card.append(div({style:{fontFamily:"'DM Mono',monospace",fontSize:'9px',color:'var(--dim)',textAlign:'center',marginTop:'8px',letterSpacing:'1px'},html:'Timer keeps running while you study — come back anytime'}));
+card.append(div({style:{fontFamily:"'DM Mono',monospace",fontSize:'9px',color:'var(--dim)',textAlign:'center',marginTop:'8px',letterSpacing:'1px'},html:'Step away? Click End Session to save your progress.'}));
 page.append(card);
 // White noise
 if(noiseLinks2.rain||noiseLinks2.ocean||noiseLinks2.cafe||noiseLinks2.white){
@@ -805,12 +864,8 @@ const ng=div({style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'8px'}});
 });
 ns.append(ng);page.append(ns);
 }
-// Auto-start if mid-session, break, or subsequent session. Manual start for first focus
-const alreadyElapsed=mt-computeRem();
-if(alreadyElapsed>0||plan.isBreakMode||plan.currentCycle>1){
-  window.pomInterval=setInterval(tick,250);
-  pauseBtn.textContent='Pause';
-}
+// Always auto-start — no pause button
+window.pomInterval=setInterval(tick,250);
 // visibilitychange — just resync, interval keeps running
 if(window._visHandler)document.removeEventListener('visibilitychange',window._visHandler,true);
 window._visHandler=function(){if(!document.hidden&&window.pomPlan)tick();};
