@@ -101,17 +101,27 @@ updateTimerBar();
 }
 
 function updateTimerBar(){
-const saved=localStorage.getItem('pomodoroState');
-if(!saved)return;
 try{
-const st=JSON.parse(saved);
-const mt=st.mt||(st.isBreak?(st.cfg?.breakMins||5):(st.cfg?.workMins||25))*60;
-const elapsed=st.segStart?Math.floor((Date.now()-st.segStart)/1000):(st.elapsed||0);
-const rem=Math.max(0,mt-elapsed);
+let rem,isB,sess,total;
+if(window.pomPlan){
+  const plan=window.pomPlan;
+  const mt=plan.isBreakMode?plan.breakSec:plan.workSec;
+  const elapsed=Math.floor((Date.now()-plan.startedAtTimestamp)/1000);
+  rem=Math.max(0,mt-elapsed);
+  isB=plan.isBreakMode;sess=plan.currentCycle;total=plan.totalSessions;
+}else{
+  const saved=localStorage.getItem('pomodoroState');
+  if(!saved)return;
+  const st=JSON.parse(saved);
+  const mt=st.mt||(st.isBreak?(st.cfg?.breakMins||5):(st.cfg?.workMins||25))*60;
+  const elapsed=st.segStart?Math.floor((Date.now()-st.segStart)/1000):(st.elapsed||0);
+  rem=Math.max(0,mt-elapsed);
+  isB=st.isBreak;sess=st.curSess||1;total=st.cfg?.sessions||4;
+}
 const t=document.getElementById('timer-bar-time');
 const s=document.getElementById('timer-bar-session');
-if(t){t.textContent=fmtMS(rem);t.style.color=st.isBreak?'var(--teal)':'var(--gold)';}
-if(s)s.textContent=st.isBreak?'☕ BREAK':'🎯 FOCUS · Session '+(st.curSess||1);
+if(t){t.textContent=fmtMS(rem);t.style.color=isB?'var(--teal)':'var(--gold)';}
+if(s)s.textContent=isB?'☕ BREAK':'🎯 FOCUS · Session '+sess+(total?' of '+total:'');
 }catch(e){}
 }
 
@@ -542,10 +552,8 @@ let timer=0,running=false,curSess=1,isBreak=false,interval=null,reqSent=false;
 // Restore timer state from localStorage if exists
 const _saved=localStorage.getItem('pomodoroState');
 if(_saved){try{const st=JSON.parse(_saved);timer=st.timer||0;curSess=st.curSess||1;isBreak=st.isBreak||false;cfg=Object.assign(cfg,st.cfg||{});window.activeSessionId=st.activeSessionId||null;window.sessionStartTime=st.sessionStartTime||null;}catch(e){}}
-// If there's an active session, restore state and go straight to timer
-if(window.activeSessionId){
-  const _saved=localStorage.getItem('pomodoroState');
-  if(_saved){try{const st=JSON.parse(_saved);curSess=st.curSess||1;isBreak=st.isBreak||false;cfg=Object.assign(cfg,st.cfg||{});}catch(e){}}
+// If there's an active pomPlan, go straight to timer
+if(window.activeSessionId&&window.pomPlan){
   sb.from('admin_settings').select('noise_rain,noise_ocean,noise_cafe,noise_white').single().then(({data:nd})=>{
     if(nd)noiseLinks2={rain:nd.noise_rain||'',ocean:nd.noise_ocean||'',cafe:nd.noise_cafe||'',white:nd.noise_white||''};
     showTimer();
@@ -621,6 +629,16 @@ const cinBtn=btn('⏵ Clock In & Start Timer','btn-gold',async()=>{
   if(error){cinBtn.textContent='⏵ Clock In & Start Timer';cinBtn.disabled=false;alert('Failed to clock in. Try again.');return;}
   window.activeSessionId=sess.id;
   window.sessionStartTime=Date.now();
+  // Initialize fresh pomPlan
+  window.pomPlan={
+    topic:cfg.topic||'General Study',
+    totalSessions:cfg.sessions||4,
+    workSec:(cfg.workMins||25)*60,
+    breakSec:(cfg.breakMins||5)*60,
+    currentCycle:1,
+    isBreakMode:false,
+    startedAtTimestamp:Date.now()
+  };
   showNoiseBar();showTimerBar();
   showTimer();
 },{style:{width:'100%',padding:'16px'}});
@@ -656,37 +674,101 @@ card.append(coutBtn,btn('Back to Dashboard','btn-outline',()=>go('dashboard'),{s
 page.append(card);
 }
 function showTimer(){
-clearInterval(interval);interval=null;
+// ── DeepSeek engine: single source of truth in window.pomPlan ──
+// Stop any existing interval
+if(window.pomInterval){clearInterval(window.pomInterval);window.pomInterval=null;}
+
+// Build or restore plan
+if(!window.pomPlan){
+  window.pomPlan={
+    topic:cfg.topic,
+    totalSessions:cfg.sessions,
+    workSec:cfg.workMins*60,
+    breakSec:cfg.breakMins*60,
+    currentCycle:curSess,
+    isBreakMode:isBreak,
+    startedAtTimestamp:Date.now()
+  };
+}
+const plan=window.pomPlan;
+// sync outer vars
+curSess=plan.currentCycle;
+isBreak=plan.isBreakMode;
+
+function computeRem(){
+  const mt=plan.isBreakMode?plan.breakSec:plan.workSec;
+  const elapsed=Math.floor((Date.now()-plan.startedAtTimestamp)/1000);
+  return Math.max(0,mt-elapsed);
+}
+
+// Build UI
 page.innerHTML='';
-const mt=isBreak?cfg.breakMins*60:cfg.workMins*60;
+const mt=plan.isBreakMode?plan.breakSec:plan.workSec;
 const r=80,circ=2*Math.PI*r;
 const card=div({cls:'card fade',style:{textAlign:'center',maxWidth:'400px',width:'100%'}});
 card.append(
-  h('span',{cls:'chapter',html:isBreak?'☕ Break Time':'Session '+curSess+' of '+cfg.sessions}),
-  h('h2',{style:{fontFamily:"'Playfair Display',serif",fontSize:'20px',marginBottom:'8px',color:isBreak?'var(--teal)':'var(--text)'},html:cfg.topic})
+  h('span',{cls:'chapter',html:plan.isBreakMode?'☕ Break Time':'Session '+plan.currentCycle+' of '+plan.totalSessions}),
+  h('h2',{style:{fontFamily:"'Playfair Display',serif",fontSize:'20px',marginBottom:'8px',color:plan.isBreakMode?'var(--teal)':'var(--text)'},html:plan.topic})
 );
 const svgNS='http://www.w3.org/2000/svg';
 const svg=document.createElementNS(svgNS,'svg');svg.setAttribute('width','200');svg.setAttribute('height','200');svg.style.transform='rotate(-90deg)';
 const bgC=document.createElementNS(svgNS,'circle');bgC.setAttribute('cx','100');bgC.setAttribute('cy','100');bgC.setAttribute('r',String(r));bgC.setAttribute('fill','none');bgC.setAttribute('stroke','var(--border)');bgC.setAttribute('stroke-width','6');
-const fgC=document.createElementNS(svgNS,'circle');fgC.setAttribute('cx','100');fgC.setAttribute('cy','100');fgC.setAttribute('r',String(r));fgC.setAttribute('fill','none');fgC.setAttribute('stroke',isBreak?'var(--teal)':'var(--gold)');fgC.setAttribute('stroke-width','6');fgC.setAttribute('stroke-dasharray',String(circ));fgC.setAttribute('stroke-dashoffset',String(circ));fgC.setAttribute('stroke-linecap','round');fgC.style.transition='stroke-dashoffset 1s linear';
+const fgC=document.createElementNS(svgNS,'circle');fgC.setAttribute('cx','100');fgC.setAttribute('cy','100');fgC.setAttribute('r',String(r));fgC.setAttribute('fill','none');fgC.setAttribute('stroke',plan.isBreakMode?'var(--teal)':'var(--gold)');fgC.setAttribute('stroke-width','6');fgC.setAttribute('stroke-dasharray',String(circ));fgC.setAttribute('stroke-dashoffset',String(circ));fgC.setAttribute('stroke-linecap','round');fgC.style.transition='stroke-dashoffset 0.5s linear';
 svg.append(bgC,fgC);
 const tw=div({style:{position:'relative',width:'200px',height:'200px',margin:'24px auto'}});tw.append(svg);
 const tc=div({style:{position:'absolute',inset:'0',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center'}});
-const td=div({style:{fontFamily:"'DM Mono',monospace",fontSize:'32px',color:isBreak?'var(--teal)':'var(--gold)'},html:fmtMS(mt)});
-const ml=div({cls:'mono',style:{marginTop:'4px'},html:isBreak?'BREAK':'FOCUS'});
+const td=div({style:{fontFamily:"'DM Mono',monospace",fontSize:'32px',color:plan.isBreakMode?'var(--teal)':'var(--gold)'},html:fmtMS(computeRem())});
+const ml=div({cls:'mono',style:{marginTop:'4px'},html:plan.isBreakMode?'BREAK':'FOCUS'});
 tc.append(td,ml);tw.append(tc);card.append(tw);
 const br=div({style:{display:'flex',gap:'12px',justifyContent:'center',marginBottom:'16px',flexWrap:'wrap'}});
-const pauseBtn=btn('Start','btn-gold',()=>{
-  if(running){clearInterval(interval);interval=null;running=false;pauseBtn.textContent='Resume';}
-  else{running=true;segStart=Date.now()-(elapsed*1000);interval=setInterval(tick,500);pauseBtn.textContent='Pause';}
+let tickLock=false;
+let segDone=false;
+function tick(){
+  if(segDone||tickLock)return;
+  tickLock=true;
+  try{
+    const rem=computeRem();
+    const mt2=plan.isBreakMode?plan.breakSec:plan.workSec;
+    td.textContent=fmtMS(rem);
+    fgC.setAttribute('stroke-dashoffset',String(circ*Math.max(0,rem/mt2)));
+    // save state for timer bar
+    localStorage.setItem('pomodoroState',JSON.stringify({
+      segStart:plan.startedAtTimestamp,
+      mt:mt2,curSess:plan.currentCycle,
+      isBreak:plan.isBreakMode,cfg,
+      activeSessionId:window.activeSessionId,
+      sessionStartTime:window.sessionStartTime
+    }));
+    updateTimerBar();
+    if(rem<=0){
+      segDone=true;
+      clearInterval(window.pomInterval);window.pomInterval=null;
+      // transition
+      if(plan.isBreakMode){
+        plan.isBreakMode=false;plan.currentCycle++;
+        if(plan.currentCycle>plan.totalSessions){window.pomPlan=null;showClockOut();return;}
+      }else{
+        if(plan.currentCycle>=plan.totalSessions){window.pomPlan=null;showClockOut();return;}
+        plan.isBreakMode=true;
+      }
+      plan.startedAtTimestamp=Date.now();
+      curSess=plan.currentCycle;isBreak=plan.isBreakMode;
+      showTimer();
+    }
+  }finally{tickLock=false;}
+}
+const pauseBtn=btn(computeRem()<mt?'Pause':'Start','btn-gold',()=>{
+  if(window.pomInterval){clearInterval(window.pomInterval);window.pomInterval=null;pauseBtn.textContent='Resume';}
+  else{plan.startedAtTimestamp=Date.now()-(mt-computeRem())*1000;window.pomInterval=setInterval(tick,250);pauseBtn.textContent='Pause';}
 });
-br.append(pauseBtn,btn('End Session','btn-outline',()=>{clearInterval(interval);interval=null;showClockOut();}),btn('← Dashboard','btn-outline',()=>go('dashboard'),{style:{fontSize:'11px'}}));
+br.append(pauseBtn,btn('End Session','btn-outline',()=>{if(window.pomInterval){clearInterval(window.pomInterval);window.pomInterval=null;}window.pomPlan=null;showClockOut();}),btn('← Dashboard','btn-outline',()=>go('dashboard'),{style:{fontSize:'11px'}}));
 card.append(br);
 const qr=div({style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'10px'}});
 qr.append(btn('🃏 Flashcards','btn-outline',()=>go('flashcards'),{style:{fontSize:'11px'}}),btn('📝 Q-Bank','btn-outline',()=>go('vignette'),{style:{fontSize:'11px'}}));
 card.append(qr);
 card.append(div({style:{fontFamily:"'DM Mono',monospace",fontSize:'9px',color:'var(--dim)',textAlign:'center',marginTop:'8px',letterSpacing:'1px'},html:'Timer keeps running while you study — come back anytime'}));
 page.append(card);
+// White noise
 if(noiseLinks2.rain||noiseLinks2.ocean||noiseLinks2.cafe||noiseLinks2.white){
 const ns=div({style:{marginTop:'16px',width:'100%',maxWidth:'400px'}});
 ns.append(div({cls:'mono',style:{marginBottom:'8px',textAlign:'center'},html:'White Noise'}));
@@ -699,55 +781,15 @@ const ng=div({style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'8px'}});
 });
 ns.append(ng);page.append(ns);
 }
-// Use a single segStart stored in window so it persists across page navigations
-// If we have a stored segStart for this exact segment, use it. Otherwise create one.
-const stateKey='pom_'+curSess+'_'+(isBreak?'break':'focus');
-if(!window._segStarts)window._segStarts={};
-let segStart=window._segStarts[stateKey]||Date.now();
-window._segStarts[stateKey]=segStart;
-let elapsed=Math.floor((Date.now()-segStart)/1000);
-let segDone=false;
-
-function tick(){
-  if(segDone)return;
-  elapsed=Math.floor((Date.now()-segStart)/1000);
-  const rem=Math.max(0,mt-elapsed);
-  td.textContent=fmtMS(rem);
-  fgC.setAttribute('stroke-dashoffset',String(circ*Math.max(0,1-elapsed/mt)));
-  // Save to localStorage for timer bar
-  localStorage.setItem('pomodoroState',JSON.stringify({
-    segStart,elapsed,curSess,isBreak,
-    mt,cfg,
-    activeSessionId:window.activeSessionId,
-    sessionStartTime:window.sessionStartTime
-  }));
-  updateTimerBar();
-  if(elapsed>=mt){
-    segDone=true;
-    clearInterval(interval);interval=null;
-    delete window._segStarts[stateKey];
-    if(isBreak){
-      isBreak=false;curSess++;
-      if(curSess>cfg.sessions){showClockOut();return;}
-    }else{
-      if(curSess>=cfg.sessions){showClockOut();return;}
-      isBreak=true;
-    }
-    showTimer();
-  }
-}
-
-// Auto-start if returning mid-session or after first click
-const resuming=elapsed>0;
-if(isBreak||curSess>1||resuming){
-  running=true;
-  interval=setInterval(tick,500);
+// Auto-start if mid-session, break, or subsequent session. Manual start for first focus
+const alreadyElapsed=mt-computeRem();
+if(alreadyElapsed>0||plan.isBreakMode||plan.currentCycle>1){
+  window.pomInterval=setInterval(tick,250);
   pauseBtn.textContent='Pause';
-} else {
-  running=false;
 }
+// visibilitychange — just resync, interval keeps running
 if(window._visHandler)document.removeEventListener('visibilitychange',window._visHandler,true);
-window._visHandler=function(){if(!document.hidden&&running&&!segDone)tick();};
+window._visHandler=function(){if(!document.hidden&&window.pomPlan)tick();};
 document.addEventListener('visibilitychange',window._visHandler,true);
 }
 showSetup();return page;
