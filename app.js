@@ -521,7 +521,8 @@ const end=s.ended_at?new Date(s.ended_at):null;
 const dateStr=start.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
 const startTime=start.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'});
 const endTime=end?end.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'}):'ongoing';
-const mins=s.duration_minutes||0;
+// Calculate duration from timestamps if duration_minutes missing
+const mins=s.duration_minutes||(end?Math.round((end-start)/60000):0);
 row.append(
   div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'2px'}},[
     h('span',{style:{fontSize:'13px',color:'var(--text)',fontWeight:'500'},html:dateStr}),
@@ -629,6 +630,8 @@ const cinBtn=btn('⏵ Clock In & Start Timer','btn-gold',async()=>{
   if(error){cinBtn.textContent='⏵ Clock In & Start Timer';cinBtn.disabled=false;alert('Failed to clock in. Try again.');return;}
   window.activeSessionId=sess.id;
   window.sessionStartTime=Date.now();
+  // Save to localStorage for recovery
+  localStorage.setItem('activeSession',JSON.stringify({id:sess.id,startTime:Date.now(),topic:cfg.topic||'General Study'}));
   // Initialize fresh pomPlan
   window.pomPlan={
     topic:cfg.topic||'General Study',
@@ -647,7 +650,7 @@ page.append(card);
 }
 function showClockOut(){
 page.innerHTML='';
-const mins=window.sessionStartTime?Math.round((Date.now()-window.sessionStartTime)/60000):0;
+const mins=window.sessionStartTime?Math.max(1,Math.round((Date.now()-window.sessionStartTime)/60000)):0;
 const card=div({cls:'card fade',style:{width:'100%',maxWidth:'400px',textAlign:'center'}});
 card.append(
   div({style:{fontSize:'64px',margin:'24px 0'},html:'✅'}),
@@ -658,17 +661,38 @@ card.append(
 );
 const coutBtn=btn('⏹ Clock Out & Save Session','btn-gold',async()=>{
   coutBtn.textContent='Saving...';coutBtn.disabled=true;
-  if(window.activeSessionId){
-    const endTime=new Date().toISOString();
-    await sb.from('study_sessions').update({ended_at:endTime,duration_minutes:mins}).eq('id',window.activeSessionId);
-    await sb.from('profiles').update({total_study_minutes:(S.profile?.total_study_minutes||0)+mins,total_points:(S.profile?.total_points||0)+5}).eq('id',S.user.id);
-    window.activeSessionId=null;window.sessionStartTime=null;
-    localStorage.removeItem('pomodoroState');
+  try{
+    // Recover session from localStorage if window vars lost
+    if(!window.activeSessionId||!window.sessionStartTime){
+      const saved=localStorage.getItem('activeSession');
+      if(saved){const p=JSON.parse(saved);window.activeSessionId=p.id;window.sessionStartTime=p.startTime;}
+    }
+    if(!window.activeSessionId){alert('No active session found.');go('dashboard');return;}
+    const endTimeISO=new Date().toISOString();
+    const actualMins=Math.max(1,Math.round((Date.now()-window.sessionStartTime)/60000));
+    // Update study session
+    const{error:se}=await sb.from('study_sessions').update({ended_at:endTimeISO,duration_minutes:actualMins}).eq('id',window.activeSessionId).eq('user_id',S.user.id);
+    if(se){console.error('Session update error:',se);throw se;}
+    // Verify the write
+    let verified=false;
+    for(let i=0;i<5;i++){
+      await new Promise(r=>setTimeout(r,400));
+      const{data:check}=await sb.from('study_sessions').select('ended_at').eq('id',window.activeSessionId).single();
+      if(check?.ended_at){verified=true;break;}
+    }
+    if(!verified)console.warn('Could not verify session write, proceeding anyway');
+    // Update profile
+    await sb.from('profiles').update({total_study_minutes:(S.profile?.total_study_minutes||0)+actualMins,total_points:(S.profile?.total_points||0)+5}).eq('id',S.user.id);
+    // Clear all state
+    window.activeSessionId=null;window.sessionStartTime=null;window.pomPlan=null;
+    localStorage.removeItem('pomodoroState');localStorage.removeItem('activeSession');
     removeNoiseBar();removeTimerBar();
+    go('dashboard');
+  }catch(e){
+    console.error('Clock out error:',e);
+    coutBtn.textContent='⏹ Clock Out & Save Session';coutBtn.disabled=false;
+    alert('Failed to save session. Please try again.');
   }
-  // Small delay to ensure Supabase write completes before navigating
-  await new Promise(r=>setTimeout(r,1500));
-  go('dashboard');
 },{style:{width:'100%',padding:'16px'}});
 card.append(coutBtn,btn('Back to Dashboard','btn-outline',()=>go('dashboard'),{style:{width:'100%',marginTop:'12px'}}));
 page.append(card);
