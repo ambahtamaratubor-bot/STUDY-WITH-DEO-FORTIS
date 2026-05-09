@@ -849,7 +849,10 @@ card.append(br);
 const qr=div({style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'10px'}});
 qr.append(btn('🃏 Flashcards','btn-outline',()=>go('flashcards'),{style:{fontSize:'11px'}}),btn('📝 Q-Bank','btn-outline',()=>go('vignette'),{style:{fontSize:'11px'}}));
 card.append(qr);
-card.append(div({style:{fontFamily:"'DM Mono',monospace",fontSize:'9px',color:'var(--dim)',textAlign:'center',marginTop:'8px',letterSpacing:'1px'},html:'Step away? Click End Session to save your progress.'}));
+card.append(
+  div({style:{fontFamily:"'DM Mono',monospace",fontSize:'9px',color:'var(--dim)',textAlign:'center',marginTop:'8px',letterSpacing:'1px'},html:'Step away? Click End Session to save your progress.'}),
+  div({style:{fontFamily:"'DM Mono',monospace",fontSize:'9px',color:'var(--gold)',textAlign:'center',marginTop:'4px',letterSpacing:'1px'},html:'↑ Tap the timer bar at the top to return to this page anytime.'})
+);
 page.append(card);
 // White noise
 if(noiseLinks2.rain||noiseLinks2.ocean||noiseLinks2.cafe||noiseLinks2.white){
