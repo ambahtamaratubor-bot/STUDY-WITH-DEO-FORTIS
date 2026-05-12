@@ -635,7 +635,22 @@ signingUp=false;
 if(isFreeSignup){
 sendAdminEmail('New Free Signup — Deo Fortis','<h2>New Free Student</h2><p>Name: '+nameVal+'</p><p>Email: '+emailVal+'</p>');
 S.user=data.user;
-await getProfile(data.user.id);
+S.profile={
+  id:data.user.id,
+  email:emailVal,
+  full_name:nameVal,
+  status:'approved',
+  is_free_tier:true,
+  plan:sel?sel.name:null,
+  total_points:0,
+  total_study_minutes:0,
+  streak_count:0,
+  total_anki_sessions:0,
+  study_goals:{daily_hours:4,weekly_hours:20},
+  topic_goals:{},
+  rest_days:[]
+};
+go('dashboard');
 return;
 }
 sendAdminEmail('New Signup — Deo Fortis','<h2>New Student</h2><p>Name: '+nameVal+'</p><p>Email: '+emailVal+'</p><p>Plan: '+(sel?sel.name:'None')+'</p>');
