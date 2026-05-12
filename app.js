@@ -1035,7 +1035,8 @@ twoCol.append(recentCard);
       actionButton('📇','Flashcards',()=>go('flashcards')),
       actionButton('📝','Request Recall',()=>S.profile?.is_free_tier?showUpgradeModal():go('dashboard')),
       actionButton('🏆','Leaderboard',()=>isFree?showUpgradeModal():go('leaderboard')),
-      actionButton('💬','Community',()=>{if(commLink&&commLink!=='#')window.open(commLink,'_blank');})
+      actionButton('💬','Community',()=>{if(commLink&&commLink!=='#')window.open(commLink,'_blank');}),
+      actionButton('🧠','Feynman Arena',()=>go('feynman'))
     ])
   );
   twoCol.append(actionsCard);
@@ -1292,6 +1293,14 @@ if(S.profile?.is_free_tier){
   );
   card.append(upsell);
 }
+const feynmanPrompt=div({style:{marginTop:'16px',background:'linear-gradient(135deg,#1a1509,#141309)',border:'1px solid var(--gold)',borderRadius:'4px',padding:'16px 20px',textAlign:'center'}});
+feynmanPrompt.append(
+  h('div',{style:{fontSize:'24px',marginBottom:'8px'},html:'🧠'}),
+  h('div',{style:{fontFamily:"'Playfair Display',serif",fontSize:'16px',color:'var(--gold)',marginBottom:'4px'},html:'Visit the Feynman Arena'}),
+  h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'11px',color:'var(--dim)',marginBottom:'12px'},html:'Teach what you just learned. Cement it forever.'}),
+  btn('Go to Feynman Arena →','btn-outline',()=>go('feynman'),{style:{fontSize:'11px',padding:'8px 20px'}})
+);
+card.append(feynmanPrompt);
 page.append(card);
 }
 
@@ -1881,7 +1890,30 @@ container.append(div({style:{marginBottom:'32px'}},[
   h('h1',{style:{fontFamily:"'Playfair Display',serif",fontSize:'32px',color:'var(--gold)',marginBottom:'8px'},html:'Teach It. Own It.'}),
   h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'12px',color:'var(--dim)'},html:"Explain like you're teaching a 6 year old. The best explanations get crowned 👑"})
 ]));
-const submitCard=div({cls:'card',style:{marginBottom:'32px'}});
+// TAB SYSTEM
+let activeTab='submit';
+const tabContainer=div({style:{display:'flex',gap:'12px',marginBottom:'24px',borderBottom:'1px solid var(--border)',paddingBottom:'12px'}});
+const submitTabBtn=btn('📝 Submit','btn',()=>{activeTab='submit';renderTabs();},{style:{padding:'8px 20px',background:'transparent',color:'var(--text)',border:'1px solid var(--border)',borderRadius:'4px'}});
+const riddleTabBtn=btn('🧩 Riddle Decks','btn',()=>{activeTab='riddle';renderTabs();},{style:{padding:'8px 20px',background:'transparent',color:'var(--text)',border:'1px solid var(--border)',borderRadius:'4px'}});
+const emojiTabBtn=btn('😎 Emoji Bitz','btn',()=>{activeTab='emoji';renderTabs();},{style:{padding:'8px 20px',background:'transparent',color:'var(--text)',border:'1px solid var(--border)',borderRadius:'4px'}});
+tabContainer.append(submitTabBtn,riddleTabBtn,emojiTabBtn);
+container.append(tabContainer);
+const submitSection=div({id:'submit-section'});
+const riddleSection=div({id:'riddle-section',style:{display:'none'}});
+const emojiSection=div({id:'emoji-section',style:{display:'none'}});
+container.append(submitSection,riddleSection,emojiSection);
+function renderTabs(){
+  submitSection.style.display=activeTab==='submit'?'block':'none';
+  riddleSection.style.display=activeTab==='riddle'?'block':'none';
+  emojiSection.style.display=activeTab==='emoji'?'block':'none';
+  const isSubmit=activeTab==='submit';const isRiddle=activeTab==='riddle';const isEmoji=activeTab==='emoji';
+  submitTabBtn.style.background=isSubmit?'var(--gold)':'transparent';submitTabBtn.style.color=isSubmit?'var(--bg)':'var(--text)';submitTabBtn.style.border=isSubmit?'1px solid var(--gold)':'1px solid var(--border)';
+  riddleTabBtn.style.background=isRiddle?'var(--gold)':'transparent';riddleTabBtn.style.color=isRiddle?'var(--bg)':'var(--text)';riddleTabBtn.style.border=isRiddle?'1px solid var(--gold)':'1px solid var(--border)';
+  emojiTabBtn.style.background=isEmoji?'var(--gold)':'transparent';emojiTabBtn.style.color=isEmoji?'var(--bg)':'var(--text)';emojiTabBtn.style.border=isEmoji?'1px solid var(--gold)':'1px solid var(--border)';
+  if(activeTab==='riddle')loadRiddleDecksPage();
+  if(activeTab==='emoji')loadEmojiDecksPage();
+}
+// SUBMIT TAB
 let selectedType=null,submitSuccessDiv=null;
 const topicInput=inp('Topic e.g. Gram Positive Bacteria','text','');
 topicInput.style.marginBottom='16px';
@@ -1890,15 +1922,9 @@ const typeContainer=div({style:{display:'flex',gap:'8px',marginBottom:'16px'}});
 const typeButtons=[{label:'📖 Explain',value:'explain'},{label:'🧩 Riddle',value:'riddle'},{label:'😎 Emoji Bitz',value:'emoji'}];
 function updateTypeSelection(value){
   selectedType=value;
-  typeButtons.forEach(bd=>{
-    const el=document.getElementById('type-btn-'+bd.value);
-    if(el){if(bd.value===value){el.style.background='var(--gold)';el.style.color='var(--bg)';el.style.border='1px solid var(--gold)';}else{el.style.background='transparent';el.style.color='var(--text)';el.style.border='1px solid var(--border)';}}
-  });
+  typeButtons.forEach(bd=>{const el=document.getElementById('type-btn-'+bd.value);if(el){if(bd.value===value){el.style.background='var(--gold)';el.style.color='var(--bg)';el.style.border='1px solid var(--gold)';}else{el.style.background='transparent';el.style.color='var(--text)';el.style.border='1px solid var(--border)';}}});
 }
-typeButtons.forEach(bd=>{
-  const tb=btn(bd.label,'btn-outline',()=>updateTypeSelection(bd.value),{style:{padding:'6px 14px',fontSize:'11px'}});
-  tb.id='type-btn-'+bd.value;typeContainer.append(tb);
-});
+typeButtons.forEach(bd=>{const tb=btn(bd.label,'btn-outline',()=>updateTypeSelection(bd.value),{style:{padding:'6px 14px',fontSize:'11px'}});tb.id='type-btn-'+bd.value;typeContainer.append(tb);});
 const submitBtn=btn('Submit →','btn-gold',async()=>{
   const topic=topicInput.value.trim();const content=contentTextarea.value.trim();
   if(!topic){const e=div({style:{fontFamily:"'DM Mono',monospace",fontSize:'11px',color:'#8B3A3A',textAlign:'center',marginTop:'12px'},html:'❌ Please enter a topic.'});submitCard.append(e);setTimeout(()=>e.remove(),2000);return;}
@@ -1914,12 +1940,12 @@ const submitBtn=btn('Submit →','btn-gold',async()=>{
     (async()=>{await loadWallOfFame();})();
   }else{const e=div({style:{fontFamily:"'DM Mono',monospace",fontSize:'11px',color:'#8B3A3A',textAlign:'center',marginTop:'12px'},html:'❌ Failed to submit. Please try again.'});submitCard.append(e);setTimeout(()=>e.remove(),2000);}
 },{style:{width:'100%'}});
+const submitCard=div({cls:'card',style:{marginBottom:'32px'}});
 submitCard.append(
   h('h2',{style:{fontFamily:"'Playfair Display',serif",fontSize:'18px',marginBottom:'4px'},html:'Submit Your Feynman'}),
   h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'9px',color:'var(--dim)',marginBottom:'16px'},html:'explain / riddle / emoji'}),
   topicInput,typeContainer,contentTextarea,submitBtn
 );
-container.append(submitCard);
 const wallCard=div({cls:'card',style:{marginBottom:'32px'}});
 wallCard.append(
   h('h2',{style:{fontFamily:"'Playfair Display',serif",fontSize:'18px',marginBottom:'4px'},html:'Wall of Fame'}),
@@ -1927,7 +1953,7 @@ wallCard.append(
 );
 const submissionsList=div({style:{display:'flex',flexDirection:'column',gap:'16px'}});
 wallCard.append(submissionsList);
-container.append(wallCard);
+submitSection.append(submitCard,wallCard);
 function showFullSubmission(sub){
   const overlay=div({style:{position:'fixed',top:'0',left:'0',right:'0',bottom:'0',background:'rgba(0,0,0,0.85)',zIndex:'9999',display:'flex',alignItems:'center',justifyContent:'center',padding:'20px'}});
   let tc='var(--teal)';if(sub.type==='riddle')tc='var(--gold)';if(sub.type==='emoji')tc='#8B5CF6';
@@ -1970,7 +1996,112 @@ async function loadWallOfFame(){
     submissionsList.append(card);
   });
 }
+// RIDDLE DECKS TAB
+async function loadRiddleDecksPage(){
+  riddleSection.innerHTML='';
+  const{data:decks}=await sb.from('flashcard_decks').select('*').eq('type','riddle').order('unlock_order',{ascending:true});
+  const{data:progress}=await sb.from('flashcard_progress').select('deck_id,completed').eq('user_id',S.user.id);
+  const completedMap=new Map();progress?.forEach(p=>completedMap.set(p.deck_id,p.completed));
+  if(!decks||!decks.length){riddleSection.append(h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'12px',color:'var(--dim)',textAlign:'center',padding:'40px'},html:'No riddle decks available yet.'}));return;}
+  const grid=div({style:{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(300px,1fr))',gap:'16px'}});
+  for(let i=0;i<decks.length;i++){
+    const deck=decks[i];
+    const isCompleted=completedMap.get(deck.id)===true;
+    const isUnlocked=deck.unlock_order===1||completedMap.get(decks[i-1]?.id)===true;
+    const card=div({style:{background:'var(--card2)',borderRadius:'4px',padding:'20px',border:isCompleted?'1px solid var(--teal)':(isUnlocked?'1px solid var(--gold)':'1px solid var(--border)'),opacity:isUnlocked?1:0.5}});
+    card.append(div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'12px'}},[
+      h('div',{style:{fontFamily:"'Playfair Display',serif",fontSize:'20px',color:'var(--gold)'},html:deck.name}),
+      h('span',{style:{fontFamily:"'DM Mono',monospace",fontSize:'10px',color:'var(--dim)',background:'var(--card)',padding:'4px 8px',borderRadius:'4px'},html:`Level ${deck.unlock_order}`})
+    ]));
+    if(isCompleted){
+      card.append(div({style:{display:'flex',alignItems:'center',gap:'8px',marginBottom:'16px'}},[h('span',{style:{fontSize:'16px'},html:'✓'}),h('span',{style:{fontFamily:"'DM Mono',monospace",fontSize:'11px',color:'var(--teal)'},html:'Completed'})]),
+      btn('Play Again →','btn-outline',()=>showDeckPlayer(deck,'riddle'),{style:{width:'100%'}}));
+    }else if(isUnlocked){
+      card.append(btn('Start →','btn-gold',()=>showDeckPlayer(deck,'riddle'),{style:{width:'100%'}}));
+    }else{
+      card.append(h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'11px',color:'var(--dim)',textAlign:'center',padding:'8px'},html:`🔒 Complete Level ${deck.unlock_order-1} first`}));
+    }
+    grid.append(card);
+  }
+  riddleSection.append(grid);
+}
+// EMOJI BITZ TAB
+async function loadEmojiDecksPage(){
+  emojiSection.innerHTML='';
+  const{data:decks}=await sb.from('flashcard_decks').select('*').eq('type','emoji').order('unlock_order',{ascending:true});
+  const{data:progress}=await sb.from('flashcard_progress').select('deck_id,completed').eq('user_id',S.user.id);
+  const completedMap=new Map();progress?.forEach(p=>completedMap.set(p.deck_id,p.completed));
+  if(!decks||!decks.length){emojiSection.append(h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'12px',color:'var(--dim)',textAlign:'center',padding:'40px'},html:'No emoji bitz decks available yet.'}));return;}
+  const grid=div({style:{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(300px,1fr))',gap:'16px'}});
+  for(let i=0;i<decks.length;i++){
+    const deck=decks[i];
+    const isCompleted=completedMap.get(deck.id)===true;
+    const isUnlocked=deck.unlock_order===1||completedMap.get(decks[i-1]?.id)===true;
+    const card=div({style:{background:'var(--card2)',borderRadius:'4px',padding:'20px',border:isCompleted?'1px solid var(--teal)':(isUnlocked?'1px solid var(--gold)':'1px solid var(--border)'),opacity:isUnlocked?1:0.5}});
+    card.append(div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'12px'}},[
+      h('div',{style:{fontFamily:"'Playfair Display',serif",fontSize:'20px',color:'var(--gold)'},html:deck.name}),
+      h('span',{style:{fontFamily:"'DM Mono',monospace",fontSize:'10px',color:'var(--dim)',background:'var(--card)',padding:'4px 8px',borderRadius:'4px'},html:`Level ${deck.unlock_order}`})
+    ]));
+    if(isCompleted){
+      card.append(div({style:{display:'flex',alignItems:'center',gap:'8px',marginBottom:'16px'}},[h('span',{style:{fontSize:'16px'},html:'✓'}),h('span',{style:{fontFamily:"'DM Mono',monospace",fontSize:'11px',color:'var(--teal)'},html:'Completed'})]),
+      btn('Play Again →','btn-outline',()=>showDeckPlayer(deck,'emoji'),{style:{width:'100%'}}));
+    }else if(isUnlocked){
+      card.append(btn('Start →','btn-gold',()=>showDeckPlayer(deck,'emoji'),{style:{width:'100%'}}));
+    }else{
+      card.append(h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'11px',color:'var(--dim)',textAlign:'center',padding:'8px'},html:`🔒 Complete Level ${deck.unlock_order-1} first`}));
+    }
+    grid.append(card);
+  }
+  emojiSection.append(grid);
+}
+// DECK PLAYER
+async function showDeckPlayer(deck,type){
+  const{data:cards}=await sb.from('flashcards').select('*').eq('deck_id',deck.id);
+  if(!cards||!cards.length)return;
+  let currentIndex=0,revealed=false;
+  const overlay=div({style:{position:'fixed',top:'0',left:'0',right:'0',bottom:'0',background:'rgba(0,0,0,0.95)',zIndex:'10000',display:'flex',alignItems:'center',justifyContent:'center',padding:'20px'}});
+  const modal=div({style:{maxWidth:'600px',width:'100%',background:'var(--card)',border:'1px solid var(--gold)',borderRadius:'8px',padding:'32px',maxHeight:'90vh',overflowY:'auto'}});
+  function renderCard(){
+    modal.innerHTML='';
+    const card=cards[currentIndex];
+    modal.append(h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'11px',color:'var(--dim)',marginBottom:'16px',textAlign:'right'},html:`${currentIndex+1} / ${cards.length}`}));
+    modal.append(div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'24px'}},[
+      h('h2',{style:{fontFamily:"'Playfair Display',serif",fontSize:'24px',color:'var(--gold)'},html:deck.name}),
+      btn('✕','',()=>overlay.remove(),{style:{background:'none',border:'none',color:'var(--dim)',fontSize:'24px',cursor:'pointer'}})
+    ]));
+    modal.append(div({style:{textAlign:'center',padding:'40px 20px',background:'var(--card2)',borderRadius:'8px',marginBottom:'24px'}},[
+      h('div',{style:{fontFamily:type==='riddle'?"'Playfair Display',serif":'monospace',fontSize:type==='riddle'?'28px':'48px',color:'var(--text)',lineHeight:'1.3',whiteSpace:'pre-wrap'},html:card.front})
+    ]));
+    if(!revealed){
+      modal.append(btn('Reveal Answer →','btn-outline',()=>{revealed=true;renderCard();},{style:{width:'100%',marginBottom:'16px'}}));
+    }else{
+      modal.append(div({style:{background:'rgba(200,169,110,0.1)',padding:'20px',borderRadius:'8px',marginBottom:'16px'}},[
+        h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'13px',color:'var(--gold)',marginBottom:'8px'},html:'Answer:'}),
+        h('div',{style:{fontFamily:'monospace',fontSize:'14px',color:'var(--text)',lineHeight:'1.4'},html:card.back})
+      ]));
+      if(card.hint){modal.append(div({style:{background:'var(--card2)',padding:'12px',borderRadius:'8px',marginBottom:'16px'}},[h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'10px',color:'var(--dim)'},html:'💡 Hint: '+card.hint})]));}
+      const advance=()=>{if(currentIndex+1<cards.length){currentIndex++;revealed=false;renderCard();}else{completeDeck();}};
+      modal.append(div({style:{display:'flex',gap:'12px'}},[
+        btn('✓ Got It','btn-teal',advance,{style:{flex:'1'}}),
+        btn("✗ Didn't Get It",'btn-outline',advance,{style:{flex:'1'}})
+      ]));
+    }
+  }
+  async function completeDeck(){
+    await sb.from('flashcard_progress').upsert({user_id:S.user.id,deck_id:deck.id,completed:true,completed_at:new Date().toISOString()});
+    modal.innerHTML='';
+    const{data:nextDeck}=await sb.from('flashcard_decks').select('id').eq('type',type).eq('unlock_order',deck.unlock_order+1).maybeSingle();
+    modal.append(
+      h('div',{style:{fontSize:'48px',textAlign:'center',marginBottom:'16px'},html:'🎉'}),
+      h('h2',{style:{fontFamily:"'Playfair Display',serif",fontSize:'24px',color:'var(--gold)',textAlign:'center',marginBottom:'8px'},html:`Level ${deck.unlock_order} Complete!`}),
+      nextDeck?h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'13px',color:'var(--teal)',textAlign:'center',marginBottom:'24px'},html:'Next Level Unlocked!'}):null,
+      btn('Close','btn-gold',()=>{overlay.remove();if(activeTab==='riddle')loadRiddleDecksPage();if(activeTab==='emoji')loadEmojiDecksPage();},{style:{width:'100%'}})
+    );
+  }
+  renderCard();overlay.append(modal);document.body.append(overlay);
+}
 (async()=>{await loadWallOfFame();})();
+renderTabs();
 return page;
 }
 
@@ -2263,6 +2394,7 @@ content.innerHTML='';content.append(card);
 }
 if(tab==='feynman'){
 content.innerHTML='';
+function parseCSVRow(row){const result=[];let cur='';let inQuotes=false;for(let ch of row){if(ch==='"'){inQuotes=!inQuotes;}else if(ch===','&&!inQuotes){result.push(cur.trim());cur='';}else{cur+=ch;}}result.push(cur.trim());return result;}
 function getCurrentMonday(){const now=new Date();const day=now.getDay();const diff=day===0?6:day-1;const mon=new Date(now);mon.setDate(now.getDate()-diff);mon.setHours(0,0,0,0);return mon.toISOString().split('T')[0];}
 const{data:allSubs}=await sb.from('feynman_submissions').select('*').order('created_at',{ascending:false});
 const submissions=allSubs||[];
@@ -2335,6 +2467,102 @@ if(!filteredSubs.length){
   });
   content.append(list);
 }
+// RIDDLE DECKS SECTION
+const riddleSection=div({cls:'card',style:{marginTop:'32px',marginBottom:'32px'}});
+riddleSection.append(
+  h('h2',{style:{fontFamily:"'Playfair Display',serif",fontSize:'18px',marginBottom:'4px'},html:'Riddle Decks'}),
+  h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'9px',color:'var(--dim)',marginBottom:'16px'},html:'upload riddle deck csv'})
+);
+const riddleDeckName=inp('Deck name e.g. Microbiology Riddles','text','');
+riddleDeckName.style.marginBottom='12px';
+const riddleFileInput=h('input',{type:'file',accept:'.csv',style:{marginBottom:'12px'}});
+const riddleUploadBtn=btn('Upload Riddle Deck','btn-gold',()=>{
+  const deckName=riddleDeckName.value.trim();
+  const file=riddleFileInput.files[0];
+  if(!deckName||!file){alert('Please enter deck name and select CSV file');return;}
+  const reader=new FileReader();
+  reader.onload=(e)=>{(async()=>{
+    const text=e.target.result;
+    const rows=text.split('\n').slice(1);
+    const cards=[];
+    for(let row of rows){if(!row.trim())continue;const cols=parseCSVRow(row);if(cols.length>=2)cards.push({question:cols[0],answer:cols[1],hint:cols[2]||''});}
+    if(!cards.length){alert('No valid cards found');return;}
+    const{data:existing}=await sb.from('flashcard_decks').select('unlock_order').eq('type','riddle').order('unlock_order',{ascending:false}).limit(1);
+    const nextLevel=(existing&&existing[0]?.unlock_order||0)+1;
+    const{data:newDeck,error:deckError}=await sb.from('flashcard_decks').insert({name:deckName,topic:deckName,type:'riddle',unlock_order:nextLevel,user_id:null}).select().single();
+    if(deckError){alert('Failed to create deck: '+deckError.message);return;}
+    for(let card of cards){await sb.from('flashcards').insert({deck_id:newDeck.id,front:card.question,back:card.answer,hint:card.hint});}
+    alert(`✓ Riddle Deck uploaded — Level ${nextLevel} with ${cards.length} cards`);
+    riddleDeckName.value='';riddleFileInput.value='';loadTab('feynman');
+  })();};
+  reader.readAsText(file);
+},{style:{marginBottom:'16px'}});
+riddleSection.append(riddleDeckName,riddleFileInput,riddleUploadBtn);
+const riddleList=div({style:{marginTop:'16px'}});
+async function loadRiddleDecks(){
+  riddleList.innerHTML='';
+  const{data:decks}=await sb.from('flashcard_decks').select('*').eq('type','riddle').order('unlock_order',{ascending:true});
+  if(!decks||!decks.length){riddleList.append(h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'11px',color:'var(--dim)',textAlign:'center',padding:'16px'},html:'No riddle decks yet.'}));return;}
+  for(let deck of decks){
+    const{count}=await sb.from('flashcards').select('*',{count:'exact',head:true}).eq('deck_id',deck.id);
+    const deckRow=div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'12px',borderBottom:'1px solid var(--border)'}},[
+      div({},[h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'13px',fontWeight:'bold'},html:deck.name}),h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'9px',color:'var(--dim)'},html:`Level ${deck.unlock_order} · ${count||0} cards`})]),
+      btn('Delete','btn-outline',async()=>{await sb.from('flashcards').delete().eq('deck_id',deck.id);await sb.from('flashcard_decks').delete().eq('id',deck.id);loadRiddleDecks();},{style:{padding:'4px 12px',fontSize:'10px'}})
+    ]);
+    riddleList.append(deckRow);
+  }
+}
+riddleSection.append(riddleList);
+content.append(riddleSection);
+await loadRiddleDecks();
+// EMOJI BITZ SECTION
+const emojiSection=div({cls:'card',style:{marginTop:'32px',marginBottom:'32px'}});
+emojiSection.append(
+  h('h2',{style:{fontFamily:"'Playfair Display',serif",fontSize:'18px',marginBottom:'4px'},html:'Emoji Bitz'}),
+  h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'9px',color:'var(--dim)',marginBottom:'16px'},html:'upload emoji bitz csv'})
+);
+const emojiDeckName=inp('Deck name e.g. Bacteria Emojis','text','');
+emojiDeckName.style.marginBottom='12px';
+const emojiFileInput=h('input',{type:'file',accept:'.csv',style:{marginBottom:'12px'}});
+const emojiUploadBtn=btn('Upload Emoji Bitz','btn-gold',()=>{
+  const deckName=emojiDeckName.value.trim();
+  const file=emojiFileInput.files[0];
+  if(!deckName||!file){alert('Please enter deck name and select CSV file');return;}
+  const reader=new FileReader();
+  reader.onload=(e)=>{(async()=>{
+    const text=e.target.result;
+    const rows=text.split('\n').slice(1);
+    const cards=[];
+    for(let row of rows){if(!row.trim())continue;const cols=parseCSVRow(row);if(cols.length>=2)cards.push({question:cols[0],answer:cols[1],hint:cols[2]||''});}
+    if(!cards.length){alert('No valid cards found');return;}
+    const{data:existing}=await sb.from('flashcard_decks').select('unlock_order').eq('type','emoji').order('unlock_order',{ascending:false}).limit(1);
+    const nextLevel=(existing&&existing[0]?.unlock_order||0)+1;
+    const{data:newDeck,error:deckError}=await sb.from('flashcard_decks').insert({name:deckName,topic:deckName,type:'emoji',unlock_order:nextLevel,user_id:null}).select().single();
+    if(deckError){alert('Failed to create deck: '+deckError.message);return;}
+    for(let card of cards){await sb.from('flashcards').insert({deck_id:newDeck.id,front:card.question,back:card.answer,hint:card.hint});}
+    alert(`✓ Emoji Bitz Deck uploaded — Level ${nextLevel} with ${cards.length} cards`);
+    emojiDeckName.value='';emojiFileInput.value='';loadTab('feynman');
+  })();};
+  reader.readAsText(file);
+},{style:{marginBottom:'16px'}});
+emojiSection.append(emojiDeckName,emojiFileInput,emojiUploadBtn);
+const emojiList=div({style:{marginTop:'16px'}});
+async function loadEmojiDecks(){
+  emojiList.innerHTML='';
+  const{data:decks}=await sb.from('flashcard_decks').select('*').eq('type','emoji').order('unlock_order',{ascending:true});
+  if(!decks||!decks.length){emojiList.append(h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'11px',color:'var(--dim)',textAlign:'center',padding:'16px'},html:'No emoji bitz decks yet.'}));return;}
+  for(let deck of decks){
+    const{count}=await sb.from('flashcards').select('*',{count:'exact',head:true}).eq('deck_id',deck.id);
+    const deckRow=div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'12px',borderBottom:'1px solid var(--border)'}},[
+      div({},[h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'13px',fontWeight:'bold'},html:deck.name}),h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'9px',color:'var(--dim)'},html:`Level ${deck.unlock_order} · ${count||0} cards`})]),
+      btn('Delete','btn-outline',async()=>{await sb.from('flashcards').delete().eq('deck_id',deck.id);await sb.from('flashcard_decks').delete().eq('id',deck.id);loadEmojiDecks();},{style:{padding:'4px 12px',fontSize:'10px'}})
+    ]);
+    emojiList.append(deckRow);
+  }
+}
+emojiSection.append(emojiList);
+content.append(emojiSection);
+await loadEmojiDecks();
 }
 }
 loadTab('settings');
