@@ -14,9 +14,10 @@ body:JSON.stringify({from:'Deo Fortis <onboarding@resend.dev>',to:ADMIN_EMAIL,su
 }catch(e){console.log('Email error:',e);}
 }
 let S={page:'landing',user:null,profile:null};
+let signingUp=false;
 function go(p){S.page=p;render();}
-sb.auth.getSession().then(({data:{session}})=>{if(session){S.user=session.user;getProfile(session.user.id);}});
-sb.auth.onAuthStateChange((_,session)=>{if(session){S.user=session.user;getProfile(session.user.id);}else{S.user=null;S.profile=null;go('landing');}});
+sb.auth.getSession().then(({data:{session}})=>{if(session&&!signingUp){S.user=session.user;getProfile(session.user.id);}});
+sb.auth.onAuthStateChange((_,session)=>{if(signingUp)return;if(session){S.user=session.user;getProfile(session.user.id);}else{S.user=null;S.profile=null;go('landing');}});
 async function getProfile(id){
 const{data}=await sb.from('profiles').select('*').eq('id',id).single();
 if(data){
@@ -620,22 +621,25 @@ if(!passVal||passVal.length<6){errBox.classList.remove('hidden');errBox.textCont
 if(passVal!==pass2Val){errBox.classList.remove('hidden');errBox.textContent='Passwords do not match.';return;}
 submitBtn.textContent='Creating Account...';submitBtn.disabled=true;
 try{
+signingUp=true;
 const{data,error}=await sb.auth.signUp({email:emailVal,password:passVal});
-if(error){errBox.classList.remove('hidden');errBox.textContent=error.message;submitBtn.textContent=sel?'Create Account — '+sel.price:'Create Account';submitBtn.disabled=false;return;}
+if(error){signingUp=false;errBox.classList.remove('hidden');errBox.textContent=error.message;submitBtn.textContent=sel?'Create Account — '+sel.price:'Create Account';submitBtn.disabled=false;return;}
 if(data&&data.user){
 const isFreeSignup=localStorage.getItem('signupType')==='free';
-localStorage.removeItem('signupType');
 const profileData={id:data.user.id,email:emailVal,full_name:nameVal,status:isFreeSignup?'approved':'pending',is_free_tier:isFreeSignup?true:false};
 if(sel)profileData.plan=sel.name;
+await new Promise(r=>setTimeout(r,1000));
 await sb.from('profiles').upsert(profileData,{onConflict:'id'});
+localStorage.removeItem('signupType');
+signingUp=false;
 if(isFreeSignup){
-// Free user — go straight to dashboard
 sendAdminEmail('New Free Signup — Deo Fortis','<h2>New Free Student</h2><p>Name: '+nameVal+'</p><p>Email: '+emailVal+'</p>');
-await new Promise(r=>setTimeout(r,800));
+S.user=data.user;
 await getProfile(data.user.id);
 return;
 }
 sendAdminEmail('New Signup — Deo Fortis','<h2>New Student</h2><p>Name: '+nameVal+'</p><p>Email: '+emailVal+'</p><p>Plan: '+(sel?sel.name:'None')+'</p>');
+signingUp=false;
 sessionStorage.removeItem('selPlan');
 const link=sel?(payLinks[sel.key]||sel.link||'#'):'#';
 if(link&&link!=='#')window.open(link,'_blank');
