@@ -448,100 +448,213 @@ page.append(card);return page;
 // ═══════════════════════════════
 function dashboard(){
 const page=div({});
-let clockedIn=false,curSess=null,elapsed=0,ticker=null;
 const p=S.profile||{};
+
+// NAV
 const nav=div({cls:'dash-nav'});
-nav.append(div({cls:'logo',html:'Deo Fortis'}),div({style:{display:'flex',gap:'8px'}},[btn(' Study','btn-outline',()=>go('study'),{style:{padding:'8px 16px'}}),btn(' Cards','btn-outline',()=>go('flashcards'),{style:{padding:'8px 16px'}}),btn(' Q-Bank','btn-outline',()=>go('vignette'),{style:{padding:'8px 16px'}}),btn(' ','btn-outline',()=>go('leaderboard'),{style:{padding:'8px 16px'}}),btn('Log Out','btn-outline',()=>sb.auth.signOut(),{style:{padding:'8px 16px'}})]));
-page.append(nav);
-const inner=div({cls:'inner'});
-const th=Math.floor((p.total_study_minutes||0)/60),tm=(p.total_study_minutes||0)%60;
-// Check for new content notification
-if(S.profile?.has_new_content){
-const banner=div({style:{background:'linear-gradient(135deg,#0a1f18,#0d2a1e)',border:'1px solid var(--teal)',borderRadius:'4px',padding:'14px 20px',marginBottom:'24px',display:'flex',alignItems:'center',justifyContent:'space-between',gap:'16px'}});
-banner.append(div({style:{display:'flex',alignItems:'center',gap:'12px'}},[div({style:{fontSize:'24px'},html:'🧠'}),div({},[div({style:{fontFamily:"'Playfair Display',serif",fontSize:'16px',color:'var(--teal)',fontWeight:'600',marginBottom:'2px'},html:'Your recall content is ready!'}),div({style:{fontSize:'13px',color:'var(--muted)'},html:'Your active recall request has been fulfilled. Go to Flashcards or Q-Bank to access it.'})])]),btn('Dismiss','',async()=>{await sb.from('profiles').update({has_new_content:false}).eq('id',S.user.id);banner.remove();},{style:{background:'none',border:'1px solid var(--teal)',color:'var(--teal)',fontSize:'11px',padding:'6px 12px',flexShrink:'0'}}));
-inner.append(banner);
-}
-inner.append(div({cls:'fade'},[h('span',{cls:'chapter',html:'Welcome Back'}),h('h1',{style:{fontFamily:"'Playfair Display',serif",fontSize:'40px',fontWeight:'700',marginBottom:'4px'},html:(p.full_name||'Scholar')+' <em style="font-style:italic;color:var(--gold);font-size:32px">📖</em>'}),h('p',{cls:'muted',style:{fontSize:'14px',marginBottom:'40px'},html:'Plan: <span style="color:var(--gold)">'+(p.plan||'Active')+'</span> · Expires: <span style="color:var(--text)">'+(p.access_expires_at?new Date(p.access_expires_at).toLocaleDateString():'Active')+'</span>'})]));
-const sg=div({style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(200px,1fr))',gap:'16px',marginBottom:'40px'}});
-[{label:'Total Study Time',val:th+'h '+tm+'m',color:'var(--gold)'},{label:'Sessions',val:'0',color:'var(--teal)',id:'sc'},{label:'Status',val:'Active',color:'var(--purple)'}].forEach(s=>{
-const c=div({cls:'card',style:{textAlign:'center'}});
-c.append(div({style:{fontFamily:"'Playfair Display',serif",fontSize:'32px',color:s.color,fontWeight:'700',marginBottom:'4px'},html:s.val,id:s.id||''}),div({cls:'mono',html:s.label}));
-sg.append(c);
-});
-inner.append(sg);
-const cg=div({style:{marginBottom:'24px'}});
-const sc2=div({cls:'card'});
-sc2.append(h('h3',{style:{fontFamily:"'Playfair Display',serif",fontSize:'20px',marginBottom:'20px'},html:'Recent Sessions'}),div({id:'slist',html:'<p style="font-size:14px;color:var(--dim)">Loading...</p>'}));
-cg.append(sc2);inner.append(cg);
-const ag=div({style:{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:'16px'}});
-ag.append(btn('Start Pomodoro →','btn-gold',()=>go('study'),{style:{padding:'18px',fontSize:'13px'}}),btn('Flashcards →','btn-outline',()=>go('flashcards'),{style:{padding:'18px',fontSize:'13px'}}),btn('Q-Bank →','btn-outline',()=>go('vignette'),{style:{padding:'18px',fontSize:'13px'}}));
-inner.append(ag);
-// Community button
-const commCard=div({cls:'card',style:{marginTop:'16px',background:'linear-gradient(135deg,#1a1509,#141309)',border:'1px solid #C8A96E44',borderRadius:'4px',padding:'20px 24px',display:'flex',alignItems:'center',justifyContent:'space-between',gap:'16px'}});
-const commLeft=div({style:{display:'flex',alignItems:'center',gap:'12px'}});
-const commTxt=div({});commTxt.append(h('div',{style:{fontFamily:"'Playfair Display',serif",fontSize:'17px',color:'var(--text)',fontWeight:'600',marginBottom:'2px'},html:'Join Our Community'}),h('div',{style:{fontSize:'13px',color:'var(--muted)'},html:'Connect with other students and stay accountable.'}));
-commLeft.append(h('div',{style:{fontSize:'28px'},html:' '}),commTxt);
-const commBtn=document.createElement('a');commBtn.href='#';commBtn.target='_blank';commBtn.id='comm-btn';commBtn.textContent='Join Now →';commBtn.style.cssText='display:none;padding:10px 20px;font-family:"DM Mono",monospace;font-size:11px;letter-spacing:2px;text-transform:uppercase;background:var(--gold);color:#0F0E0A;text-decoration:none;border-radius:2px;flex-shrink:0;';
-commCard.append(commLeft,commBtn);inner.append(commCard);
-// Support email
-const supCard=div({cls:'card',style:{marginTop:'12px',padding:'16px 24px',display:'flex',alignItems:'center',gap:'12px'}});
-const supTxt=div({});supTxt.append(h('span',{style:{fontSize:'13px',color:'var(--muted)'},html:'Need help? '}));
-const supLink=document.createElement('a');supLink.href='mailto:';supLink.id='sup-link';supLink.textContent='Contact support';supLink.style.color='var(--gold)';supLink.style.fontSize='13px';supTxt.append(supLink);
-supCard.append(h('div',{style:{fontSize:'20px'},html:'✉️'}),supTxt);inner.append(supCard);
-// Theory PDFs section
-(async()=>{
-const{data:pdfs}=await sb.from('theory_pdfs').select('*').eq('user_id',S.user.id).order('created_at',{ascending:false});
-if(pdfs&&pdfs.length){
-const pdfCard=div({cls:'card',style:{marginTop:'12px'}});
-pdfCard.append(h('h3',{style:{fontFamily:"'Playfair Display',serif",fontSize:'18px',marginBottom:'16px'},html:'📄 Theory Questions'}));
-pdfs.forEach(pdf=>{
-const row=div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'10px 0',borderBottom:'1px solid var(--border)'}});
-row.append(h('span',{style:{fontSize:'14px',color:'var(--text)'},html:pdf.topic+' — '+pdf.filename}));
-const viewBtn=btn('View PDF','btn-outline',()=>{
-const win=window.open();
-win.document.write('<iframe src="data:application/pdf;base64,'+pdf.data+'" style="width:100%;height:100vh;border:none;"></iframe>');
-},{style:{fontSize:'11px',padding:'6px 12px'}});
-row.append(viewBtn);pdfCard.append(row);
-});
-inner.append(pdfCard);
-}
-})();
-page.append(inner);
-async function loadSess(){
-const{data}=await sb.from('study_sessions').select('*').eq('user_id',S.user.id).order('started_at',{ascending:false}).limit(5);
-const sl=document.getElementById('slist');const sc3=document.getElementById('sc');
-if(!sl)return;
-if(!data||!data.length){sl.innerHTML='<p style="font-size:14px;color:var(--dim)">No sessions yet.</p>';return;}
-if(sc3)sc3.textContent=data.length;
-sl.innerHTML='';
-data.forEach(s=>{
-const row=div({style:{padding:'10px 0',borderBottom:'1px solid var(--border)'}});
-const start=new Date(s.started_at);
-const end=s.ended_at?new Date(s.ended_at):null;
-const dateStr=start.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
-const startTime=start.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'});
-const endTime=end?end.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'}):'ongoing';
-// Calculate duration from timestamps if duration_minutes missing
-const mins=s.duration_minutes||(end?Math.round((end-start)/60000):0);
-row.append(
-  div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'2px'}},[
-    h('span',{style:{fontSize:'13px',color:'var(--text)',fontWeight:'500'},html:dateStr}),
-    h('span',{style:{fontFamily:"'DM Mono',monospace",fontSize:'12px',color:'var(--gold)'},html:mins>0?mins+' mins':'—'})
-  ]),
-  div({style:{fontFamily:"'DM Mono',monospace",fontSize:'10px',color:'var(--dim)'},html:startTime+' → '+endTime+(s.topic?' · '+s.topic:'')})
+nav.append(
+  div({cls:'logo',html:'Deo Fortis'}),
+  div({style:{display:'flex',gap:'8px'}},[
+    btn('📚 Study','btn-outline',()=>go('study'),{style:{padding:'8px 16px'}}),
+    btn('🃏 Cards','btn-outline',()=>go('flashcards'),{style:{padding:'8px 16px'}}),
+    btn('❓ Q-Bank','btn-outline',()=>go('vignette'),{style:{padding:'8px 16px'}}),
+    btn('🏆 Leaderboard','btn-outline',()=>go('leaderboard'),{style:{padding:'8px 16px'}}),
+    btn('Log Out','btn-outline',()=>sb.auth.signOut(),{style:{padding:'8px 16px'}})
+  ])
 );
-sl.append(row);
-});
+page.append(nav);
+
+// INNER CONTAINER
+const container=div({cls:'inner'});
+page.append(container);
+
+// STAT CARD HELPER
+function statCard(title,value,barColor,subLabel=''){
+  const wrap=div({style:{position:'relative',background:'var(--card)',border:'1px solid var(--border)',borderRadius:'2px',overflow:'hidden'}});
+  wrap.append(
+    div({style:{position:'absolute',top:'0',left:'0',right:'0',height:'2px',background:barColor}}),
+    div({style:{padding:'16px'}},[
+      h('div',{style:{fontFamily:"'Playfair Display',serif",fontSize:'28px',color:'var(--gold)',fontWeight:'700',marginBottom:'2px'},html:String(value)}),
+      h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'9px',textTransform:'uppercase',color:'var(--dim)',letterSpacing:'2px'},html:title}),
+      subLabel?h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'9px',color:'var(--teal)',marginTop:'4px'},html:subLabel}):null
+    ].filter(Boolean))
+  );
+  return wrap;
 }
-setTimeout(loadSess, 1000);
-// Check for orphaned sessions
+
+// ACTION BUTTON HELPER
+function actionButton(icon,label,onClick){
+  const btn2=div({style:{border:'1px solid var(--border)',padding:'12px',borderRadius:'2px',cursor:'pointer',background:'transparent',textAlign:'center'},onclick:onClick});
+  btn2.onmouseenter=()=>btn2.style.background='#C8A96E08';
+  btn2.onmouseleave=()=>btn2.style.background='transparent';
+  btn2.append(
+    h('div',{style:{fontSize:'20px',marginBottom:'6px'},html:icon}),
+    h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'12px',color:'var(--text)'},html:label}),
+    h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'9px',color:'var(--dim)'},html:'→'})
+  );
+  return btn2;
+}
+
+// GREETING ROW + STREAK BADGE
+const greetingRow=div({style:{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:'24px',flexWrap:'wrap',gap:'16px'}});
+greetingRow.append(
+  div({},[
+    h('span',{cls:'chapter',html:'Welcome Back'}),
+    h('h1',{style:{fontFamily:"'Playfair Display',serif",fontSize:'28px',fontWeight:'700',marginBottom:'4px',color:'var(--text)'},html:p.full_name||'Scholar'}),
+    h('p',{cls:'muted',style:{fontSize:'12px'},html:'Plan: <span style="color:var(--gold)">'+(p.plan||'Active')+'</span> · Expires: <span style="color:var(--text)">'+(p.access_expires_at?new Date(p.access_expires_at).toLocaleDateString():'Active')+'</span>'})
+  ]),
+  div({style:{background:'linear-gradient(135deg,#2a1a05,#1a1208)',border:'1px solid #C8A96E33',padding:'8px 14px',borderRadius:'4px',display:'flex',alignItems:'center',gap:'8px',flexShrink:'0'}},[
+    h('span',{style:{fontSize:'20px'},html:'🔥'}),
+    div({},[
+      h('div',{style:{fontFamily:"'Playfair Display',serif",fontSize:'22px',color:'var(--gold)',fontWeight:'700',lineHeight:'1'},html:String(p.streak_count||0)}),
+      h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'9px',color:'var(--dim)',letterSpacing:'1px'},html:'day streak'})
+    ])
+  ])
+);
+container.append(greetingRow);
+
+// NEW CONTENT BANNER
+if(S.profile?.has_new_content){
+  const banner=div({style:{background:'linear-gradient(135deg,#0a1f18,#0d2a1e)',border:'1px solid var(--teal)',borderRadius:'4px',padding:'14px 20px',marginBottom:'24px',display:'flex',alignItems:'center',justifyContent:'space-between',gap:'16px'}});
+  banner.append(
+    div({style:{display:'flex',alignItems:'center',gap:'12px'}},[
+      div({style:{fontSize:'24px'},html:'🧠'}),
+      div({},[
+        div({style:{fontFamily:"'Playfair Display',serif",fontSize:'16px',color:'var(--teal)',fontWeight:'600',marginBottom:'2px'},html:'Your recall content is ready!'}),
+        div({style:{fontSize:'13px',color:'var(--muted)'},html:'Your active recall request has been fulfilled. Go to Flashcards or Q-Bank to access it.'})
+      ])
+    ]),
+    btn('Dismiss','',async()=>{
+      await sb.from('profiles').update({has_new_content:false}).eq('id',S.user.id);
+      banner.remove();
+    },{style:{background:'none',border:'1px solid var(--teal)',color:'var(--teal)',fontSize:'11px',padding:'6px 12px',flexShrink:'0'}})
+  );
+  container.append(banner);
+}
+
+// STAT CARDS — 4 columns
+const statsGrid=div({style:{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:'12px',marginBottom:'28px'}});
+statsGrid.append(
+  statCard('Hours Studied',Math.floor((p.total_study_minutes||0)/60)+'h','var(--gold)'),
+  statCard('Questions Done',p.total_questions_answered||0,'var(--teal)'),
+  statCard('Anki Cards',p.total_anki_sessions||0,'var(--dim)'),
+  statCard('Total Points',p.total_points||0,'var(--gold)')
+);
+container.append(statsGrid);
+
+// TWO COLUMN — recent sessions + quick actions
+const twoCol=div({style:{display:'grid',gridTemplateColumns:'2fr 1fr',gap:'16px',marginBottom:'24px'}});
+container.append(twoCol);
+
+// LEFT — Recent Sessions
+const recentCard=div({cls:'card'});
+recentCard.append(
+  h('h3',{style:{fontFamily:"'Playfair Display',serif",fontSize:'18px',marginBottom:'4px'},html:'Recent Sessions'}),
+  h('div',{cls:'mono',style:{marginBottom:'16px'},html:'your last 5 study blocks'}),
+  div({id:'slist',html:'<p style="font-size:14px;color:var(--dim)">Loading...</p>'})
+);
+twoCol.append(recentCard);
+
+// RIGHT — Quick Actions (loaded async for community link)
+(async()=>{
+  const{data:adminData}=await sb.from('admin_settings').select('community_link,support_email').single();
+  const commLink=adminData?.community_link||'#';
+  const supportEmail=adminData?.support_email||'';
+  const actionsCard=div({cls:'card'});
+  actionsCard.append(
+    h('h3',{style:{fontFamily:"'Playfair Display',serif",fontSize:'18px',marginBottom:'4px'},html:'Quick Actions'}),
+    h('div',{cls:'mono',style:{marginBottom:'16px'},html:'navigate'}),
+    div({style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'8px'}},[
+      actionButton('🎯','Start Session',()=>go('study')),
+      actionButton('❓','Q-Bank',()=>go('vignette')),
+      actionButton('📇','Flashcards',()=>go('flashcards')),
+      actionButton('📝','Request Recall',()=>go('dashboard')),
+      actionButton('🏆','Leaderboard',()=>go('leaderboard')),
+      actionButton('💬','Community',()=>{if(commLink&&commLink!=='#')window.open(commLink,'_blank');})
+    ])
+  );
+  twoCol.append(actionsCard);
+
+  // COMMUNITY CARD
+  const commCard=div({cls:'card',style:{marginTop:'16px',background:'linear-gradient(135deg,#1a1509,#141309)',border:'1px solid #C8A96E44',padding:'20px 24px',display:'flex',alignItems:'center',justifyContent:'space-between',gap:'16px'}});
+  const commLeft=div({style:{display:'flex',alignItems:'center',gap:'12px'}});
+  const commTxt=div({});
+  commTxt.append(
+    h('div',{style:{fontFamily:"'Playfair Display',serif",fontSize:'17px',color:'var(--text)',fontWeight:'600',marginBottom:'2px'},html:'Join Our Community'}),
+    h('div',{style:{fontSize:'13px',color:'var(--muted)'},html:'Connect with other students and stay accountable.'})
+  );
+  commLeft.append(h('div',{style:{fontSize:'28px'},html:'💬'}),commTxt);
+  const commBtn=document.createElement('a');
+  commBtn.href=commLink;commBtn.target='_blank';commBtn.id='comm-btn';
+  commBtn.textContent='Join Now →';
+  commBtn.style.cssText='display:'+(commLink&&commLink!=='#'?'block':'none')+';padding:10px 20px;font-family:"DM Mono",monospace;font-size:11px;letter-spacing:2px;text-transform:uppercase;background:var(--gold);color:#0F0E0A;text-decoration:none;border-radius:2px;flex-shrink:0;';
+  commCard.append(commLeft,commBtn);
+  container.append(commCard);
+
+  // SUPPORT CARD
+  const supCard=div({cls:'card',style:{marginTop:'12px',padding:'16px 24px',display:'flex',alignItems:'center',gap:'12px'}});
+  const supTxt=div({});
+  supTxt.append(h('span',{style:{fontSize:'13px',color:'var(--muted)'},html:'Need help? '}));
+  const supLink=document.createElement('a');
+  supLink.href='mailto:'+(supportEmail||'');supLink.id='sup-link';
+  supLink.textContent='Contact support';supLink.style.color='var(--gold)';supLink.style.fontSize='13px';
+  supTxt.append(supLink);
+  supCard.append(h('div',{style:{fontSize:'20px'},html:'✉️'}),supTxt);
+  container.append(supCard);
+})();
+
+// THEORY PDFs
+(async()=>{
+  const{data:pdfs}=await sb.from('theory_pdfs').select('*').eq('user_id',S.user.id).order('created_at',{ascending:false});
+  if(pdfs&&pdfs.length){
+    const pdfCard=div({cls:'card',style:{marginTop:'12px'}});
+    pdfCard.append(h('h3',{style:{fontFamily:"'Playfair Display',serif",fontSize:'18px',marginBottom:'16px'},html:'📄 Theory Questions'}));
+    pdfs.forEach(pdf=>{
+      const row=div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'10px 0',borderBottom:'1px solid var(--border)'}});
+      row.append(h('span',{style:{fontSize:'14px',color:'var(--text)'},html:pdf.topic+' — '+pdf.filename}));
+      row.append(btn('View PDF','btn-outline',()=>{
+        const win=window.open();
+        win.document.write('<iframe src="data:application/pdf;base64,'+pdf.data+'" style="width:100%;height:100vh;border:none;"></iframe>');
+      },{style:{fontSize:'11px',padding:'6px 12px'}}));
+      pdfCard.append(row);
+    });
+    container.append(pdfCard);
+  }
+})();
+
+// LOAD SESSIONS
+async function loadSess(){
+  const{data}=await sb.from('study_sessions').select('*').eq('user_id',S.user.id).order('started_at',{ascending:false}).limit(5);
+  const sl=document.getElementById('slist');
+  if(!sl)return;
+  if(!data||!data.length){sl.innerHTML='<p style="font-size:14px;color:var(--dim)">No sessions yet.</p>';return;}
+  sl.innerHTML='';
+  data.forEach(s=>{
+    const row=div({style:{padding:'10px 0',borderBottom:'1px solid var(--border)'}});
+    const start=new Date(s.started_at);
+    const end=s.ended_at?new Date(s.ended_at):null;
+    const dateStr=start.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
+    const startTime=start.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'});
+    const endTime=end?end.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'}):'ongoing';
+    const mins=s.duration_minutes||(end?Math.round((end-start)/60000):0);
+    row.append(
+      div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'2px'}},[
+        h('span',{style:{fontSize:'13px',color:'var(--text)',fontWeight:'500'},html:dateStr}),
+        h('span',{style:{fontFamily:"'DM Mono',monospace",fontSize:'12px',color:'var(--gold)'},html:mins>0?mins+' mins':'—'})
+      ]),
+      div({style:{fontFamily:"'DM Mono',monospace",fontSize:'10px',color:'var(--dim)'},html:startTime+' → '+endTime+(s.topic?' · '+s.topic:'')})
+    );
+    sl.append(row);
+  });
+}
+setTimeout(loadSess,1000);
+
+// ORPHANED SESSION
 (async()=>{
   const{data:orphans}=await sb.from('study_sessions').select('*').eq('user_id',S.user.id).is('ended_at',null).order('started_at',{ascending:false}).limit(1);
   if(!orphans||!orphans.length)return;
   const orphan=orphans[0];
   const startDate=new Date(orphan.started_at);
-  const hoursAgo=Math.round((Date.now()-startDate)/3600000);
-  // Only prompt if session is older than 5 minutes
   if((Date.now()-startDate)<5*60*1000)return;
   const banner=div({style:{background:'linear-gradient(135deg,#1a1205,#1a0f05)',border:'1px solid var(--gold)',borderRadius:'4px',padding:'16px 20px',marginTop:'16px'}});
   banner.append(
@@ -566,15 +679,9 @@ setTimeout(loadSess, 1000);
       },{style:{fontSize:'11px',padding:'8px 16px'}})
     ])
   );
-  inner.append(banner);
+  container.append(banner);
 })();
-// Load community link and support email
-sb.from('admin_settings').select('community_link,support_email').single().then(({data})=>{
-if(data){
-if(data.community_link){const cb=document.getElementById('comm-btn');if(cb){cb.href=data.community_link;cb.style.display='block';}}
-if(data.support_email){const sl=document.getElementById('sup-link');if(sl)sl.href='mailto:'+data.support_email;}
-}
-});
+
 return page;
 }
 // ═══════════════════════════════
