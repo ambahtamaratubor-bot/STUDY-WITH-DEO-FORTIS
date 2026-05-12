@@ -270,6 +270,63 @@ function renderGoalsProgress(){
 }
 
 // ═══════════════════════════════
+// REST DAYS MODAL
+// ═══════════════════════════════
+function showRestDaysModal(){
+  const overlay=div({style:{position:'fixed',top:'0',left:'0',right:'0',bottom:'0',background:'rgba(0,0,0,0.85)',zIndex:'9999',display:'flex',alignItems:'center',justifyContent:'center',padding:'20px'}});
+  const days=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+  let selectedDays=[...(S.profile?.rest_days||[])];
+
+  const modal=div({style:{maxWidth:'520px',width:'100%',background:'var(--card)',border:'1px solid var(--border)',borderRadius:'4px',padding:'32px',maxHeight:'90vh',overflowY:'auto'}});
+  overlay.append(modal);
+  document.body.append(overlay);
+
+  // HEADER
+  const headerRow=div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'16px'}});
+  headerRow.append(
+    h('h2',{style:{fontFamily:"'Playfair Display',serif",fontSize:'24px',color:'var(--gold)',margin:'0'},html:'Rest Days'}),
+    btn('✕','',()=>overlay.remove(),{style:{background:'none',border:'none',color:'var(--dim)',fontSize:'20px',cursor:'pointer',padding:'4px'}})
+  );
+  modal.append(headerRow);
+
+  // DESCRIPTION
+  modal.append(h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'11px',color:'var(--muted)',marginBottom:'24px'},html:'Rest days never break your study streak — take a break without losing progress.'}));
+
+  // DAY BUTTONS GRID
+  const daysGrid=div({style:{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:'8px',marginBottom:'32px'}});
+  modal.append(daysGrid);
+
+  function refreshDays(){
+    daysGrid.innerHTML='';
+    days.forEach(day=>{
+      const isSelected=selectedDays.includes(day);
+      const dayBtn=div({style:{padding:'10px 4px',fontSize:'12px',fontFamily:"'DM Mono',monospace",fontWeight:'500',textAlign:'center',width:'100%',background:isSelected?'var(--gold)':'transparent',color:isSelected?'var(--bg)':'var(--text)',border:isSelected?'1px solid var(--gold)':'1px solid var(--border)',borderRadius:'4px',cursor:'pointer',transition:'all 0.2s'},html:day,onclick:()=>{
+        if(selectedDays.includes(day)){selectedDays=selectedDays.filter(d=>d!==day);}
+        else{selectedDays.push(day);}
+        refreshDays();
+      }});
+      daysGrid.append(dayBtn);
+    });
+  }
+  refreshDays();
+
+  // SAVE
+  const saveMsg=div({style:{textAlign:'center',color:'var(--teal)',marginTop:'12px',fontFamily:"'DM Mono',monospace",fontSize:'11px',display:'none'},html:'✓ Saved!'});
+  modal.append(
+    btn('Save Rest Days','btn-gold',async()=>{
+      const{error}=await sb.from('profiles').update({rest_days:selectedDays}).eq('id',S.user.id);
+      if(!error){
+        if(!S.profile)S.profile={};
+        S.profile.rest_days=selectedDays;
+        saveMsg.style.display='block';
+        setTimeout(()=>overlay.remove(),800);
+      }
+    },{style:{width:'100%'}}),
+    saveMsg
+  );
+}
+
+// ═══════════════════════════════
 // LANDING
 // ═══════════════════════════════
 function landing(){
@@ -688,7 +745,10 @@ goalsSection.append(
       h('h3',{style:{fontFamily:"'Playfair Display',serif",fontSize:'18px',marginBottom:'2px'},html:'Topic Progress'}),
       h('div',{cls:'mono',style:{fontSize:'9px'},html:'hours studied vs your goals'})
     ]),
-    btn('📊 Study Goals','btn-outline',()=>showGoalsModal(),{style:{fontSize:'11px',padding:'6px 14px'}})
+    div({style:{display:'flex',gap:'8px'}},[
+      btn('📊 Study Goals','btn-outline',()=>showGoalsModal(),{style:{fontSize:'11px',padding:'6px 14px'}}),
+      btn('🛌 Rest Days','btn-outline',()=>showRestDaysModal(),{style:{fontSize:'11px',padding:'6px 14px'}})
+    ])
   ]),
   div({id:'goals-progress'})
 );
