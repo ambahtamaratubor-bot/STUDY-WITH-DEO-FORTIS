@@ -132,6 +132,144 @@ if(window._timerBarInterval)clearInterval(window._timerBarInterval);
 document.body.style.paddingTop='0';
 }
 // ═══════════════════════════════
+// GOALS MODAL
+// ═══════════════════════════════
+function showGoalsModal(){
+  const overlay=div({style:{position:'fixed',top:'0',left:'0',right:'0',bottom:'0',background:'rgba(0,0,0,0.85)',zIndex:'9999',display:'flex',alignItems:'center',justifyContent:'center',padding:'20px'}});
+  let currentDaily=S.profile?.study_goals?.daily_hours||4;
+  let currentWeekly=S.profile?.study_goals?.weekly_hours||20;
+  let topicGoals={...(S.profile?.topic_goals||{})};
+
+  const modal=div({style:{maxWidth:'520px',width:'100%',background:'var(--card)',border:'1px solid var(--border)',borderRadius:'4px',padding:'32px',maxHeight:'90vh',overflowY:'auto'}});
+  overlay.append(modal);
+  document.body.append(overlay);
+
+  // HEADER
+  const headerRow=div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'24px'}});
+  headerRow.append(
+    h('h2',{style:{fontFamily:"'Playfair Display',serif",fontSize:'24px',color:'var(--gold)',margin:'0'},html:'Study Goals'}),
+    btn('✕','',()=>overlay.remove(),{style:{background:'none',border:'none',color:'var(--dim)',fontSize:'20px',cursor:'pointer',padding:'4px'}})
+  );
+  modal.append(headerRow);
+
+  // DAILY SLIDER
+  const dailyValSpan=h('span',{style:{color:'var(--gold)'},html:currentDaily+'h'});
+  const dailyLabelRow=div({style:{fontFamily:"'DM Mono',monospace",fontSize:'9px',textTransform:'uppercase',color:'var(--dim)',marginBottom:'4px'}});
+  dailyLabelRow.append(document.createTextNode('Daily Goal — '),dailyValSpan);
+  const dailySlider=h('input',{type:'range',min:'1',max:'12',value:String(currentDaily),style:{width:'100%',accentColor:'var(--gold)',margin:'8px 0 20px 0'}});
+  dailySlider.oninput=e=>{currentDaily=parseInt(e.target.value);dailyValSpan.textContent=currentDaily+'h';};
+  modal.append(dailyLabelRow,dailySlider);
+
+  // WEEKLY SLIDER
+  const weeklyValSpan=h('span',{style:{color:'var(--gold)'},html:currentWeekly+'h'});
+  const weeklyLabelRow=div({style:{fontFamily:"'DM Mono',monospace",fontSize:'9px',textTransform:'uppercase',color:'var(--dim)',marginBottom:'4px'}});
+  weeklyLabelRow.append(document.createTextNode('Weekly Goal — '),weeklyValSpan);
+  const weeklySlider=h('input',{type:'range',min:'5',max:'60',value:String(currentWeekly),style:{width:'100%',accentColor:'var(--gold)',margin:'8px 0 24px 0'}});
+  weeklySlider.oninput=e=>{currentWeekly=parseInt(e.target.value);weeklyValSpan.textContent=currentWeekly+'h';};
+  modal.append(weeklyLabelRow,weeklySlider);
+
+  // TOPIC GOALS HEADER
+  modal.append(
+    h('h3',{style:{fontFamily:"'Playfair Display',serif",fontSize:'16px',marginBottom:'2px'},html:'Topic Goals'}),
+    h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'9px',color:'var(--dim)',marginBottom:'12px'},html:'track hours per subject'})
+  );
+
+  // TOPIC ADD ROW
+  const topicInput=inp('e.g. Cardiology');
+  topicInput.style.flex='1';
+  const topicHoursValSpan=h('span',{style:{fontFamily:"'DM Mono',monospace",fontSize:'11px',color:'var(--teal)',minWidth:'32px'},html:'5h'});
+  const topicSlider=h('input',{type:'range',min:'1',max:'20',value:'5',style:{width:'120px',accentColor:'var(--teal)'}});
+  topicSlider.oninput=e=>topicHoursValSpan.textContent=e.target.value+'h';
+  const addRow=div({style:{display:'flex',gap:'10px',alignItems:'center',marginBottom:'16px'}});
+  addRow.append(
+    topicInput,topicSlider,topicHoursValSpan,
+    btn('Add','btn-outline',()=>{
+      const topic=topicInput.value.trim();
+      if(!topic)return;
+      topicGoals[topic.toLowerCase()]=parseInt(topicSlider.value);
+      topicInput.value='';topicSlider.value='5';topicHoursValSpan.textContent='5h';
+      refreshTopicList();
+    },{style:{padding:'6px 12px',fontSize:'11px'}})
+  );
+  modal.append(addRow);
+
+  // TOPIC TAG LIST
+  const topicListDiv=div({style:{display:'flex',flexWrap:'wrap',gap:'8px',marginBottom:'24px'}});
+  modal.append(topicListDiv);
+  function refreshTopicList(){
+    topicListDiv.innerHTML='';
+    Object.entries(topicGoals).forEach(([topic,hours])=>{
+      const tag=div({style:{border:'1px solid var(--border)',borderRadius:'2px',padding:'6px 12px',display:'flex',alignItems:'center',gap:'8px',background:'var(--card2)'}});
+      tag.append(
+        h('span',{style:{fontFamily:"'DM Mono',monospace",fontSize:'11px',color:'var(--text)'},html:topic.charAt(0).toUpperCase()+topic.slice(1)}),
+        h('span',{style:{fontFamily:"'DM Mono',monospace",fontSize:'11px',color:'var(--teal)'},html:hours+'h'}),
+        btn('✕','',()=>{delete topicGoals[topic];refreshTopicList();},{style:{background:'none',border:'none',color:'var(--dim)',cursor:'pointer',padding:'0',fontSize:'12px'}})
+      );
+      topicListDiv.append(tag);
+    });
+  }
+  refreshTopicList();
+
+  // SAVE BUTTON
+  const saveMsg=div({style:{textAlign:'center',color:'var(--teal)',marginTop:'12px',fontFamily:"'DM Mono',monospace",fontSize:'11px',display:'none'},html:'✓ Saved!'});
+  modal.append(
+    btn('Save Goals','btn-gold',async()=>{
+      const studyGoals={daily_hours:currentDaily,weekly_hours:currentWeekly};
+      const{error}=await sb.from('profiles').update({study_goals:studyGoals,topic_goals:topicGoals}).eq('id',S.user.id);
+      if(!error){
+        if(!S.profile)S.profile={};
+        S.profile.study_goals=studyGoals;
+        S.profile.topic_goals=topicGoals;
+        renderGoalsProgress();
+        saveMsg.style.display='block';
+        setTimeout(()=>overlay.remove(),800);
+      }
+    },{style:{width:'100%'}}),
+    saveMsg
+  );
+}
+
+// ═══════════════════════════════
+// GOALS PROGRESS
+// ═══════════════════════════════
+function renderGoalsProgress(){
+  const el=document.getElementById('goals-progress');
+  if(!el)return;
+  const goals=S.profile?.topic_goals||{};
+  if(!Object.keys(goals).length){
+    el.innerHTML='<div style="font-size:11px;color:var(--dim);font-family:\'DM Mono\',monospace;padding:8px 0">No topic goals set. Click Study Goals to add some.</div>';
+    return;
+  }
+  el.innerHTML='';
+  sb.from('study_sessions').select('topic,duration_minutes').eq('user_id',S.user.id).not('ended_at','is',null).then(({data:sessions})=>{
+    const actual={};
+    (sessions||[]).forEach(s=>{
+      if(!s.topic)return;
+      Object.keys(goals).forEach(goalTopic=>{
+        if(s.topic.toLowerCase().includes(goalTopic.toLowerCase())){
+          actual[goalTopic]=(actual[goalTopic]||0)+(s.duration_minutes||0);
+        }
+      });
+    });
+    Object.entries(goals).forEach(([topic,targetHours])=>{
+      const actualHours=Math.round((actual[topic]||0)/60*10)/10;
+      const pct=Math.min(100,Math.round((actualHours/targetHours)*100));
+      const row=div({style:{marginBottom:'12px'}});
+      row.append(
+        div({style:{display:'flex',justifyContent:'space-between',marginBottom:'4px'}},[
+          h('span',{style:{fontFamily:"'DM Mono',monospace",fontSize:'11px',color:'var(--text)'},html:topic.charAt(0).toUpperCase()+topic.slice(1)}),
+          h('span',{style:{fontFamily:"'DM Mono',monospace",fontSize:'11px',color:'var(--teal)'},html:actualHours+'h / '+targetHours+'h'})
+        ]),
+        div({style:{background:'var(--card2)',borderRadius:'2px',height:'6px',overflow:'hidden'}},[
+          div({style:{height:'100%',width:pct+'%',background:pct>=100?'var(--teal)':'var(--gold)',borderRadius:'2px',transition:'width 0.6s ease'}})
+        ])
+      );
+      el.append(row);
+    });
+  });
+}
+
+// ═══════════════════════════════
 // LANDING
 // ═══════════════════════════════
 function landing(){
@@ -541,6 +679,21 @@ statsGrid.append(
   statCard('Total Points',p.total_points||0,'var(--gold)')
 );
 container.append(statsGrid);
+
+// GOALS PROGRESS SECTION
+const goalsSection=div({cls:'card',style:{marginBottom:'28px'}});
+goalsSection.append(
+  div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'16px'}},[
+    div({},[
+      h('h3',{style:{fontFamily:"'Playfair Display',serif",fontSize:'18px',marginBottom:'2px'},html:'Topic Progress'}),
+      h('div',{cls:'mono',style:{fontSize:'9px'},html:'hours studied vs your goals'})
+    ]),
+    btn('📊 Study Goals','btn-outline',()=>showGoalsModal(),{style:{fontSize:'11px',padding:'6px 14px'}})
+  ]),
+  div({id:'goals-progress'})
+);
+container.append(goalsSection);
+setTimeout(renderGoalsProgress,1200);
 
 // TWO COLUMN — recent sessions + quick actions
 const twoCol=div({style:{display:'grid',gridTemplateColumns:'2fr 1fr',gap:'16px',marginBottom:'24px'}});
