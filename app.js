@@ -972,8 +972,8 @@ twoCol.append(recentCard);
       actionButton('🎯','Start Session',()=>go('study')),
       actionButton('❓','Q-Bank',()=>go('vignette')),
       actionButton('📇','Flashcards',()=>go('flashcards')),
-      actionButton('📝','Request Recall',()=>go('dashboard')),
-      actionButton('🏆','Leaderboard',()=>go('leaderboard')),
+      actionButton('📝','Request Recall',()=>S.profile?.is_free_tier?showUpgradeModal():go('dashboard')),
+      actionButton('🏆','Leaderboard',()=>isFree?showUpgradeModal():go('leaderboard')),
       actionButton('💬','Community',()=>{if(commLink&&commLink!=='#')window.open(commLink,'_blank');})
     ])
   );
@@ -1125,6 +1125,12 @@ const bI=inp('5','number',String(cfg.breakMins));bI.min='1';bI.max='60';bI.oninp
 const sI=inp('4','number',String(cfg.sessions));sI.min='1';sI.max='20';sI.oninput=e=>cfg.sessions=parseInt(e.target.value)||4;
 [[wI,'Work (mins)'],[bI,'Break (mins)'],[sI,'Sessions']].forEach(([i,l])=>{const w=div({});w.append(h('label',{cls:'label',style:{fontSize:'9px'},html:l}),i);pg.append(w);});
 card.append(pg,h('p',{cls:'mono',style:{marginBottom:'20px'},html:'Set your own work time, break time and number of sessions'}));
+if(S.profile?.is_free_tier){
+  card.append(div({style:{background:'rgba(200,169,110,0.05)',border:'1px solid var(--border)',borderRadius:'4px',padding:'16px',marginBottom:'20px',textAlign:'center'}},[
+    h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'12px',color:'var(--dim)',marginBottom:'12px'},html:'🔒 Active Recall is a paid feature.'}),
+    btn('Upgrade to Unlock','btn-outline',()=>showUpgradeModal(),{style:{fontSize:'11px',padding:'6px 14px'}})
+  ]));
+}else{
 card.append(h('label',{cls:'label',html:'Request Active Recall?'}));
 const rb=div({style:{display:'flex',gap:'12px',marginBottom:'20px'}});
 ['Yes','No'].forEach(v=>{
@@ -1156,6 +1162,7 @@ reqSent=true;sentMsg.style.display='block';sendBtn.style.display='none';
 },{style:{width:'100%',marginBottom:'20px',display:reqSent?'none':'block'}});
 ro.append(sentMsg,sendBtn);
 card.append(ro);
+}
 let noiseLinks2={rain:'',ocean:'',cafe:'',white:''};
 const startBtn=btn('Start Session →','btn-gold',()=>{
 cfg.topic=topI.value?.trim();if(!cfg.topic)return;
@@ -1215,6 +1222,15 @@ card.append(
     showSetup();
   },{style:{width:'100%'}})
 );
+if(S.profile?.is_free_tier){
+  const upsell=div({style:{background:'linear-gradient(135deg,#2a1a05,#1a1208)',border:'1px solid var(--gold)',padding:'16px 20px',borderRadius:'4px',marginTop:'16px'}});
+  upsell.append(
+    h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'12px',color:'var(--muted)',marginBottom:'8px'},html:"Great session! Your progress wasn't saved."}),
+    h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'11px',color:'var(--dim)',marginBottom:'16px'},html:'Upgrade to track your hours, build streaks, and climb the leaderboard — from $10/month.'}),
+    btn('Upgrade Now →','btn-gold',()=>showUpgradeModal())
+  );
+  card.append(upsell);
+}
 page.append(card);
 }
 
@@ -1446,6 +1462,17 @@ inner.append(hCard);
 }
 }
 async function loadDeck(deck){
+if(S.profile?.is_free_tier){
+  const{data:attempts}=await sb.from('flashcard_progress').select('id').eq('user_id',S.user.id).limit(1);
+  if(attempts&&attempts.length>0){
+    inner.innerHTML='';
+    inner.append(div({cls:'card',style:{textAlign:'center',padding:'40px 20px'}},[
+      h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'14px',color:'var(--dim)',marginBottom:'20px'},html:'Free tier allows 1 deck only.'}),
+      btn('Upgrade →','btn-gold',()=>showUpgradeModal())
+    ]));
+    return;
+  }
+}
 selDeck=deck;
 const{data}=await sb.from('flashcards').select('*').eq('deck_id',deck.id);
 if(!data||!data.length){alert('No cards in this deck yet.');return;}
@@ -1533,8 +1560,11 @@ const grade=prog.easy>=prog.iffy&&prog.easy>=prog.hard?'A':prog.iffy>=prog.hard?
 const gradeColor=grade==='A'?'var(--teal)':grade==='B'?'var(--gold)':'#ff8888';
 const gradeMsg=grade==='A'?'Excellent mastery!':grade==='B'?'Good effort, keep reviewing.':'Needs more practice.';
 // Save result and award points
-await sb.from('anki_results').insert({user_id:S.user.id,deck_id:selDeck?.id,deck_topic:selDeck?.topic,grade,easy_count:prog.easy,iffy_count:prog.iffy,hard_count:prog.hard});
-await sb.from('profiles').update({total_points:(S.profile?.total_points||0)+20,total_anki_sessions:(S.profile?.total_anki_sessions||0)+1}).eq('id',S.user.id);
+// Save result and award points — paid only
+if(!S.profile?.is_free_tier){
+  await sb.from('anki_results').insert({user_id:S.user.id,deck_id:selDeck?.id,deck_topic:selDeck?.topic,grade,easy_count:prog.easy,iffy_count:prog.iffy,hard_count:prog.hard});
+  await sb.from('profiles').update({total_points:(S.profile?.total_points||0)+20,total_anki_sessions:(S.profile?.total_anki_sessions||0)+1}).eq('id',S.user.id);
+}
 const card=div({cls:'card fade',style:{textAlign:'center'}});
 card.append(
   div({style:{fontSize:'48px',marginBottom:'16px'},html:'🎉'}),
@@ -1587,6 +1617,25 @@ const tlWrap=div({style:{marginBottom:'20px',display:mode==='timed'?'block':'non
 inner.append(tlWrap);
 const startBtn=btn('Start Quiz →','btn-gold',async()=>{
 if(!selTopic||!mode)return;
+if(S.profile?.is_free_tier){
+  const{data:sc}=await sb.from('vignette_scores').select('total').eq('user_id',S.user.id);
+  const totalAnswered=(sc||[]).reduce((sum,s)=>sum+(s.total||0),0);
+  if(totalAnswered>=10){
+    inner.innerHTML='';
+    inner.append(div({cls:'card',style:{textAlign:'center',padding:'40px 20px'}},[
+      h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'14px',color:'var(--dim)',marginBottom:'20px'},html:"You've used your 10 free questions."}),
+      btn('Upgrade for 4,000 Questions →','btn-gold',()=>showUpgradeModal())
+    ]));
+    return;
+  }
+  const remaining=Math.max(1,10-totalAnswered);
+  const{data:qs}=await sb.from('vignette_questions').select('*').eq('topic',selTopic).or('user_id.eq.'+S.user.id+',user_id.is.null').limit(remaining);
+  if(!qs||!qs.length){alert('No questions for this topic yet.');return;}
+  questions=qs;current=0;answers={};submitted=false;revealed={};
+  if(mode==='timed')timeLeft=timeLimit*60;
+  showQuiz();
+  return;
+}
 const{data:qs}=await sb.from('vignette_questions').select('*').eq('topic',selTopic).or('user_id.eq.'+S.user.id+',user_id.is.null').limit(40);
 if(!qs||!qs.length){alert('No questions for this topic yet.');return;}
 questions=qs;current=0;answers={};submitted=false;revealed={};
