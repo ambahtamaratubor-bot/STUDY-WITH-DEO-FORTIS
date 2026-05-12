@@ -132,6 +132,44 @@ if(window._timerBarInterval)clearInterval(window._timerBarInterval);
 document.body.style.paddingTop='0';
 }
 // ═══════════════════════════════
+// STREAK
+// ═══════════════════════════════
+async function updateStreak(){
+  function toYMD(d){return d.toISOString().split('T')[0];}
+  function getDayName(d){return['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d.getDay()];}
+  // Use local date not UTC
+  function todayLocal(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+  const todayStr=todayLocal();
+  const lastDateStr=S.profile?.last_study_date;
+  // Already studied today
+  if(lastDateStr===todayStr)return;
+  let newStreak;
+  if(!lastDateStr){
+    newStreak=1;
+  }else{
+    const restDays=S.profile?.rest_days||[];
+    // Build gap days between lastDate and today (exclusive both ends)
+    const last=new Date(lastDateStr+'T12:00:00');// noon to avoid DST issues
+    const tod=new Date(todayStr+'T12:00:00');
+    const gapDays=[];
+    const cur=new Date(last);cur.setDate(cur.getDate()+1);
+    while(toYMD(cur)<todayStr){gapDays.push(getDayName(new Date(cur)));cur.setDate(cur.getDate()+1);}
+    if(gapDays.length===0){
+      // lastDate was yesterday
+      newStreak=(S.profile.streak_count||0)+1;
+    }else if(gapDays.every(d=>restDays.includes(d))){
+      // all gap days are rest days — streak continues
+      newStreak=(S.profile.streak_count||0)+1;
+    }else{
+      // streak broken
+      newStreak=1;
+    }
+  }
+  await sb.from('profiles').update({streak_count:newStreak,last_study_date:todayStr}).eq('id',S.user.id);
+  if(S.profile){S.profile.streak_count=newStreak;S.profile.last_study_date=todayStr;}
+}
+
+// ═══════════════════════════════
 // GOALS MODAL
 // ═══════════════════════════════
 function showGoalsModal(){
@@ -639,6 +677,26 @@ card.append(div({style:{fontSize:'48px',marginBottom:'20px'},html:' '}),div({sty
 page.append(card);return page;
 }
 // ═══════════════════════════════
+// COLLAPSIBLE SECTION HELPER
+// ═══════════════════════════════
+function collapsibleSection(title,contentBuilder){
+  const card=div({cls:'card',style:{marginBottom:'16px'}});
+  let loaded=false;
+  const chevron=h('span',{style:{fontSize:'14px',color:'var(--dim)'},html:'▶'});
+  const header=div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',cursor:'pointer',paddingBottom:'12px',borderBottom:'1px solid var(--border)'}});
+  header.append(h('h3',{style:{fontFamily:"'Playfair Display',serif",fontSize:'18px',margin:'0'},html:title}),chevron);
+  const contentDiv=div({style:{display:'none',paddingTop:'16px'}});
+  header.onclick=()=>{
+    const open=contentDiv.style.display==='block';
+    contentDiv.style.display=open?'none':'block';
+    chevron.innerHTML=open?'▶':'▼';
+    if(!loaded&&!open){contentBuilder(contentDiv);loaded=true;}
+  };
+  card.append(header,contentDiv);
+  return card;
+}
+
+// ═══════════════════════════════
 // DASHBOARD
 // ═══════════════════════════════
 function dashboard(){
@@ -754,6 +812,101 @@ goalsSection.append(
 );
 container.append(goalsSection);
 setTimeout(renderGoalsProgress,1200);
+
+// SECTION 1 — Study Consistency
+const studyConsistencySection=collapsibleSection('Study Consistency',(contentDiv)=>{
+  (async()=>{
+    const today=new Date();
+    const daysToMonday=today.getDay()===0?6:today.getDay()-1;
+    const monday=new Date(today);monday.setDate(today.getDate()-daysToMonday);monday.setHours(0,0,0,0);
+    const{data:sessions}=await sb.from('study_sessions').select('started_at,duration_minutes').eq('user_id',S.user.id).not('ended_at','is',null).gte('started_at',monday.toISOString());
+    const dailyGoal=S.profile?.study_goals?.daily_hours||4;
+    const weekDays=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+    const dailyMinutes={};
+    (sessions||[]).forEach(s=>{
+      const d=new Date(s.started_at);
+      const name=weekDays[d.getDay()===0?6:d.getDay()-1];
+      dailyMinutes[name]=(dailyMinutes[name]||0)+(s.duration_minutes||0);
+    });
+    contentDiv.append(h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'9px',color:'var(--dim)',marginBottom:'12px'},html:'hours studied this week'}));
+    const chartContainer=div({style:{display:'flex',justifyContent:'space-around',alignItems:'flex-end',height:'100px',marginBottom:'8px'}});
+    let daysStudied=0;
+    weekDays.forEach(day=>{
+      const hours=(dailyMinutes[day]||0)/60;
+      const barH=Math.min(80,Math.round((hours/dailyGoal)*80));
+      const barColor=hours>=dailyGoal?'var(--teal)':hours>0?'var(--gold)':'var(--border)';
+      if(hours>0)daysStudied++;
+      const col=div({style:{display:'flex',flexDirection:'column',alignItems:'center',gap:'4px'}});
+      col.append(
+        h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'8px',color:'var(--dim)'},html:hours>0?hours.toFixed(1)+'h':'0h'}),
+        div({style:{height:'80px',width:'24px',background:'var(--card2)',borderRadius:'2px',display:'flex',alignItems:'flex-end'}},[
+          div({style:{height:barH+'px',width:'100%',background:barColor,borderRadius:'2px'}})
+        ]),
+        h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'8px',color:'var(--dim)'},html:day})
+      );
+      chartContainer.append(col);
+    });
+    contentDiv.append(chartContainer,h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'11px',color:'var(--teal)',marginTop:'8px'},html:daysStudied+'/7 days this week'}));
+  })();
+});
+container.append(studyConsistencySection);
+
+// SECTION 2 — Q-Bank Performance
+const qbankSection=collapsibleSection('Q-Bank Performance',(contentDiv)=>{
+  (async()=>{
+    const{data:scores}=await sb.from('vignette_scores').select('score,total,topic,created_at').eq('user_id',S.user.id).order('created_at',{ascending:false}).limit(10);
+    if(!scores||!scores.length){contentDiv.append(h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'12px',color:'var(--dim)',textAlign:'center',padding:'16px'},html:'No Q-Bank attempts yet.'}));return;}
+    const reversed=[...scores].reverse();
+    const pcts=reversed.map(s=>Math.round((s.score/s.total)*100));
+    const avg=Math.round(pcts.reduce((a,b)=>a+b,0)/pcts.length);
+    const headerRow=div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'12px'}});
+    headerRow.append(
+      h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'9px',color:'var(--dim)'},html:'last 10 quiz scores'}),
+      h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'11px',color:'var(--gold)'},html:'Avg: '+avg+'%'})
+    );
+    contentDiv.append(headerRow);
+    const chartContainer=div({style:{display:'flex',alignItems:'flex-end',gap:'4px',height:'100px'}});
+    reversed.forEach((score,i)=>{
+      const pct=pcts[i];
+      const barH=Math.min(80,Math.round((pct/100)*80));
+      const barColor=pct>=80?'var(--teal)':pct>=60?'var(--gold)':'#8B3A3A';
+      const col=div({style:{display:'flex',flexDirection:'column',alignItems:'center',gap:'2px',flex:'1'}});
+      col.append(
+        h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'8px',color:'var(--teal)'},html:pct+'%'}),
+        div({style:{width:'20px',borderRadius:'2px',height:barH+'px',background:barColor}}),
+        h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'7px',color:'var(--dim)'},html:(score.topic||'Quiz').substring(0,6)})
+      );
+      chartContainer.append(col);
+    });
+    contentDiv.append(chartContainer);
+  })();
+});
+container.append(qbankSection);
+
+// SECTION 3 — Flashcard Progress
+const flashcardSection=collapsibleSection('Flashcard Progress',(contentDiv)=>{
+  (async()=>{
+    const{data:progress}=await sb.from('flashcard_progress').select('flashcard_difficulty').eq('user_id',S.user.id);
+    if(!progress||!progress.length){contentDiv.append(h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'12px',color:'var(--dim)',textAlign:'center',padding:'16px'},html:'No flashcard activity yet.'}));return;}
+    let easy=0,iffy=0,hard=0;
+    progress.forEach(p=>{if(p.flashcard_difficulty==='Easy')easy++;else if(p.flashcard_difficulty==='Iffy')iffy++;else if(p.flashcard_difficulty==='Hard')hard++;});
+    const total=easy+iffy+hard;
+    contentDiv.append(h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'9px',color:'var(--dim)',marginBottom:'16px'},html:'current card ratings'}));
+    [{label:'Easy',count:easy,color:'var(--teal)'},{label:'Iffy',count:iffy,color:'var(--gold)'},{label:'Hard',count:hard,color:'#8B3A3A'}].forEach(stat=>{
+      const pct=total>0?(stat.count/total)*100:0;
+      const row=div({style:{display:'flex',alignItems:'center',gap:'8px',marginBottom:'10px'}});
+      row.append(
+        h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'10px',color:stat.color,width:'40px'},html:stat.label}),
+        div({style:{flex:'1',height:'10px',background:'var(--card2)',borderRadius:'2px',overflow:'hidden'}},[
+          div({style:{height:'100%',width:pct+'%',background:stat.color,borderRadius:'2px'}})
+        ]),
+        h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'10px',color:'var(--dim)',minWidth:'32px',textAlign:'right'},html:String(stat.count)})
+      );
+      contentDiv.append(row);
+    });
+  })();
+});
+container.append(flashcardSection);
 
 // TWO COLUMN — recent sessions + quick actions
 const twoCol=div({style:{display:'grid',gridTemplateColumns:'2fr 1fr',gap:'16px',marginBottom:'24px'}});
@@ -1057,6 +1210,7 @@ const coutBtn=btn('⏹ Clock Out & Save Session','btn-gold',async()=>{
     if(!verified)console.warn('Could not verify session write, proceeding anyway');
     // Update profile
     await sb.from('profiles').update({total_study_minutes:(S.profile?.total_study_minutes||0)+actualMins,total_points:(S.profile?.total_points||0)+5}).eq('id',S.user.id);
+    await updateStreak();
     // Clear all state
     window.activeSessionId=null;window.sessionStartTime=null;window.pomPlan=null;
     localStorage.removeItem('pomodoroState');localStorage.removeItem('activeSession');
