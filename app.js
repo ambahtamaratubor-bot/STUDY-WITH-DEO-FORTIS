@@ -2058,13 +2058,14 @@ async function loadEmojiDecksPage(){
 async function showDeckPlayer(deck,type){
   const{data:cards}=await sb.from('flashcards').select('*').eq('deck_id',deck.id);
   if(!cards||!cards.length)return;
-  let currentIndex=0,revealed=false;
+  let currentIndex=0,revealed=false,gotIt=0;
   const overlay=div({style:{position:'fixed',top:'0',left:'0',right:'0',bottom:'0',background:'rgba(0,0,0,0.95)',zIndex:'10000',display:'flex',alignItems:'center',justifyContent:'center',padding:'20px'}});
   const modal=div({style:{maxWidth:'600px',width:'100%',background:'var(--card)',border:'1px solid var(--gold)',borderRadius:'8px',padding:'32px',maxHeight:'90vh',overflowY:'auto'}});
   function renderCard(){
     modal.innerHTML='';
     const card=cards[currentIndex];
-    modal.append(h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'11px',color:'var(--dim)',marginBottom:'16px',textAlign:'right'},html:`${currentIndex+1} / ${cards.length}`}));
+    modal.append(h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'11px',color:'var(--dim)',marginBottom:'8px',textAlign:'right'},html:`${currentIndex+1} / ${cards.length}`}));
+    modal.append(h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'9px',color:'var(--teal)',marginBottom:'16px',textAlign:'right'},html:`✓ ${gotIt} correct so far`}));
     modal.append(div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'24px'}},[
       h('h2',{style:{fontFamily:"'Playfair Display',serif",fontSize:'24px',color:'var(--gold)'},html:deck.name}),
       btn('✕','',()=>overlay.remove(),{style:{background:'none',border:'none',color:'var(--dim)',fontSize:'24px',cursor:'pointer'}})
@@ -2080,23 +2081,37 @@ async function showDeckPlayer(deck,type){
         h('div',{style:{fontFamily:'monospace',fontSize:'14px',color:'var(--text)',lineHeight:'1.4'},html:card.back})
       ]));
       if(card.hint){modal.append(div({style:{background:'var(--card2)',padding:'12px',borderRadius:'8px',marginBottom:'16px'}},[h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'10px',color:'var(--dim)'},html:'💡 Hint: '+card.hint})]));}
-      const advance=()=>{if(currentIndex+1<cards.length){currentIndex++;revealed=false;renderCard();}else{completeDeck();}};
       modal.append(div({style:{display:'flex',gap:'12px'}},[
-        btn('✓ Got It','btn-teal',advance,{style:{flex:'1'}}),
-        btn("✗ Didn't Get It",'btn-outline',advance,{style:{flex:'1'}})
+        btn('✓ Got It','btn-teal',()=>{gotIt++;if(currentIndex+1<cards.length){currentIndex++;revealed=false;renderCard();}else{completeDeck();}},{style:{flex:'1'}}),
+        btn("✗ Didn't Get It",'btn-outline',()=>{if(currentIndex+1<cards.length){currentIndex++;revealed=false;renderCard();}else{completeDeck();}},{style:{flex:'1'}})
       ]));
     }
   }
   async function completeDeck(){
-    await sb.from('flashcard_progress').upsert({user_id:S.user.id,deck_id:deck.id,completed:true,completed_at:new Date().toISOString()});
+    const total=cards.length;
+    const score=Math.round((gotIt/total)*100);
+    const passed=score>=65;
     modal.innerHTML='';
-    const{data:nextDeck}=await sb.from('flashcard_decks').select('id').eq('type',type).eq('unlock_order',deck.unlock_order+1).maybeSingle();
-    modal.append(
-      h('div',{style:{fontSize:'48px',textAlign:'center',marginBottom:'16px'},html:'🎉'}),
-      h('h2',{style:{fontFamily:"'Playfair Display',serif",fontSize:'24px',color:'var(--gold)',textAlign:'center',marginBottom:'8px'},html:`Level ${deck.unlock_order} Complete!`}),
-      nextDeck?h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'13px',color:'var(--teal)',textAlign:'center',marginBottom:'24px'},html:'Next Level Unlocked!'}):null,
-      btn('Close','btn-gold',()=>{overlay.remove();if(activeTab==='riddle')loadRiddleDecksPage();if(activeTab==='emoji')loadEmojiDecksPage();},{style:{width:'100%'}})
-    );
+    if(passed){
+      await sb.from('flashcard_progress').upsert({user_id:S.user.id,deck_id:deck.id,completed:true,completed_at:new Date().toISOString()});
+      const{data:nextDeck}=await sb.from('flashcard_decks').select('id').eq('type',type).eq('unlock_order',deck.unlock_order+1).maybeSingle();
+      modal.append(
+        h('div',{style:{fontSize:'48px',textAlign:'center',marginBottom:'16px'},html:'🎉'}),
+        h('h2',{style:{fontFamily:"'Playfair Display',serif",fontSize:'24px',color:'var(--gold)',textAlign:'center',marginBottom:'8px'},html:`Level ${deck.unlock_order} Complete!`}),
+        h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'16px',color:'var(--teal)',textAlign:'center',marginBottom:'8px'},html:`You scored ${score}%`}),
+        nextDeck?h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'13px',color:'var(--teal)',textAlign:'center',marginBottom:'24px'},html:'Next Level Unlocked!'}):h('div',{style:{marginBottom:'24px'}}),
+        btn('Close','btn-gold',()=>{overlay.remove();if(activeTab==='riddle')loadRiddleDecksPage();if(activeTab==='emoji')loadEmojiDecksPage();},{style:{width:'100%'}})
+      );
+    }else{
+      modal.append(
+        h('div',{style:{fontSize:'48px',textAlign:'center',marginBottom:'16px'},html:'💪'}),
+        h('h2',{style:{fontFamily:"'Playfair Display',serif",fontSize:'24px',color:'var(--gold)',textAlign:'center',marginBottom:'8px'},html:'So Close!'}),
+        h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'16px',color:'var(--dim)',textAlign:'center',marginBottom:'8px'},html:`You scored ${score}% — you need 65% to unlock the next level.`}),
+        h('div',{style:{marginBottom:'24px'}}),
+        btn('Try Again →','btn-gold',()=>{currentIndex=0;gotIt=0;revealed=false;renderCard();},{style:{width:'100%',marginBottom:'12px'}}),
+        btn('Exit','btn-outline',()=>{overlay.remove();if(activeTab==='riddle')loadRiddleDecksPage();if(activeTab==='emoji')loadEmojiDecksPage();},{style:{width:'100%'}})
+      );
+    }
   }
   renderCard();overlay.append(modal);document.body.append(overlay);
 }
