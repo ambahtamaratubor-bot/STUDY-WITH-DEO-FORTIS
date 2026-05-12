@@ -19,7 +19,14 @@ sb.auth.getSession().then(({data:{session}})=>{if(session){S.user=session.user;g
 sb.auth.onAuthStateChange((_,session)=>{if(session){S.user=session.user;getProfile(session.user.id);}else{S.user=null;S.profile=null;go('landing');}});
 async function getProfile(id){
 const{data}=await sb.from('profiles').select('*').eq('id',id).single();
-if(data){S.profile=data;go(data.status==='approved'?'dashboard':'pending');}
+if(data){
+  S.profile=data;
+  if(data.is_free_tier===null||data.is_free_tier===undefined){
+    await sb.from('profiles').update({is_free_tier:true}).eq('id',id);
+    S.profile.is_free_tier=true;
+  }
+  go(data.status==='approved'?'dashboard':'pending');
+}
 }
 function h(tag,attr,kids){
 const e=document.createElement(tag);
@@ -677,6 +684,33 @@ card.append(div({style:{fontSize:'48px',marginBottom:'20px'},html:' '}),div({sty
 page.append(card);return page;
 }
 // ═══════════════════════════════
+// UPGRADE MODAL
+// ═══════════════════════════════
+function showUpgradeModal(){
+  const overlay=div({style:{position:'fixed',top:'0',left:'0',right:'0',bottom:'0',background:'rgba(0,0,0,0.85)',zIndex:'9999',display:'flex',alignItems:'center',justifyContent:'center',padding:'20px'}});
+  const modal=div({style:{maxWidth:'480px',width:'100%',background:'var(--card)',border:'1px solid var(--border)',borderRadius:'4px',padding:'32px'}});
+  modal.append(
+    h('div',{style:{fontSize:'48px',textAlign:'center',marginBottom:'16px'},html:'👑'}),
+    h('h2',{style:{fontFamily:"'Playfair Display',serif",fontSize:'24px',color:'var(--gold)',textAlign:'center',marginBottom:'8px'},html:'Upgrade to Full Access'}),
+    h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'11px',color:'var(--dim)',textAlign:'center',marginBottom:'24px'},html:'Unlock everything from $10/month'})
+  );
+  const grid=div({style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'8px 12px',marginBottom:'24px'}});
+  ['Full Pomodoro History','Streak Tracking','4,000 Q-Bank Questions','10,400 Flashcards','Leaderboard Access','Active Recall Requests'].forEach(feature=>{
+    grid.append(div({style:{display:'flex',alignItems:'center',gap:'8px'}},[
+      h('span',{style:{color:'var(--teal)',fontSize:'14px'},html:'✓'}),
+      h('span',{style:{fontFamily:"'DM Mono',monospace",fontSize:'11px',color:'var(--text)'},html:feature})
+    ]));
+  });
+  modal.append(grid);
+  modal.append(
+    btn('Upgrade Now →','btn-gold',()=>{overlay.remove();go('landing');},{style:{width:'100%',marginBottom:'12px'}}),
+    btn('Maybe later','',()=>overlay.remove(),{style:{background:'none',border:'none',fontFamily:"'DM Mono',monospace",fontSize:'11px',color:'var(--dim)',cursor:'pointer',width:'100%',textAlign:'center'}})
+  );
+  overlay.append(modal);
+  document.body.append(overlay);
+}
+
+// ═══════════════════════════════
 // COLLAPSIBLE SECTION HELPER
 // ═══════════════════════════════
 function collapsibleSection(title,contentBuilder){
@@ -702,6 +736,7 @@ function collapsibleSection(title,contentBuilder){
 function dashboard(){
 const page=div({});
 const p=S.profile||{};
+const isFree=p.is_free_tier===true;
 
 // NAV
 const nav=div({cls:'dash-nav'});
@@ -711,7 +746,7 @@ nav.append(
     btn('📚 Study','btn-outline',()=>go('study'),{style:{padding:'8px 16px'}}),
     btn('🃏 Cards','btn-outline',()=>go('flashcards'),{style:{padding:'8px 16px'}}),
     btn('❓ Q-Bank','btn-outline',()=>go('vignette'),{style:{padding:'8px 16px'}}),
-    btn('🏆 Leaderboard','btn-outline',()=>go('leaderboard'),{style:{padding:'8px 16px'}}),
+    btn('🏆 Leaderboard','btn-outline',()=>isFree?showUpgradeModal():go('leaderboard'),{style:{padding:'8px 16px'}}),
     btn('Log Out','btn-outline',()=>sb.auth.signOut(),{style:{padding:'8px 16px'}})
   ])
 );
@@ -759,8 +794,8 @@ greetingRow.append(
   div({style:{background:'linear-gradient(135deg,#2a1a05,#1a1208)',border:'1px solid #C8A96E33',padding:'8px 14px',borderRadius:'4px',display:'flex',alignItems:'center',gap:'8px',flexShrink:'0'}},[
     h('span',{style:{fontSize:'20px'},html:'🔥'}),
     div({},[
-      h('div',{style:{fontFamily:"'Playfair Display',serif",fontSize:'22px',color:'var(--gold)',fontWeight:'700',lineHeight:'1'},html:String(p.streak_count||0)}),
-      h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'9px',color:'var(--dim)',letterSpacing:'1px'},html:'day streak'})
+      h('div',{style:{fontFamily:"'Playfair Display',serif",fontSize:'22px',color:'var(--gold)',fontWeight:'700',lineHeight:'1'},html:String(isFree?Math.min(1,p.streak_count||0):(p.streak_count||0))}),
+      h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'9px',color:'var(--dim)',letterSpacing:'1px'},html:isFree?'🔒 upgrade':'day streak'})
     ])
   ])
 );
@@ -850,6 +885,7 @@ const studyConsistencySection=collapsibleSection('Study Consistency',(contentDiv
   })();
 });
 container.append(studyConsistencySection);
+if(isFree){studyConsistencySection.style.opacity='0.3';studyConsistencySection.style.pointerEvents='none';}
 
 // SECTION 2 — Q-Bank Performance
 const qbankSection=collapsibleSection('Q-Bank Performance',(contentDiv)=>{
@@ -882,6 +918,7 @@ const qbankSection=collapsibleSection('Q-Bank Performance',(contentDiv)=>{
   })();
 });
 container.append(qbankSection);
+if(isFree){qbankSection.style.opacity='0.3';qbankSection.style.pointerEvents='none';}
 
 // SECTION 3 — Flashcard Progress
 const flashcardSection=collapsibleSection('Flashcard Progress',(contentDiv)=>{
@@ -907,6 +944,7 @@ const flashcardSection=collapsibleSection('Flashcard Progress',(contentDiv)=>{
   })();
 });
 container.append(flashcardSection);
+if(isFree){flashcardSection.style.opacity='0.3';flashcardSection.style.pointerEvents='none';}
 
 // TWO COLUMN — recent sessions + quick actions
 const twoCol=div({style:{display:'grid',gridTemplateColumns:'2fr 1fr',gap:'16px',marginBottom:'24px'}});
@@ -990,6 +1028,11 @@ twoCol.append(recentCard);
 
 // LOAD SESSIONS
 async function loadSess(){
+  if(isFree){
+    const sl=document.getElementById('slist');
+    if(sl)sl.innerHTML='<div style="text-align:center;padding:20px;font-family:\'DM Mono\',monospace;font-size:12px;color:var(--dim)">Session history not saved on free tier.<br><span style="color:var(--gold);cursor:pointer" onclick="showUpgradeModal()">Upgrade to track your progress →</span></div>';
+    return;
+  }
   const{data}=await sb.from('study_sessions').select('*').eq('user_id',S.user.id).order('started_at',{ascending:false}).limit(5);
   const sl=document.getElementById('slist');
   if(!sl)return;
