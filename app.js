@@ -623,7 +623,28 @@ submitBtn.textContent='Creating Account...';submitBtn.disabled=true;
 try{
 signingUp=true;
 const{data,error}=await sb.auth.signUp({email:emailVal,password:passVal});
-if(error){signingUp=false;errBox.classList.remove('hidden');errBox.textContent=error.message;submitBtn.textContent=sel?'Create Account — '+sel.price:'Create Account';submitBtn.disabled=false;return;}
+if(error){
+signingUp=false;
+if(error.message.toLowerCase().includes('already registered')||error.message.toLowerCase().includes('already exists')){
+  if(!sel){errBox.classList.remove('hidden');errBox.textContent='Account already exists. Please select a plan to upgrade.';submitBtn.textContent='Create Account';submitBtn.disabled=false;return;}
+  const{data:existingProfile}=await sb.from('profiles').select('id').eq('email',emailVal).single();
+  if(existingProfile){await sb.from('profiles').update({plan:sel.name,status:'pending'}).eq('id',existingProfile.id);}
+  const link=sel?(payLinks[sel.key]||sel.link||'#'):'#';
+  if(link&&link!=='#')window.open(link,'_blank');
+  wrap.innerHTML='';
+  const dc=div({cls:'card',style:{textAlign:'center'}});
+  dc.append(
+    h('div',{style:{fontSize:'48px',marginBottom:'16px'},html:'👑'}),
+    h('h2',{style:{fontFamily:"'Playfair Display',serif",fontSize:'24px',marginBottom:'12px'},html:'Complete Your Upgrade'}),
+    h('p',{cls:'muted',style:{fontSize:'14px',lineHeight:'1.8',marginBottom:'24px'},html:'Your payment link has opened. Once payment is confirmed your account will be upgraded to full access.'}),
+    h('p',{style:{fontFamily:"'DM Mono',monospace",fontSize:'10px',color:'var(--dim)',letterSpacing:'1px',textTransform:'uppercase',marginTop:'16px'},html:"You'll be upgraded as soon as your payment is verified"}),
+    btn('Log In','btn-outline',()=>go('login'),{style:{marginTop:'16px',width:'100%'}})
+  );
+  wrap.append(dc);
+  return;
+}
+errBox.classList.remove('hidden');errBox.textContent=error.message;submitBtn.textContent=sel?'Create Account — '+sel.price:'Create Account';submitBtn.disabled=false;return;
+}
 if(data&&data.user){
 const isFreeSignup=localStorage.getItem('signupType')==='free';
 const profileData={id:data.user.id,email:emailVal,full_name:nameVal,status:isFreeSignup?'approved':'pending',is_free_tier:isFreeSignup?true:false};
@@ -1961,12 +1982,17 @@ const card=div({cls:'card fade'});
 const pend=(users||[]).filter(u=>u.status==='pending').length;
 card.append(h('h2',{style:{fontFamily:"'Playfair Display',serif",fontSize:'22px',marginBottom:'8px'},html:'Users'}),h('p',{cls:'muted',style:{fontSize:'14px',marginBottom:'24px'},html:pend+' pending approval'}));
 (users||[]).forEach(u=>{
+const isFree=u.is_free_tier===true||u.is_free_tier===null||u.is_free_tier===undefined;
 const row=div({style:{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'14px 0',borderBottom:'1px solid var(--border)'}});
 const info=div({});
 info.append(div({style:{fontSize:'15px',color:'var(--text)',marginBottom:'2px'},html:u.full_name||'—'}),div({style:{fontSize:'12px',color:'var(--muted)'},html:(u.email||'—')+' · '+(u.plan||'No plan')+' · '+new Date(u.created_at).toLocaleDateString()}));
 const right=div({style:{display:'flex',alignItems:'center',gap:'12px'}});
-right.append(h('span',{style:{fontFamily:"'DM Mono',monospace",fontSize:'10px',letterSpacing:'1px',textTransform:'uppercase',color:u.status==='approved'?'var(--teal)':'var(--gold)'},html:u.status||'pending'}));
+right.append(
+  h('span',{style:{fontFamily:"'DM Mono',monospace",fontSize:'10px',letterSpacing:'1px',textTransform:'uppercase',color:u.status==='approved'?'var(--teal)':'var(--gold)'},html:u.status||'pending'}),
+  h('span',{style:{fontFamily:"'DM Mono',monospace",fontSize:'10px',letterSpacing:'1px',textTransform:'uppercase',color:isFree?'var(--dim)':'var(--gold)'},html:isFree?'FREE':'PAID'})
+);
 if(u.status!=='approved'){right.append(btn('Approve','btn-teal',async()=>{const exp=new Date();exp.setMonth(exp.getMonth()+1);await sb.from('profiles').update({status:'approved',access_expires_at:exp.toISOString()}).eq('id',u.id);loadTab('users');},{style:{padding:'6px 16px',fontSize:'11px'}}));}
+right.append(btn(isFree?'⬆ Set Paid':'⬇ Set Free',isFree?'btn-teal':'btn-outline',async()=>{await sb.from('profiles').update({is_free_tier:isFree?false:true,status:'approved'}).eq('id',u.id);loadTab('users');},{style:{padding:'6px 16px',fontSize:'11px'}}));
 row.append(info,right);card.append(row);
 });
 content.innerHTML='';content.append(card);
