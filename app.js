@@ -22,8 +22,10 @@ const{data}=await sb.from('profiles').select('*').eq('id',id).single();
 if(data){
   S.profile=data;
   if(data.is_free_tier===null||data.is_free_tier===undefined){
-    await sb.from('profiles').update({is_free_tier:true}).eq('id',id);
-    S.profile.is_free_tier=true;
+    const wasFreeSignup=localStorage.getItem('signupType')==='free';
+    const tierValue=wasFreeSignup?true:false;
+    await sb.from('profiles').update({is_free_tier:tierValue}).eq('id',id);
+    S.profile.is_free_tier=tierValue;
   }
   go(data.status==='approved'?'dashboard':'pending');
 }
@@ -441,6 +443,15 @@ card.append(h('p',{style:{fontFamily:"'DM Mono',monospace",fontSize:'10px',color
 plansGrid.append(card);
 });
 plansSection.append(plansGrid);
+// FREE TIER OPTION
+const freeSection=div({style:{textAlign:'center',marginTop:'8px',paddingBottom:'16px'}});
+freeSection.append(
+  h('hr',{style:{border:'none',borderTop:'1px solid var(--border)',margin:'32px 0'}}),
+  h('div',{style:{fontFamily:"'Playfair Display',serif",fontSize:'18px',fontStyle:'italic',color:'var(--muted)',marginBottom:'8px'},html:'Or start for free'}),
+  h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'11px',color:'var(--dim)',marginBottom:'20px'},html:'Pomodoro timer + white noise. No credit card needed.'}),
+  btn('Start Free →','btn-outline',()=>{localStorage.setItem('signupType','free');go('signup');},{style:{padding:'12px 32px',fontSize:'13px'}})
+);
+plansSection.append(freeSection);
 page.append(plansSection);
 // TUTORING
 const tutSection=div({cls:'section',id:'tutoring'});
@@ -612,9 +623,18 @@ try{
 const{data,error}=await sb.auth.signUp({email:emailVal,password:passVal});
 if(error){errBox.classList.remove('hidden');errBox.textContent=error.message;submitBtn.textContent=sel?'Create Account — '+sel.price:'Create Account';submitBtn.disabled=false;return;}
 if(data&&data.user){
-const profileData={id:data.user.id,email:emailVal,full_name:nameVal,status:'pending'};
+const isFreeSignup=localStorage.getItem('signupType')==='free';
+localStorage.removeItem('signupType');
+const profileData={id:data.user.id,email:emailVal,full_name:nameVal,status:isFreeSignup?'approved':'pending',is_free_tier:isFreeSignup?true:false};
 if(sel)profileData.plan=sel.name;
 await sb.from('profiles').upsert(profileData,{onConflict:'id'});
+if(isFreeSignup){
+// Free user — go straight to dashboard
+sendAdminEmail('New Free Signup — Deo Fortis','<h2>New Free Student</h2><p>Name: '+nameVal+'</p><p>Email: '+emailVal+'</p>');
+await new Promise(r=>setTimeout(r,800));
+await getProfile(data.user.id);
+return;
+}
 sendAdminEmail('New Signup — Deo Fortis','<h2>New Student</h2><p>Name: '+nameVal+'</p><p>Email: '+emailVal+'</p><p>Plan: '+(sel?sel.name:'None')+'</p>');
 sessionStorage.removeItem('selPlan');
 const link=sel?(payLinks[sel.key]||sel.link||'#'):'#';
