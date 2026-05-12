@@ -622,7 +622,7 @@ if(passVal!==pass2Val){errBox.classList.remove('hidden');errBox.textContent='Pas
 submitBtn.textContent='Creating Account...';submitBtn.disabled=true;
 try{
 signingUp=true;
-const{data,error}=await sb.auth.signUp({email:emailVal,password:passVal});
+const{data,error}=await sb.auth.signUp({email:emailVal,password:passVal,options:{data:{full_name:nameVal}}});
 if(error){
 signingUp=false;
 if(error.message.toLowerCase().includes('already registered')||error.message.toLowerCase().includes('already exists')){
@@ -652,7 +652,6 @@ if(sel)profileData.plan=sel.name;
 await new Promise(r=>setTimeout(r,1000));
 await sb.from('profiles').upsert(profileData,{onConflict:'id'});
 localStorage.removeItem('signupType');
-signingUp=false;
 if(isFreeSignup){
 sendAdminEmail('New Free Signup — Deo Fortis','<h2>New Free Student</h2><p>Name: '+nameVal+'</p><p>Email: '+emailVal+'</p>');
 S.user=data.user;
@@ -671,6 +670,7 @@ S.profile={
   topic_goals:{},
   rest_days:[]
 };
+signingUp=false;
 go('dashboard');
 return;
 }
@@ -1980,7 +1980,8 @@ if(tab==='users'){
 const{data:users}=await sb.from('profiles').select('*').order('created_at',{ascending:false});
 const card=div({cls:'card fade'});
 const pend=(users||[]).filter(u=>u.status==='pending').length;
-card.append(h('h2',{style:{fontFamily:"'Playfair Display',serif",fontSize:'22px',marginBottom:'8px'},html:'Users'}),h('p',{cls:'muted',style:{fontSize:'14px',marginBottom:'24px'},html:pend+' pending approval'}));
+const upgrades=(users||[]).filter(u=>u.status==='pending'&&u.is_free_tier===false).length;
+card.append(h('h2',{style:{fontFamily:"'Playfair Display',serif",fontSize:'22px',marginBottom:'8px'},html:'Users'}),h('p',{cls:'muted',style:{fontSize:'14px',marginBottom:'4px'},html:pend+' pending approval'}),upgrades>0?h('p',{style:{fontFamily:"'DM Mono',monospace",fontSize:'12px',color:'var(--gold)',marginBottom:'24px'},html:'⬆ '+upgrades+' upgrade'+(upgrades>1?'s':'')+' awaiting approval'}):h('p',{style:{marginBottom:'24px'}}));
 (users||[]).forEach(u=>{
 const isFree=u.is_free_tier===true||u.is_free_tier===null||u.is_free_tier===undefined;
 const row=div({style:{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'14px 0',borderBottom:'1px solid var(--border)'}});
