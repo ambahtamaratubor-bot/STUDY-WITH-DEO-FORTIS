@@ -1928,13 +1928,14 @@ page.append(aN);
 const tabs=div({style:{borderBottom:'1px solid var(--border)',display:'flex',overflowX:'auto'}});
 const content=div({cls:'inner-md'});
 let curTab='settings';
-const tabDefs=[['settings','⚙ Settings'],['users',' Users'],['recalls',' Recalls'],['flashcards',' Flashcards'],['questions',' Q-Bank'],['testimonials',' Reviews'],['packages',' Packages'],['bookings',' Bookings']];
+const tabDefs=[['settings','⚙ Settings'],['users',' Users'],['recalls',' Recalls'],['flashcards',' Flashcards'],['questions',' Q-Bank'],['testimonials',' Reviews'],['packages',' Packages'],['bookings',' Bookings'],['feynman','👑 Feynman']];
 tabDefs.forEach(([id,label])=>{
 const tb=h('button',{cls:'tab-btn'+(id===curTab?' active':''),html:label});
 tb.onclick=()=>{curTab=id;tabs.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));tb.classList.add('active');loadTab(id);};
 tabs.append(tb);
 });
 page.append(tabs,content);
+let currentFilter='pending';
 async function loadTab(tab){
 content.innerHTML='<p style="color:var(--dim);font-size:14px;padding:24px">Loading...</p>';
 if(tab==='settings'){
@@ -2147,6 +2148,81 @@ inner2.append(info,h('span',{style:{fontFamily:"'DM Mono',monospace",fontSize:'1
 row.append(inner2);card.append(row);
 });
 content.innerHTML='';content.append(card);
+}
+if(tab==='feynman'){
+content.innerHTML='';
+function getCurrentMonday(){const now=new Date();const day=now.getDay();const diff=day===0?6:day-1;const mon=new Date(now);mon.setDate(now.getDate()-diff);mon.setHours(0,0,0,0);return mon.toISOString().split('T')[0];}
+const{data:allSubs}=await sb.from('feynman_submissions').select('*').order('created_at',{ascending:false});
+const submissions=allSubs||[];
+const totalCount=submissions.length;
+const pendingCount=submissions.filter(s=>s.status==='pending').length;
+const approvedCount=submissions.filter(s=>s.status==='approved').length;
+const currentMonday=getCurrentMonday();
+const currentKing=submissions.find(s=>s.is_king===true&&s.week_of===currentMonday);
+const statsRow=div({style:{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:'12px',marginBottom:'24px'}},[
+  div({style:{background:'var(--card)',padding:'16px',borderRadius:'4px',textAlign:'center',borderLeft:'2px solid var(--gold)'}},[h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'13px',color:'var(--gold)',marginBottom:'4px'},html:String(totalCount)}),h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'8px',textTransform:'uppercase',color:'var(--dim)'},html:'Total'})]),
+  div({style:{background:'var(--card)',padding:'16px',borderRadius:'4px',textAlign:'center',borderLeft:'2px solid var(--gold)'}},[h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'13px',color:'var(--gold)',marginBottom:'4px'},html:String(pendingCount)}),h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'8px',textTransform:'uppercase',color:'var(--dim)'},html:'Pending'})]),
+  div({style:{background:'var(--card)',padding:'16px',borderRadius:'4px',textAlign:'center',borderLeft:'2px solid var(--teal)'}},[h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'13px',color:'var(--teal)',marginBottom:'4px'},html:String(approvedCount)}),h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'8px',textTransform:'uppercase',color:'var(--dim)'},html:'Approved'})]),
+  div({style:{background:'var(--card)',padding:'16px',borderRadius:'4px',textAlign:'center',borderLeft:'2px solid #8B5CF6'}},[h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'13px',color:'#8B5CF6',marginBottom:'4px'},html:currentKing?currentKing.user_name:'—'}),h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'8px',textTransform:'uppercase',color:'var(--dim)'},html:'Week King'})])
+]);
+content.append(statsRow);
+const filterRow=div({style:{display:'flex',gap:'8px',marginBottom:'24px'}});
+['All','Pending','Approved','Rejected'].forEach(filter=>{
+  const fv=filter.toLowerCase();
+  const isActive=currentFilter===fv;
+  filterRow.append(btn(filter,isActive?'btn-gold':'btn-outline',()=>{currentFilter=fv;loadTab('feynman');},{style:{padding:'6px 16px',fontSize:'11px'}}));
+});
+content.append(filterRow);
+const filteredSubs=currentFilter==='all'?submissions:submissions.filter(s=>s.status===currentFilter);
+if(!filteredSubs.length){
+  content.append(h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'12px',color:'var(--dim)',textAlign:'center',padding:'40px'},html:'No submissions yet.'}));
+}else{
+  const list=div({style:{display:'flex',flexDirection:'column',gap:'16px'}});
+  filteredSubs.forEach(sub=>{
+    let typeColor='var(--teal)';
+    if(sub.type==='riddle')typeColor='var(--gold)';
+    if(sub.type==='emoji')typeColor='#8B5CF6';
+    const card=div({style:{background:'var(--card2)',borderRadius:'4px',padding:'20px',border:'1px solid var(--border)'}});
+    const hdr=div({style:{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:'12px',flexWrap:'wrap',gap:'8px'}});
+    const left=div({style:{display:'flex',alignItems:'center',gap:'12px',flexWrap:'wrap'}});
+    left.append(
+      h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'13px',fontWeight:'bold',color:'var(--text)'},html:sub.user_name||'Anonymous'}),
+      h('span',{style:{fontFamily:"'DM Mono',monospace",fontSize:'10px',padding:'2px 8px',borderRadius:'2px',background:typeColor,color:'var(--bg)'},html:sub.type.toUpperCase()}),
+      h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'10px',color:'var(--dim)'},html:sub.topic||'—'}),
+      h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'9px',color:'var(--muted)'},html:'Week of '+(sub.week_of||'—')})
+    );
+    hdr.append(left);
+    if(sub.status!=='pending'){hdr.append(h('span',{style:{fontFamily:"'DM Mono',monospace",fontSize:'10px',padding:'4px 8px',borderRadius:'2px',background:sub.status==='approved'?'rgba(126,184,164,0.15)':'rgba(139,58,58,0.15)',color:sub.status==='approved'?'var(--teal)':'#8B3A3A',border:'1px solid '+(sub.status==='approved'?'var(--teal)':'#8B3A3A')},html:sub.status.toUpperCase()}));}
+    card.append(hdr);
+    card.append(div({style:{background:'var(--card)',padding:'16px',borderRadius:'4px',marginBottom:'16px',fontFamily:"'DM Mono',monospace",fontSize:'13px',color:'var(--text)',lineHeight:'1.5',whiteSpace:'pre-wrap'},html:sub.content||''}));
+    if(sub.status==='pending'){
+      const actions=div({style:{display:'flex',gap:'10px',marginTop:'12px'}});
+      actions.append(btn('✓ Approve','btn-teal',async()=>{
+        if(!sub.points_awarded){const{data:up}=await sb.from('profiles').select('total_points').eq('id',sub.user_id).single();if(up)await sb.from('profiles').update({total_points:(up.total_points||0)+50}).eq('id',sub.user_id);}
+        await sb.from('feynman_submissions').update({status:'approved',points_awarded:true}).eq('id',sub.id);
+        loadTab('feynman');
+      },{style:{padding:'6px 16px',fontSize:'11px'}}));
+      actions.append(btn('✕ Reject','btn-outline',async()=>{
+        await sb.from('feynman_submissions').update({status:'rejected'}).eq('id',sub.id);
+        loadTab('feynman');
+      },{style:{padding:'6px 16px',fontSize:'11px'}}));
+      actions.append(btn('👑 King','btn-gold',async()=>{
+        await sb.from('feynman_submissions').update({is_king:false}).eq('week_of',currentMonday).eq('is_king',true);
+        if(!sub.points_awarded){const{data:up}=await sb.from('profiles').select('total_points').eq('id',sub.user_id).single();if(up)await sb.from('profiles').update({total_points:(up.total_points||0)+50}).eq('id',sub.user_id);}
+        await sb.from('feynman_submissions').update({is_king:true,status:'approved',points_awarded:true,week_of:currentMonday}).eq('id',sub.id);
+        loadTab('feynman');
+      },{style:{padding:'6px 16px',fontSize:'11px'}}));
+      card.append(actions);
+    }else if(sub.is_king){
+      card.append(div({style:{marginTop:'12px',display:'flex',alignItems:'center',gap:'8px',background:'rgba(200,169,110,0.1)',padding:'8px 12px',borderRadius:'4px'}},[
+        h('span',{style:{fontSize:'16px'},html:'👑'}),
+        h('span',{style:{fontFamily:"'DM Mono',monospace",fontSize:'11px',color:'var(--gold)'},html:'Feynman King — Week of '+(sub.week_of||'—')})
+      ]));
+    }
+    list.append(card);
+  });
+  content.append(list);
+}
 }
 }
 loadTab('settings');
