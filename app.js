@@ -1971,14 +1971,11 @@ function applyHighlights(){
 qCard.onmouseup=(e)=>{
   if(submitted)return;
   const sel=window.getSelection();
-  if(!sel||sel.isCollapsed){removeHighlightBtn();return;}
+  if(!sel||sel.isCollapsed)return;
   const rng=sel.getRangeAt(0);const selectedText=rng.toString().trim();
   if(!selectedText)return;
-  const rect=rng.getBoundingClientRect();removeHighlightBtn();
-  const btnDiv=div({style:{position:'fixed',top:`${rect.top-30}px`,left:`${rect.left}px`,background:'var(--gold)',color:'var(--bg)',padding:'4px 8px',borderRadius:'4px',fontSize:'11px',cursor:'pointer',zIndex:1000,fontFamily:"Inter,sans-serif"},html:'Highlight'});
-  btnDiv.onclick=()=>{saveHighlight(rng,selectedText);sel.removeAllRanges();removeHighlightBtn();};
-  document.body.appendChild(btnDiv);activeHighlightBtn=btnDiv;
-  setTimeout(()=>{if(activeHighlightBtn===btnDiv)removeHighlightBtn();},3000);
+  saveHighlight(rng,selectedText);
+  sel.removeAllRanges();
 };
 qCard.onclick=(e)=>{
   const target=e.target;
