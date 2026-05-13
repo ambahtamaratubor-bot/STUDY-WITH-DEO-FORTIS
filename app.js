@@ -1678,8 +1678,37 @@ tSel.append(h('option',{value:'',html:'Choose a topic...'}));
 topics.forEach(t=>tSel.append(h('option',{value:t,html:t})));
 const countDisplay=div({style:{fontFamily:"'DM Mono',monospace",fontSize:'11px',color:'var(--dim)',marginBottom:'12px'}},[' ']);
 const qCountI=inp('e.g. 40','number','');qCountI.min='1';qCountI.max='9999';
-tSel.onchange=e=>{selTopic=e.target.value;if(!selTopic){countDisplay.textContent='';qCountI.value='';return;}(async()=>{const{count}=await sb.from('vignette_questions').select('*',{count:'exact',head:true}).eq('topic',selTopic).or('user_id.eq.'+S.user.id+',user_id.is.null');countDisplay.textContent=count+' questions available';qCountI.value=count;qCountI.max=count;})();};
-inner.append(h('label',{cls:'label',html:'Select Topic'}),tSel,countDisplay);
+const subBtnContainer=div({style:{display:'flex',flexWrap:'wrap',gap:'8px',marginTop:'8px'}});
+const subsFilterWrap=div({style:{marginBottom:'16px',display:'none'}},[h('label',{cls:'label',html:'Filter by Subsection'}),subBtnContainer]);
+let selectedSubsections=[];
+async function updateSubsectionUI(){
+  const{data:subs}=await sb.from('vignette_questions').select('subsection').eq('topic',selTopic).or('user_id.eq.'+S.user.id+',user_id.is.null').not('subsection','is',null);
+  const uniqueSubs=[...new Set((subs||[]).map(s=>s.subsection).filter(Boolean))];
+  if(!uniqueSubs.length){subsFilterWrap.style.display='none';selectedSubsections=[];return;}
+  subsFilterWrap.style.display='block';
+  subBtnContainer.innerHTML='';
+  if(!selectedSubsections.length)selectedSubsections=[...uniqueSubs];
+  uniqueSubs.forEach(sub=>{
+    const isSelected=selectedSubsections.includes(sub);
+    const sb2=btn(sub,isSelected?'btn-teal':'btn-outline',()=>{
+      if(selectedSubsections.includes(sub)){selectedSubsections=selectedSubsections.filter(s=>s!==sub);}
+      else{selectedSubsections.push(sub);}
+      updateSubsectionUI();updateCount();
+    },{style:{padding:'6px 12px',fontSize:'11px'}});
+    subBtnContainer.append(sb2);
+  });
+  subBtnContainer.append(btn('All','btn-outline',()=>{selectedSubsections=[...uniqueSubs];updateSubsectionUI();updateCount();},{style:{padding:'6px 12px',fontSize:'11px'}}));
+}
+async function updateCount(){
+  if(!selTopic){countDisplay.textContent='';qCountI.value='';return;}
+  let q=sb.from('vignette_questions').select('*',{count:'exact',head:true}).eq('topic',selTopic).or('user_id.eq.'+S.user.id+',user_id.is.null');
+  if(selectedSubsections.length)q=q.in('subsection',selectedSubsections);
+  const{count}=await q;
+  countDisplay.textContent=(count||0)+' questions available';
+  qCountI.value=count||0;qCountI.max=count||0;
+}
+tSel.onchange=e=>{selTopic=e.target.value;selectedSubsections=[];if(!selTopic){countDisplay.textContent='';qCountI.value='';subsFilterWrap.style.display='none';return;}(async()=>{await updateSubsectionUI();await updateCount();})();};
+inner.append(h('label',{cls:'label',html:'Select Topic'}),tSel,countDisplay,subsFilterWrap);
 inner.append(h('label',{cls:'label',html:'Mode'}));
 const mb=div({style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'12px',marginBottom:'20px'}});
 [['tutor',' Tutor Mode'],['timed',' Timed Mode']].forEach(([v,l])=>{
@@ -1715,7 +1744,9 @@ if(S.profile?.is_free_tier){
   return;
 }
 const desiredCount=parseInt(qCountI.value)||40;
-const{data:qs}=await sb.from('vignette_questions').select('*').eq('topic',selTopic).or('user_id.eq.'+S.user.id+',user_id.is.null').limit(desiredCount);
+let qQuery=sb.from('vignette_questions').select('*').eq('topic',selTopic).or('user_id.eq.'+S.user.id+',user_id.is.null');
+if(selectedSubsections&&selectedSubsections.length)qQuery=qQuery.in('subsection',selectedSubsections);
+const{data:qs}=await qQuery.limit(desiredCount);
 if(!qs||!qs.length){alert('No questions for this topic yet.');return;}
 questions=qs;current=0;answers={};submitted=false;revealed={};
 if(mode==='timed')timeLeft=timeLimit*60;
@@ -2398,38 +2429,84 @@ card.append(ex,upSt,flashListDiv);content.innerHTML='';content.append(card);
 }
 if(tab==='questions'){
 const card=div({cls:'card fade'});
-card.append(h('h2',{style:{fontFamily:"'Playfair Display',serif",fontSize:'22px',marginBottom:'8px'},html:'Upload Vignette Questions'}),h('p',{cls:'muted',style:{fontSize:'14px',marginBottom:'24px'},html:'TXT format: separate questions with a blank line.'}));
-const tI=inp('e.g. Bacteriology');
-const upSt=div({cls:'ok',style:{display:'none',marginTop:'16px'}});
-const fi=h('input',{type:'file',accept:'.txt',style:{color:'var(--muted)',fontSize:'13px',fontFamily:"'DM Mono',monospace",marginTop:'16px'}});
+card.append(h('h2',{style:{fontFamily:"'Playfair Display',serif",fontSize:'22px',marginBottom:'8px'},html:'Upload Vignette Questions'}),h('p',{cls:'muted',style:{fontSize:'14px',marginBottom:'24px'},html:'Add a subject, then add subsections with TXT files.'}));
+const tI=inp('e.g. Paediatrics','text','');
+card.append(h('label',{cls:'label',html:'Subject Name'}),tI);
+const subsRowsDiv=div({style:{marginBottom:'16px',marginTop:'16px'}});
+card.append(h('label',{cls:'label',html:'Subsections (at least one)'}),subsRowsDiv);
+const subsectionRows=[];
+function addSubsectionRow(){
+  const rowId=Date.now()+'_'+Math.random();
+  const rowDiv=div({style:{marginBottom:'12px',padding:'12px',background:'var(--card2)',border:'1px solid var(--border)',borderRadius:'4px'}});
+  const nameInp=inp('e.g. Gastroenterology','text','');
+  const fileInp=h('input',{type:'file',accept:'.txt',style:{color:'var(--muted)',fontSize:'13px',fontFamily:"'DM Mono',monospace",marginTop:'8px',display:'block'}});
+  const removeBtn=btn('✕ Remove','btn-outline',()=>{rowDiv.remove();const idx=subsectionRows.findIndex(r=>r.id===rowId);if(idx!==-1)subsectionRows.splice(idx,1);},{style:{padding:'4px 12px',fontSize:'10px',color:'#ff4444',borderColor:'#ff4444',marginLeft:'12px'}});
+  const topRow=div({style:{display:'flex',alignItems:'center',gap:'8px'}},[nameInp,removeBtn]);
+  rowDiv.append(topRow,fileInp);
+  subsRowsDiv.append(rowDiv);
+  subsectionRows.push({id:rowId,nameInp,fileInp});
+}
+card.append(btn('+ Add Subsection','btn-outline',()=>addSubsectionRow(),{style:{marginBottom:'20px'}}));
+const upSt=div({style:{fontFamily:"'DM Mono',monospace",fontSize:'12px',color:'var(--dim)',marginTop:'12px'}},['']);
+const uploadBtn=btn('Upload All Subsections','btn-gold',async()=>{
+  const subject=tI.value.trim();
+  if(!subject){upSt.textContent='❌ Please enter a subject name';return;}
+  if(!subsectionRows.length){upSt.textContent='❌ Please add at least one subsection';return;}
+  for(let i=0;i<subsectionRows.length;i++){
+    const row=subsectionRows[i];
+    if(!row.nameInp.value.trim()){upSt.textContent='❌ Subsection '+(i+1)+' has no name';return;}
+    if(!row.fileInp.files||!row.fileInp.files.length){upSt.textContent='❌ Subsection "'+row.nameInp.value.trim()+'" has no file';return;}
+  }
+  upSt.textContent='📤 Uploading '+subsectionRows.length+' subsection(s)...';
+  let total=0;
+  for(let i=0;i<subsectionRows.length;i++){
+    const row=subsectionRows[i];
+    const subName=row.nameInp.value.trim();
+    upSt.textContent='📤 Processing "'+subName+'" ('+(i+1)+'/'+subsectionRows.length+')...';
+    const text=await row.fileInp.files[0].text();
+    const blocks=text.split('\n\n').filter(b=>b.trim());
+    const qs=[];
+    for(const block of blocks){
+      const lines=block.split('\n').filter(l=>l.trim());
+      if(lines.length<3)continue;
+      const q={topic:subject,subsection:subName,question:'',option_a:'',option_b:'',option_c:'',option_d:'',correct_answer:'',explanation:'',is_global:true,user_id:null};
+      q.question=lines[0];
+      for(const line of lines.slice(1)){
+        if(line.startsWith('A.')||line.startsWith('A)'))q.option_a=line.slice(2).trim();
+        if(line.startsWith('B.')||line.startsWith('B)'))q.option_b=line.slice(2).trim();
+        if(line.startsWith('C.')||line.startsWith('C)'))q.option_c=line.slice(2).trim();
+        if(line.startsWith('D.')||line.startsWith('D)'))q.option_d=line.slice(2).trim();
+        if(line.toLowerCase().startsWith('answer:'))q.correct_answer=line.split(':')[1]?.trim().toUpperCase()||'';
+        if(line.toLowerCase().startsWith('explanation:'))q.explanation=line.split(':').slice(1).join(':').trim();
+      }
+      if(q.question&&q.correct_answer)qs.push(q);
+    }
+    if(qs.length){
+      const{error}=await sb.from('vignette_questions').insert(qs);
+      if(error){upSt.textContent='❌ Error in "'+subName+'": '+error.message;return;}
+      total+=qs.length;
+    }
+  }
+  upSt.textContent='✅ Uploaded '+total+' questions across '+subsectionRows.length+' subsection(s)';
+  await loadQuestionList();
+},{});
+card.append(uploadBtn,upSt);
 const qListDiv=div({style:{marginTop:'24px'}});
 async function loadQuestionList(){
   qListDiv.innerHTML='';
-  const{data:questions}=await sb.from('vignette_questions').select('id,topic,question').is('user_id',null).order('created_at',{ascending:false});
+  const{data:questions}=await sb.from('vignette_questions').select('id,topic,subsection,question').is('user_id',null).order('created_at',{ascending:false});
   if(!questions||!questions.length){qListDiv.append(h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'11px',color:'var(--dim)',padding:'8px 0'}},['No questions uploaded yet.']));return;}
   qListDiv.append(h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'9px',letterSpacing:'2px',textTransform:'uppercase',color:'var(--dim)',marginBottom:'12px'}},[questions.length+' Questions in Bank']));
   for(const q of questions){
     const preview=q.question.length>70?q.question.substring(0,70)+'...':q.question;
-    const row=div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'10px 0',borderBottom:'1px solid var(--border)'}},[ 
-      div({style:{fontFamily:"'DM Mono',monospace",fontSize:'11px',color:'var(--text)',flex:'1',marginRight:'12px'}},[h('span',{style:{color:'var(--gold)',marginRight:'8px'}},[q.topic]),preview]),
+    const row=div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'10px 0',borderBottom:'1px solid var(--border)'}},[
+      div({style:{fontFamily:"'DM Mono',monospace",fontSize:'11px',color:'var(--text)',flex:'1',marginRight:'12px'}},[h('span',{style:{color:'var(--gold)',marginRight:'8px'}},[q.topic+(q.subsection?' › '+q.subsection:'')]),preview]),
       btn('Delete','btn-outline',async()=>{if(!confirm('Delete this question?'))return;await sb.from('vignette_questions').delete().eq('id',q.id);loadQuestionList();},{style:{padding:'4px 12px',fontSize:'10px',color:'#ff4444',borderColor:'#ff4444',flexShrink:'0'}})
     ]);
     qListDiv.append(row);
   }
 }
-fi.onchange=async e=>{
-const file=e.target.files[0];if(!file)return;
-upSt.style.display='block';upSt.textContent='Uploading...';
-const text=await file.text();const blocks=text.split('\n\n').filter(b=>b.trim());const qs=[];
-for(const block of blocks){const lines=block.split('\n').filter(l=>l.trim());if(lines.length<3)continue;const q={topic:tI.value||'General',question:'',option_a:'',option_b:'',option_c:'',option_d:'',correct_answer:'',explanation:'',is_global:true,user_id:null};q.question=lines[0];for(const line of lines.slice(1)){if(line.startsWith('A.')||line.startsWith('A)'))q.option_a=line.slice(2).trim();if(line.startsWith('B.')||line.startsWith('B)'))q.option_b=line.slice(2).trim();if(line.startsWith('C.')||line.startsWith('C)'))q.option_c=line.slice(2).trim();if(line.startsWith('D.')||line.startsWith('D)'))q.option_d=line.slice(2).trim();if(line.toLowerCase().startsWith('answer:'))q.correct_answer=line.split(':')[1]?.trim().toUpperCase()||'';if(line.toLowerCase().startsWith('explanation:'))q.explanation=line.split(':').slice(1).join(':').trim();}if(q.question&&q.correct_answer)qs.push(q);}
-if(!qs.length){upSt.textContent='No valid questions found.';setTimeout(()=>upSt.style.display='none',4000);return;}
-const{error:qErr}=await sb.from('vignette_questions').insert(qs);
-if(qErr){console.error('Q insert error:',qErr);upSt.textContent='Error: '+qErr.message;return;}
-upSt.textContent='✓ Uploaded '+qs.length+' questions!';loadQuestionList();setTimeout(()=>upSt.style.display='none',4000);
-};
-const ex=div({style:{background:'var(--bg)',border:'1px dashed var(--border)',borderRadius:'4px',padding:'32px',marginBottom:'20px'}});
-ex.append(div({cls:'mono',style:{marginBottom:'12px'},html:'Format:'}),div({style:{background:'var(--card)',border:'1px solid var(--border)',borderRadius:'2px',padding:'12px',marginBottom:'16px'},html:'<p style="font-family:\'DM Mono\',monospace;font-size:12px;color:var(--muted);line-height:2">A 25-year-old presents with fever...<br>A. Streptococcus pyogenes<br>B. Staphylococcus aureus<br>C. Neisseria meningitidis<br>D. Haemophilus influenzae<br>Answer: C<br>Explanation: Classic presentation...</p>'}),field('Topic Name',tI),fi);
-card.append(ex,upSt,qListDiv);content.innerHTML='';content.append(card);
+card.append(qListDiv);content.innerHTML='';content.append(card);
 (async()=>{await loadQuestionList();})();
 }
 if(tab==='testimonials'){
