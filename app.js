@@ -285,7 +285,7 @@ function renderGoalsProgress(){
   if(!el)return;
   const goals=S.profile?.topic_goals||{};
   if(!Object.keys(goals).length){
-    el.innerHTML='<div style="font-size:11px;color:var(--dim);font-family:\'DM Mono\',monospace;padding:8px 0">No topic goals set. Click Study Goals to add some.</div>';
+    el.innerHTML='<div style="font-size:13px;color:var(--muted);font-family:Inter,sans-serif;padding:8px 0">No topic goals set. Click Study Goals to add some.</div>';
     return;
   }
   el.innerHTML='';
@@ -305,8 +305,8 @@ function renderGoalsProgress(){
       const row=div({style:{marginBottom:'12px'}});
       row.append(
         div({style:{display:'flex',justifyContent:'space-between',marginBottom:'4px'}},[
-          h('span',{style:{fontFamily:"'DM Mono',monospace",fontSize:'11px',color:'var(--text)'},html:topic.charAt(0).toUpperCase()+topic.slice(1)}),
-          h('span',{style:{fontFamily:"'DM Mono',monospace",fontSize:'11px',color:'var(--teal)'},html:actualHours+'h / '+targetHours+'h'})
+          h('span',{style:{fontFamily:'Inter,sans-serif',fontSize:'13px',color:'var(--text)'},html:topic.charAt(0).toUpperCase()+topic.slice(1)}),
+          h('span',{style:{fontFamily:'Inter,sans-serif',fontSize:'13px',color:'var(--teal)'},html:actualHours+'h / '+targetHours+'h'})
         ]),
         div({style:{background:'var(--card2)',borderRadius:'2px',height:'6px',overflow:'hidden'}},[
           div({style:{height:'100%',width:pct+'%',background:pct>=100?'var(--teal)':'var(--gold)',borderRadius:'2px',transition:'width 0.6s ease'}})
@@ -823,9 +823,9 @@ function statCard(title,value,barColor,subLabel=''){
   wrap.append(
     div({style:{position:'absolute',top:'0',left:'0',right:'0',height:'2px',background:barColor}}),
     div({style:{padding:'16px'}},[
-      h('div',{style:{fontFamily:"'Playfair Display',serif",fontSize:'28px',color:'var(--gold)',fontWeight:'700',marginBottom:'2px'},html:String(value)}),
-      h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'9px',textTransform:'uppercase',color:'var(--dim)',letterSpacing:'2px'},html:title}),
-      subLabel?h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'9px',color:'var(--teal)',marginTop:'4px'},html:subLabel}):null
+      h('div',{style:{fontFamily:"'Playfair Display',serif",fontSize:'32px',color:'#ffffff',fontWeight:'700',marginBottom:'2px'},html:String(value)}),
+      h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'12px',textTransform:'uppercase',color:'var(--muted)',letterSpacing:'1px'},html:title}),
+      subLabel?h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'12px',color:'var(--teal)',marginTop:'4px'},html:subLabel}):null
     ].filter(Boolean))
   );
   return wrap;
@@ -838,8 +838,8 @@ function actionButton(icon,label,onClick){
   btn2.onmouseleave=()=>btn2.style.background='transparent';
   btn2.append(
     h('div',{style:{fontSize:'20px',marginBottom:'6px'},html:icon}),
-    h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'12px',color:'var(--text)'},html:label}),
-    h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'9px',color:'var(--dim)'},html:'→'})
+    h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'13px',color:'var(--text)'},html:label}),
+    h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'11px',color:'var(--muted)'},html:'→'})
   );
   return btn2;
 }
@@ -856,7 +856,7 @@ greetingRow.append(
     h('span',{style:{fontSize:'20px'},html:'🔥'}),
     div({},[
       h('div',{style:{fontFamily:"'Playfair Display',serif",fontSize:'22px',color:'var(--gold)',fontWeight:'700',lineHeight:'1'},html:String(isFree?Math.min(1,p.streak_count||0):(p.streak_count||0))}),
-      h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'9px',color:'var(--dim)',letterSpacing:'1px'},html:isFree?'🔒 upgrade':'day streak'})
+      h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'12px',color:'var(--muted)'},html:isFree?'🔒 upgrade':'day streak'})
     ])
   ])
 );
@@ -924,7 +924,7 @@ const studyConsistencySection=collapsibleSection('Study Consistency',(contentDiv
       const name=weekDays[d.getDay()===0?6:d.getDay()-1];
       dailyMinutes[name]=(dailyMinutes[name]||0)+(s.duration_minutes||0);
     });
-    contentDiv.append(h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'9px',color:'var(--dim)',marginBottom:'12px'},html:'hours studied this week'}));
+    contentDiv.append(h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'12px',color:'var(--muted)',marginBottom:'12px'},html:'hours studied this week'}));
     const chartContainer=div({style:{display:'flex',justifyContent:'space-around',alignItems:'flex-end',height:'100px',marginBottom:'8px'}});
     let daysStudied=0;
     weekDays.forEach(day=>{
@@ -934,15 +934,15 @@ const studyConsistencySection=collapsibleSection('Study Consistency',(contentDiv
       if(hours>0)daysStudied++;
       const col=div({style:{display:'flex',flexDirection:'column',alignItems:'center',gap:'4px'}});
       col.append(
-        h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'8px',color:'var(--dim)'},html:hours>0?hours.toFixed(1)+'h':'0h'}),
+        h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'10px',color:'var(--muted)'},html:hours>0?hours.toFixed(1)+'h':'0h'}),
         div({style:{height:'80px',width:'24px',background:'var(--card2)',borderRadius:'2px',display:'flex',alignItems:'flex-end'}},[
           div({style:{height:barH+'px',width:'100%',background:barColor,borderRadius:'2px'}})
         ]),
-        h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'8px',color:'var(--dim)'},html:day})
+        h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'10px',color:'var(--muted)'},html:day})
       );
       chartContainer.append(col);
     });
-    contentDiv.append(chartContainer,h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'11px',color:'var(--teal)',marginTop:'8px'},html:daysStudied+'/7 days this week'}));
+    contentDiv.append(chartContainer,h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'13px',color:'var(--teal)',marginTop:'8px'},html:daysStudied+'/7 days this week'}));
   })();
 });
 container.append(studyConsistencySection);
@@ -952,14 +952,14 @@ if(isFree){studyConsistencySection.style.opacity='0.3';studyConsistencySection.s
 const qbankSection=collapsibleSection('Q-Bank Performance',(contentDiv)=>{
   (async()=>{
     const{data:scores}=await sb.from('vignette_scores').select('score,total,topic,created_at').eq('user_id',S.user.id).order('created_at',{ascending:false}).limit(10);
-    if(!scores||!scores.length){contentDiv.append(h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'12px',color:'var(--dim)',textAlign:'center',padding:'16px'},html:'No Q-Bank attempts yet.'}));return;}
+    if(!scores||!scores.length){contentDiv.append(h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'13px',color:'var(--muted)',textAlign:'center',padding:'16px'},html:'No Q-Bank attempts yet.'}));return;}
     const reversed=[...scores].reverse();
     const pcts=reversed.map(s=>Math.round((s.score/s.total)*100));
     const avg=Math.round(pcts.reduce((a,b)=>a+b,0)/pcts.length);
     const headerRow=div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'12px'}});
     headerRow.append(
-      h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'9px',color:'var(--dim)'},html:'last 10 quiz scores'}),
-      h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'11px',color:'var(--gold)'},html:'Avg: '+avg+'%'})
+      h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'12px',color:'var(--muted)'},html:'last 10 quiz scores'}),
+      h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'13px',color:'var(--gold)'},html:'Avg: '+avg+'%'})
     );
     contentDiv.append(headerRow);
     const chartContainer=div({style:{display:'flex',alignItems:'flex-end',gap:'4px',height:'100px'}});
@@ -969,9 +969,9 @@ const qbankSection=collapsibleSection('Q-Bank Performance',(contentDiv)=>{
       const barColor=pct>=80?'var(--teal)':pct>=60?'var(--gold)':'#8B3A3A';
       const col=div({style:{display:'flex',flexDirection:'column',alignItems:'center',gap:'2px',flex:'1'}});
       col.append(
-        h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'8px',color:'var(--teal)'},html:pct+'%'}),
+        h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'10px',color:'var(--teal)'},html:pct+'%'}),
         div({style:{width:'20px',borderRadius:'2px',height:barH+'px',background:barColor}}),
-        h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'7px',color:'var(--dim)'},html:(score.topic||'Quiz').substring(0,6)})
+        h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'9px',color:'var(--muted)'},html:(score.topic||'Quiz').substring(0,6)})
       );
       chartContainer.append(col);
     });
@@ -985,7 +985,7 @@ if(isFree){qbankSection.style.opacity='0.3';qbankSection.style.pointerEvents='no
 const flashcardSection=collapsibleSection('Flashcard Progress',(contentDiv)=>{
   (async()=>{
     const{data:progress}=await sb.from('flashcard_progress').select('difficulty').eq('user_id',S.user.id);
-    if(!progress||!progress.length){contentDiv.append(h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'12px',color:'var(--dim)',textAlign:'center',padding:'16px'},html:'No flashcard activity yet.'}));return;}
+    if(!progress||!progress.length){contentDiv.append(h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'13px',color:'var(--muted)',textAlign:'center',padding:'16px'},html:'No flashcard activity yet.'}));return;}
     let easy=0,iffy=0,hard=0;
     progress.forEach(p=>{if(p.difficulty==='Easy')easy++;else if(p.difficulty==='Iffy')iffy++;else if(p.difficulty==='Hard')hard++;});
     const total=easy+iffy+hard;
@@ -1015,7 +1015,7 @@ container.append(twoCol);
 const recentCard=div({cls:'card'});
 recentCard.append(
   h('h3',{style:{fontFamily:"'Playfair Display',serif",fontSize:'18px',marginBottom:'4px'},html:'Recent Sessions'}),
-  h('div',{cls:'mono',style:{marginBottom:'16px'},html:'your last 5 study blocks'}),
+  h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'12px',color:'var(--muted)',marginBottom:'16px'},html:'your last 5 study blocks'}),
   div({id:'slist',html:'<p style="font-size:14px;color:var(--dim)">Loading...</p>'})
 );
 twoCol.append(recentCard);
@@ -1028,7 +1028,7 @@ twoCol.append(recentCard);
   const actionsCard=div({cls:'card'});
   actionsCard.append(
     h('h3',{style:{fontFamily:"'Playfair Display',serif",fontSize:'18px',marginBottom:'4px'},html:'Quick Actions'}),
-    h('div',{cls:'mono',style:{marginBottom:'16px'},html:'navigate'}),
+    h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'12px',color:'var(--muted)',marginBottom:'16px'},html:'navigate'}),
     div({style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'8px'}},[
       actionButton('🎯','Start Session',()=>go('study')),
       actionButton('❓','Q-Bank',()=>go('vignette')),
@@ -1092,7 +1092,7 @@ twoCol.append(recentCard);
 async function loadSess(){
   if(isFree){
     const sl=document.getElementById('slist');
-    if(sl)sl.innerHTML='<div style="text-align:center;padding:20px;font-family:\'DM Mono\',monospace;font-size:12px;color:var(--dim)">Session history not saved on free tier.<br><span style="color:var(--gold);cursor:pointer" onclick="showUpgradeModal()">Upgrade to track your progress →</span></div>';
+    if(sl)sl.innerHTML='<div style="text-align:center;padding:20px;font-family:Inter,sans-serif;font-size:13px;color:var(--muted)">Session history not saved on free tier.<br><span style="color:var(--gold);cursor:pointer" onclick="showUpgradeModal()">Upgrade to track your progress →</span></div>';
     return;
   }
   const{data}=await sb.from('study_sessions').select('*').eq('user_id',S.user.id).order('started_at',{ascending:false}).limit(5);
@@ -1111,9 +1111,9 @@ async function loadSess(){
     row.append(
       div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'2px'}},[
         h('span',{style:{fontSize:'13px',color:'var(--text)',fontWeight:'500'},html:dateStr}),
-        h('span',{style:{fontFamily:"'DM Mono',monospace",fontSize:'12px',color:'var(--gold)'},html:mins>0?mins+' mins':'—'})
+        h('span',{style:{fontFamily:'Inter,sans-serif',fontSize:'13px',color:'var(--gold)',fontWeight:'600'},html:mins>0?mins+' mins':'—'})
       ]),
-      div({style:{fontFamily:"'DM Mono',monospace",fontSize:'10px',color:'var(--dim)'},html:startTime+' → '+endTime+(s.topic?' · '+s.topic:'')})
+      div({style:{fontFamily:'Inter,sans-serif',fontSize:'12px',color:'#aaaaaa'},html:startTime+' → '+endTime+(s.topic?' · '+s.topic:'')})
     );
     sl.append(row);
   });
