@@ -79,6 +79,7 @@ upload:`<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="
 check:`<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>`,
 x:`<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>`,
 bookOpen:`<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>`,
+mic:`<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="2" width="6" height="11" rx="3"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="8" y1="22" x2="16" y2="22"/></svg>`,
 };
 
 function render(){
@@ -2030,10 +2031,54 @@ const submitBtn=btn('Submit →','btn-gold',async()=>{
   }else{const e=div({style:{fontFamily:"'DM Mono',monospace",fontSize:'11px',color:'#8B3A3A',textAlign:'center',marginTop:'12px'},html:'Failed to submit. Please try again.'});submitCard.append(e);setTimeout(()=>e.remove(),2000);}
 },{style:{width:'100%'}});
 const submitCard=div({cls:'card',style:{marginBottom:'32px'}});
+// Voice recognition setup
+let recognition=null;let isRecording=false;
+const SpeechRecognitionAPI=window.SpeechRecognition||window.webkitSpeechRecognition;
+const micWrapper=div({style:{display:'none',marginBottom:'12px'}});
+if(SpeechRecognitionAPI){
+  const micBtn=btn('','btn-outline',()=>{
+    if(isRecording&&recognition){recognition.stop();return;}
+    recognition=new SpeechRecognitionAPI();
+    recognition.continuous=true;recognition.interimResults=true;recognition.lang='en-US';
+    let baseText=contentTextarea.value;
+    let finalAdded='';
+    recognition.onstart=()=>{
+      isRecording=true;
+      micBtn.style.borderColor='#ff4444';micBtn.style.color='#ff4444';micBtn.style.background='rgba(255,68,68,0.08)';
+      micBtn.innerHTML=ICONS.mic+'<span style="margin-left:6px;font-size:11px">Stop Recording</span>';
+    };
+    recognition.onresult=(event)=>{
+      let interim='';
+      for(let i=event.resultIndex;i<event.results.length;i++){
+        const t=event.results[i][0].transcript;
+        if(event.results[i].isFinal){finalAdded+=t+' ';}
+        else{interim+=t;}
+      }
+      contentTextarea.value=baseText+(finalAdded?finalAdded:'')+( interim?'['+interim+']':'');
+    };
+    recognition.onerror=(e)=>{console.error('Speech error:',e.error);recognition.stop();};
+    recognition.onend=()=>{
+      isRecording=false;
+      contentTextarea.value=(baseText+finalAdded).trim();
+      micBtn.style.borderColor='';micBtn.style.color='';micBtn.style.background='';
+      micBtn.innerHTML=ICONS.mic+'<span style="margin-left:6px;font-size:11px">Speak to Type</span>';
+    };
+    recognition.start();
+  },{style:{display:'inline-flex',alignItems:'center',padding:'6px 14px',fontSize:'11px'}});
+  micBtn.innerHTML=ICONS.mic+'<span style="margin-left:6px;font-size:11px">Speak to Type</span>';
+  micWrapper.append(micBtn);
+  // Hook into updateTypeSelection to show/hide mic
+  const _origUpdate=updateTypeSelection;
+  updateTypeSelection=(value)=>{
+    _origUpdate(value);
+    micWrapper.style.display=value==='explain'?'block':'none';
+    if(value!=='explain'&&isRecording&&recognition)recognition.stop();
+  };
+}
 submitCard.append(
   h('h2',{style:{fontFamily:"'Playfair Display',serif",fontSize:'18px',marginBottom:'4px'},html:'Submit Your Feynman'}),
   h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'9px',color:'var(--dim)',marginBottom:'16px'},html:'explain / riddle / emoji'}),
-  topicInput,typeContainer,contentTextarea,submitBtn
+  topicInput,typeContainer,contentTextarea,micWrapper,submitBtn
 );
 const wallCard=div({cls:'card',style:{marginBottom:'32px'}});
 wallCard.append(
