@@ -2071,14 +2071,14 @@ async function showDeckPlayer(deck,type){
       btn('✕','',()=>overlay.remove(),{style:{background:'none',border:'none',color:'var(--dim)',fontSize:'24px',cursor:'pointer'}})
     ]));
     modal.append(div({style:{textAlign:'center',padding:'40px 20px',background:'var(--card2)',borderRadius:'8px',marginBottom:'24px'}},[
-      h('div',{style:{fontFamily:type==='riddle'?"'Playfair Display',serif":'monospace',fontSize:type==='riddle'?'28px':'48px',color:'var(--text)',lineHeight:'1.3',whiteSpace:'pre-wrap'},html:card.front})
+      h('div',{style:{fontFamily:type==='riddle'?"'Playfair Display',serif":'monospace',fontSize:type==='riddle'?'28px':'48px',color:'var(--text)',lineHeight:'1.3',whiteSpace:'pre-wrap'},html:card.question})
     ]));
     if(!revealed){
       modal.append(btn('Reveal Answer →','btn-outline',()=>{revealed=true;renderCard();},{style:{width:'100%',marginBottom:'16px'}}));
     }else{
       modal.append(div({style:{background:'rgba(200,169,110,0.1)',padding:'20px',borderRadius:'8px',marginBottom:'16px'}},[
         h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'13px',color:'var(--gold)',marginBottom:'8px'},html:'Answer:'}),
-        h('div',{style:{fontFamily:'monospace',fontSize:'14px',color:'var(--text)',lineHeight:'1.4'},html:card.back})
+        h('div',{style:{fontFamily:'monospace',fontSize:'14px',color:'var(--text)',lineHeight:'1.4'},html:card.answer})
       ]));
       if(card.hint){modal.append(div({style:{background:'var(--card2)',padding:'12px',borderRadius:'8px',marginBottom:'16px'}},[h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'10px',color:'var(--dim)'},html:'💡 Hint: '+card.hint})]));}
       modal.append(div({style:{display:'flex',gap:'12px'}},[
@@ -2340,7 +2340,7 @@ const file=e.target.files[0];if(!file)return;
 upSt.style.display='block';upSt.textContent='Uploading...';
 const text=await file.text();const lines=text.split('\n').filter(l=>l.trim());
 const deckTopic=dnI.value||file.name.replace('.csv','');
-const{data:deck,error:deckErr}=await sb.from('flashcard_decks').insert({name:deckTopic,type:'flashcard',topic:deckTopic,user_id:S.user?.id}).select().single();
+const{data:deck,error:deckErr}=await sb.from('flashcard_decks').insert({name:deckTopic,type:'flashcard',topic:deckTopic,user_id:null}).select().single();
 if(deckErr){console.error('Deck insert error:',deckErr);upSt.textContent='Error: '+deckErr.message;return;}
 if(!deck){upSt.textContent='Error: No deck returned';return;}
 const cards=lines.map(line=>{const parts=line.split(',');return{deck_id:deck.id,question:parts[0]?.trim(),answer:parts.slice(1).join(',').trim()};}).filter(c=>c.question&&c.answer);
@@ -2546,7 +2546,7 @@ const riddleUploadBtn=btn('Upload Riddle Deck','btn-gold',()=>{
     const nextLevel=(existing&&existing[0]?.unlock_order||0)+1;
     const{data:newDeck,error:deckError}=await sb.from('flashcard_decks').insert({name:deckName,topic:deckName,type:'riddle',unlock_order:nextLevel,user_id:null}).select().single();
     if(deckError){alert('Failed to create deck: '+deckError.message);return;}
-    for(let card of cards){await sb.from('flashcards').insert({deck_id:newDeck.id,front:card.question,back:card.answer,hint:card.hint});}
+    for(let card of cards){await sb.from('flashcards').insert({deck_id:newDeck.id,question:card.question,answer:card.answer});}
     alert(`✓ Riddle Deck uploaded — Level ${nextLevel} with ${cards.length} cards`);
     riddleDeckName.value='';riddleFileInput.value='';loadTab('feynman');
   })();};
@@ -2594,7 +2594,7 @@ const emojiUploadBtn=btn('Upload Emoji Bitz','btn-gold',()=>{
     const nextLevel=(existing&&existing[0]?.unlock_order||0)+1;
     const{data:newDeck,error:deckError}=await sb.from('flashcard_decks').insert({name:deckName,topic:deckName,type:'emoji',unlock_order:nextLevel,user_id:null}).select().single();
     if(deckError){alert('Failed to create deck: '+deckError.message);return;}
-    for(let card of cards){await sb.from('flashcards').insert({deck_id:newDeck.id,front:card.question,back:card.answer,hint:card.hint});}
+    for(let card of cards){await sb.from('flashcards').insert({deck_id:newDeck.id,question:card.question,answer:card.answer});}
     alert(`✓ Emoji Bitz Deck uploaded — Level ${nextLevel} with ${cards.length} cards`);
     emojiDeckName.value='';emojiFileInput.value='';loadTab('feynman');
   })();};
