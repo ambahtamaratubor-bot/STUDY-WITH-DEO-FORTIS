@@ -1678,11 +1678,33 @@ tSel.append(h('option',{value:'',html:'Choose a topic...'}));
 topics.forEach(t=>tSel.append(h('option',{value:t,html:t})));
 const countDisplay=div({style:{fontFamily:"'DM Mono',monospace",fontSize:'11px',color:'var(--dim)',marginBottom:'12px'}},[' ']);
 const qCountI=inp('e.g. 40','number','');qCountI.min='1';qCountI.max='9999';
+let selectedTopics=[];
+let selectedSubsections=[];
+const topicBtnContainer=div({style:{display:'flex',flexWrap:'wrap',gap:'8px',marginTop:'8px',marginBottom:'8px'}});
+inner.append(h('label',{cls:'label',html:'Select Topics (choose at least one)'}),topicBtnContainer);
+const countDisplay=div({style:{fontFamily:"'DM Mono',monospace",fontSize:'11px',color:'var(--dim)',marginBottom:'12px'}},['Select at least one topic']);
+inner.append(countDisplay);
+function renderTopicButtons(){
+  topicBtnContainer.innerHTML='';
+  topics.forEach(topic=>{
+    const isSelected=selectedTopics.includes(topic);
+    const tb=btn(topic,isSelected?'btn-teal':'btn-outline',()=>{
+      if(selectedTopics.includes(topic)){selectedTopics=selectedTopics.filter(t=>t!==topic);}
+      else{selectedTopics.push(topic);}
+      renderTopicButtons();
+      (async()=>{selectedSubsections=[];await updateSubsectionUI();await updateCount();})();
+    },{style:{padding:'6px 12px',fontSize:'12px'}});
+    topicBtnContainer.append(tb);
+  });
+  topicBtnContainer.append(btn('Clear All','btn-outline',()=>{selectedTopics=[];selectedSubsections=[];renderTopicButtons();updateSubsectionUI();updateCount();},{style:{padding:'6px 12px',fontSize:'12px'}}));
+}
+renderTopicButtons();
 const subBtnContainer=div({style:{display:'flex',flexWrap:'wrap',gap:'8px',marginTop:'8px'}});
 const subsFilterWrap=div({style:{marginBottom:'16px',display:'none'}},[h('label',{cls:'label',html:'Filter by Subsection'}),subBtnContainer]);
-let selectedSubsections=[];
+inner.append(subsFilterWrap);
 async function updateSubsectionUI(){
-  const{data:subs}=await sb.from('vignette_questions').select('subsection').eq('topic',selTopic).or('user_id.eq.'+S.user.id+',user_id.is.null').not('subsection','is',null);
+  if(!selectedTopics.length){subsFilterWrap.style.display='none';selectedSubsections=[];return;}
+  const{data:subs}=await sb.from('vignette_questions').select('subsection').in('topic',selectedTopics).or('user_id.eq.'+S.user.id+',user_id.is.null').not('subsection','is',null);
   const uniqueSubs=[...new Set((subs||[]).map(s=>s.subsection).filter(Boolean))];
   if(!uniqueSubs.length){subsFilterWrap.style.display='none';selectedSubsections=[];return;}
   subsFilterWrap.style.display='block';
@@ -1700,15 +1722,13 @@ async function updateSubsectionUI(){
   subBtnContainer.append(btn('All','btn-outline',()=>{selectedSubsections=[...uniqueSubs];updateSubsectionUI();updateCount();},{style:{padding:'6px 12px',fontSize:'11px'}}));
 }
 async function updateCount(){
-  if(!selTopic){countDisplay.textContent='';qCountI.value='';return;}
-  let q=sb.from('vignette_questions').select('*',{count:'exact',head:true}).eq('topic',selTopic).or('user_id.eq.'+S.user.id+',user_id.is.null');
+  if(!selectedTopics.length){countDisplay.textContent='Select at least one topic';qCountI.value=0;qCountI.max=0;return;}
+  let q=sb.from('vignette_questions').select('*',{count:'exact',head:true}).in('topic',selectedTopics).or('user_id.eq.'+S.user.id+',user_id.is.null');
   if(selectedSubsections.length)q=q.in('subsection',selectedSubsections);
   const{count}=await q;
   countDisplay.textContent=(count||0)+' questions available';
   qCountI.value=count||0;qCountI.max=count||0;
 }
-tSel.onchange=e=>{selTopic=e.target.value;selectedSubsections=[];if(!selTopic){countDisplay.textContent='';qCountI.value='';subsFilterWrap.style.display='none';return;}(async()=>{await updateSubsectionUI();await updateCount();})();};
-inner.append(h('label',{cls:'label',html:'Select Topic'}),tSel,countDisplay,subsFilterWrap);
 inner.append(h('label',{cls:'label',html:'Mode'}));
 const mb=div({style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'12px',marginBottom:'20px'}});
 [['tutor',' Tutor Mode'],['timed',' Timed Mode']].forEach(([v,l])=>{
@@ -1723,7 +1743,7 @@ inner.append(tlWrap);
 const qCountWrap=div({style:{marginBottom:'20px'}},[h('label',{cls:'label',html:'Number of Questions'}),qCountI]);
 inner.append(qCountWrap);
 const startBtn=btn('Start Quiz →','btn-gold',async()=>{
-if(!selTopic||!mode)return;
+if(!selectedTopics.length||!mode){alert('Please select at least one topic and mode');return;}
 if(S.profile?.is_free_tier){
   const{data:sc}=await sb.from('vignette_scores').select('total').eq('user_id',S.user.id);
   const totalAnswered=(sc||[]).reduce((sum,s)=>sum+(s.total||0),0);
@@ -1736,7 +1756,7 @@ if(S.profile?.is_free_tier){
     return;
   }
   const remaining=Math.max(1,10-totalAnswered);
-  const{data:qs}=await sb.from('vignette_questions').select('*').eq('topic',selTopic).or('user_id.eq.'+S.user.id+',user_id.is.null').limit(remaining);
+  const{data:qs}=await sb.from('vignette_questions').select('*').in('topic',selectedTopics).or('user_id.eq.'+S.user.id+',user_id.is.null').limit(remaining);
   if(!qs||!qs.length){alert('No questions for this topic yet.');return;}
   questions=qs;current=0;answers={};submitted=false;revealed={};
   if(mode==='timed')timeLeft=timeLimit*60;
@@ -1744,13 +1764,13 @@ if(S.profile?.is_free_tier){
   return;
 }
 const desiredCount=parseInt(qCountI.value)||40;
-let qQuery=sb.from('vignette_questions').select('*').eq('topic',selTopic).or('user_id.eq.'+S.user.id+',user_id.is.null');
+let qQuery=sb.from('vignette_questions').select('*').in('topic',selectedTopics).or('user_id.eq.'+S.user.id+',user_id.is.null');
 if(selectedSubsections&&selectedSubsections.length)qQuery=qQuery.in('subsection',selectedSubsections);
 const{data:qs}=await qQuery.limit(desiredCount);
 if(!qs||!qs.length){alert('No questions for this topic yet.');return;}
 questions=qs;current=0;answers={};submitted=false;revealed={};
 if(mode==='timed')timeLeft=timeLimit*60;
-sessionStorage.setItem('vignette_resume',JSON.stringify({questions,current:0,answers:{},selTopic,mode,timeLimit,timeLeft:mode==='timed'?timeLimit*60:null}));
+sessionStorage.setItem('vignette_resume',JSON.stringify({questions,current:0,answers:{},selectedTopics,selectedSubsections,mode,timeLimit,timeLeft:mode==='timed'?timeLimit*60:null}));
 showQuiz();
 },{style:{width:'100%'}});
 inner.append(startBtn);
