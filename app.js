@@ -2308,6 +2308,7 @@ reader.readAsDataURL(file);
 };
 br2.append(div({},[h('label',{cls:'label',html:'Upload Theory PDF'}),fi]));
 }
+br2.append(btn('Reject','btn-outline',async()=>{await sb.from('recall_requests').update({status:'rejected',updated_at:new Date().toISOString()}).eq('id',r.id);loadTab('recalls');},{style:{padding:'8px 16px',fontSize:'11px',color:'#ff4444',borderColor:'#ff4444'}}));
 br2.append(btn('Mark Done','btn-teal',async()=>{await sb.from('recall_requests').update({status:'fulfilled',updated_at:new Date().toISOString()}).eq('id',r.id);if(r.user_id)await sb.from('profiles').update({has_new_content:true}).eq('id',r.user_id);loadTab('recalls');},{style:{padding:'8px 16px',fontSize:'11px'}}));
 card.append(br2);content.append(card);
 });
