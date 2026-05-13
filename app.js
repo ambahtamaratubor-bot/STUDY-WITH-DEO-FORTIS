@@ -1592,6 +1592,7 @@ if(prev==='none'){
   if(d==='easy'){nq.splice(curIdx,1);}
   else if(d==='iffy'){nq.splice(curIdx,1);nq.push(cur);}
   else{nq.splice(curIdx,1);nq.splice(Math.min(curIdx+2,nq.length),0,cur);}
+  (async()=>{await sb.from('flashcard_progress').upsert({user_id:S.user.id,flashcard_id:cur.id,difficulty:d,updated_at:new Date().toISOString()},{onConflict:'user_id,flashcard_id'});})();
 
 } else if(prev==='hard'){
   if(d==='hard'){
@@ -1634,8 +1635,7 @@ const gradeMsg=grade==='A'?'Excellent mastery!':grade==='B'?'Good effort, keep r
 if(!S.profile?.is_free_tier){
   await sb.from('anki_results').insert({user_id:S.user.id,deck_id:selDeck?.id,deck_topic:selDeck?.topic,grade,easy_count:prog.easy,iffy_count:prog.iffy,hard_count:prog.hard});
   await sb.from('profiles').update({total_points:(S.profile?.total_points||0)+20,total_anki_sessions:(S.profile?.total_anki_sessions||0)+1}).eq('id',S.user.id);
-  const dominantDifficulty=prog.easy>=prog.iffy&&prog.easy>=prog.hard?'Easy':prog.iffy>=prog.hard?'Iffy':'Hard';
-  await sb.from('flashcard_progress').upsert({user_id:S.user.id,deck_id:selDeck?.id,difficulty:dominantDifficulty,completed:true,updated_at:new Date().toISOString()},{onConflict:'user_id,deck_id'});
+
 }
 const card=div({cls:'card fade',style:{textAlign:'center'}});
 card.append(
