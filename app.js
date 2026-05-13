@@ -15,7 +15,78 @@ body:JSON.stringify({from:'Deo Fortis <onboarding@resend.dev>',to:ADMIN_EMAIL,su
 }
 let S={page:'landing',user:null,profile:null,initialized:false};
 let signingUp=false;
-function go(p){S.page=p;render();}
+function go(p){S.page=p;
+// ═══════════════════════════════
+// AI TUTOR CHAT PANEL
+// ═══════════════════════════════
+let chatPanelInstance=null;
+let freeMessagesCount=0;
+let currentMessages=[];
+
+function initAIChat(){
+  if(document.getElementById('ai-chat-btn'))return;
+  const chatBtn=btn(ICONS.brain+' Ask Tutor','btn-gold',()=>toggleChat(),{style:{borderRadius:'40px',padding:'12px 20px',boxShadow:'0 4px 12px rgba(0,0,0,0.3)',display:'flex',alignItems:'center',gap:'8px',fontSize:'13px'}});
+  chatBtn.id='ai-chat-btn';
+  chatBtn.style.position='fixed';chatBtn.style.bottom='20px';chatBtn.style.right='20px';chatBtn.style.zIndex='10000';
+  document.body.appendChild(chatBtn);
+  let isOpen=false;let panel=null;let thinkingDiv=null;
+  function toggleChat(){
+    if(isOpen){if(panel)panel.remove();panel=null;}
+    else{panel=buildChatPanel();document.body.appendChild(panel);}
+    isOpen=!isOpen;
+  }
+  function buildChatPanel(){
+    const panelDiv=div({style:{position:'fixed',bottom:'80px',right:'20px',width:'350px',height:'500px',background:'var(--card)',border:'1px solid var(--gold)',borderRadius:'12px',zIndex:10000,display:'flex',flexDirection:'column',overflow:'hidden',boxShadow:'0 8px 24px rgba(0,0,0,0.4)'}});
+    const header=div({style:{padding:'12px 16px',background:'var(--gold)',color:'var(--bg)',display:'flex',justifyContent:'space-between',alignItems:'center',fontFamily:"'Plus Jakarta Sans',sans-serif",fontWeight:'bold'}},[
+      h('span',{style:{display:'flex',alignItems:'center',gap:'8px'},html:ICONS.brain+' Deo Tutor'}),
+      btn('✕','btn-close',()=>toggleChat(),{style:{background:'none',border:'none',color:'var(--bg)',fontSize:'18px',cursor:'pointer'}})
+    ]);
+    const messagesDiv=div({style:{flex:'1',overflowY:'auto',padding:'12px',display:'flex',flexDirection:'column',gap:'8px'}});
+    messagesDiv.id='ai-chat-messages';
+    const inputArea=div({style:{padding:'12px',borderTop:'1px solid var(--border)',display:'flex',gap:'8px'}});
+    const input=h('input',{type:'text',placeholder:'Ask a medical question...',style:{flex:'1',padding:'8px',borderRadius:'4px',border:'1px solid var(--border)',background:'var(--card)',color:'var(--text)',fontFamily:"'Inter',sans-serif"}});
+    const sendBtn=btn('Send','btn-gold',()=>sendMessage(),{style:{padding:'8px 16px'}});
+    inputArea.append(input,sendBtn);
+    panelDiv.append(header,messagesDiv,inputArea);
+    if(currentMessages.length===0){currentMessages=[{role:'assistant',content:"Hi! I'm your Deo Tutor. Ask me anything about medicine."}];}
+    function addMessage(role,content){
+      const isUser=role==='user';
+      const msgDiv=div({style:{alignSelf:isUser?'flex-end':'flex-start',background:isUser?'var(--gold)':'var(--card2)',color:isUser?'var(--bg)':'var(--text)',padding:'8px 12px',borderRadius:'12px',maxWidth:'80%',fontSize:'13px',fontFamily:"'Inter',sans-serif",lineHeight:'1.5',wordBreak:'break-word'},html:content});
+      messagesDiv.appendChild(msgDiv);
+      messagesDiv.scrollTop=messagesDiv.scrollHeight;
+    }
+    currentMessages.forEach(m=>addMessage(m.role,m.content));
+    async function sendMessage(){
+      const text=input.value.trim();if(!text)return;
+      input.value='';
+      const isFree=S.profile?.is_free_tier===true;
+      if(isFree&&freeMessagesCount>=5){addMessage('assistant','Free tier limit reached (5 messages per session). 👑 Upgrade to continue chatting.');return;}
+      addMessage('user',text);
+      currentMessages.push({role:'user',content:text});
+      if(isFree)freeMessagesCount++;
+      thinkingDiv=div({style:{alignSelf:'flex-start',background:'var(--card2)',padding:'8px 12px',borderRadius:'12px',fontSize:'12px',color:'var(--dim)'},html:'...'});
+      messagesDiv.appendChild(thinkingDiv);
+      messagesDiv.scrollTop=messagesDiv.scrollHeight;
+      try{
+        const topic=window._currentTopic||'general medicine';
+        const response=await fetch('https://ai-tutor.ambahtamaratubor.workers.dev',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({messages:currentMessages,topic:topic})});
+        const data=await response.json();
+        if(thinkingDiv)thinkingDiv.remove();thinkingDiv=null;
+        const reply=data.reply||"Sorry, I couldn't process that. Try again.";
+        addMessage('assistant',reply);
+        currentMessages.push({role:'assistant',content:reply});
+      }catch(err){
+        if(thinkingDiv)thinkingDiv.remove();thinkingDiv=null;
+        addMessage('assistant','Sorry, the tutor is offline. Try again later.');
+      }
+    }
+    return panelDiv;
+  }
+}
+
+function setAITopic(topic){window._currentTopic=topic;}
+
+render();}
 sb.auth.getSession().then(({data:{session}})=>{if(session&&!signingUp){S.user=session.user;getProfile(session.user.id);}});
 sb.auth.onAuthStateChange(async(_,session)=>{
   if(signingUp)return;
@@ -1269,6 +1340,8 @@ setTimeout(loadSess,1000);
   container.append(banner);
 })();
 
+setAITopic('general medicine');
+setTimeout(()=>initAIChat(),500);
 return page;
 }
 // ═══════════════════════════════
