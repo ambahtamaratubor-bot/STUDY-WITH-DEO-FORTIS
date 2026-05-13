@@ -4,7 +4,7 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
 <title>Study with Deo Fortis</title>
-<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,700;1,400;1,700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{--bg:#0F0E0A;--gold:#C8A96E;--teal:#7EB8A4;--purple:#A89BC8;--text:#E8E0D0;--muted:#8A7F6E;--dim:#4A4035;--border:#2A2519;--card:#141309;}
@@ -29,12 +29,12 @@ input,textarea,select{outline:none;font-family:'Plus Jakarta Sans',sans-serif;}
 .input::placeholder{color:var(--dim);}
 .label{display:block;font-family:'Plus Jakarta Sans',sans-serif;font-size:11px;font-weight:600;letter-spacing:0.5px;text-transform:uppercase;color:var(--muted);margin-bottom:8px;}
 .chapter{font-family:'Plus Jakarta Sans',sans-serif;font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--gold);display:block;margin-bottom:12px;}
-.quote{border-left:3px solid var(--gold);padding:12px 24px;font-style:italic;color:var(--muted);font-family:'Plus Jakarta Sans',sans-serif;font-size:16px;font-weight:300;}
+.quote{border-left:3px solid var(--gold);padding:12px 24px;font-style:italic;color:var(--muted);font-family:'Playfair Display',serif;font-size:16px;}
 .page-lines{position:fixed;inset:0;pointer-events:none;z-index:0;opacity:.015;background-image:repeating-linear-gradient(0deg,transparent,transparent 27px,var(--gold) 27px,var(--gold) 28px);}
 .top-nav{position:fixed;top:0;left:0;right:0;z-index:100;padding:18px 48px;display:flex;align-items:center;justify-content:space-between;transition:all .3s;}
 .top-nav.scrolled{background:rgba(15,14,10,.97);border-bottom:1px solid var(--border);backdrop-filter:blur(8px);}
 .dash-nav{background:rgba(15,14,10,.97);border-bottom:1px solid var(--border);padding:16px 48px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;}
-.logo{font-family:'Plus Jakarta Sans',sans-serif;font-weight:700;font-size:20px;color:var(--gold);letter-spacing:-0.5px;}
+.logo{font-family:'Playfair Display',serif;font-style:italic;font-size:20px;color:var(--gold);}
 .nav-link{font-family:'Plus Jakarta Sans',sans-serif;font-size:12px;font-weight:500;color:var(--muted);cursor:pointer;border:none;background:none;transition:color .2s;}
 .nav-link:hover{color:var(--gold);}
 .plan-card{background:var(--card);border:1px solid var(--border);border-radius:4px;padding:36px 28px;transition:transform .3s;position:relative;}
@@ -69,8 +69,8 @@ input,textarea,select{outline:none;font-family:'Plus Jakarta Sans',sans-serif;}
 .divider{border-top:1px solid var(--border);}
 .grid-auto{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:20px;}
 .center{display:flex;align-items:center;justify-content:center;}
-h1.big{font-family:'Plus Jakarta Sans',sans-serif;font-size:clamp(52px,9vw,110px);font-weight:700;line-height:.95;letter-spacing:-1px;}
-h2.big{font-family:'Plus Jakarta Sans',sans-serif;font-size:clamp(32px,5vw,56px);font-weight:700;line-height:1.05;}
+h1.big{font-family:'Playfair Display',serif;font-size:clamp(52px,9vw,110px);font-weight:700;line-height:.95;letter-spacing:-1px;}
+h2.big{font-family:'Playfair Display',serif;font-size:clamp(32px,5vw,56px);font-weight:700;line-height:1.05;}
 .gold-em{font-style:italic;color:var(--gold);}
 .muted{color:var(--muted);font-weight:300;}
 .mono{font-family:'Plus Jakarta Sans',sans-serif;font-size:10px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;color:var(--dim);}
