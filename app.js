@@ -13,11 +13,26 @@ body:JSON.stringify({from:'Deo Fortis <onboarding@resend.dev>',to:ADMIN_EMAIL,su
 });
 }catch(e){console.log('Email error:',e);}
 }
-let S={page:'landing',user:null,profile:null};
+let S={page:'landing',user:null,profile:null,initialized:false};
 let signingUp=false;
 function go(p){S.page=p;render();}
 sb.auth.getSession().then(({data:{session}})=>{if(session&&!signingUp){S.user=session.user;getProfile(session.user.id);}});
-sb.auth.onAuthStateChange((_,session)=>{if(signingUp)return;if(session){S.user=session.user;getProfile(session.user.id);}else{S.user=null;S.profile=null;go('landing');}});
+sb.auth.onAuthStateChange(async(_,session)=>{
+  if(signingUp)return;
+  if(session){
+    if(!S.initialized){
+      S.user=session.user;
+      S.initialized=true;
+      await getProfile(session.user.id);
+      return;
+    }
+    S.user=session.user;
+    const{data}=await sb.from('profiles').select('*').eq('id',session.user.id).single();
+    if(data)S.profile=data;
+  }else{
+    S.user=null;S.profile=null;S.initialized=false;go('landing');
+  }
+});
 async function getProfile(id){
 const{data}=await sb.from('profiles').select('*').eq('id',id).single();
 if(data){
