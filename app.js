@@ -2323,9 +2323,9 @@ fi.onchange=async e=>{
 const file=e.target.files[0];if(!file)return;
 upSt.style.display='block';upSt.textContent='Uploading...';
 const text=await file.text();const lines=text.split('\n').filter(l=>l.trim());
-const{data:deck}=await sb.from('flashcard_decks').insert({topic:dnI.value||file.name.replace('.csv','')}).select().single();
+const deckTopic=dnI.value||file.name.replace('.csv','');const{data:deck}=await sb.from('flashcard_decks').insert({name:deckTopic,type:'flashcard',topic:deckTopic}).select().single();
 if(!deck){upSt.textContent='Error';return;}
-const cards=lines.map(line=>{const parts=line.split(',');return{deck_id:deck.id,question:parts[0]?.trim(),answer:parts.slice(1).join(',').trim()};}).filter(c=>c.question&&c.answer);
+const cards=lines.map(line=>{const parts=line.split(',');return{deck_id:deck.id,front:parts[0]?.trim(),back:parts.slice(1).join(',').trim(),hint:null};}).filter(c=>c.front&&c.back);
 await sb.from('flashcards').insert(cards);upSt.textContent='✓ Uploaded '+cards.length+' cards!';setTimeout(()=>upSt.style.display='none',3000);
 };
 const ex=div({style:{background:'var(--bg)',border:'1px dashed var(--border)',borderRadius:'4px',padding:'32px',marginBottom:'20px'}});
@@ -2342,7 +2342,7 @@ fi.onchange=async e=>{
 const file=e.target.files[0];if(!file)return;
 upSt.style.display='block';upSt.textContent='Uploading...';
 const text=await file.text();const blocks=text.split('\n\n').filter(b=>b.trim());const qs=[];
-for(const block of blocks){const lines=block.split('\n').filter(l=>l.trim());if(lines.length<3)continue;const q={topic:tI.value||'General',question:'',option_a:'',option_b:'',option_c:'',option_d:'',option_e:'',correct_answer:'',explanation:'',is_global:true};q.question=lines[0];for(const line of lines.slice(1)){if(line.startsWith('A.')||line.startsWith('A)'))q.option_a=line.slice(2).trim();else if(line.startsWith('B.')||line.startsWith('B)'))q.option_b=line.slice(2).trim();else if(line.startsWith('C.')||line.startsWith('C)'))q.option_c=line.slice(2).trim();else if(line.startsWith('D.')||line.startsWith('D)'))q.option_d=line.slice(2).trim();else if(line.startsWith('E.')||line.startsWith('E)'))q.option_e=line.slice(2).trim();else if(line.toLowerCase().startsWith('answer:'))q.correct_answer=line.split(':')[1].trim().toUpperCase();else if(line.toLowerCase().startsWith('explanation:'))q.explanation=line.split(':').slice(1).join(':').trim();}if(q.question&&q.correct_answer)qs.push(q);}
+for(const block of blocks){const lines=block.split('\n').filter(l=>l.trim());if(lines.length<3)continue;let questionText='';let optionA='',optionB='',optionC='',optionD='',optionE='';let correctAnswer='',explanation='';questionText=lines[0];for(const line of lines.slice(1)){if(line.startsWith('A.')||line.startsWith('A)'))optionA=line.slice(2).trim();if(line.startsWith('B.')||line.startsWith('B)'))optionB=line.slice(2).trim();if(line.startsWith('C.')||line.startsWith('C)'))optionC=line.slice(2).trim();if(line.startsWith('D.')||line.startsWith('D)'))optionD=line.slice(2).trim();if(line.startsWith('E.')||line.startsWith('E)'))optionE=line.slice(2).trim();if(line.toLowerCase().startsWith('answer:'))correctAnswer=line.split(':')[1]?.trim()||'';if(line.toLowerCase().startsWith('explanation:'))explanation=line.split(':')[1]?.trim()||'';}if(questionText&&correctAnswer){const options=[optionA?`A. ${optionA}`:null,optionB?`B. ${optionB}`:null,optionC?`C. ${optionC}`:null,optionD?`D. ${optionD}`:null,optionE?`E. ${optionE}`:null].filter(opt=>opt!==null);const q={topic:tI.value||'General',question:questionText,options:options,answer:correctAnswer,explanation:explanation,user_id:null};qs.push(q);}}
 if(qs.length){await sb.from('vignette_questions').insert(qs);upSt.textContent='✓ Uploaded '+qs.length+' questions!';}else upSt.textContent='No valid questions found.';
 setTimeout(()=>upSt.style.display='none',4000);
 };
