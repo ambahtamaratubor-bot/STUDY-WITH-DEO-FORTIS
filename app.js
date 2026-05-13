@@ -1485,7 +1485,7 @@ showSetup();return page;
 function flashcards(){
 const page=div({});
 const nav=div({cls:'dash-nav'});
-nav.append(div({cls:'logo',html:'Deo Fortis'}),btn('← Dashboard','btn-outline',()=>go('dashboard'),{style:{padding:'8px 16px'}}));
+nav.append(div({cls:'logo',html:'Deo Fortis'}),btn('← Dashboard','btn-outline',()=>{sessionStorage.removeItem('vignette_resume');go('dashboard');},{style:{padding:'8px 16px'}}));
 page.append(nav);
 let decks=[],selDeck=null,cards=[],queue=[],curIdx=0,flipped=false,prog={easy:0,iffy:0,hard:0};
 const inner=div({cls:'inner-sm'});page.append(inner);
@@ -1667,6 +1667,8 @@ let questions=[],current=0,answers={},submitted=false,revealed={},timeLeft=0,tIn
 const inner=div({cls:'inner-sm'});page.append(inner);
 async function showSetup(){
 inner.innerHTML='';
+const savedQuiz=sessionStorage.getItem('vignette_resume');
+if(savedQuiz){(()=>{const state=JSON.parse(savedQuiz);if(mode==='timed'&&state.timeLeft<=0){sessionStorage.removeItem('vignette_resume');}else{const banner=div({cls:'card',style:{marginBottom:'24px',padding:'16px',border:'1px solid var(--gold)',background:'rgba(200,169,110,0.08)'}},[ h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'11px',color:'var(--gold)',marginBottom:'12px'}},['⏸ Quiz in progress — '+state.selTopic+' · '+Object.keys(state.answers).length+' of '+state.questions.length+' answered']), div({style:{display:'flex',gap:'10px'}},[ btn('Resume','btn-gold',()=>{questions=state.questions;current=state.current;answers=state.answers;selTopic=state.selTopic;mode=state.mode;timeLimit=state.timeLimit;timeLeft=state.timeLeft||0;submitted=false;revealed={};showQuiz();},{style:{padding:'6px 16px',fontSize:'11px'}}), btn('Discard','btn-outline',()=>{sessionStorage.removeItem('vignette_resume');showSetup();},{style:{padding:'6px 16px',fontSize:'11px'}}) ]) ]);inner.append(banner);}})();}
 inner.append(h('span',{cls:'chapter',html:'Question Bank'}),h('h2',{style:{fontFamily:"'Playfair Display',serif",fontSize:'26px',marginBottom:'24px'},html:'Configure Your Quiz'}));
 const{data}=await sb.from('vignette_questions').select('topic').or('user_id.eq.'+S.user.id+',user_id.is.null');
 const topics=data?[...new Set(data.map(d=>d.topic))]:[];
@@ -1717,6 +1719,7 @@ const{data:qs}=await sb.from('vignette_questions').select('*').eq('topic',selTop
 if(!qs||!qs.length){alert('No questions for this topic yet.');return;}
 questions=qs;current=0;answers={};submitted=false;revealed={};
 if(mode==='timed')timeLeft=timeLimit*60;
+sessionStorage.setItem('vignette_resume',JSON.stringify({questions,current:0,answers:{},selTopic,mode,timeLimit,timeLeft:mode==='timed'?timeLimit*60:null}));
 showQuiz();
 },{style:{width:'100%'}});
 inner.append(startBtn);
@@ -1786,7 +1789,7 @@ if(isRev&&isCorr)ob.classList.add('correct');
 else if(isRev&&isSel&&!isCorr)ob.classList.add('wrong');
 else if(isSel)ob.classList.add('selected');
 ob.append(h('strong',{style:{marginRight:'12px'},html:opt.toUpperCase()+'.'}),document.createTextNode(val));
-ob.onclick=()=>{if(submitted)return;answers[q.id]=opt.toUpperCase();if(mode==='tutor')revealed[q.id]=true;updateQ();};
+ob.onclick=()=>{if(submitted)return;answers[q.id]=opt.toUpperCase();if(mode==='tutor')revealed[q.id]=true;const sv=sessionStorage.getItem('vignette_resume');if(sv){const st=JSON.parse(sv);st.current=current;st.answers=answers;sessionStorage.setItem('vignette_resume',JSON.stringify(st));}updateQ();};
 mainArea.append(ob);
 });
 if((revealed[q.id]||submitted)&&q.explanation){
@@ -1809,6 +1812,7 @@ await sb.from('profiles').update({total_points:(S.profile?.total_points||0)+30})
 showResults(score);
 }
 function showResults(score){
+sessionStorage.removeItem('vignette_resume');
 page.innerHTML='';page.append(nav);
 const ri=div({cls:'inner-sm center',style:{minHeight:'80vh',flexDirection:'column'}});
 const card=div({cls:'card fade',style:{maxWidth:'500px',width:'100%',textAlign:'center'}});
