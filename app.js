@@ -502,6 +502,75 @@ rg.append(card);
 });
 whySection.append(rg);
 page.append(whySection);
+
+// FEYNMAN ARENA SECTION
+const feynmanSection=div({cls:'section',id:'feynman-landing'});
+feynmanSection.append(
+  div({cls:'divider'}),
+  h('br'),
+  h('span',{cls:'chapter',html:'Chapter IV — The Feynman Method'}),
+  h('h2',{cls:'big',style:{marginBottom:'12px'},html:"If You Can Teach It,<br><em class='gold-em'>You Know It.</em>"}),
+  h('p',{cls:'muted',style:{maxWidth:'560px',fontSize:'15px',lineHeight:'1.8',marginBottom:'40px'},html:"The Feynman Technique is the most powerful learning method in existence. If you can explain a concept to a 6 year old in plain language — no jargon, no shortcuts — you truly understand it. Deo Fortis puts this at the centre of how you study."})
+);
+const feynmanGrid=div({style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(280px,1fr))',gap:'20px',marginTop:'8px'}});
+[
+  {title:'Submit Your Explanation',desc:'Write or speak your Feynman explanation for any topic. Our tutors review every submission — the best ones are crowned 👑 King of the Week.',accent:'var(--gold)'},
+  {title:'Wall of Fame',desc:'Top explanations are published on the Wall of Fame. Your peers learn from you. You earn points. Everyone wins.',accent:'var(--teal)'},
+  {title:'Voice to Text',desc:'Can't type fast enough? Use our built-in voice recognition to dictate your explanation in real time. Just speak and it transcribes.',accent:'var(--purple)'}
+].forEach(item=>{
+  const card=div({cls:'reason-card'});
+  card.append(
+    div({style:{width:'3px',height:'32px',background:item.accent,borderRadius:'2px',marginBottom:'16px'}}),
+    h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontWeight:'600',fontSize:'17px',marginBottom:'8px',color:'var(--text)'},html:item.title}),
+    h('p',{style:{fontSize:'14px',color:'#6A6050',lineHeight:'1.7',fontWeight:'300'},html:item.desc})
+  );
+  feynmanGrid.append(card);
+});
+feynmanSection.append(feynmanGrid);
+feynmanSection.append(div({style:{marginTop:'40px',padding:'32px',border:'1px solid var(--border)',borderLeft:'4px solid var(--gold)',borderRadius:'4px',background:'#131209',maxWidth:'680px'}},[
+  h('div',{style:{fontFamily:"'Playfair Display',serif",fontStyle:'italic',fontSize:'20px',color:'var(--gold)',marginBottom:'8px'},html:'"If you cannot explain it simply, you do not understand it well enough."'}),
+  h('div',{style:{fontSize:'12px',color:'var(--dim)',letterSpacing:'1px',textTransform:'uppercase'},html:'— Richard Feynman'})
+]));
+page.append(feynmanSection);
+
+// GAMIFIED LEARNING SECTION
+const gameSection=div({cls:'section',id:'gamified'});
+gameSection.append(
+  div({cls:'divider'}),
+  h('br'),
+  h('span',{cls:'chapter',html:'Chapter V — Gamified Learning'}),
+  h('h2',{cls:'big',style:{marginBottom:'4px'},html:"Medicine While<br><em class='gold-em'>Having Fun.</em>"}),
+  h('p',{cls:'muted',style:{maxWidth:'520px',fontSize:'15px',lineHeight:'1.8',marginBottom:'40px'},html:"Who said studying medicine had to be painful? We built game mechanics into the platform so you stay sharp, stay motivated, and actually enjoy the process."})
+);
+const gameGrid=div({style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(300px,1fr))',gap:'24px'}});
+[
+  {
+    tag:'Riddle Decks',
+    title:'Can You Crack It?',
+    desc:'Medical riddles presented as gamified decks. Each level harder than the last. Complete a deck, unlock the next. Score 65% or above to pass — below that, you go again.',
+    detail:'Test your diagnostic reasoning without memorising facts. If you know your stuff, the answer clicks. If you don't — you'll know exactly what to study next.',
+    accent:'var(--teal)'
+  },
+  {
+    tag:'Emoji Bitz',
+    title:'Diagnose the Emoji.',
+    desc:'A condition described entirely in emojis. Your job? Name it. Fast. Fun. Surprisingly effective at locking in clinical presentations.',
+    detail:'🤒🫁💊 = Pneumonia. Simple concept. Powerful memory hook. Students consistently report Emoji Bitz as their favourite feature on the platform.',
+    accent:'var(--purple)'
+  }
+].forEach(item=>{
+  const card=div({cls:'reason-card',style:{borderTop:'3px solid '+item.accent}});
+  card.append(
+    div({style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'10px',fontWeight:'700',letterSpacing:'2px',textTransform:'uppercase',color:item.accent,marginBottom:'12px'}},[ item.tag]),
+    h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontWeight:'700',fontSize:'22px',marginBottom:'12px',color:'var(--text)',lineHeight:'1.2'},html:item.title}),
+    h('p',{style:{fontSize:'14px',color:'var(--muted)',lineHeight:'1.7',marginBottom:'16px',fontWeight:'400'},html:item.desc}),
+    h('p',{style:{fontSize:'13px',color:'#6A6050',lineHeight:'1.7',fontWeight:'300'},html:item.detail})
+  );
+  gameGrid.append(card);
+});
+gameSection.append(gameGrid);
+page.append(gameSection);
+
 // TESTIMONIALS
 const tsSection=div({cls:'section',id:'ts-section',style:{display:'none'}});
 tsSection.append(div({cls:'divider'}),h('br'),h('span',{cls:'chapter',html:'Chapter IV — Results'}),h('h2',{cls:'big',style:{marginBottom:'40px'},html:"What Students<br><em class='gold-em'>Are Saying</em>"}),div({cls:'grid-auto',id:'ts-grid'}));
