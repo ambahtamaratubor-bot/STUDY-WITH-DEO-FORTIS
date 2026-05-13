@@ -516,7 +516,7 @@ const feynmanGrid=div({style:{display:'grid',gridTemplateColumns:'repeat(auto-fi
 [
   {title:'Submit Your Explanation',desc:'Write or speak your Feynman explanation for any topic. Our tutors review every submission — the best ones are crowned 👑 King of the Week.',accent:'var(--gold)'},
   {title:'Wall of Fame',desc:'Top explanations are published on the Wall of Fame. Your peers learn from you. You earn points. Everyone wins.',accent:'var(--teal)'},
-  {title:'Voice to Text',desc:'Can't type fast enough? Use our built-in voice recognition to dictate your explanation in real time. Just speak and it transcribes.',accent:'var(--purple)'}
+  {title:'Voice to Text',desc:'Can\'t type fast enough? Use our built-in voice recognition to dictate your explanation in real time. Just speak and it transcribes.',accent:'var(--purple)'}
 ].forEach(item=>{
   const card=div({cls:'reason-card'});
   card.append(
@@ -548,7 +548,7 @@ const gameGrid=div({style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,m
     tag:'Riddle Decks',
     title:'Can You Crack It?',
     desc:'Medical riddles presented as gamified decks. Each level harder than the last. Complete a deck, unlock the next. Score 65% or above to pass — below that, you go again.',
-    detail:'Test your diagnostic reasoning without memorising facts. If you know your stuff, the answer clicks. If you don't — you'll know exactly what to study next.',
+    detail:'Test your diagnostic reasoning without memorising facts. If you know your stuff, the answer clicks. If you don\'t — you\'ll know exactly what to study next.',
     accent:'var(--teal)'
   },
   {
