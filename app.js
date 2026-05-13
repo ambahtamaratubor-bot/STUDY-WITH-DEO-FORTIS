@@ -2221,13 +2221,44 @@ inner.append(board);
 const bc=div({cls:'card',style:{textAlign:'center',borderColor:'#C8A96E33',borderTopWidth:'3px',borderTopColor:'var(--gold)'}});
 bc.append(div({style:{fontSize:'32px',marginBottom:'12px'},html:ICONS.book}),h('h3',{style:{fontFamily:"'Playfair Display',serif",fontSize:'22px',marginBottom:'8px'},html:'Want Personal Tutoring?'}),h('p',{cls:'muted',style:{fontSize:'14px',lineHeight:'1.7',marginBottom:'20px'},html:'Work directly with me. Get personalised guidance and full portal access.'}),btn('Book a Session →','btn-gold',()=>showBooking()));
 inner.append(bc);page.append(inner);
-const medals=[' ',' ',' '];
-sb.from('profiles').select('full_name,total_points,total_study_minutes').eq('status','approved').order('total_points',{ascending:false}).limit(20).then(({data})=>{
+(async()=>{
+const{data:leaderUsers}=await sb.from('profiles').select('id,full_name,total_points,total_study_minutes,streak_count').eq('status','approved').order('total_points',{ascending:false}).limit(20);
 const b=document.getElementById('board');if(!b)return;
-if(!data||!data.length){b.innerHTML='<p style="font-size:14px;color:var(--dim);text-align:center;padding:20px">No data yet. Be the first to clock in!</p>';return;}
+if(!leaderUsers||!leaderUsers.length){b.innerHTML='<p style="font-size:14px;color:var(--dim);text-align:center;padding:20px">No data yet. Be the first to clock in!</p>';return;}
+const now=new Date();
+const thisMonday=new Date(now);thisMonday.setDate(now.getDate()-now.getDay()+(now.getDay()===0?-6:1));thisMonday.setHours(0,0,0,0);
+const lastMonday=new Date(thisMonday);lastMonday.setDate(lastMonday.getDate()-7);
+const[twScores,lwScores,twDecks,lwDecks,twFeynman,lwFeynman]=await Promise.all([
+  sb.from('vignette_scores').select('user_id,score').gte('created_at',thisMonday.toISOString()),
+  sb.from('vignette_scores').select('user_id,score').gte('created_at',lastMonday.toISOString()).lt('created_at',thisMonday.toISOString()),
+  sb.from('anki_results').select('user_id').gte('created_at',thisMonday.toISOString()),
+  sb.from('anki_results').select('user_id').gte('created_at',lastMonday.toISOString()).lt('created_at',thisMonday.toISOString()),
+  sb.from('feynman_submissions').select('user_id').eq('points_awarded',true).gte('created_at',thisMonday.toISOString()),
+  sb.from('feynman_submissions').select('user_id').eq('points_awarded',true).gte('created_at',lastMonday.toISOString()).lt('created_at',thisMonday.toISOString())
+]);
+const calcPts=(scores,decks,feynman)=>{const m={};(scores.data||[]).forEach(s=>m[s.user_id]=(m[s.user_id]||0)+30);(decks.data||[]).forEach(d=>m[d.user_id]=(m[d.user_id]||0)+20);(feynman.data||[]).forEach(f=>m[f.user_id]=(m[f.user_id]||0)+50);return m;};
+const thisPts=calcPts(twScores,twDecks,twFeynman);
+const lastPts=calcPts(lwScores,lwDecks,lwFeynman);
+const medals=['1st','2nd','3rd'];
 b.innerHTML='';
-data.forEach((row,i)=>{const r=div({cls:'leaderboard-row'});r.append(h('span',{style:{fontSize:'22px',width:'32px'},html:medals[i]||(i+1)+'.'}),h('span',{style:{flex:'1',fontSize:'15px',color:'var(--text)'},html:row.full_name}),h('span',{style:{fontFamily:"'DM Mono',monospace",fontSize:'13px',color:'var(--gold)'},html:(row.total_points||0)+' pts'}),h('span',{style:{fontFamily:"'DM Mono',monospace",fontSize:'11px',color:'var(--dim)',marginLeft:'8px'},html:Math.floor((row.total_study_minutes||0)/60)+'h'}));b.append(r);});
+leaderUsers.forEach((u,i)=>{
+  const tw=thisPts[u.id]||0;const lw=lastPts[u.id]||0;
+  const trend=tw>lw?'↑':tw<lw?'↓':'—';
+  const trendColor=tw>lw?'#4ade80':tw<lw?'#ff4444':'var(--muted)';
+  const r=div({cls:'leaderboard-row',style:{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'12px 0',borderBottom:'1px solid var(--border)'}});
+  const left=div({style:{display:'flex',alignItems:'center',gap:'12px'}});
+  const rankEl=h('span',{style:{fontSize:'13px',color:'var(--gold)',fontWeight:'700',width:'36px',flexShrink:'0'}});rankEl.textContent=medals[i]||(i+1)+'.';
+  const nameEl=h('span',{style:{fontSize:'15px',color:'var(--text)',fontWeight:'500'}});nameEl.textContent=u.full_name||'—';
+  const streakEl=h('span',{style:{fontSize:'12px',color:'var(--muted)'}});streakEl.textContent='🔥 '+(u.streak_count||0);
+  left.append(rankEl,nameEl,streakEl);
+  const right2=div({style:{display:'flex',alignItems:'center',gap:'12px'}});
+  const ptsEl=h('span',{style:{fontSize:'13px',color:'var(--gold)',fontWeight:'600'}});ptsEl.textContent=(u.total_points||0)+' pts';
+  const hoursEl=h('span',{style:{fontSize:'12px',color:'var(--muted)'}});hoursEl.textContent=Math.floor((u.total_study_minutes||0)/60)+'h';
+  const trendEl=h('span',{style:{fontSize:'16px',color:trendColor,fontWeight:'700'}});trendEl.textContent=trend;
+  right2.append(hoursEl,ptsEl,trendEl);
+  r.append(left,right2);b.append(r);
 });
+})();
 async function showBooking(){
 const{data:pkgs}=await sb.from('tutoring_packages').select('*').order('id');
 const ov=div({cls:'modal-bg'});ov.onclick=e=>{if(e.target===ov)ov.remove();};
@@ -2387,19 +2418,49 @@ const card=div({cls:'card fade'});
 const pend=(users||[]).filter(u=>u.status==='pending').length;
 const upgrades=(users||[]).filter(u=>u.status==='pending'&&u.is_free_tier===false).length;
 card.append(h('h2',{style:{fontFamily:"'Playfair Display',serif",fontSize:'22px',marginBottom:'8px'},html:'Users'}),h('p',{cls:'muted',style:{fontSize:'14px',marginBottom:'4px'},html:pend+' pending approval'}),upgrades>0?h('p',{style:{fontFamily:"'DM Mono',monospace",fontSize:'12px',color:'var(--gold)',marginBottom:'24px'},html:'⬆ '+upgrades+' upgrade'+(upgrades>1?'s':'')+' awaiting approval'}):h('p',{style:{marginBottom:'24px'}}));
+const userRanks=[...(users||[])].sort((a,b)=>(b.total_points||0)-(a.total_points||0));
 (users||[]).forEach(u=>{
-const isFree=u.is_free_tier===true||u.is_free_tier===null||u.is_free_tier===undefined;
-const row=div({style:{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'14px 0',borderBottom:'1px solid var(--border)'}});
-const info=div({});
-info.append(div({style:{fontSize:'15px',color:'var(--text)',marginBottom:'2px'},html:u.full_name||'—'}),div({style:{fontSize:'12px',color:'var(--muted)'},html:(u.email||'—')+' · '+(u.plan||'No plan')+' · '+new Date(u.created_at).toLocaleDateString()}));
-const right=div({style:{display:'flex',alignItems:'center',gap:'12px'}});
-right.append(
-  h('span',{style:{fontFamily:"'DM Mono',monospace",fontSize:'10px',letterSpacing:'1px',textTransform:'uppercase',color:u.status==='approved'?'var(--teal)':'var(--gold)'},html:u.status||'pending'}),
-  h('span',{style:{fontFamily:"'DM Mono',monospace",fontSize:'10px',letterSpacing:'1px',textTransform:'uppercase',color:isFree?'var(--dim)':'var(--gold)'},html:isFree?'FREE':'PAID'})
-);
-if(u.status!=='approved'){right.append(btn('Approve','btn-teal',async()=>{const exp=new Date();exp.setMonth(exp.getMonth()+1);await sb.from('profiles').update({status:'approved',access_expires_at:exp.toISOString()}).eq('id',u.id);loadTab('users');},{style:{padding:'6px 16px',fontSize:'11px'}}));right.append(btn('Decline','btn-outline',async()=>{if(!confirm('Delete this user permanently?'))return;await sb.from('profiles').delete().eq('id',u.id);loadTab('users');},{style:{padding:'6px 16px',fontSize:'11px',color:'#ff4444',borderColor:'#ff4444'}}));}
-right.append(btn(isFree?'⬆ Set Paid':'⬇ Set Free',isFree?'btn-teal':'btn-outline',async()=>{await sb.from('profiles').update({is_free_tier:isFree?false:true,status:'approved'}).eq('id',u.id);loadTab('users');},{style:{padding:'6px 16px',fontSize:'11px'}}));
-row.append(info,right);card.append(row);
+  const isFree=u.is_free_tier===true||u.is_free_tier===null||u.is_free_tier===undefined;
+  const rank=userRanks.findIndex(r=>r.id===u.id)+1;
+  const daysActive=Math.max(1,Math.floor((Date.now()-new Date(u.created_at))/86400000));
+  const dailyGoalMins=(u.study_goals?.daily_hours||0)*60;
+  const avgDailyMins=(u.total_study_minutes||0)/daysActive;
+  const belowGoal=dailyGoalMins>0&&avgDailyMins<(dailyGoalMins*0.8);
+  const pointsInput=inp('Points','number','0');
+  Object.assign(pointsInput.style,{width:'80px',fontSize:'12px',padding:'4px 8px'});
+  const row=div({style:{padding:'14px 0',borderBottom:'1px solid var(--border)'}});
+  const topRow=div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'8px'}});
+  const nameDiv=div({style:{fontSize:'14px',color:'var(--text)',fontWeight:'600'}});
+  nameDiv.textContent=(u.full_name||u.email||'—')+' (#'+rank+')';
+  const statusBadge=h('span',{style:{fontSize:'10px',textTransform:'uppercase',letterSpacing:'1px',color:u.status==='approved'?'var(--teal)':'var(--gold)',marginRight:'8px'}});
+  statusBadge.textContent=u.status||'pending';
+  const tierBadge=h('span',{style:{fontSize:'10px',textTransform:'uppercase',letterSpacing:'1px',color:isFree?'var(--dim)':'var(--gold)'}});
+  tierBadge.textContent=isFree?'FREE':'PAID';
+  const actionsDiv=div({style:{display:'flex',gap:'8px',alignItems:'center'}});
+  actionsDiv.append(statusBadge,tierBadge);
+  if(u.status!=='approved'){
+    actionsDiv.append(btn('Approve','btn-teal',async()=>{const exp=new Date();exp.setMonth(exp.getMonth()+1);await sb.from('profiles').update({status:'approved',access_expires_at:exp.toISOString()}).eq('id',u.id);loadTab('users');},{style:{padding:'4px 12px',fontSize:'11px'}}));
+    actionsDiv.append(btn('Decline','btn-outline',async()=>{if(!confirm('Delete this user permanently?'))return;await sb.from('profiles').delete().eq('id',u.id);loadTab('users');},{style:{padding:'4px 12px',fontSize:'11px',color:'#ff4444',borderColor:'#ff4444'}}));
+  }
+  actionsDiv.append(btn(isFree?'Set Paid':'Set Free',isFree?'btn-teal':'btn-outline',async()=>{await sb.from('profiles').update({is_free_tier:!isFree,status:'approved'}).eq('id',u.id);loadTab('users');},{style:{padding:'4px 12px',fontSize:'11px'}}));
+  topRow.append(nameDiv,actionsDiv);
+  const statsRow=div({style:{display:'flex',gap:'16px',fontSize:'12px',color:'var(--muted)',marginBottom:'8px',flexWrap:'wrap'}});
+  const emailInfo=h('span',{});emailInfo.textContent=(u.email||'—')+' · '+(u.plan||'No plan');
+  const streakInfo=h('span',{style:{color:'var(--text)'}});streakInfo.textContent='🔥 '+( u.streak_count||0)+' streak';
+  const hoursInfo=h('span',{style:{color:'var(--text)'}});hoursInfo.textContent=Math.floor((u.total_study_minutes||0)/60)+'h studied';
+  const ptsInfo=h('span',{style:{color:'var(--gold)'}});ptsInfo.textContent=(u.total_points||0)+' pts';
+  statsRow.append(emailInfo,streakInfo,hoursInfo,ptsInfo);
+  if(belowGoal){const warn=h('span',{style:{color:'#ff4444',fontWeight:'600'}});warn.textContent='Below Goal';statsRow.append(warn);}
+  const pointsRow=div({style:{display:'flex',gap:'8px',alignItems:'center'}});
+  pointsRow.append(pointsInput,btn('Add/Deduct Points','btn-outline',async()=>{
+    const delta=parseInt(pointsInput.value,10);
+    if(isNaN(delta)||delta===0)return;
+    const newPts=(u.total_points||0)+delta;
+    await sb.from('profiles').update({total_points:newPts}).eq('id',u.id);
+    loadTab('users');
+  },{style:{padding:'4px 12px',fontSize:'11px'}}));
+  row.append(topRow,statsRow,pointsRow);
+  card.append(row);
 });
 content.innerHTML='';content.append(card);
 }
