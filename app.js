@@ -984,10 +984,10 @@ if(isFree){qbankSection.style.opacity='0.3';qbankSection.style.pointerEvents='no
 // SECTION 3 — Flashcard Progress
 const flashcardSection=collapsibleSection('Flashcard Progress',(contentDiv)=>{
   (async()=>{
-    const{data:progress}=await sb.from('flashcard_progress').select('flashcard_difficulty').eq('user_id',S.user.id);
+    const{data:progress}=await sb.from('flashcard_progress').select('difficulty').eq('user_id',S.user.id);
     if(!progress||!progress.length){contentDiv.append(h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'12px',color:'var(--dim)',textAlign:'center',padding:'16px'},html:'No flashcard activity yet.'}));return;}
     let easy=0,iffy=0,hard=0;
-    progress.forEach(p=>{if(p.flashcard_difficulty==='Easy')easy++;else if(p.flashcard_difficulty==='Iffy')iffy++;else if(p.flashcard_difficulty==='Hard')hard++;});
+    progress.forEach(p=>{if(p.difficulty==='Easy')easy++;else if(p.difficulty==='Iffy')iffy++;else if(p.difficulty==='Hard')hard++;});
     const total=easy+iffy+hard;
     contentDiv.append(h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'9px',color:'var(--dim)',marginBottom:'16px'},html:'current card ratings'}));
     [{label:'Easy',count:easy,color:'var(--teal)'},{label:'Iffy',count:iffy,color:'var(--gold)'},{label:'Hard',count:hard,color:'#8B3A3A'}].forEach(stat=>{
@@ -1634,6 +1634,8 @@ const gradeMsg=grade==='A'?'Excellent mastery!':grade==='B'?'Good effort, keep r
 if(!S.profile?.is_free_tier){
   await sb.from('anki_results').insert({user_id:S.user.id,deck_id:selDeck?.id,deck_topic:selDeck?.topic,grade,easy_count:prog.easy,iffy_count:prog.iffy,hard_count:prog.hard});
   await sb.from('profiles').update({total_points:(S.profile?.total_points||0)+20,total_anki_sessions:(S.profile?.total_anki_sessions||0)+1}).eq('id',S.user.id);
+  const dominantDifficulty=prog.easy>=prog.iffy&&prog.easy>=prog.hard?'Easy':prog.iffy>=prog.hard?'Iffy':'Hard';
+  await sb.from('flashcard_progress').upsert({user_id:S.user.id,deck_id:selDeck?.id,difficulty:dominantDifficulty,completed:true,updated_at:new Date().toISOString()},{onConflict:'user_id,deck_id'});
 }
 const card=div({cls:'card fade',style:{textAlign:'center'}});
 card.append(
