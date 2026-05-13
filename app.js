@@ -15,7 +15,36 @@ body:JSON.stringify({from:'Deo Fortis <onboarding@resend.dev>',to:ADMIN_EMAIL,su
 }
 let S={page:'landing',user:null,profile:null};
 let signingUp=false;
-function go(p){S.page=p;render();}
+function go(p){S.page=p;// ═══════════════════════════════
+// ICONS (inline SVG, replaces emojis)
+// ═══════════════════════════════
+const ICONS={
+target:`<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>`,
+question:`<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`,
+layers:`<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>`,
+pencil:`<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 3l4 4L7 21H3v-4L17 3z"/><path d="M15 5l4 4"/></svg>`,
+trophy:`<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M12 13V2"/></svg>`,
+message:`<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>`,
+brain:`<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5a3 3 0 1 0-5.997.142 4 4 0 0 0-2.526 5.77 4 4 0 0 0 .556 6.588A4 4 0 1 0 12 18z"/><path d="M12 5a3 3 0 1 1 5.997.142 4 4 0 0 1 2.526 5.77 4 4 0 0 1-.556 6.588A4 4 0 1 1 12 18z"/><path d="M15 13a4.5 4.5 0 0 1-3-4 4.5 4.5 0 0 1-3 4"/><path d="M17.599 6.5a3 3 0 0 0 .399-1.375"/><path d="M6.003 5.125A3 3 0 0 0 6.401 6.5"/><path d="M3.477 10.896a4 4 0 0 1 .585-.396"/><path d="M19.938 10.5a4 4 0 0 1 .585.396"/><path d="M6 18a4 4 0 0 1-1.967-.516"/><path d="M19.967 17.484A4 4 0 0 1 18 18"/></svg>`,
+puzzle:`<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19.439 7.85c-.049.322.059.648.289.878l1.568 1.568c.47.47.706 1.087.706 1.704s-.235 1.233-.706 1.704l-1.611 1.611a.98.98 0 0 1-.837.276c-.47-.07-.802-.48-.968-.925a2.501 2.501 0 1 0-3.214 3.214c.446.166.855.497.925.968a.979.979 0 0 1-.276.837l-1.61 1.61a2.404 2.404 0 0 1-3.408 0l-1.568-1.568a1.026 1.026 0 0 0-.877-.29c-.493.074-.84.504-1.02.968a2.5 2.5 0 1 1-3.237-3.237c.464-.18.894-.527.967-1.02a1.026 1.026 0 0 0-.289-.877l-1.568-1.568A2.402 2.402 0 0 1 1.998 12c0-.617.236-1.234.706-1.704L4.23 8.77c.24-.24.581-.353.917-.303.515.077.877.528 1.073 1.01a2.5 2.5 0 1 0 3.259-3.259c-.482-.196-.933-.558-1.01-1.073-.05-.336.062-.676.303-.917l1.525-1.525A2.402 2.402 0 0 1 12 2c.617 0 1.234.236 1.704.706l1.568 1.568c.23.23.556.338.877.29.493-.074.84-.504 1.02-.968a2.5 2.5 0 1 1 3.237 3.237c-.464.18-.894.527-.967 1.02z"/></svg>`,
+star:`<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>`,
+chart:`<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>`,
+moon:`<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>`,
+alert:`<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`,
+mail:`<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 7L2 7"/></svg>`,
+file:`<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>`,
+book:`<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>`,
+lightbulb:`<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/><path d="M9 18h6"/><path d="M10 22h4"/></svg>`,
+zap:`<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>`,
+sparkles:`<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .962 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .962L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.962 0z"/></svg>`,
+home:`<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>`,
+lock:`<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>`,
+upload:`<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>`,
+check:`<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>`,
+x:`<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>`,
+bookOpen:`<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>`,
+};
+render();}
 sb.auth.getSession().then(({data:{session}})=>{if(session&&!signingUp){S.user=session.user;getProfile(session.user.id);}});
 sb.auth.onAuthStateChange((_,session)=>{if(signingUp)return;if(session){S.user=session.user;getProfile(session.user.id);}else{S.user=null;S.profile=null;go('landing');}});
 async function getProfile(id){
@@ -69,7 +98,7 @@ const ifr=document.createElement('iframe');ifr.id='noise-ifr';ifr.allow='autopla
 const label=document.createElement('span');label.style.cssText="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2px;color:var(--dim);flex-shrink:0;text-transform:uppercase;";label.textContent='White Noise';
 bar.append(label);
 let activeKey=null;
-[['rain','🌧️ Rain',links.rain],['ocean','🌊 Ocean',links.ocean],['cafe','☕ Cafe',links.cafe],['white','🤍 White',links.white]].forEach(([key,lbl2,url])=>{
+[['rain','Rain',links.rain],['ocean','Ocean',links.ocean],['cafe','Cafe',links.cafe],['white','White',links.white]].forEach(([key,lbl2,url])=>{
 if(!url)return;
 const b=document.createElement('button');b.textContent=lbl2;b.style.cssText="font-family:'DM Mono',monospace;font-size:10px;padding:6px 10px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;border-radius:2px;";
 b.onclick=()=>{
@@ -131,7 +160,7 @@ if(window.pomPlan){
 const t=document.getElementById('timer-bar-time');
 const s=document.getElementById('timer-bar-session');
 if(t){t.textContent=fmtMS(rem);t.style.color=isB?'var(--teal)':'var(--gold)';}
-if(s)s.textContent=isB?'☕ BREAK':'🎯 FOCUS · Session '+sess+(total?' of '+total:'');
+if(s)s.textContent=isB?'BREAK':'FOCUS · Session '+sess+(total?' of '+total:'');
 }catch(e){}
 }
 
@@ -804,10 +833,10 @@ const nav=div({cls:'dash-nav'});
 nav.append(
   div({cls:'logo',html:'Deo Fortis'}),
   div({style:{display:'flex',gap:'8px'}},[
-    btn('📚 Study','btn-outline',()=>go('study'),{style:{padding:'8px 16px'}}),
-    btn('🃏 Cards','btn-outline',()=>go('flashcards'),{style:{padding:'8px 16px'}}),
-    btn('❓ Q-Bank','btn-outline',()=>go('vignette'),{style:{padding:'8px 16px'}}),
-    btn('🏆 Leaderboard','btn-outline',()=>isFree?showUpgradeModal():go('leaderboard'),{style:{padding:'8px 16px'}}),
+    btn('Study','btn-outline',()=>go('study'),{style:{padding:'8px 16px'}}),
+    btn('Cards','btn-outline',()=>go('flashcards'),{style:{padding:'8px 16px'}}),
+    btn('Q-Bank','btn-outline',()=>go('vignette'),{style:{padding:'8px 16px'}}),
+    btn('Leaderboard','btn-outline',()=>isFree?showUpgradeModal():go('leaderboard'),{style:{padding:'8px 16px'}}),
     btn('Log Out','btn-outline',()=>sb.auth.signOut(),{style:{padding:'8px 16px'}})
   ])
 );
@@ -856,7 +885,7 @@ greetingRow.append(
     h('span',{style:{fontSize:'20px'},html:'🔥'}),
     div({},[
       h('div',{style:{fontFamily:"'Playfair Display',serif",fontSize:'22px',color:'var(--gold)',fontWeight:'700',lineHeight:'1'},html:String(isFree?Math.min(1,p.streak_count||0):(p.streak_count||0))}),
-      h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'12px',color:'var(--muted)'},html:isFree?'🔒 upgrade':'day streak'})
+      h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'12px',color:'var(--muted)'},html:isFree?'locked':'day streak'})
     ])
   ])
 );
@@ -867,7 +896,7 @@ if(S.profile?.has_new_content){
   const banner=div({style:{background:'linear-gradient(135deg,#0a1f18,#0d2a1e)',border:'1px solid var(--teal)',borderRadius:'4px',padding:'14px 20px',marginBottom:'24px',display:'flex',alignItems:'center',justifyContent:'space-between',gap:'16px'}});
   banner.append(
     div({style:{display:'flex',alignItems:'center',gap:'12px'}},[
-      div({style:{fontSize:'24px'},html:'🧠'}),
+      div({style:{lineHeight:'1'},html:ICONS.brain}),
       div({},[
         div({style:{fontFamily:"'Playfair Display',serif",fontSize:'16px',color:'var(--teal)',fontWeight:'600',marginBottom:'2px'},html:'Your recall content is ready!'}),
         div({style:{fontSize:'13px',color:'var(--muted)'},html:'Your active recall request has been fulfilled. Go to Flashcards or Q-Bank to access it.'})
@@ -900,8 +929,8 @@ goalsSection.append(
       h('div',{cls:'mono',style:{fontSize:'9px'},html:'hours studied vs your goals'})
     ]),
     div({style:{display:'flex',gap:'8px'}},[
-      btn('📊 Study Goals','btn-outline',()=>showGoalsModal(),{style:{fontSize:'11px',padding:'6px 14px'}}),
-      btn('🛌 Rest Days','btn-outline',()=>showRestDaysModal(),{style:{fontSize:'11px',padding:'6px 14px'}})
+      btn('Study Goals','btn-outline',()=>showGoalsModal(),{style:{fontSize:'11px',padding:'6px 14px'}}),
+      btn('Rest Days','btn-outline',()=>showRestDaysModal(),{style:{fontSize:'11px',padding:'6px 14px'}})
     ])
   ]),
   div({id:'goals-progress'})
@@ -1030,13 +1059,13 @@ twoCol.append(recentCard);
     h('h3',{style:{fontFamily:"'Playfair Display',serif",fontSize:'18px',marginBottom:'4px'},html:'Quick Actions'}),
     h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'12px',color:'var(--muted)',marginBottom:'16px'},html:'navigate'}),
     div({style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'8px'}},[
-      actionButton('🎯','Start Session',()=>go('study')),
-      actionButton('❓','Q-Bank',()=>go('vignette')),
-      actionButton('📇','Flashcards',()=>go('flashcards')),
-      actionButton('📝','Request Recall',()=>S.profile?.is_free_tier?showUpgradeModal():go('dashboard')),
-      actionButton('🏆','Leaderboard',()=>isFree?showUpgradeModal():go('leaderboard')),
-      actionButton('💬','Community',()=>{if(commLink&&commLink!=='#')window.open(commLink,'_blank');}),
-      actionButton('🧠','Feynman Arena',()=>go('feynman'))
+      actionButton(ICONS.target,'Start Session',()=>go('study')),
+      actionButton(ICONS.question,'Q-Bank',()=>go('vignette')),
+      actionButton(ICONS.layers,'Flashcards',()=>go('flashcards')),
+      actionButton(ICONS.pencil,'Request Recall',()=>S.profile?.is_free_tier?showUpgradeModal():go('dashboard')),
+      actionButton(ICONS.trophy,'Leaderboard',()=>isFree?showUpgradeModal():go('leaderboard')),
+      actionButton(ICONS.message,'Community',()=>{if(commLink&&commLink!=='#')window.open(commLink,'_blank');}),
+      actionButton(ICONS.brain,'Feynman Arena',()=>go('feynman'))
     ])
   );
   twoCol.append(actionsCard);
@@ -1049,7 +1078,7 @@ twoCol.append(recentCard);
     h('div',{style:{fontFamily:"'Playfair Display',serif",fontSize:'17px',color:'var(--text)',fontWeight:'600',marginBottom:'2px'},html:'Join Our Community'}),
     h('div',{style:{fontSize:'13px',color:'var(--muted)'},html:'Connect with other students and stay accountable.'})
   );
-  commLeft.append(h('div',{style:{fontSize:'28px'},html:'💬'}),commTxt);
+  commLeft.append(h('div',{style:{fontSize:'28px'},html:ICONS.message}),commTxt);
   const commBtn=document.createElement('a');
   commBtn.href=commLink;commBtn.target='_blank';commBtn.id='comm-btn';
   commBtn.textContent='Join Now →';
@@ -1065,7 +1094,7 @@ twoCol.append(recentCard);
   supLink.href='mailto:'+(supportEmail||'');supLink.id='sup-link';
   supLink.textContent='Contact support';supLink.style.color='var(--gold)';supLink.style.fontSize='13px';
   supTxt.append(supLink);
-  supCard.append(h('div',{style:{fontSize:'20px'},html:'✉️'}),supTxt);
+  supCard.append(h('div',{style:{fontSize:'20px'},html:ICONS.mail}),supTxt);
   container.append(supCard);
 })();
 
@@ -1074,7 +1103,7 @@ twoCol.append(recentCard);
   const{data:pdfs}=await sb.from('theory_pdfs').select('*').eq('user_id',S.user.id).order('created_at',{ascending:false});
   if(pdfs&&pdfs.length){
     const pdfCard=div({cls:'card',style:{marginTop:'12px'}});
-    pdfCard.append(h('h3',{style:{fontFamily:"'Playfair Display',serif",fontSize:'18px',marginBottom:'16px'},html:'📄 Theory Questions'}));
+    pdfCard.append(h('h3',{style:{fontFamily:"'Playfair Display',serif",fontSize:'18px',marginBottom:'16px'},html:'Theory Questions'}));
     pdfs.forEach(pdf=>{
       const row=div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'10px 0',borderBottom:'1px solid var(--border)'}});
       row.append(h('span',{style:{fontSize:'14px',color:'var(--text)'},html:pdf.topic+' — '+pdf.filename}));
@@ -1130,7 +1159,7 @@ setTimeout(loadSess,1000);
   const banner=div({style:{background:'linear-gradient(135deg,#1a1205,#1a0f05)',border:'1px solid var(--gold)',borderRadius:'4px',padding:'16px 20px',marginTop:'16px'}});
   banner.append(
     div({style:{display:'flex',alignItems:'center',gap:'10px',marginBottom:'12px'}},[
-      div({style:{fontSize:'20px'},html:'⚠️'}),
+      div({style:{fontSize:'20px'},html:ICONS.alert}),
       div({},[
         div({style:{fontSize:'14px',color:'var(--text)',fontWeight:'600',marginBottom:'2px'},html:'Unfinished Study Session'}),
         div({style:{fontSize:'12px',color:'var(--muted)'},html:'You have a session from '+startDate.toLocaleDateString()+' at '+startDate.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'})+' that was never clocked out.'})
@@ -1189,7 +1218,7 @@ const sI=inp('4','number',String(cfg.sessions));sI.min='1';sI.max='20';sI.oninpu
 card.append(pg,h('p',{cls:'mono',style:{marginBottom:'20px'},html:'Set your own work time, break time and number of sessions'}));
 if(S.profile?.is_free_tier){
   card.append(div({style:{background:'rgba(200,169,110,0.05)',border:'1px solid var(--border)',borderRadius:'4px',padding:'16px',marginBottom:'20px',textAlign:'center'}},[
-    h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'12px',color:'var(--dim)',marginBottom:'12px'},html:'🔒 Active Recall is a paid feature.'}),
+    h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'12px',color:'var(--dim)',marginBottom:'12px'},html:'Active Recall is a paid feature.'}),
     btn('Upgrade to Unlock','btn-outline',()=>showUpgradeModal(),{style:{fontSize:'11px',padding:'6px 14px'}})
   ]));
 }else{
@@ -1239,7 +1268,7 @@ const card=div({cls:'card fade',style:{width:'100%',maxWidth:'400px',textAlign:'
 card.append(
   btn('← Back','',()=>showSetup(),{style:{background:'none',border:'none',color:'var(--dim)',cursor:'pointer',fontSize:'12px',fontFamily:"'DM Mono',monospace",letterSpacing:'1px',marginBottom:'16px',display:'block'}}),
   h('span',{cls:'chapter',html:'Ready to Study?'}),
-  div({style:{fontSize:'64px',margin:'24px 0'},html:'📖'}),
+  div({style:{fontSize:'64px',margin:'24px 0'},html:ICONS.bookOpen}),
   h('h2',{style:{fontFamily:"'Playfair Display',serif",fontSize:'28px',marginBottom:'8px'},html:'Clock In'}),
   h('p',{cls:'muted',style:{fontSize:'14px',marginBottom:'32px'},html:'Click below to start your session and begin the timer.'})
 );
@@ -1271,7 +1300,7 @@ function showSessionComplete(){
 page.innerHTML='';
 const card=div({cls:'card fade',style:{width:'100%',maxWidth:'400px',textAlign:'center'}});
 card.append(
-  div({style:{fontSize:'64px',margin:'24px 0'},html:'🎉'}),
+  div({style:{fontSize:'64px',margin:'24px 0'},html:ICONS.sparkles}),
   h('span',{cls:'chapter',html:'All Sessions Complete!'}),
   h('h2',{style:{fontFamily:"'Playfair Display',serif",fontSize:'28px',marginBottom:'8px'},html:'Well Done!'}),
   h('p',{cls:'muted',style:{fontSize:'14px',lineHeight:'1.8',marginBottom:'32px'},html:"You completed all your Pomodoro sessions. Ready to clock out and save your progress?"})
@@ -1295,7 +1324,7 @@ if(S.profile?.is_free_tier){
 }
 const feynmanPrompt=div({style:{marginTop:'16px',background:'linear-gradient(135deg,#1a1509,#141309)',border:'1px solid var(--gold)',borderRadius:'4px',padding:'16px 20px',textAlign:'center'}});
 feynmanPrompt.append(
-  h('div',{style:{fontSize:'24px',marginBottom:'8px'},html:'🧠'}),
+  h('div',{style:{lineHeight:'1',marginBottom:'8px'},html:ICONS.brain}),
   h('div',{style:{fontFamily:"'Playfair Display',serif",fontSize:'16px',color:'var(--gold)',marginBottom:'4px'},html:'Visit the Feynman Arena'}),
   h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'11px',color:'var(--dim)',marginBottom:'12px'},html:'Teach what you just learned. Cement it forever.'}),
   btn('Go to Feynman Arena →','btn-outline',()=>go('feynman'),{style:{fontSize:'11px',padding:'8px 20px'}})
@@ -1309,7 +1338,7 @@ page.innerHTML='';
 const mins=window.sessionStartTime?Math.max(1,Math.round((Date.now()-window.sessionStartTime)/60000)):0;
 const card=div({cls:'card fade',style:{width:'100%',maxWidth:'400px',textAlign:'center'}});
 card.append(
-  div({style:{fontSize:'64px',margin:'24px 0'},html:'✅'}),
+  div({style:{margin:'24px 0',lineHeight:'1'},html:ICONS.check}),
   h('span',{cls:'chapter',html:'Session Complete!'}),
   h('h2',{style:{fontFamily:"'Playfair Display',serif",fontSize:'28px',marginBottom:'8px'},html:'Clock Out'}),
   h('p',{cls:'muted',style:{fontSize:'14px',marginBottom:'8px'},html:'Great work! You studied for:'}),
@@ -1388,7 +1417,7 @@ const mt=plan.isBreakMode?plan.breakSec:plan.workSec;
 const r=80,circ=2*Math.PI*r;
 const card=div({cls:'card fade',style:{textAlign:'center',maxWidth:'400px',width:'100%'}});
 card.append(
-  h('span',{cls:'chapter',html:plan.isBreakMode?'☕ Break Time':'Session '+plan.currentCycle+' of '+plan.totalSessions}),
+  h('span',{cls:'chapter',html:plan.isBreakMode?'Break Time':'Session '+plan.currentCycle+' of '+plan.totalSessions}),
   h('h2',{style:{fontFamily:"'Playfair Display',serif",fontSize:'20px',marginBottom:'8px',color:plan.isBreakMode?'var(--teal)':'var(--text)'},html:plan.topic})
 );
 const svgNS='http://www.w3.org/2000/svg';
@@ -1450,7 +1479,7 @@ br.append(
 );
 card.append(br);
 const qr=div({style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'10px'}});
-qr.append(btn('🃏 Flashcards','btn-outline',()=>go('flashcards'),{style:{fontSize:'11px'}}),btn('📝 Q-Bank','btn-outline',()=>go('vignette'),{style:{fontSize:'11px'}}));
+qr.append(btn('Flashcards','btn-outline',()=>go('flashcards'),{style:{fontSize:'11px'}}),btn('Q-Bank','btn-outline',()=>go('vignette'),{style:{fontSize:'11px'}}));
 card.append(qr);
 card.append(
   div({style:{fontFamily:"'DM Mono',monospace",fontSize:'9px',color:'var(--dim)',textAlign:'center',marginTop:'8px',letterSpacing:'1px'},html:'Step away? Click End Session to save your progress.'}),
@@ -1462,7 +1491,7 @@ if(noiseLinks2.rain||noiseLinks2.ocean||noiseLinks2.cafe||noiseLinks2.white){
 const ns=div({style:{marginTop:'16px',width:'100%',maxWidth:'400px'}});
 ns.append(div({cls:'mono',style:{marginBottom:'8px',textAlign:'center'},html:'White Noise'}));
 const ng=div({style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'8px'}});
-[['rain','🌧️ Rain',noiseLinks2.rain],['ocean','🌊 Ocean',noiseLinks2.ocean],['cafe','☕ Cafe',noiseLinks2.cafe],['white','🤍 White',noiseLinks2.white]].forEach(([key,label,url])=>{
+[['rain','Rain',noiseLinks2.rain],['ocean','Ocean',noiseLinks2.ocean],['cafe','Cafe',noiseLinks2.cafe],['white','White',noiseLinks2.white]].forEach(([key,label,url])=>{
   if(!url)return;
   const wrap=div({style:{borderRadius:'4px',overflow:'hidden',border:'1px solid var(--border)'}});
   wrap.append(div({style:{fontFamily:"'DM Mono',monospace",fontSize:'9px',color:'var(--muted)',letterSpacing:'1px',padding:'4px 8px',background:'var(--card)'},html:label}),h('iframe',{src:url+'?autoplay=0&controls=1',style:{width:'100%',height:'80px',border:'none'},allow:'autoplay'}));
@@ -1639,7 +1668,7 @@ if(!S.profile?.is_free_tier){
 }
 const card=div({cls:'card fade',style:{textAlign:'center'}});
 card.append(
-  div({style:{fontSize:'48px',marginBottom:'16px'},html:'🎉'}),
+  div({style:{fontSize:'48px',marginBottom:'16px'},html:ICONS.sparkles}),
   h('span',{cls:'chapter',html:'Deck Complete'}),
   h('h2',{style:{fontFamily:"'Playfair Display',serif",fontSize:'28px',marginBottom:'8px'},html:selDeck?.topic||''}),
   div({style:{fontFamily:"'Playfair Display',serif",fontSize:'80px',color:gradeColor,lineHeight:'1',marginBottom:'8px'},html:grade}),
@@ -1866,7 +1895,7 @@ const card=div({cls:'card fade',style:{maxWidth:'500px',width:'100%',textAlign:'
 const pct=Math.round(score/questions.length*100);
 card.append(
   h('span',{cls:'chapter',html:'Quiz Complete'}),
-  div({style:{fontSize:'56px',margin:'16px 0'},html:pct>=70?'🎉':'📚'}),
+  div({style:{fontSize:'56px',margin:'16px 0'},html:pct>=70?ICONS.sparkles:ICONS.book}),
   h('h2',{style:{fontFamily:"'Playfair Display',serif",fontSize:'36px',marginBottom:'4px',color:'var(--gold)'},html:score+' / '+questions.length}),
   div({cls:'mono',style:{marginBottom:'8px'},html:pct+'% correct'}),
   h('p',{style:{fontFamily:"'DM Mono',monospace",fontSize:'11px',color:'var(--muted)',marginBottom:'24px'},html:selTopic+' · '+mode+' mode'}),
@@ -1935,8 +1964,8 @@ function getCurrentMonday(){const now=new Date();const day=now.getDay();const di
 const nav=div({cls:'dash-nav'},[
   div({cls:'logo',html:'Deo Fortis'}),
   div({style:{display:'flex',gap:'8px'}},[
-    btn('📚 Study','btn-outline',()=>go('study'),{style:{padding:'8px 16px'}}),
-    btn('🏠 Dashboard','btn-outline',()=>go('dashboard'),{style:{padding:'8px 16px'}}),
+    btn('Study','btn-outline',()=>go('study'),{style:{padding:'8px 16px'}}),
+    btn('Dashboard','btn-outline',()=>go('dashboard'),{style:{padding:'8px 16px'}}),
     btn('Log Out','btn-outline',()=>sb.auth.signOut(),{style:{padding:'8px 16px'}})
   ])
 ]);
@@ -1951,9 +1980,9 @@ container.append(div({style:{marginBottom:'32px'}},[
 // TAB SYSTEM
 let activeTab='submit';
 const tabContainer=div({style:{display:'flex',gap:'12px',marginBottom:'24px',borderBottom:'1px solid var(--border)',paddingBottom:'12px'}});
-const submitTabBtn=btn('📝 Submit','btn',()=>{activeTab='submit';renderTabs();},{style:{padding:'8px 20px',background:'transparent',color:'var(--text)',border:'1px solid var(--border)',borderRadius:'4px'}});
-const riddleTabBtn=btn('🧩 Riddle Decks','btn',()=>{activeTab='riddle';renderTabs();},{style:{padding:'8px 20px',background:'transparent',color:'var(--text)',border:'1px solid var(--border)',borderRadius:'4px'}});
-const emojiTabBtn=btn('😎 Emoji Bitz','btn',()=>{activeTab='emoji';renderTabs();},{style:{padding:'8px 20px',background:'transparent',color:'var(--text)',border:'1px solid var(--border)',borderRadius:'4px'}});
+const submitTabBtn=btn('Submit','btn',()=>{activeTab='submit';renderTabs();},{style:{padding:'8px 20px',background:'transparent',color:'var(--text)',border:'1px solid var(--border)',borderRadius:'4px'}});
+const riddleTabBtn=btn('Riddle Decks','btn',()=>{activeTab='riddle';renderTabs();},{style:{padding:'8px 20px',background:'transparent',color:'var(--text)',border:'1px solid var(--border)',borderRadius:'4px'}});
+const emojiTabBtn=btn('Emoji Bitz','btn',()=>{activeTab='emoji';renderTabs();},{style:{padding:'8px 20px',background:'transparent',color:'var(--text)',border:'1px solid var(--border)',borderRadius:'4px'}});
 tabContainer.append(submitTabBtn,riddleTabBtn,emojiTabBtn);
 container.append(tabContainer);
 const submitSection=div({id:'submit-section'});
@@ -1977,7 +2006,7 @@ const topicInput=inp('Topic e.g. Gram Positive Bacteria','text','');
 topicInput.style.marginBottom='16px';
 const contentTextarea=h('textarea',{cls:'input',placeholder:'Write your explanation here...',style:{minHeight:'120px',resize:'vertical',width:'100%',marginBottom:'16px'}});
 const typeContainer=div({style:{display:'flex',gap:'8px',marginBottom:'16px'}});
-const typeButtons=[{label:'📖 Explain',value:'explain'},{label:'🧩 Riddle',value:'riddle'},{label:'😎 Emoji Bitz',value:'emoji'}];
+const typeButtons=[{label:'Explain',value:'explain'},{label:'Riddle',value:'riddle'},{label:'Emoji Bitz',value:'emoji'}];
 function updateTypeSelection(value){
   selectedType=value;
   typeButtons.forEach(bd=>{const el=document.getElementById('type-btn-'+bd.value);if(el){if(bd.value===value){el.style.background='var(--gold)';el.style.color='var(--bg)';el.style.border='1px solid var(--gold)';}else{el.style.background='transparent';el.style.color='var(--text)';el.style.border='1px solid var(--border)';}}});
@@ -1985,9 +2014,9 @@ function updateTypeSelection(value){
 typeButtons.forEach(bd=>{const tb=btn(bd.label,'btn-outline',()=>updateTypeSelection(bd.value),{style:{padding:'6px 14px',fontSize:'11px'}});tb.id='type-btn-'+bd.value;typeContainer.append(tb);});
 const submitBtn=btn('Submit →','btn-gold',async()=>{
   const topic=topicInput.value.trim();const content=contentTextarea.value.trim();
-  if(!topic){const e=div({style:{fontFamily:"'DM Mono',monospace",fontSize:'11px',color:'#8B3A3A',textAlign:'center',marginTop:'12px'},html:'❌ Please enter a topic.'});submitCard.append(e);setTimeout(()=>e.remove(),2000);return;}
-  if(!content){const e=div({style:{fontFamily:"'DM Mono',monospace",fontSize:'11px',color:'#8B3A3A',textAlign:'center',marginTop:'12px'},html:'❌ Please enter your explanation.'});submitCard.append(e);setTimeout(()=>e.remove(),2000);return;}
-  if(!selectedType){const e=div({style:{fontFamily:"'DM Mono',monospace",fontSize:'11px',color:'#8B3A3A',textAlign:'center',marginTop:'12px'},html:'❌ Please select a type.'});submitCard.append(e);setTimeout(()=>e.remove(),2000);return;}
+  if(!topic){const e=div({style:{fontFamily:"'DM Mono',monospace",fontSize:'11px',color:'#8B3A3A',textAlign:'center',marginTop:'12px'},html:'Please enter a topic.'});submitCard.append(e);setTimeout(()=>e.remove(),2000);return;}
+  if(!content){const e=div({style:{fontFamily:"'DM Mono',monospace",fontSize:'11px',color:'#8B3A3A',textAlign:'center',marginTop:'12px'},html:'Please enter your explanation.'});submitCard.append(e);setTimeout(()=>e.remove(),2000);return;}
+  if(!selectedType){const e=div({style:{fontFamily:"'DM Mono',monospace",fontSize:'11px',color:'#8B3A3A',textAlign:'center',marginTop:'12px'},html:'Please select a type.'});submitCard.append(e);setTimeout(()=>e.remove(),2000);return;}
   const{error}=await sb.from('feynman_submissions').insert({user_id:S.user.id,user_name:S.profile?.full_name||S.user.email,topic,type:selectedType,content,status:'pending',week_of:getCurrentMonday(),is_king:false,points_awarded:false});
   if(!error){
     topicInput.value='';contentTextarea.value='';selectedType=null;updateTypeSelection(null);
@@ -1996,7 +2025,7 @@ const submitBtn=btn('Submit →','btn-gold',async()=>{
     submitCard.append(submitSuccessDiv);
     setTimeout(()=>{if(submitSuccessDiv)submitSuccessDiv.remove();submitSuccessDiv=null;},1500);
     (async()=>{await loadWallOfFame();})();
-  }else{const e=div({style:{fontFamily:"'DM Mono',monospace",fontSize:'11px',color:'#8B3A3A',textAlign:'center',marginTop:'12px'},html:'❌ Failed to submit. Please try again.'});submitCard.append(e);setTimeout(()=>e.remove(),2000);}
+  }else{const e=div({style:{fontFamily:"'DM Mono',monospace",fontSize:'11px',color:'#8B3A3A',textAlign:'center',marginTop:'12px'},html:'Failed to submit. Please try again.'});submitCard.append(e);setTimeout(()=>e.remove(),2000);}
 },{style:{width:'100%'}});
 const submitCard=div({cls:'card',style:{marginBottom:'32px'}});
 submitCard.append(
@@ -2077,7 +2106,7 @@ async function loadRiddleDecksPage(){
     }else if(isUnlocked){
       card.append(btn('Start →','btn-gold',()=>showDeckPlayer(deck,'riddle'),{style:{width:'100%'}}));
     }else{
-      card.append(h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'11px',color:'var(--dim)',textAlign:'center',padding:'8px'},html:`🔒 Complete Level ${deck.unlock_order-1} first`}));
+      card.append(h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'11px',color:'var(--dim)',textAlign:'center',padding:'8px'},html:`Complete Level ${deck.unlock_order-1} first`}));
     }
     grid.append(card);
   }
@@ -2106,7 +2135,7 @@ async function loadEmojiDecksPage(){
     }else if(isUnlocked){
       card.append(btn('Start →','btn-gold',()=>showDeckPlayer(deck,'emoji'),{style:{width:'100%'}}));
     }else{
-      card.append(h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'11px',color:'var(--dim)',textAlign:'center',padding:'8px'},html:`🔒 Complete Level ${deck.unlock_order-1} first`}));
+      card.append(h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'11px',color:'var(--dim)',textAlign:'center',padding:'8px'},html:`Complete Level ${deck.unlock_order-1} first`}));
     }
     grid.append(card);
   }
@@ -2138,7 +2167,7 @@ async function showDeckPlayer(deck,type){
         h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'13px',color:'var(--gold)',marginBottom:'8px'},html:'Answer:'}),
         h('div',{style:{fontFamily:'monospace',fontSize:'14px',color:'var(--text)',lineHeight:'1.4'},html:card.answer})
       ]));
-      if(card.hint){modal.append(div({style:{background:'var(--card2)',padding:'12px',borderRadius:'8px',marginBottom:'16px'}},[h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'10px',color:'var(--dim)'},html:'💡 Hint: '+card.hint})]));}
+      if(card.hint){modal.append(div({style:{background:'var(--card2)',padding:'12px',borderRadius:'8px',marginBottom:'16px'}},[h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'10px',color:'var(--dim)'},html:'Hint: '+card.hint})]));}
       modal.append(div({style:{display:'flex',gap:'12px'}},[
         btn('✓ Got It','btn-teal',()=>{gotIt++;if(currentIndex+1<cards.length){currentIndex++;revealed=false;renderCard();}else{completeDeck();}},{style:{flex:'1'}}),
         btn("✗ Didn't Get It",'btn-outline',()=>{if(currentIndex+1<cards.length){currentIndex++;revealed=false;renderCard();}else{completeDeck();}},{style:{flex:'1'}})
@@ -2154,7 +2183,7 @@ async function showDeckPlayer(deck,type){
       await sb.from('flashcard_progress').upsert({user_id:S.user.id,deck_id:deck.id,completed:true,completed_at:new Date().toISOString()});
       const{data:nextDeck}=await sb.from('flashcard_decks').select('id').eq('type',type).eq('unlock_order',deck.unlock_order+1).maybeSingle();
       modal.append(
-        h('div',{style:{fontSize:'48px',textAlign:'center',marginBottom:'16px'},html:'🎉'}),
+        h('div',{style:{fontSize:'48px',textAlign:'center',marginBottom:'16px'},html:ICONS.sparkles}),
         h('h2',{style:{fontFamily:"'Playfair Display',serif",fontSize:'24px',color:'var(--gold)',textAlign:'center',marginBottom:'8px'},html:`Level ${deck.unlock_order} Complete!`}),
         h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'16px',color:'var(--teal)',textAlign:'center',marginBottom:'8px'},html:`You scored ${score}%`}),
         nextDeck?h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'13px',color:'var(--teal)',textAlign:'center',marginBottom:'24px'},html:'Next Level Unlocked!'}):h('div',{style:{marginBottom:'24px'}}),
@@ -2162,7 +2191,7 @@ async function showDeckPlayer(deck,type){
       );
     }else{
       modal.append(
-        h('div',{style:{fontSize:'48px',textAlign:'center',marginBottom:'16px'},html:'💪'}),
+        h('div',{style:{fontSize:'48px',textAlign:'center',marginBottom:'16px'},html:ICONS.zap}),
         h('h2',{style:{fontFamily:"'Playfair Display',serif",fontSize:'24px',color:'var(--gold)',textAlign:'center',marginBottom:'8px'},html:'So Close!'}),
         h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'16px',color:'var(--dim)',textAlign:'center',marginBottom:'8px'},html:`You scored ${score}% — you need 65% to unlock the next level.`}),
         h('div',{style:{marginBottom:'24px'}}),
@@ -2184,11 +2213,11 @@ const nav=div({cls:'dash-nav'});
 nav.append(div({cls:'logo',html:'Deo Fortis'}),btn('← Dashboard','btn-outline',()=>go('dashboard'),{style:{padding:'8px 16px'}}));
 page.append(nav);
 const inner=div({cls:'inner-sm'});
-inner.append(h('span',{cls:'chapter',html:'Rankings'}),h('h1',{style:{fontFamily:"'Playfair Display',serif",fontSize:'48px',fontWeight:'700',marginBottom:'8px'},html:'🏆 The <em class="gold-em">Leaderboard</em>'}),h('p',{cls:'muted',style:{fontSize:'14px',marginBottom:'40px'},html:'Rankings based on total study hours. Updated in real time.'}));
+inner.append(h('span',{cls:'chapter',html:'Rankings'}),h('h1',{style:{fontFamily:"'Playfair Display',serif",fontSize:'48px',fontWeight:'700',marginBottom:'8px'},html:'The <em class="gold-em">Leaderboard</em>'}),h('p',{cls:'muted',style:{fontSize:'14px',marginBottom:'40px'},html:'Rankings based on total study hours. Updated in real time.'}));
 const board=div({cls:'card',style:{marginBottom:'32px'},id:'board',html:'<p style="font-size:14px;color:var(--dim);text-align:center;padding:20px">Loading...</p>'});
 inner.append(board);
 const bc=div({cls:'card',style:{textAlign:'center',borderColor:'#C8A96E33',borderTopWidth:'3px',borderTopColor:'var(--gold)'}});
-bc.append(div({style:{fontSize:'32px',marginBottom:'12px'},html:'📚'}),h('h3',{style:{fontFamily:"'Playfair Display',serif",fontSize:'22px',marginBottom:'8px'},html:'Want Personal Tutoring?'}),h('p',{cls:'muted',style:{fontSize:'14px',lineHeight:'1.7',marginBottom:'20px'},html:'Work directly with me. Get personalised guidance and full portal access.'}),btn('Book a Session →','btn-gold',()=>showBooking()));
+bc.append(div({style:{fontSize:'32px',marginBottom:'12px'},html:ICONS.book}),h('h3',{style:{fontFamily:"'Playfair Display',serif",fontSize:'22px',marginBottom:'8px'},html:'Want Personal Tutoring?'}),h('p',{cls:'muted',style:{fontSize:'14px',lineHeight:'1.7',marginBottom:'20px'},html:'Work directly with me. Get personalised guidance and full portal access.'}),btn('Book a Session →','btn-gold',()=>showBooking()));
 inner.append(bc);page.append(inner);
 const medals=[' ',' ',' '];
 sb.from('profiles').select('full_name,total_points,total_study_minutes').eq('status','approved').order('total_points',{ascending:false}).limit(20).then(({data})=>{
@@ -2378,7 +2407,7 @@ card.append(br2);
       found=true;
       for(const deck of decks){
         const{count}=await sb.from('flashcards').select('*',{count:'exact',head:true}).eq('deck_id',deck.id);
-        delSection.append(h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'11px',color:'var(--dim)',marginBottom:'8px'}},['📚 '+deck.name+' · '+(count||0)+' cards']));
+        delSection.append(h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'11px',color:'var(--dim)',marginBottom:'8px'}},[''+deck.name+' · '+(count||0)+' cards']));
         delSection.append(btn('Delete Deck','btn-outline',async()=>{if(!confirm('Delete this deck and all its cards?'))return;await sb.from('flashcards').delete().eq('deck_id',deck.id);await sb.from('flashcard_decks').delete().eq('id',deck.id);loadTab('recalls');},{style:{padding:'4px 12px',fontSize:'10px',color:'#ff4444',borderColor:'#ff4444',marginBottom:'8px'}}));
       }
     }
@@ -2386,14 +2415,14 @@ card.append(br2);
     const{count}=await sb.from('vignette_questions').select('*',{count:'exact',head:true}).eq('user_id',r.user_id).eq('topic',r.topic);
     if(count&&count>0){
       found=true;
-      delSection.append(h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'11px',color:'var(--dim)',marginBottom:'8px'}},['📝 '+count+' questions for '+r.topic]));
+      delSection.append(h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'11px',color:'var(--dim)',marginBottom:'8px'}},[''+count+' questions for '+r.topic]));
       delSection.append(btn('Delete All Questions','btn-outline',async()=>{if(!confirm('Delete all '+count+' questions for "'+r.topic+'"? Cannot be undone.'))return;await sb.from('vignette_questions').delete().eq('user_id',r.user_id).eq('topic',r.topic);loadTab('recalls');},{style:{padding:'4px 12px',fontSize:'10px',color:'#ff4444',borderColor:'#ff4444'}}));
     }
   } else if(r.style==='theory'){
     const{data:pdfs}=await sb.from('theory_pdfs').select('id,filename').eq('recall_request_id',r.id);
     if(pdfs&&pdfs.length){
       found=true;
-      pdfs.forEach(pdf=>{delSection.append(h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'11px',color:'var(--dim)',marginBottom:'4px'}},['📄 '+pdf.filename]));});
+      pdfs.forEach(pdf=>{delSection.append(h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'11px',color:'var(--dim)',marginBottom:'4px'}},[''+pdf.filename]));});
       delSection.append(btn('Delete PDF','btn-outline',async()=>{if(!confirm('Delete uploaded PDF(s)?'))return;for(const pdf of pdfs){await sb.from('theory_pdfs').delete().eq('id',pdf.id);}loadTab('recalls');},{style:{padding:'4px 12px',fontSize:'10px',color:'#ff4444',borderColor:'#ff4444',marginTop:'8px'}}));
     }
   }
@@ -2466,19 +2495,19 @@ card.append(btn('+ Add Subsection','btn-outline',()=>addSubsectionRow(),{style:{
 const upSt=div({style:{fontFamily:"'DM Mono',monospace",fontSize:'12px',color:'var(--dim)',marginTop:'12px'}},['']);
 const uploadBtn=btn('Upload All Subsections','btn-gold',async()=>{
   const subject=tI.value.trim();
-  if(!subject){upSt.textContent='❌ Please enter a subject name';return;}
-  if(!subsectionRows.length){upSt.textContent='❌ Please add at least one subsection';return;}
+  if(!subject){upSt.textContent='Please enter a subject name';return;}
+  if(!subsectionRows.length){upSt.textContent='Please add at least one subsection';return;}
   for(let i=0;i<subsectionRows.length;i++){
     const row=subsectionRows[i];
-    if(!row.nameInp.value.trim()){upSt.textContent='❌ Subsection '+(i+1)+' has no name';return;}
-    if(!row.fileInp.files||!row.fileInp.files.length){upSt.textContent='❌ Subsection "'+row.nameInp.value.trim()+'" has no file';return;}
+    if(!row.nameInp.value.trim()){upSt.textContent='Subsection '+(i+1)+' has no name';return;}
+    if(!row.fileInp.files||!row.fileInp.files.length){upSt.textContent='Subsection "'+row.nameInp.value.trim()+'" has no file';return;}
   }
-  upSt.textContent='📤 Uploading '+subsectionRows.length+' subsection(s)...';
+  upSt.textContent='Uploading '+subsectionRows.length+' subsection(s)...';
   let total=0;
   for(let i=0;i<subsectionRows.length;i++){
     const row=subsectionRows[i];
     const subName=row.nameInp.value.trim();
-    upSt.textContent='📤 Processing "'+subName+'" ('+(i+1)+'/'+subsectionRows.length+')...';
+    upSt.textContent='Processing "'+subName+'" ('+(i+1)+'/'+subsectionRows.length+')...';
     const text=await row.fileInp.files[0].text();
     const blocks=text.split('\n\n').filter(b=>b.trim());
     const qs=[];
@@ -2499,11 +2528,11 @@ const uploadBtn=btn('Upload All Subsections','btn-gold',async()=>{
     }
     if(qs.length){
       const{error}=await sb.from('vignette_questions').insert(qs);
-      if(error){upSt.textContent='❌ Error in "'+subName+'": '+error.message;return;}
+      if(error){upSt.textContent='Error in "'+subName+'": '+error.message;return;}
       total+=qs.length;
     }
   }
-  upSt.textContent='✅ Uploaded '+total+' questions across '+subsectionRows.length+' subsection(s)';
+  upSt.textContent='Uploaded '+total+' questions across '+subsectionRows.length+' subsection(s)';
   await loadQuestionList();
 },{});
 card.append(uploadBtn,upSt);
