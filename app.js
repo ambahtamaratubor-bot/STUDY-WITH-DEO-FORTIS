@@ -1671,11 +1671,13 @@ inner.append(h('span',{cls:'chapter',html:'Question Bank'}),h('h2',{style:{fontF
 const{data}=await sb.from('vignette_questions').select('topic').or('user_id.eq.'+S.user.id+',user_id.is.null');
 const topics=data?[...new Set(data.map(d=>d.topic))]:[];
 if(!topics.length){inner.append(div({cls:'card',style:{textAlign:'center',padding:'48px'}},[h('p',{style:{fontSize:'14px',color:'var(--dim)'},html:'No questions available yet.'})]));return;}
-const tSel=h('select',{cls:'input',style:{cursor:'pointer',marginBottom:'20px'}});
+const tSel=h('select',{cls:'input',style:{cursor:'pointer',marginBottom:'8px'}});
 tSel.append(h('option',{value:'',html:'Choose a topic...'}));
 topics.forEach(t=>tSel.append(h('option',{value:t,html:t})));
-tSel.onchange=e=>selTopic=e.target.value;
-inner.append(h('label',{cls:'label',html:'Select Topic'}),tSel);
+const countDisplay=div({style:{fontFamily:"'DM Mono',monospace",fontSize:'11px',color:'var(--dim)',marginBottom:'12px'}},[' ']);
+const qCountI=inp('e.g. 40','number','');qCountI.min='1';qCountI.max='9999';
+tSel.onchange=e=>{selTopic=e.target.value;if(!selTopic){countDisplay.textContent='';qCountI.value='';return;}(async()=>{const{count}=await sb.from('vignette_questions').select('*',{count:'exact',head:true}).eq('topic',selTopic).or('user_id.eq.'+S.user.id+',user_id.is.null');countDisplay.textContent=count+' questions available';qCountI.value=count;qCountI.max=count;})();};
+inner.append(h('label',{cls:'label',html:'Select Topic'}),tSel,countDisplay);
 inner.append(h('label',{cls:'label',html:'Mode'}));
 const mb=div({style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'12px',marginBottom:'20px'}});
 [['tutor',' Tutor Mode'],['timed',' Timed Mode']].forEach(([v,l])=>{
@@ -1687,6 +1689,8 @@ inner.append(mb);
 const tlI=inp('60','number',String(timeLimit));tlI.min='1';tlI.max='180';tlI.oninput=e=>timeLimit=parseInt(e.target.value)||60;
 const tlWrap=div({style:{marginBottom:'20px',display:mode==='timed'?'block':'none'}},[h('label',{cls:'label',html:'Time Limit (minutes)'}),tlI]);
 inner.append(tlWrap);
+const qCountWrap=div({style:{marginBottom:'20px'}},[h('label',{cls:'label',html:'Number of Questions'}),qCountI]);
+inner.append(qCountWrap);
 const startBtn=btn('Start Quiz →','btn-gold',async()=>{
 if(!selTopic||!mode)return;
 if(S.profile?.is_free_tier){
@@ -1708,7 +1712,8 @@ if(S.profile?.is_free_tier){
   showQuiz();
   return;
 }
-const{data:qs}=await sb.from('vignette_questions').select('*').eq('topic',selTopic).or('user_id.eq.'+S.user.id+',user_id.is.null').limit(40);
+const desiredCount=parseInt(qCountI.value)||40;
+const{data:qs}=await sb.from('vignette_questions').select('*').eq('topic',selTopic).or('user_id.eq.'+S.user.id+',user_id.is.null').limit(desiredCount);
 if(!qs||!qs.length){alert('No questions for this topic yet.');return;}
 questions=qs;current=0;answers={};submitted=false;revealed={};
 if(mode==='timed')timeLeft=timeLimit*60;
