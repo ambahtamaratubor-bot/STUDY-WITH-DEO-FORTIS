@@ -227,14 +227,14 @@ function showGoalsModal(){
   // HEADER
   const headerRow=div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'24px'}});
   headerRow.append(
-    h('h2',{style:{fontFamily:"'Playfair Display',serif",fontSize:'24px',color:'var(--gold)',margin:'0'},html:'Study Goals'}),
+    h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'24px',color:'var(--gold)',margin:'0'},html:'Study Goals'}),
     btn('✕','',()=>overlay.remove(),{style:{background:'none',border:'none',color:'var(--dim)',fontSize:'20px',cursor:'pointer',padding:'4px'}})
   );
   modal.append(headerRow);
 
   // DAILY SLIDER
   const dailyValSpan=h('span',{style:{color:'var(--gold)'},html:currentDaily+'h'});
-  const dailyLabelRow=div({style:{fontFamily:"'DM Mono',monospace",fontSize:'9px',textTransform:'uppercase',color:'var(--dim)',marginBottom:'4px'}});
+  const dailyLabelRow=div({style:{fontFamily:"Inter,sans-serif",fontSize:'9px',textTransform:'uppercase',color:'var(--dim)',marginBottom:'4px'}});
   dailyLabelRow.append(document.createTextNode('Daily Goal — '),dailyValSpan);
   const dailySlider=h('input',{type:'range',min:'1',max:'12',value:String(currentDaily),style:{width:'100%',accentColor:'var(--gold)',margin:'8px 0 20px 0'}});
   dailySlider.oninput=e=>{currentDaily=parseInt(e.target.value);dailyValSpan.textContent=currentDaily+'h';};
@@ -242,7 +242,7 @@ function showGoalsModal(){
 
   // WEEKLY SLIDER
   const weeklyValSpan=h('span',{style:{color:'var(--gold)'},html:currentWeekly+'h'});
-  const weeklyLabelRow=div({style:{fontFamily:"'DM Mono',monospace",fontSize:'9px',textTransform:'uppercase',color:'var(--dim)',marginBottom:'4px'}});
+  const weeklyLabelRow=div({style:{fontFamily:"Inter,sans-serif",fontSize:'9px',textTransform:'uppercase',color:'var(--dim)',marginBottom:'4px'}});
   weeklyLabelRow.append(document.createTextNode('Weekly Goal — '),weeklyValSpan);
   const weeklySlider=h('input',{type:'range',min:'5',max:'60',value:String(currentWeekly),style:{width:'100%',accentColor:'var(--gold)',margin:'8px 0 24px 0'}});
   weeklySlider.oninput=e=>{currentWeekly=parseInt(e.target.value);weeklyValSpan.textContent=currentWeekly+'h';};
@@ -250,14 +250,14 @@ function showGoalsModal(){
 
   // TOPIC GOALS HEADER
   modal.append(
-    h('h3',{style:{fontFamily:"'Playfair Display',serif",fontSize:'16px',marginBottom:'2px'},html:'Topic Goals'}),
-    h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'9px',color:'var(--dim)',marginBottom:'12px'},html:'track hours per subject'})
+    h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'16px',marginBottom:'2px'},html:'Topic Goals'}),
+    h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'9px',color:'var(--dim)',marginBottom:'12px'},html:'track hours per subject'})
   );
 
   // TOPIC ADD ROW
   const topicInput=inp('e.g. Cardiology');
   topicInput.style.flex='1';
-  const topicHoursValSpan=h('span',{style:{fontFamily:"'DM Mono',monospace",fontSize:'11px',color:'var(--teal)',minWidth:'32px'},html:'5h'});
+  const topicHoursValSpan=h('span',{style:{fontFamily:"Inter,sans-serif",fontSize:'11px',color:'var(--teal)',minWidth:'32px'},html:'5h'});
   const topicSlider=h('input',{type:'range',min:'1',max:'20',value:'5',style:{width:'120px',accentColor:'var(--teal)'}});
   topicSlider.oninput=e=>topicHoursValSpan.textContent=e.target.value+'h';
   const addRow=div({style:{display:'flex',gap:'10px',alignItems:'center',marginBottom:'16px'}});
@@ -281,8 +281,8 @@ function showGoalsModal(){
     Object.entries(topicGoals).forEach(([topic,hours])=>{
       const tag=div({style:{border:'1px solid var(--border)',borderRadius:'2px',padding:'6px 12px',display:'flex',alignItems:'center',gap:'8px',background:'var(--card2)'}});
       tag.append(
-        h('span',{style:{fontFamily:"'DM Mono',monospace",fontSize:'11px',color:'var(--text)'},html:topic.charAt(0).toUpperCase()+topic.slice(1)}),
-        h('span',{style:{fontFamily:"'DM Mono',monospace",fontSize:'11px',color:'var(--teal)'},html:hours+'h'}),
+        h('span',{style:{fontFamily:"Inter,sans-serif",fontSize:'11px',color:'var(--text)'},html:topic.charAt(0).toUpperCase()+topic.slice(1)}),
+        h('span',{style:{fontFamily:"Inter,sans-serif",fontSize:'11px',color:'var(--teal)'},html:hours+'h'}),
         btn('✕','',()=>{delete topicGoals[topic];refreshTopicList();},{style:{background:'none',border:'none',color:'var(--dim)',cursor:'pointer',padding:'0',fontSize:'12px'}})
       );
       topicListDiv.append(tag);
@@ -291,7 +291,7 @@ function showGoalsModal(){
   refreshTopicList();
 
   // SAVE BUTTON
-  const saveMsg=div({style:{textAlign:'center',color:'var(--teal)',marginTop:'12px',fontFamily:"'DM Mono',monospace",fontSize:'11px',display:'none'},html:'✓ Saved!'});
+  const saveMsg=div({style:{textAlign:'center',color:'var(--teal)',marginTop:'12px',fontFamily:"Inter,sans-serif",fontSize:'11px',display:'none'},html:'✓ Saved!'});
   modal.append(
     btn('Save Goals','btn-gold',async()=>{
       const studyGoals={daily_hours:currentDaily,weekly_hours:currentWeekly};
@@ -364,13 +364,13 @@ function showRestDaysModal(){
   // HEADER
   const headerRow=div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'16px'}});
   headerRow.append(
-    h('h2',{style:{fontFamily:"'Playfair Display',serif",fontSize:'24px',color:'var(--gold)',margin:'0'},html:'Rest Days'}),
+    h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'24px',color:'var(--gold)',margin:'0'},html:'Rest Days'}),
     btn('✕','',()=>overlay.remove(),{style:{background:'none',border:'none',color:'var(--dim)',fontSize:'20px',cursor:'pointer',padding:'4px'}})
   );
   modal.append(headerRow);
 
   // DESCRIPTION
-  modal.append(h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'11px',color:'var(--muted)',marginBottom:'24px'},html:'Rest days never break your study streak — take a break without losing progress.'}));
+  modal.append(h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'11px',color:'var(--muted)',marginBottom:'24px'},html:'Rest days never break your study streak — take a break without losing progress.'}));
 
   // DAY BUTTONS GRID
   const daysGrid=div({style:{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:'8px',marginBottom:'32px'}});
@@ -380,7 +380,7 @@ function showRestDaysModal(){
     daysGrid.innerHTML='';
     days.forEach(day=>{
       const isSelected=selectedDays.includes(day);
-      const dayBtn=div({style:{padding:'10px 4px',fontSize:'12px',fontFamily:"'DM Mono',monospace",fontWeight:'500',textAlign:'center',width:'100%',background:isSelected?'var(--gold)':'transparent',color:isSelected?'var(--bg)':'var(--text)',border:isSelected?'1px solid var(--gold)':'1px solid var(--border)',borderRadius:'4px',cursor:'pointer',transition:'all 0.2s'},html:day,onclick:()=>{
+      const dayBtn=div({style:{padding:'10px 4px',fontSize:'12px',fontFamily:"Inter,sans-serif",fontWeight:'500',textAlign:'center',width:'100%',background:isSelected?'var(--gold)':'transparent',color:isSelected?'var(--bg)':'var(--text)',border:isSelected?'1px solid var(--gold)':'1px solid var(--border)',borderRadius:'4px',cursor:'pointer',transition:'all 0.2s'},html:day,onclick:()=>{
         if(selectedDays.includes(day)){selectedDays=selectedDays.filter(d=>d!==day);}
         else{selectedDays.push(day);}
         refreshDays();
@@ -391,7 +391,7 @@ function showRestDaysModal(){
   refreshDays();
 
   // SAVE
-  const saveMsg=div({style:{textAlign:'center',color:'var(--teal)',marginTop:'12px',fontFamily:"'DM Mono',monospace",fontSize:'11px',display:'none'},html:'✓ Saved!'});
+  const saveMsg=div({style:{textAlign:'center',color:'var(--teal)',marginTop:'12px',fontFamily:"Inter,sans-serif",fontSize:'11px',display:'none'},html:'✓ Saved!'});
   modal.append(
     btn('Save Rest Days','btn-gold',async()=>{
       const{error}=await sb.from('profiles').update({rest_days:selectedDays}).eq('id',S.user.id);
@@ -438,7 +438,7 @@ h('p',{cls:'muted',style:{fontSize:'16px',lineHeight:'1.8',maxWidth:'520px'},htm
 );
 const hbtns=div({style:{display:'flex',gap:'16px',marginTop:'32px',flexWrap:'wrap',alignItems:'center'}});
 hbtns.append(h('a',{cls:'btn btn-gold',href:'#plans',html:'View Plans →'}));
-const vbtn=div({style:{display:'inline-flex',alignItems:'center',gap:'10px',padding:'12px 24px',border:'1px solid var(--border)',borderRadius:'2px',fontFamily:"'DM Mono',monospace",fontSize:'11px',letterSpacing:'2px',textTransform:'uppercase',color:'var(--muted)',cursor:'pointer'}});
+const vbtn=div({style:{display:'inline-flex',alignItems:'center',gap:'10px',padding:'12px 24px',border:'1px solid var(--border)',borderRadius:'2px',fontFamily:"Inter,sans-serif",fontSize:'11px',letterSpacing:'2px',textTransform:'uppercase',color:'var(--muted)',cursor:'pointer'}});
 vbtn.append(div({style:{width:'24px',height:'24px',borderRadius:'50%',border:'1px solid var(--dim)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'10px',color:'var(--gold)',html:'▶'}}),document.createTextNode('Watch Demo (Optional)'));
 vbtn.onclick=()=>showVidModal(cfg.video);
 hbtns.append(vbtn);
@@ -446,7 +446,7 @@ hc.append(hbtns);
 const stats=div({style:{display:'flex',gap:'48px',marginTop:'56px',flexWrap:'wrap'}});
 [['3','Recall Formats'],['100%','Full Access'],['∞','Sessions']].forEach(([n,l])=>{
 const s=div({style:{borderLeft:'2px solid var(--border)',paddingLeft:'16px'}});
-s.append(div({style:{fontFamily:"'Playfair Display',serif",fontSize:'36px',color:'var(--gold)',lineHeight:'1',fontWeight:'700'},html:n}),div({cls:'mono',style:{marginTop:'6px'},html:l}));
+s.append(div({style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'36px',color:'var(--gold)',lineHeight:'1',fontWeight:'700'},html:n}),div({cls:'mono',style:{marginTop:'6px'},html:l}));
 stats.append(s);
 });
 hc.append(stats);
@@ -462,8 +462,8 @@ planDefs.forEach(plan=>{
 const card=div({cls:'plan-card',style:{borderColor:plan.popular?plan.color+'55':'var(--border)',borderTopWidth:plan.popular?'3px':'1px',borderTopColor:plan.popular?plan.color:'var(--border)'}});
 if(plan.popular)card.append(div({cls:'popular-tag',html:'Best Value'}));
 card.append(div({cls:'mono',style:{marginBottom:'8px',marginTop:plan.popular?'16px':'0'},html:plan.name}));
-card.append(div({style:{display:'flex',alignItems:'baseline',gap:'6px',marginBottom:'4px'}},[h('span',{style:{fontFamily:"'Playfair Display',serif",fontSize:'52px',color:plan.color,lineHeight:'1',fontWeight:'700'},html:plan.price}),h('span',{style:{fontSize:'14px',color:'var(--dim)',fontWeight:'300'},html:plan.period})]));
-card.append(div({style:{fontFamily:"'DM Mono',monospace",fontSize:'11px',color:plan.color,letterSpacing:'1px',marginBottom:'24px',opacity:'.8'},html:plan.dur+' of full access'}));
+card.append(div({style:{display:'flex',alignItems:'baseline',gap:'6px',marginBottom:'4px'}},[h('span',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'52px',color:plan.color,lineHeight:'1',fontWeight:'700'},html:plan.price}),h('span',{style:{fontSize:'14px',color:'var(--dim)',fontWeight:'300'},html:plan.period})]));
+card.append(div({style:{fontFamily:"Inter,sans-serif",fontSize:'11px',color:plan.color,letterSpacing:'1px',marginBottom:'24px',opacity:'.8'},html:plan.dur+' of full access'}));
 card.append(h('hr',{style:{border:'none',borderTop:'1px solid var(--border)',marginBottom:'20px'}}));
 const fl=div({style:{marginBottom:'28px'}});
 features.forEach(f=>{const item=div({cls:'check-item'});item.append(h('span',{style:{color:plan.color,fontSize:'12px',marginTop:'2px',flexShrink:'0'},html:'✦'}),h('span',{},[f]));fl.append(item);});
@@ -472,7 +472,7 @@ const eb=h('a',{cls:'btn btn-gold',style:{background:plan.color,color:'#0F0E0A',
 eb.href='#';
 eb.onclick=e=>{e.preventDefault();showEnrolModal(plan,cfg.links[plan.key]||'#');};
 card.append(eb);
-card.append(h('p',{style:{fontFamily:"'DM Mono',monospace",fontSize:'10px',color:'var(--dim)',textAlign:'center',marginTop:'12px',letterSpacing:'1px',textTransform:'uppercase'},html:'Approval required · Payment via Selar'}));
+card.append(h('p',{style:{fontFamily:"Inter,sans-serif",fontSize:'10px',color:'var(--dim)',textAlign:'center',marginTop:'12px',letterSpacing:'1px',textTransform:'uppercase'},html:'Approval required · Payment via Selar'}));
 plansGrid.append(card);
 });
 plansSection.append(plansGrid);
@@ -480,8 +480,8 @@ plansSection.append(plansGrid);
 const freeSection=div({style:{textAlign:'center',marginTop:'8px',paddingBottom:'16px'}});
 freeSection.append(
   h('hr',{style:{border:'none',borderTop:'1px solid var(--border)',margin:'32px 0'}}),
-  h('div',{style:{fontFamily:"'Playfair Display',serif",fontSize:'18px',fontStyle:'italic',color:'var(--muted)',marginBottom:'8px'},html:'Or start for free'}),
-  h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'11px',color:'var(--dim)',marginBottom:'20px'},html:'Pomodoro timer + white noise. No credit card needed.'}),
+  h('div',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'18px',fontStyle:'italic',color:'var(--muted)',marginBottom:'8px'},html:'Or start for free'}),
+  h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'11px',color:'var(--dim)',marginBottom:'20px'},html:'Pomodoro timer + white noise. No credit card needed.'}),
   btn('Start Free →','btn-outline',()=>{localStorage.setItem('signupType','free');go('signup');},{style:{padding:'12px 32px',fontSize:'13px'}})
 );
 plansSection.append(freeSection);
@@ -497,7 +497,7 @@ whySection.append(div({cls:'divider'}),h('br'),h('span',{cls:'chapter',html:'Cha
 const rg=div({cls:'grid-auto'});
 [{icon:' ',title:'Pomodoro Technique',desc:'Structured sessions built around proven time management. Work hard, rest smart, repeat.'},{icon:' ',title:'Active Recall Sessions',desc:'Request a recall session anytime. Theory, Anki-style, or vignette — you choose the format.'},{icon:' ',title:'Study Timetable',desc:'Get a personalised follow-up timetable built around your goals and weak areas.'},{icon:' ',title:'Leaderboard',desc:'Compete with other students. Rankings based on real study hours logged.'},{icon:' ',title:'Community',desc:'You are not studying alone. Be part of a group that holds each other accountable.'},{icon:' ',title:'Accountability',desc:'Clock in. Clock out. Your real study hours tracked. No lying to yourself.'}].forEach(r=>{
 const card=div({cls:'reason-card'});
-card.append(div({style:{fontSize:'28px',marginBottom:'14px'},html:r.icon}),h('h3',{style:{fontFamily:"'Playfair Display',serif",fontWeight:'600',fontSize:'17px',marginBottom:'8px',color:'var(--text)'},html:r.title}),h('p',{style:{fontSize:'14px',color:'#6A6050',lineHeight:'1.7',fontWeight:'300'},html:r.desc}));
+card.append(div({style:{fontSize:'28px',marginBottom:'14px'},html:r.icon}),h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontWeight:'600',fontSize:'17px',marginBottom:'8px',color:'var(--text)'},html:r.title}),h('p',{style:{fontSize:'14px',color:'#6A6050',lineHeight:'1.7',fontWeight:'300'},html:r.desc}));
 rg.append(card);
 });
 whySection.append(rg);
@@ -512,14 +512,14 @@ howSection.append(div({cls:'divider'}),h('br'),h('span',{cls:'chapter',html:'Cha
 const hg=div({style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(220px,1fr))',borderTop:'1px solid var(--border)',borderLeft:'1px solid var(--border)'}});
 [{num:'I',title:'Choose a Plan',desc:'Pick the duration that works for you.'},{num:'II',title:'Pay via Selar',desc:'Complete your payment securely. Takes about 2 minutes.'},{num:'III',title:'Get Approved',desc:'Your payment is verified and account approved.'},{num:'IV',title:'Begin Studying',desc:'Log in and start your first session.'}].forEach(step=>{
 const s=div({style:{padding:'32px 28px',borderRight:'1px solid var(--border)',borderBottom:'1px solid var(--border)'}});
-s.append(div({style:{fontFamily:"'Playfair Display',serif",fontStyle:'italic',fontSize:'48px',color:'var(--border)',lineHeight:'1',marginBottom:'16px'},html:step.num}),h('h3',{style:{fontFamily:"'Playfair Display',serif",fontSize:'17px',color:'var(--text)',marginBottom:'8px',fontWeight:'600'},html:step.title}),h('p',{style:{fontSize:'14px',color:'#6A6050',lineHeight:'1.7',fontWeight:'300'},html:step.desc}));
+s.append(div({style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontStyle:'italic',fontSize:'48px',color:'var(--border)',lineHeight:'1',marginBottom:'16px'},html:step.num}),h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'17px',color:'var(--text)',marginBottom:'8px',fontWeight:'600'},html:step.title}),h('p',{style:{fontSize:'14px',color:'#6A6050',lineHeight:'1.7',fontWeight:'300'},html:step.desc}));
 hg.append(s);
 });
 howSection.append(hg);
 page.append(howSection);
 // FOOTER
 const footer=div({style:{borderTop:'1px solid var(--border)',padding:'48px',textAlign:'center'}});
-footer.append(div({style:{fontFamily:"'Playfair Display',serif",fontStyle:'italic',fontSize:'28px',color:'var(--gold)',marginBottom:'10px'},html:'Deo Fortis'}),div({style:{color:'var(--gold)',opacity:'.4',letterSpacing:'8px',marginBottom:'12px'},html:'✦ ✦ ✦'}),h('p',{style:{fontSize:'14px',color:'var(--dim)',fontWeight:'300'},html:'Study with purpose. Results follow.'}),btn('Admin','',()=>go('admin'),{style:{background:'none',border:'none',color:'var(--muted)',fontSize:'11px',marginTop:'24px',fontFamily:"'DM Mono',monospace",letterSpacing:'2px',textTransform:'uppercase'}}));
+footer.append(div({style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontStyle:'italic',fontSize:'28px',color:'var(--gold)',marginBottom:'10px'},html:'Deo Fortis'}),div({style:{color:'var(--gold)',opacity:'.4',letterSpacing:'8px',marginBottom:'12px'},html:'✦ ✦ ✦'}),h('p',{style:{fontSize:'14px',color:'var(--dim)',fontWeight:'300'},html:'Study with purpose. Results follow.'}),btn('Admin','',()=>go('admin'),{style:{background:'none',border:'none',color:'var(--muted)',fontSize:'11px',marginTop:'24px',fontFamily:"Inter,sans-serif",letterSpacing:'2px',textTransform:'uppercase'}}));
 page.append(footer);
 // Load data
 (async()=>{
@@ -531,13 +531,13 @@ const{data:pkgs}=await sb.from('tutoring_packages').select('*').order('id');
 const pg=document.getElementById('pkg-grid');
 if(pg&&pkgs&&pkgs.length&&!pkgsLoaded){pkgsLoaded=true;pkgs.forEach((pkg,i)=>{
 const card=div({cls:'plan-card',style:{borderTopWidth:'3px',borderTopColor:i===0?'var(--gold)':'var(--purple)',borderColor:i===0?'#C8A96E33':'#A89BC833'}});
-card.append(div({cls:'mono',style:{marginBottom:'8px'},html:pkg.name}),div({style:{fontFamily:"'Playfair Display',serif",fontSize:'48px',color:i===0?'var(--gold)':'var(--purple)',lineHeight:'1',fontWeight:'700',marginBottom:'8px'},html:pkg.price}),div({style:{fontFamily:"'DM Mono',monospace",fontSize:'11px',color:i===0?'var(--gold)':'var(--purple)',letterSpacing:'1px',marginBottom:'24px',opacity:'.8'},html:pkg.sessions}),h('hr',{style:{border:'none',borderTop:'1px solid var(--border)',marginBottom:'20px'}}));
+card.append(div({cls:'mono',style:{marginBottom:'8px'},html:pkg.name}),div({style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'48px',color:i===0?'var(--gold)':'var(--purple)',lineHeight:'1',fontWeight:'700',marginBottom:'8px'},html:pkg.price}),div({style:{fontFamily:"Inter,sans-serif",fontSize:'11px',color:i===0?'var(--gold)':'var(--purple)',letterSpacing:'1px',marginBottom:'24px',opacity:'.8'},html:pkg.sessions}),h('hr',{style:{border:'none',borderTop:'1px solid var(--border)',marginBottom:'20px'}}));
 const fl=div({style:{marginBottom:'28px'}});
 (pkg.features||'').split(',').forEach(f=>{const item=div({cls:'check-item'});item.append(h('span',{style:{color:i===0?'var(--gold)':'var(--purple)',fontSize:'12px',flexShrink:'0'},html:'✦'}),h('span',{},[f.trim()]));fl.append(item);});
 card.append(fl);
 const ab=h('a',{cls:'btn',style:{background:i===0?'var(--gold)':'var(--purple)',color:'#0F0E0A',width:'100%',textAlign:'center',display:'block'},html:'Book — '+pkg.price});
 ab.href=pkg.selar_link||'#';ab.target='_blank';
-card.append(ab,h('p',{style:{fontFamily:"'DM Mono',monospace",fontSize:'10px',color:'var(--dim)',textAlign:'center',marginTop:'12px',letterSpacing:'1px',textTransform:'uppercase'},html:'Includes study portal access'}));
+card.append(ab,h('p',{style:{fontFamily:"Inter,sans-serif",fontSize:'10px',color:'var(--dim)',textAlign:'center',marginTop:'12px',letterSpacing:'1px',textTransform:'uppercase'},html:'Includes study portal access'}));
 pg.append(card);
 });
 // Custom session card
@@ -545,20 +545,20 @@ if(pg){
 const customCard=div({cls:'plan-card',style:{borderTopWidth:'3px',borderTopColor:'var(--gold)',borderColor:'#C8A96E33'}});
 customCard.append(
 div({cls:'mono',style:{marginBottom:'8px'},html:'Custom Session'}),
-div({style:{fontFamily:"'Playfair Display',serif",fontSize:'48px',color:'var(--gold)',lineHeight:'1',fontWeight:'700',marginBottom:'8px'},html:'$15'}),
-div({style:{fontFamily:"'DM Mono',monospace",fontSize:'11px',color:'var(--gold)',letterSpacing:'1px',marginBottom:'24px',opacity:'.8'},html:'per session'}),
+div({style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'48px',color:'var(--gold)',lineHeight:'1',fontWeight:'700',marginBottom:'8px'},html:'$15'}),
+div({style:{fontFamily:"Inter,sans-serif",fontSize:'11px',color:'var(--gold)',letterSpacing:'1px',marginBottom:'24px',opacity:'.8'},html:'per session'}),
 h('hr',{style:{border:'none',borderTop:'1px solid var(--border)',marginBottom:'20px'}}),
 h('p',{style:{fontSize:'14px',color:'var(--muted)',lineHeight:'1.8',marginBottom:'28px'},html:"Need help with a specific topic, your study timetable, or just not sure where to start? Book a single session with one of our tutors — we'll figure it out together. No commitment, no package required."})
 );
 const customBtn=h('a',{cls:'btn',style:{background:'var(--gold)',color:'#0F0E0A',width:'100%',textAlign:'center',display:'block'},html:'Book a Session — $15',id:'custom-session-btn'});
 customBtn.href=s?.link_custom||'#';customBtn.target='_blank';
-customCard.append(customBtn,h('p',{style:{fontFamily:"'DM Mono',monospace",fontSize:'10px',color:'var(--dim)',textAlign:'center',marginTop:'12px',letterSpacing:'1px',textTransform:'uppercase'},html:'One session · No commitment'}));
+customCard.append(customBtn,h('p',{style:{fontFamily:"Inter,sans-serif",fontSize:'10px',color:'var(--dim)',textAlign:'center',marginTop:'12px',letterSpacing:'1px',textTransform:'uppercase'},html:'One session · No commitment'}));
 pg.append(customCard);
 }}
 const{data:ts}=await sb.from('testimonials').select('*').order('created_at',{ascending:false});
 const tss=document.getElementById('ts-section');
 const tsg=document.getElementById('ts-grid');
-if(ts&&ts.length&&tss&&tsg){tss.style.display='block';ts.forEach(t=>{const c=div({cls:'card'});c.append(div({style:{fontSize:'24px',color:'var(--gold)',marginBottom:'16px',opacity:'.6'},html:'"'}),h('p',{style:{fontSize:'15px',color:'var(--muted)',lineHeight:'1.8',marginBottom:'20px',fontStyle:'italic',fontWeight:'300'},html:t.content}),div({style:{borderTop:'1px solid var(--border)',paddingTop:'16px'}},[div({style:{fontFamily:"'Playfair Display',serif",fontSize:'15px',color:'var(--text)',fontWeight:'600'},html:t.name}),t.title?div({cls:'mono',style:{marginTop:'4px'},html:t.title}):null].filter(Boolean)));tsg.append(c);});}
+if(ts&&ts.length&&tss&&tsg){tss.style.display='block';ts.forEach(t=>{const c=div({cls:'card'});c.append(div({style:{fontSize:'24px',color:'var(--gold)',marginBottom:'16px',opacity:'.6'},html:'"'}),h('p',{style:{fontSize:'15px',color:'var(--muted)',lineHeight:'1.8',marginBottom:'20px',fontStyle:'italic',fontWeight:'300'},html:t.content}),div({style:{borderTop:'1px solid var(--border)',paddingTop:'16px'}},[div({style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'15px',color:'var(--text)',fontWeight:'600'},html:t.name}),t.title?div({cls:'mono',style:{marginTop:'4px'},html:t.title}):null].filter(Boolean)));tsg.append(c);});}
 })();
 return page;
 }
@@ -571,7 +571,7 @@ const nameI=inp('Your full name');
 const emailI=inp('your@email.com','email');
 const passI=inp('Min. 6 characters','password');
 const badge=div({style:{background:plan.color,color:'#0F0E0A',borderRadius:'4px',padding:'12px 16px',marginBottom:'20px',display:'flex',justifyContent:'space-between',alignItems:'center'}});
-badge.append(div({},[div({style:{fontFamily:"'DM Mono',monospace",fontSize:'9px',letterSpacing:'2px',textTransform:'uppercase',marginBottom:'4px'},html:'Selected Plan'}),div({style:{fontFamily:"'Playfair Display',serif",fontSize:'20px',fontWeight:'700'},html:plan.name+' — '+plan.price})]),div({style:{fontFamily:"'DM Mono',monospace",fontSize:'10px',letterSpacing:'1px'},html:plan.dur+' access'}));
+badge.append(div({},[div({style:{fontFamily:"Inter,sans-serif",fontSize:'9px',letterSpacing:'2px',textTransform:'uppercase',marginBottom:'4px'},html:'Selected Plan'}),div({style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'20px',fontWeight:'700'},html:plan.name+' — '+plan.price})]),div({style:{fontFamily:"Inter,sans-serif",fontSize:'10px',letterSpacing:'1px'},html:plan.dur+' access'}));
 const submitBtn=btn('Create Account & Pay','btn-gold',async()=>{
 errEl.classList.add('hidden');
 if(!nameI.value||!emailI.value||!passI.value){errEl.classList.remove('hidden');errEl.textContent='Please fill in all fields.';return;}
@@ -587,13 +587,13 @@ ov.remove();
 window.open(selarLink,'_blank');
 showSignupSuccess(nameVal,selarLink);
 },{style:{width:'100%',padding:'16px',marginTop:'8px'}});
-box.append(div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'16px'}},[h('h2',{style:{fontFamily:"'Playfair Display',serif",fontSize:'22px'},html:'Create Account'}),btn('x','',()=>ov.remove(),{style:{background:'none',border:'none',color:'var(--muted)',fontSize:'18px',cursor:'pointer'}})]),badge,errEl,field('Full Name',nameI),field('Email',emailI),field('Password',passI),submitBtn,h('p',{style:{fontSize:'12px',color:'var(--dim)',textAlign:'center',marginTop:'12px',fontFamily:"'DM Mono',monospace",letterSpacing:'1px'},html:'You will be redirected to Selar to complete payment'}),h('p',{style:{fontSize:'13px',color:'var(--muted)',textAlign:'center',marginTop:'12px'},html:'Already have an account? <button onclick="go(\'login\')" style="background:none;border:none;color:var(--gold);cursor:pointer;font-size:13px">Log in</button>'}));
+box.append(div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'16px'}},[h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'22px'},html:'Create Account'}),btn('x','',()=>ov.remove(),{style:{background:'none',border:'none',color:'var(--muted)',fontSize:'18px',cursor:'pointer'}})]),badge,errEl,field('Full Name',nameI),field('Email',emailI),field('Password',passI),submitBtn,h('p',{style:{fontSize:'12px',color:'var(--dim)',textAlign:'center',marginTop:'12px',fontFamily:"Inter,sans-serif",letterSpacing:'1px'},html:'You will be redirected to Selar to complete payment'}),h('p',{style:{fontSize:'13px',color:'var(--muted)',textAlign:'center',marginTop:'12px'},html:'Already have an account? <button onclick="go(\'login\')" style="background:none;border:none;color:var(--gold);cursor:pointer;font-size:13px">Log in</button>'}));
 ov.append(box);document.body.append(ov);
 }
 function showSignupSuccess(name,selarLink){
 const ov=div({cls:'modal-bg'});
 const box=div({cls:'card',style:{maxWidth:'440px',width:'100%',textAlign:'center'}});
-box.append(div({style:{fontSize:'48px',marginBottom:'16px'},html:' '}),h('h2',{style:{fontFamily:"'Playfair Display',serif",fontSize:'24px',marginBottom:'12px'},html:'Account Created!'}),h('p',{cls:'muted',style:{fontSize:'14px',lineHeight:'1.8',marginBottom:'24px'},html:'Hi '+name+'! Complete your payment on Selar to get approved and gain full access.'}),h('a',{cls:'btn btn-gold',style:{display:'block',textAlign:'center',marginBottom:'12px'},href:selarLink,target:'_blank',html:'Complete Payment on Selar →'}),h('p',{style:{fontFamily:"'DM Mono',monospace",fontSize:'10px',color:'var(--dim)',letterSpacing:'1px',textTransform:'uppercase',marginTop:'16px'},html:"You'll be approved as soon as your payment is verified"}),btn('Log In After Paying','btn-outline',()=>{ov.remove();go('login');},{style:{marginTop:'16px',width:'100%'}}));
+box.append(div({style:{fontSize:'48px',marginBottom:'16px'},html:' '}),h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'24px',marginBottom:'12px'},html:'Account Created!'}),h('p',{cls:'muted',style:{fontSize:'14px',lineHeight:'1.8',marginBottom:'24px'},html:'Hi '+name+'! Complete your payment on Selar to get approved and gain full access.'}),h('a',{cls:'btn btn-gold',style:{display:'block',textAlign:'center',marginBottom:'12px'},href:selarLink,target:'_blank',html:'Complete Payment on Selar →'}),h('p',{style:{fontFamily:"Inter,sans-serif",fontSize:'10px',color:'var(--dim)',letterSpacing:'1px',textTransform:'uppercase',marginTop:'16px'},html:"You'll be approved as soon as your payment is verified"}),btn('Log In After Paying','btn-outline',()=>{ov.remove();go('login');},{style:{marginTop:'16px',width:'100%'}}));
 ov.append(box);document.body.append(ov);
 }
 function showVidModal(url){
@@ -601,10 +601,10 @@ const ov=div({cls:'modal-bg'});
 ov.onclick=e=>{if(e.target===ov)ov.remove();};
 const box=div({style:{background:'var(--card)',border:'1px solid var(--border)',borderRadius:'4px',width:'100%',maxWidth:'720px',overflow:'hidden'}});
 const hdr=div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'14px 20px',borderBottom:'1px solid var(--border)'}});
-hdr.append(h('span',{style:{fontFamily:"'DM Mono',monospace",fontSize:'11px',letterSpacing:'2px',textTransform:'uppercase',color:'var(--muted)'},html:'Platform Demo'}),btn('✕','',()=>ov.remove(),{style:{background:'none',border:'none',color:'var(--muted)',fontSize:'18px'}}));
+hdr.append(h('span',{style:{fontFamily:"Inter,sans-serif",fontSize:'11px',letterSpacing:'2px',textTransform:'uppercase',color:'var(--muted)'},html:'Platform Demo'}),btn('✕','',()=>ov.remove(),{style:{background:'none',border:'none',color:'var(--muted)',fontSize:'18px'}}));
 const va=div({style:{aspectRatio:'16/9',background:'#000',display:'flex',alignItems:'center',justifyContent:'center'}});
 if(url){const ifr=h('iframe',{src:url,style:{width:'100%',height:'100%',border:'none'},allowFullscreen:true});va.append(ifr);}
-else va.append(h('p',{style:{fontFamily:"'DM Mono',monospace",color:'var(--dim)',fontSize:'11px',letterSpacing:'2px'},html:'VIDEO NOT UPLOADED YET'}));
+else va.append(h('p',{style:{fontFamily:"Inter,sans-serif",color:'var(--dim)',fontSize:'11px',letterSpacing:'2px'},html:'VIDEO NOT UPLOADED YET'}));
 box.append(hdr,va);ov.append(box);document.body.append(ov);
 }
 // ═══════════════════════════════
@@ -619,15 +619,15 @@ sb.from('admin_settings').select('link_monthly,link_sixmonth,link_yearly').singl
 const wrap=div({cls:'fade',style:{width:'100%',maxWidth:'560px'}});
 const fc=div({cls:'card',style:{marginBottom:'20px'}});
 fc.append(
-h('div',{style:{fontFamily:"'Playfair Display',serif",fontStyle:'italic',fontSize:'22px',color:'var(--gold)',marginBottom:'4px'},html:'Deo Fortis'}),
+h('div',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontStyle:'italic',fontSize:'22px',color:'var(--gold)',marginBottom:'4px'},html:'Deo Fortis'}),
 h('hr',{style:{border:'none',borderTop:'1px solid var(--border)',margin:'16px 0'}}),
-h('h2',{style:{fontFamily:"'Playfair Display',serif",fontSize:'24px',marginBottom:'4px'},html:'Create Account'}),
+h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'24px',marginBottom:'4px'},html:'Create Account'}),
 h('p',{cls:'muted',style:{fontSize:'14px',marginBottom:'20px'},html:'Fill in your details to get started.'})
 );
 if(sel){
 const badge=div({style:{borderRadius:'4px',padding:'12px 16px',marginBottom:'16px',display:'flex',justifyContent:'space-between',alignItems:'center',background:sel.color,color:'#0F0E0A'}});
-const bl=div({});bl.append(h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'9px',letterSpacing:'2px',textTransform:'uppercase',marginBottom:'4px'},html:'Selected Plan'}),h('div',{style:{fontFamily:"'Playfair Display',serif",fontSize:'20px',fontWeight:'700'},html:sel.name+' — '+sel.price}));
-badge.append(bl,h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'10px'},html:sel.dur+' access'}));fc.append(badge);
+const bl=div({});bl.append(h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'9px',letterSpacing:'2px',textTransform:'uppercase',marginBottom:'4px'},html:'Selected Plan'}),h('div',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'20px',fontWeight:'700'},html:sel.name+' — '+sel.price}));
+badge.append(bl,h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'10px'},html:sel.dur+' access'}));fc.append(badge);
 }
 const errEl=div({cls:'err hidden',id:'su-err'});fc.append(errEl);
 // All inputs use unique IDs for reliable value capture
@@ -667,9 +667,9 @@ if(error.message.toLowerCase().includes('already registered')||error.message.toL
   const dc=div({cls:'card',style:{textAlign:'center'}});
   dc.append(
     h('div',{style:{fontSize:'48px',marginBottom:'16px'},html:'👑'}),
-    h('h2',{style:{fontFamily:"'Playfair Display',serif",fontSize:'24px',marginBottom:'12px'},html:'Complete Your Upgrade'}),
+    h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'24px',marginBottom:'12px'},html:'Complete Your Upgrade'}),
     h('p',{cls:'muted',style:{fontSize:'14px',lineHeight:'1.8',marginBottom:'24px'},html:'Your payment link has opened. Once payment is confirmed your account will be upgraded to full access.'}),
-    h('p',{style:{fontFamily:"'DM Mono',monospace",fontSize:'10px',color:'var(--dim)',letterSpacing:'1px',textTransform:'uppercase',marginTop:'16px'},html:"You'll be upgraded as soon as your payment is verified"}),
+    h('p',{style:{fontFamily:"Inter,sans-serif",fontSize:'10px',color:'var(--dim)',letterSpacing:'1px',textTransform:'uppercase',marginTop:'16px'},html:"You'll be upgraded as soon as your payment is verified"}),
     btn('Log In','btn-outline',()=>go('login'),{style:{marginTop:'16px',width:'100%'}})
   );
   wrap.append(dc);
@@ -713,9 +713,9 @@ const link=sel?(payLinks[sel.key]||sel.link||'#'):'#';
 if(link&&link!=='#')window.open(link,'_blank');
 wrap.innerHTML='';
 const dc=div({cls:'card',style:{textAlign:'center'}});
-dc.append(h('div',{style:{fontSize:'48px',marginBottom:'16px'},html:' '}),h('div',{style:{fontFamily:"'Playfair Display',serif",fontStyle:'italic',fontSize:'22px',color:'var(--gold)',marginBottom:'16px'},html:'Deo Fortis'}),h('h2',{style:{fontFamily:"'Playfair Display',serif",fontSize:'24px',marginBottom:'12px'},html:'Account Created!'}),h('p',{cls:'muted',style:{fontSize:'14px',lineHeight:'1.8',marginBottom:'24px'},html:'Hi '+nameVal+'! Complete your payment to get approved.'}));
+dc.append(h('div',{style:{fontSize:'48px',marginBottom:'16px'},html:' '}),h('div',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontStyle:'italic',fontSize:'22px',color:'var(--gold)',marginBottom:'16px'},html:'Deo Fortis'}),h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'24px',marginBottom:'12px'},html:'Account Created!'}),h('p',{cls:'muted',style:{fontSize:'14px',lineHeight:'1.8',marginBottom:'24px'},html:'Hi '+nameVal+'! Complete your payment to get approved.'}));
 if(link&&link!=='#'){const payBtn=document.createElement('a');payBtn.href=link;payBtn.target='_blank';payBtn.textContent='Complete Payment '+(sel?'— '+sel.price:'')+' →';payBtn.style.cssText='display:block;text-align:center;padding:12px 28px;font-family:"DM Mono",monospace;font-size:11px;letter-spacing:2px;text-transform:uppercase;background:var(--gold);color:#0F0E0A;text-decoration:none;border-radius:2px;margin-bottom:12px;';dc.append(payBtn);}
-dc.append(h('p',{style:{fontFamily:"'DM Mono',monospace",fontSize:'10px',color:'var(--dim)',letterSpacing:'1px',textTransform:'uppercase',marginTop:'16px'},html:"You'll be approved as soon as your payment is verified"}));
+dc.append(h('p',{style:{fontFamily:"Inter,sans-serif",fontSize:'10px',color:'var(--dim)',letterSpacing:'1px',textTransform:'uppercase',marginTop:'16px'},html:"You'll be approved as soon as your payment is verified"}));
 const lb=btn('Log In After Paying','btn-outline',()=>go('login'),{style:{marginTop:'16px',width:'100%'}});dc.append(lb);wrap.append(dc);
 }
 }catch(e){const eb2=document.getElementById('su-err');if(eb2){eb2.classList.remove('hidden');eb2.textContent='Something went wrong. Please try again.';}submitBtn.textContent=sel?'Create Account — '+sel.price:'Create Account';submitBtn.disabled=false;}
@@ -724,16 +724,16 @@ fc.append(submitBtn);wrap.append(fc);
 const isFreeSig=localStorage.getItem('signupType')==='free';
 if(!sel&&!isFreeSig){
 const ps=div({style:{marginBottom:'20px'}});
-ps.append(h('p',{style:{fontFamily:"'DM Mono',monospace",fontSize:'10px',letterSpacing:'3px',textTransform:'uppercase',color:'var(--gold)',marginBottom:'16px'},html:'Select Your Plan'}));
+ps.append(h('p',{style:{fontFamily:"Inter,sans-serif",fontSize:'10px',letterSpacing:'3px',textTransform:'uppercase',color:'var(--gold)',marginBottom:'16px'},html:'Select Your Plan'}));
 const pl=div({style:{display:'grid',gap:'12px'}});
 let links2={monthly:'#',sixmonth:'#',yearly:'#'};
 sb.from('admin_settings').select('*').single().then(({data})=>{if(data)links2={monthly:data.link_monthly||'#',sixmonth:data.link_sixmonth||'#',yearly:data.link_yearly||'#'};});
 [{name:'Monthly',price:'$10',period:'/ month',dur:'1 Month',color:'var(--gold)',key:'monthly'},{name:'6 Months',price:'$39',period:'/ 6 months',dur:'6 Months',color:'var(--teal)',popular:true,key:'sixmonth'},{name:'1 Year',price:'$59',period:'/ year',dur:'12 Months',color:'var(--purple)',key:'yearly'}].forEach(plan=>{
 const card=div({style:{background:'var(--card)',border:'1px solid var(--border)',borderRadius:'4px',padding:'20px 24px',cursor:'pointer',transition:'all .2s',position:'relative'},id:'pc-'+plan.key});
-if(plan.popular)card.append(h('span',{style:{position:'absolute',top:'-1px',right:'16px',background:'var(--teal)',color:'#0F0E0A',fontFamily:"'DM Mono',monospace",fontSize:'9px',letterSpacing:'2px',textTransform:'uppercase',padding:'3px 10px',borderRadius:'0 0 4px 4px'},html:'Best Value'}));
+if(plan.popular)card.append(h('span',{style:{position:'absolute',top:'-1px',right:'16px',background:'var(--teal)',color:'#0F0E0A',fontFamily:"Inter,sans-serif",fontSize:'9px',letterSpacing:'2px',textTransform:'uppercase',padding:'3px 10px',borderRadius:'0 0 4px 4px'},html:'Best Value'}));
 const row=div({style:{display:'flex',alignItems:'center',justifyContent:'space-between'}});
-const left=div({});left.append(h('div',{cls:'mono',style:{marginBottom:'4px'},html:plan.name}),h('div',{style:{fontFamily:"'Playfair Display',serif",fontSize:'28px',color:plan.color,fontWeight:'700',lineHeight:'1'},html:plan.price+' <span style="font-size:13px;color:var(--dim);font-weight:300">'+plan.period+'</span>'}));
-const radio=div({style:{width:'22px',height:'22px',borderRadius:'50%',border:'2px solid var(--border)',flexShrink:'0'}});radio.id='pr-'+plan.key;row.append(left,radio);card.append(row,h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'10px',color:plan.color,letterSpacing:'1px',marginTop:'6px',opacity:'.7'},html:plan.dur+' of full access'}));
+const left=div({});left.append(h('div',{cls:'mono',style:{marginBottom:'4px'},html:plan.name}),h('div',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'28px',color:plan.color,fontWeight:'700',lineHeight:'1'},html:plan.price+' <span style="font-size:13px;color:var(--dim);font-weight:300">'+plan.period+'</span>'}));
+const radio=div({style:{width:'22px',height:'22px',borderRadius:'50%',border:'2px solid var(--border)',flexShrink:'0'}});radio.id='pr-'+plan.key;row.append(left,radio);card.append(row,h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'10px',color:plan.color,letterSpacing:'1px',marginTop:'6px',opacity:'.7'},html:plan.dur+' of full access'}));
 card.onclick=()=>{
 [{name:'Monthly',key:'monthly'},{name:'6 Months',key:'sixmonth'},{name:'1 Year',key:'yearly'}].forEach(p2=>{const c=document.getElementById('pc-'+p2.key);const r=document.getElementById('pr-'+p2.key);if(c){c.style.border='1px solid var(--border)';c.style.background='var(--card)';}if(r){r.innerHTML='';r.style.border='2px solid var(--border)';}});
 card.style.border='1px solid '+plan.color;card.style.background='#1a1a0f';radio.style.border='2px solid '+plan.color;radio.innerHTML='<div style="width:10px;height:10px;border-radius:50%;background:'+plan.color+'"></div>';
@@ -743,7 +743,7 @@ sel={...plan,link:links2[plan.key]||'#'};submitBtn.textContent='Create Account �
 ps.append(pl);wrap.append(ps);
 }
 const lp=div({style:{fontSize:'13px',color:'var(--muted)',textAlign:'center',marginTop:'16px'}});lp.append(document.createTextNode('Already have an account? '));const ll=document.createElement('button');ll.style.cssText='background:none;border:none;color:var(--gold);cursor:pointer;font-size:13px;';ll.textContent='Log in';ll.onclick=()=>go('login');lp.append(ll);
-const bp=div({style:{textAlign:'center',marginTop:'8px'}});const bl2=document.createElement('button');bl2.style.cssText="background:none;border:none;color:var(--dim);cursor:pointer;font-size:12px;font-family:'DM Mono',monospace;letter-spacing:1px;";bl2.textContent='← Back to home';bl2.onclick=()=>go('landing');bp.append(bl2);
+const bp=div({style:{textAlign:'center',marginTop:'8px'}});const bl2=document.createElement('button');bl2.style.cssText="background:none;border:none;color:var(--dim);cursor:pointer;font-size:12px;font-family:Inter,sans-serif;letter-spacing:1px;";bl2.textContent='← Back to home';bl2.onclick=()=>go('landing');bp.append(bl2);
 wrap.append(lp,bp);page.append(wrap);return page;
 }
 // ═══════════════════════════════
@@ -764,7 +764,7 @@ if(error){errEl.classList.remove('hidden');errEl.textContent=error.message;sb2.t
 await getProfile(data.user.id);
 },{style:{width:'100%',marginBottom:'16px'}});
 passI.onkeydown=e=>{if(e.key==='Enter')sb2.click();};
-card.append(div({style:{fontFamily:"'Playfair Display',serif",fontStyle:'italic',fontSize:'22px',color:'var(--gold)',marginBottom:'4px'},html:'Deo Fortis'}),h('hr',{style:{border:'none',borderTop:'1px solid var(--border)',margin:'16px 0'}}),h('h2',{style:{fontFamily:"'Playfair Display',serif",fontSize:'24px',marginBottom:'4px'},html:'Welcome Back'}),h('p',{cls:'muted',style:{fontSize:'14px',marginBottom:'24px'},html:'Log in to continue your studies.'}),errEl,field('Email',emailI),field('Password',passI,{mb:'mb-24'}),sb2,h('hr',{style:{border:'none',borderTop:'1px solid var(--border)',margin:'16px 0'}}),h('p',{style:{fontSize:'13px',color:'var(--muted)',textAlign:'center',marginTop:'16px'},html:"Don't have an account? <button onclick=\"go('landing')\" style=\"background:none;border:none;color:var(--gold);cursor:pointer;font-size:13px\">Sign up via home page</button>"}),h('p',{style:{fontSize:'13px',color:'var(--muted)',textAlign:'center',marginTop:'8px'},html:"<button onclick=\"go('landing')\" style=\"background:none;border:none;color:var(--dim);cursor:pointer;font-size:12px\">← Back to home</button>"}));
+card.append(div({style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontStyle:'italic',fontSize:'22px',color:'var(--gold)',marginBottom:'4px'},html:'Deo Fortis'}),h('hr',{style:{border:'none',borderTop:'1px solid var(--border)',margin:'16px 0'}}),h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'24px',marginBottom:'4px'},html:'Welcome Back'}),h('p',{cls:'muted',style:{fontSize:'14px',marginBottom:'24px'},html:'Log in to continue your studies.'}),errEl,field('Email',emailI),field('Password',passI,{mb:'mb-24'}),sb2,h('hr',{style:{border:'none',borderTop:'1px solid var(--border)',margin:'16px 0'}}),h('p',{style:{fontSize:'13px',color:'var(--muted)',textAlign:'center',marginTop:'16px'},html:"Don't have an account? <button onclick=\"go('landing')\" style=\"background:none;border:none;color:var(--gold);cursor:pointer;font-size:13px\">Sign up via home page</button>"}),h('p',{style:{fontSize:'13px',color:'var(--muted)',textAlign:'center',marginTop:'8px'},html:"<button onclick=\"go('landing')\" style=\"background:none;border:none;color:var(--dim);cursor:pointer;font-size:12px\">← Back to home</button>"}));
 page.append(card);return page;
 }
 // ═══════════════════════════════
@@ -773,7 +773,7 @@ page.append(card);return page;
 function pending(){
 const page=div({cls:'center',style:{minHeight:'100vh',padding:'24px'}});
 const card=div({cls:'card fade',style:{width:'100%',maxWidth:'480px',textAlign:'center'}});
-card.append(div({style:{fontSize:'48px',marginBottom:'20px'},html:' '}),div({style:{fontFamily:"'Playfair Display',serif",fontStyle:'italic',fontSize:'22px',color:'var(--gold)',marginBottom:'16px'},html:'Deo Fortis'}),h('h2',{style:{fontFamily:"'Playfair Display',serif",fontSize:'24px',marginBottom:'12px'},html:'Awaiting Approval'}),h('p',{cls:'muted',style:{fontSize:'15px',lineHeight:'1.7',marginBottom:'24px'},html:'Thanks for joining Deo Fortis! Your account is pending approval. You will be approved as soon as your payment is verified.'}),div({cls:'quote',style:{marginBottom:'24px',textAlign:'left'},html:'"Great students are patient students."'}),btn('Log Out','btn-outline',()=>sb.auth.signOut()));
+card.append(div({style:{fontSize:'48px',marginBottom:'20px'},html:' '}),div({style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontStyle:'italic',fontSize:'22px',color:'var(--gold)',marginBottom:'16px'},html:'Deo Fortis'}),h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'24px',marginBottom:'12px'},html:'Awaiting Approval'}),h('p',{cls:'muted',style:{fontSize:'15px',lineHeight:'1.7',marginBottom:'24px'},html:'Thanks for joining Deo Fortis! Your account is pending approval. You will be approved as soon as your payment is verified.'}),div({cls:'quote',style:{marginBottom:'24px',textAlign:'left'},html:'"Great students are patient students."'}),btn('Log Out','btn-outline',()=>sb.auth.signOut()));
 page.append(card);return page;
 }
 // ═══════════════════════════════
@@ -784,20 +784,20 @@ function showUpgradeModal(){
   const modal=div({style:{maxWidth:'480px',width:'100%',background:'var(--card)',border:'1px solid var(--border)',borderRadius:'4px',padding:'32px'}});
   modal.append(
     h('div',{style:{fontSize:'48px',textAlign:'center',marginBottom:'16px'},html:'👑'}),
-    h('h2',{style:{fontFamily:"'Playfair Display',serif",fontSize:'24px',color:'var(--gold)',textAlign:'center',marginBottom:'8px'},html:'Upgrade to Full Access'}),
-    h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'11px',color:'var(--dim)',textAlign:'center',marginBottom:'24px'},html:'Unlock everything from $10/month'})
+    h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'24px',color:'var(--gold)',textAlign:'center',marginBottom:'8px'},html:'Upgrade to Full Access'}),
+    h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'11px',color:'var(--dim)',textAlign:'center',marginBottom:'24px'},html:'Unlock everything from $10/month'})
   );
   const grid=div({style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'8px 12px',marginBottom:'24px'}});
   ['Full Pomodoro History','Streak Tracking','4,000 Q-Bank Questions','10,400 Flashcards','Leaderboard Access','Active Recall Requests'].forEach(feature=>{
     grid.append(div({style:{display:'flex',alignItems:'center',gap:'8px'}},[
       h('span',{style:{color:'var(--teal)',fontSize:'14px'},html:'✓'}),
-      h('span',{style:{fontFamily:"'DM Mono',monospace",fontSize:'11px',color:'var(--text)'},html:feature})
+      h('span',{style:{fontFamily:"Inter,sans-serif",fontSize:'11px',color:'var(--text)'},html:feature})
     ]));
   });
   modal.append(grid);
   modal.append(
     btn('Upgrade Now →','btn-gold',()=>{overlay.remove();go('landing');},{style:{width:'100%',marginBottom:'12px'}}),
-    btn('Maybe later','',()=>overlay.remove(),{style:{background:'none',border:'none',fontFamily:"'DM Mono',monospace",fontSize:'11px',color:'var(--dim)',cursor:'pointer',width:'100%',textAlign:'center'}})
+    btn('Maybe later','',()=>overlay.remove(),{style:{background:'none',border:'none',fontFamily:"Inter,sans-serif",fontSize:'11px',color:'var(--dim)',cursor:'pointer',width:'100%',textAlign:'center'}})
   );
   overlay.append(modal);
   document.body.append(overlay);
@@ -811,7 +811,7 @@ function collapsibleSection(title,contentBuilder){
   let loaded=false;
   const chevron=h('span',{style:{fontSize:'14px',color:'var(--dim)'},html:'▶'});
   const header=div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',cursor:'pointer',paddingBottom:'12px',borderBottom:'1px solid var(--border)'}});
-  header.append(h('h3',{style:{fontFamily:"'Playfair Display',serif",fontSize:'18px',margin:'0'},html:title}),chevron);
+  header.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'18px',margin:'0'},html:title}),chevron);
   const contentDiv=div({style:{display:'none',paddingTop:'16px'}});
   header.onclick=()=>{
     const open=contentDiv.style.display==='block';
@@ -855,7 +855,7 @@ function statCard(title,value,barColor,subLabel=''){
   wrap.append(
     div({style:{position:'absolute',top:'0',left:'0',right:'0',height:'2px',background:barColor}}),
     div({style:{padding:'16px'}},[
-      h('div',{style:{fontFamily:"'Playfair Display',serif",fontSize:'32px',color:'#ffffff',fontWeight:'700',marginBottom:'2px'},html:String(value)}),
+      h('div',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'32px',color:'#ffffff',fontWeight:'700',marginBottom:'2px'},html:String(value)}),
       h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'12px',textTransform:'uppercase',color:'var(--muted)',letterSpacing:'1px'},html:title}),
       subLabel?h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'12px',color:'var(--teal)',marginTop:'4px'},html:subLabel}):null
     ].filter(Boolean))
@@ -881,13 +881,13 @@ const greetingRow=div({style:{display:'flex',justifyContent:'space-between',alig
 greetingRow.append(
   div({},[
     h('span',{cls:'chapter',html:'Welcome Back'}),
-    h('h1',{style:{fontFamily:"'Playfair Display',serif",fontSize:'28px',fontWeight:'700',marginBottom:'4px',color:'var(--text)'},html:p.full_name||'Scholar'}),
+    h('h1',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'28px',fontWeight:'700',marginBottom:'4px',color:'var(--text)'},html:p.full_name||'Scholar'}),
     h('p',{cls:'muted',style:{fontSize:'12px'},html:'Plan: <span style="color:var(--gold)">'+(p.plan||'Active')+'</span> · Expires: <span style="color:var(--text)">'+(p.access_expires_at?new Date(p.access_expires_at).toLocaleDateString():'Active')+'</span>'})
   ]),
   div({style:{background:'linear-gradient(135deg,#2a1a05,#1a1208)',border:'1px solid #C8A96E33',padding:'8px 14px',borderRadius:'4px',display:'flex',alignItems:'center',gap:'8px',flexShrink:'0'}},[
     h('span',{style:{fontSize:'20px'},html:'🔥'}),
     div({},[
-      h('div',{style:{fontFamily:"'Playfair Display',serif",fontSize:'22px',color:'var(--gold)',fontWeight:'700',lineHeight:'1'},html:String(isFree?Math.min(1,p.streak_count||0):(p.streak_count||0))}),
+      h('div',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'22px',color:'var(--gold)',fontWeight:'700',lineHeight:'1'},html:String(isFree?Math.min(1,p.streak_count||0):(p.streak_count||0))}),
       h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'12px',color:'var(--muted)'},html:isFree?'locked':'day streak'})
     ])
   ])
@@ -901,7 +901,7 @@ if(S.profile?.has_new_content){
     div({style:{display:'flex',alignItems:'center',gap:'12px'}},[
       div({style:{lineHeight:'1'},html:ICONS.brain}),
       div({},[
-        div({style:{fontFamily:"'Playfair Display',serif",fontSize:'16px',color:'var(--teal)',fontWeight:'600',marginBottom:'2px'},html:'Your recall content is ready!'}),
+        div({style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'16px',color:'var(--teal)',fontWeight:'600',marginBottom:'2px'},html:'Your recall content is ready!'}),
         div({style:{fontSize:'13px',color:'var(--muted)'},html:'Your active recall request has been fulfilled. Go to Flashcards or Q-Bank to access it.'})
       ])
     ]),
@@ -928,7 +928,7 @@ const goalsSection=div({cls:'card',style:{marginBottom:'28px'}});
 goalsSection.append(
   div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'16px'}},[
     div({},[
-      h('h3',{style:{fontFamily:"'Playfair Display',serif",fontSize:'18px',marginBottom:'2px'},html:'Topic Progress'}),
+      h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'18px',marginBottom:'2px'},html:'Topic Progress'}),
       h('div',{cls:'mono',style:{fontSize:'9px'},html:'hours studied vs your goals'})
     ]),
     div({style:{display:'flex',gap:'8px'}},[
@@ -1021,16 +1021,16 @@ const flashcardSection=collapsibleSection('Flashcard Progress',(contentDiv)=>{
     let easy=0,iffy=0,hard=0;
     progress.forEach(p=>{if(p.difficulty==='Easy')easy++;else if(p.difficulty==='Iffy')iffy++;else if(p.difficulty==='Hard')hard++;});
     const total=easy+iffy+hard;
-    contentDiv.append(h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'9px',color:'var(--dim)',marginBottom:'16px'},html:'current card ratings'}));
+    contentDiv.append(h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'9px',color:'var(--dim)',marginBottom:'16px'},html:'current card ratings'}));
     [{label:'Easy',count:easy,color:'var(--teal)'},{label:'Iffy',count:iffy,color:'var(--gold)'},{label:'Hard',count:hard,color:'#8B3A3A'}].forEach(stat=>{
       const pct=total>0?(stat.count/total)*100:0;
       const row=div({style:{display:'flex',alignItems:'center',gap:'8px',marginBottom:'10px'}});
       row.append(
-        h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'10px',color:stat.color,width:'40px'},html:stat.label}),
+        h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'10px',color:stat.color,width:'40px'},html:stat.label}),
         div({style:{flex:'1',height:'10px',background:'var(--card2)',borderRadius:'2px',overflow:'hidden'}},[
           div({style:{height:'100%',width:pct+'%',background:stat.color,borderRadius:'2px'}})
         ]),
-        h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'10px',color:'var(--dim)',minWidth:'32px',textAlign:'right'},html:String(stat.count)})
+        h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'10px',color:'var(--dim)',minWidth:'32px',textAlign:'right'},html:String(stat.count)})
       );
       contentDiv.append(row);
     });
@@ -1046,7 +1046,7 @@ container.append(twoCol);
 // LEFT — Recent Sessions
 const recentCard=div({cls:'card'});
 recentCard.append(
-  h('h3',{style:{fontFamily:"'Playfair Display',serif",fontSize:'18px',marginBottom:'4px'},html:'Recent Sessions'}),
+  h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'18px',marginBottom:'4px'},html:'Recent Sessions'}),
   h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'12px',color:'var(--muted)',marginBottom:'16px'},html:'your last 5 study blocks'}),
   div({id:'slist',html:'<p style="font-size:14px;color:var(--dim)">Loading...</p>'})
 );
@@ -1059,7 +1059,7 @@ twoCol.append(recentCard);
   const supportEmail=adminData?.support_email||'';
   const actionsCard=div({cls:'card'});
   actionsCard.append(
-    h('h3',{style:{fontFamily:"'Playfair Display',serif",fontSize:'18px',marginBottom:'4px'},html:'Quick Actions'}),
+    h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'18px',marginBottom:'4px'},html:'Quick Actions'}),
     h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'12px',color:'var(--muted)',marginBottom:'16px'},html:'navigate'}),
     div({style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'8px'}},[
       actionButton(ICONS.target,'Start Session',()=>go('study')),
@@ -1078,7 +1078,7 @@ twoCol.append(recentCard);
   const commLeft=div({style:{display:'flex',alignItems:'center',gap:'12px'}});
   const commTxt=div({});
   commTxt.append(
-    h('div',{style:{fontFamily:"'Playfair Display',serif",fontSize:'17px',color:'var(--text)',fontWeight:'600',marginBottom:'2px'},html:'Join Our Community'}),
+    h('div',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'17px',color:'var(--text)',fontWeight:'600',marginBottom:'2px'},html:'Join Our Community'}),
     h('div',{style:{fontSize:'13px',color:'var(--muted)'},html:'Connect with other students and stay accountable.'})
   );
   commLeft.append(h('div',{style:{fontSize:'28px'},html:ICONS.message}),commTxt);
@@ -1106,7 +1106,7 @@ twoCol.append(recentCard);
   const{data:pdfs}=await sb.from('theory_pdfs').select('*').eq('user_id',S.user.id).order('created_at',{ascending:false});
   if(pdfs&&pdfs.length){
     const pdfCard=div({cls:'card',style:{marginTop:'12px'}});
-    pdfCard.append(h('h3',{style:{fontFamily:"'Playfair Display',serif",fontSize:'18px',marginBottom:'16px'},html:'Theory Questions'}));
+    pdfCard.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'18px',marginBottom:'16px'},html:'Theory Questions'}));
     pdfs.forEach(pdf=>{
       const row=div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'10px 0',borderBottom:'1px solid var(--border)'}});
       row.append(h('span',{style:{fontSize:'14px',color:'var(--text)'},html:pdf.topic+' — '+pdf.filename}));
@@ -1208,8 +1208,8 @@ if(window.activeSessionId&&window.pomPlan){
 function showSetup(){
 page.innerHTML='';
 const card=div({cls:'card fade',style:{width:'100%',maxWidth:'540px'}});
-card.append(btn('← Back','',()=>go('dashboard'),{style:{background:'none',border:'none',color:'var(--dim)',cursor:'pointer',fontSize:'12px',fontFamily:"'DM Mono',monospace",letterSpacing:'1px',marginBottom:'16px'}}));
-card.append(h('span',{cls:'chapter',html:'Study Setup'}),h('h2',{style:{fontFamily:"'Playfair Display',serif",fontSize:'26px',marginBottom:'24px'},html:'Configure Your Session'}));
+card.append(btn('← Back','',()=>go('dashboard'),{style:{background:'none',border:'none',color:'var(--dim)',cursor:'pointer',fontSize:'12px',fontFamily:"Inter,sans-serif",letterSpacing:'1px',marginBottom:'16px'}}));
+card.append(h('span',{cls:'chapter',html:'Study Setup'}),h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'26px',marginBottom:'24px'},html:'Configure Your Session'}));
 const topI=inp('e.g. Bacteriology, Cardiology','text',cfg.topic);topI.id='st-topic';topI.oninput=e=>cfg.topic=e.target.value;
 card.append(field('What topic are you studying?',topI));
 card.append(h('label',{cls:'label',html:'Pomodoro Configuration'}));
@@ -1221,7 +1221,7 @@ const sI=inp('4','number',String(cfg.sessions));sI.min='1';sI.max='20';sI.oninpu
 card.append(pg,h('p',{cls:'mono',style:{marginBottom:'20px'},html:'Set your own work time, break time and number of sessions'}));
 if(S.profile?.is_free_tier){
   card.append(div({style:{background:'rgba(200,169,110,0.05)',border:'1px solid var(--border)',borderRadius:'4px',padding:'16px',marginBottom:'20px',textAlign:'center'}},[
-    h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'12px',color:'var(--dim)',marginBottom:'12px'},html:'Active Recall is a paid feature.'}),
+    h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'12px',color:'var(--dim)',marginBottom:'12px'},html:'Active Recall is a paid feature.'}),
     btn('Upgrade to Unlock','btn-outline',()=>showUpgradeModal(),{style:{fontSize:'11px',padding:'6px 14px'}})
   ]));
 }else{
@@ -1269,10 +1269,10 @@ function showClockIn(){
 page.innerHTML='';
 const card=div({cls:'card fade',style:{width:'100%',maxWidth:'400px',textAlign:'center'}});
 card.append(
-  btn('← Back','',()=>showSetup(),{style:{background:'none',border:'none',color:'var(--dim)',cursor:'pointer',fontSize:'12px',fontFamily:"'DM Mono',monospace",letterSpacing:'1px',marginBottom:'16px',display:'block'}}),
+  btn('← Back','',()=>showSetup(),{style:{background:'none',border:'none',color:'var(--dim)',cursor:'pointer',fontSize:'12px',fontFamily:"Inter,sans-serif",letterSpacing:'1px',marginBottom:'16px',display:'block'}}),
   h('span',{cls:'chapter',html:'Ready to Study?'}),
   div({style:{fontSize:'64px',margin:'24px 0'},html:ICONS.bookOpen}),
-  h('h2',{style:{fontFamily:"'Playfair Display',serif",fontSize:'28px',marginBottom:'8px'},html:'Clock In'}),
+  h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'28px',marginBottom:'8px'},html:'Clock In'}),
   h('p',{cls:'muted',style:{fontSize:'14px',marginBottom:'32px'},html:'Click below to start your session and begin the timer.'})
 );
 const cinBtn=btn('⏵ Clock In & Start Timer','btn-gold',async()=>{
@@ -1305,7 +1305,7 @@ const card=div({cls:'card fade',style:{width:'100%',maxWidth:'400px',textAlign:'
 card.append(
   div({style:{fontSize:'64px',margin:'24px 0'},html:ICONS.sparkles}),
   h('span',{cls:'chapter',html:'All Sessions Complete!'}),
-  h('h2',{style:{fontFamily:"'Playfair Display',serif",fontSize:'28px',marginBottom:'8px'},html:'Well Done!'}),
+  h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'28px',marginBottom:'8px'},html:'Well Done!'}),
   h('p',{cls:'muted',style:{fontSize:'14px',lineHeight:'1.8',marginBottom:'32px'},html:"You completed all your Pomodoro sessions. Ready to clock out and save your progress?"})
 );
 card.append(
@@ -1319,8 +1319,8 @@ card.append(
 if(S.profile?.is_free_tier){
   const upsell=div({style:{background:'linear-gradient(135deg,#2a1a05,#1a1208)',border:'1px solid var(--gold)',padding:'16px 20px',borderRadius:'4px',marginTop:'16px'}});
   upsell.append(
-    h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'12px',color:'var(--muted)',marginBottom:'8px'},html:"Great session! Your progress wasn't saved."}),
-    h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'11px',color:'var(--dim)',marginBottom:'16px'},html:'Upgrade to track your hours, build streaks, and climb the leaderboard — from $10/month.'}),
+    h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'12px',color:'var(--muted)',marginBottom:'8px'},html:"Great session! Your progress wasn't saved."}),
+    h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'11px',color:'var(--dim)',marginBottom:'16px'},html:'Upgrade to track your hours, build streaks, and climb the leaderboard — from $10/month.'}),
     btn('Upgrade Now →','btn-gold',()=>showUpgradeModal())
   );
   card.append(upsell);
@@ -1328,8 +1328,8 @@ if(S.profile?.is_free_tier){
 const feynmanPrompt=div({style:{marginTop:'16px',background:'linear-gradient(135deg,#1a1509,#141309)',border:'1px solid var(--gold)',borderRadius:'4px',padding:'16px 20px',textAlign:'center'}});
 feynmanPrompt.append(
   h('div',{style:{lineHeight:'1',marginBottom:'8px'},html:ICONS.brain}),
-  h('div',{style:{fontFamily:"'Playfair Display',serif",fontSize:'16px',color:'var(--gold)',marginBottom:'4px'},html:'Visit the Feynman Arena'}),
-  h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'11px',color:'var(--dim)',marginBottom:'12px'},html:'Teach what you just learned. Cement it forever.'}),
+  h('div',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'16px',color:'var(--gold)',marginBottom:'4px'},html:'Visit the Feynman Arena'}),
+  h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'11px',color:'var(--dim)',marginBottom:'12px'},html:'Teach what you just learned. Cement it forever.'}),
   btn('Go to Feynman Arena →','btn-outline',()=>go('feynman'),{style:{fontSize:'11px',padding:'8px 20px'}})
 );
 card.append(feynmanPrompt);
@@ -1343,9 +1343,9 @@ const card=div({cls:'card fade',style:{width:'100%',maxWidth:'400px',textAlign:'
 card.append(
   div({style:{margin:'24px 0',lineHeight:'1'},html:ICONS.check}),
   h('span',{cls:'chapter',html:'Session Complete!'}),
-  h('h2',{style:{fontFamily:"'Playfair Display',serif",fontSize:'28px',marginBottom:'8px'},html:'Clock Out'}),
+  h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'28px',marginBottom:'8px'},html:'Clock Out'}),
   h('p',{cls:'muted',style:{fontSize:'14px',marginBottom:'8px'},html:'Great work! You studied for:'}),
-  div({style:{fontFamily:"'Playfair Display',serif",fontSize:'48px',color:'var(--gold)',marginBottom:'32px'},html:mins+' mins'})
+  div({style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'48px',color:'var(--gold)',marginBottom:'32px'},html:mins+' mins'})
 );
 const coutBtn=btn('⏹ Clock Out & Save Session','btn-gold',async()=>{
   coutBtn.textContent='Saving...';coutBtn.disabled=true;
@@ -1421,7 +1421,7 @@ const r=80,circ=2*Math.PI*r;
 const card=div({cls:'card fade',style:{textAlign:'center',maxWidth:'400px',width:'100%'}});
 card.append(
   h('span',{cls:'chapter',html:plan.isBreakMode?'Break Time':'Session '+plan.currentCycle+' of '+plan.totalSessions}),
-  h('h2',{style:{fontFamily:"'Playfair Display',serif",fontSize:'20px',marginBottom:'8px',color:plan.isBreakMode?'var(--teal)':'var(--text)'},html:plan.topic})
+  h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'20px',marginBottom:'8px',color:plan.isBreakMode?'var(--teal)':'var(--text)'},html:plan.topic})
 );
 const svgNS='http://www.w3.org/2000/svg';
 const svg=document.createElementNS(svgNS,'svg');svg.setAttribute('width','200');svg.setAttribute('height','200');svg.style.transform='rotate(-90deg)';
@@ -1430,7 +1430,7 @@ const fgC=document.createElementNS(svgNS,'circle');fgC.setAttribute('cx','100');
 svg.append(bgC,fgC);
 const tw=div({style:{position:'relative',width:'200px',height:'200px',margin:'24px auto'}});tw.append(svg);
 const tc=div({style:{position:'absolute',inset:'0',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center'}});
-const td=div({style:{fontFamily:"'DM Mono',monospace",fontSize:'32px',color:plan.isBreakMode?'var(--teal)':'var(--gold)'},html:fmtMS(computeRem())});
+const td=div({style:{fontFamily:"Inter,sans-serif",fontSize:'32px',color:plan.isBreakMode?'var(--teal)':'var(--gold)'},html:fmtMS(computeRem())});
 const ml=div({cls:'mono',style:{marginTop:'4px'},html:plan.isBreakMode?'BREAK':'FOCUS'});
 tc.append(td,ml);tw.append(tc);card.append(tw);
 const br=div({style:{display:'flex',gap:'12px',justifyContent:'center',marginBottom:'16px',flexWrap:'wrap'}});
@@ -1485,8 +1485,8 @@ const qr=div({style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'10px'}});
 qr.append(btn('Flashcards','btn-outline',()=>go('flashcards'),{style:{fontSize:'11px'}}),btn('Q-Bank','btn-outline',()=>go('vignette'),{style:{fontSize:'11px'}}));
 card.append(qr);
 card.append(
-  div({style:{fontFamily:"'DM Mono',monospace",fontSize:'9px',color:'var(--dim)',textAlign:'center',marginTop:'8px',letterSpacing:'1px'},html:'Step away? Click End Session to save your progress.'}),
-  div({style:{fontFamily:"'DM Mono',monospace",fontSize:'9px',color:'var(--gold)',textAlign:'center',marginTop:'4px',letterSpacing:'1px'},html:'↑ Tap the timer bar at the top to return to this page anytime.'})
+  div({style:{fontFamily:"Inter,sans-serif",fontSize:'9px',color:'var(--dim)',textAlign:'center',marginTop:'8px',letterSpacing:'1px'},html:'Step away? Click End Session to save your progress.'}),
+  div({style:{fontFamily:"Inter,sans-serif",fontSize:'9px',color:'var(--gold)',textAlign:'center',marginTop:'4px',letterSpacing:'1px'},html:'↑ Tap the timer bar at the top to return to this page anytime.'})
 );
 page.append(card);
 // White noise
@@ -1497,7 +1497,7 @@ const ng=div({style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'8px'}});
 [['rain','Rain',noiseLinks2.rain],['ocean','Ocean',noiseLinks2.ocean],['cafe','Cafe',noiseLinks2.cafe],['white','White',noiseLinks2.white]].forEach(([key,label,url])=>{
   if(!url)return;
   const wrap=div({style:{borderRadius:'4px',overflow:'hidden',border:'1px solid var(--border)'}});
-  wrap.append(div({style:{fontFamily:"'DM Mono',monospace",fontSize:'9px',color:'var(--muted)',letterSpacing:'1px',padding:'4px 8px',background:'var(--card)'},html:label}),h('iframe',{src:url+'?autoplay=0&controls=1',style:{width:'100%',height:'80px',border:'none'},allow:'autoplay'}));
+  wrap.append(div({style:{fontFamily:"Inter,sans-serif",fontSize:'9px',color:'var(--muted)',letterSpacing:'1px',padding:'4px 8px',background:'var(--card)'},html:label}),h('iframe',{src:url+'?autoplay=0&controls=1',style:{width:'100%',height:'80px',border:'none'},allow:'autoplay'}));
   ng.append(wrap);
 });
 ns.append(ng);page.append(ns);
@@ -1523,14 +1523,14 @@ let decks=[],selDeck=null,cards=[],queue=[],curIdx=0,flipped=false,prog={easy:0,
 const inner=div({cls:'inner-sm'});page.append(inner);
 async function showDecks(){
 inner.innerHTML='';
-inner.append(h('span',{cls:'chapter',html:'Flashcard Decks'}),h('h1',{style:{fontFamily:"'Playfair Display',serif",fontSize:'40px',fontWeight:'700',marginBottom:'8px'},html:'Study <em class="gold-em">Flashcards</em>'}),h('p',{cls:'muted',style:{fontSize:'14px',marginBottom:'40px'},html:'Select a deck. Mark cards Easy, Iffy, or Hard as you go.'}));
+inner.append(h('span',{cls:'chapter',html:'Flashcard Decks'}),h('h1',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'40px',fontWeight:'700',marginBottom:'8px'},html:'Study <em class="gold-em">Flashcards</em>'}),h('p',{cls:'muted',style:{fontSize:'14px',marginBottom:'40px'},html:'Select a deck. Mark cards Easy, Iffy, or Hard as you go.'}));
 const{data}=await sb.from('flashcard_decks').select('*').or('user_id.eq.'+S.user.id+',user_id.is.null').order('created_at',{ascending:false});
 decks=data||[];
 if(!decks.length){inner.append(div({cls:'card',style:{textAlign:'center',padding:'48px'}},[div({style:{fontSize:'40px',marginBottom:'16px'},html:' '}),h('p',{style:{fontSize:'14px',color:'var(--dim)'},html:'No flashcard decks yet.'})]));return;}
 const grid=div({style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(240px,1fr))',gap:'16px'}});
 decks.forEach(deck=>{
 const card=div({cls:'card',style:{cursor:'pointer'}});
-card.append(div({style:{fontSize:'32px',marginBottom:'12px'},html:' '}),h('h3',{style:{fontFamily:"'Playfair Display',serif",fontSize:'18px',color:'var(--text)',marginBottom:'8px'},html:deck.topic}),btn('Start Deck →','btn-gold',async()=>loadDeck(deck),{style:{width:'100%',marginTop:'16px'}}));
+card.append(div({style:{fontSize:'32px',marginBottom:'12px'},html:' '}),h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'18px',color:'var(--text)',marginBottom:'8px'},html:deck.topic}),btn('Start Deck →','btn-gold',async()=>loadDeck(deck),{style:{width:'100%',marginTop:'16px'}}));
 grid.append(card);
 });
 inner.append(grid);
@@ -1538,15 +1538,15 @@ inner.append(grid);
 const{data:history}=await sb.from('anki_results').select('*').eq('user_id',S.user.id).order('created_at',{ascending:false}).limit(10);
 if(history&&history.length){
 const hCard=div({cls:'card',style:{marginTop:'24px'}});
-hCard.append(h('h3',{style:{fontFamily:"'Playfair Display',serif",fontSize:'18px',marginBottom:'16px'},html:'Past Performance'}));
+hCard.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'18px',marginBottom:'16px'},html:'Past Performance'}));
 history.forEach(r=>{
 const row=div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 0',borderBottom:'1px solid var(--border)'}});
 const gradeColor=r.grade==='A'?'var(--teal)':r.grade==='B'?'var(--gold)':'#ff8888';
 row.append(
   h('span',{style:{fontSize:'13px',color:'var(--text)'},html:r.deck_topic||'—'}),
   div({style:{display:'flex',gap:'12px',alignItems:'center'}},[
-    h('span',{style:{fontFamily:"'Playfair Display',serif",fontSize:'20px',color:gradeColor,fontWeight:'700'},html:r.grade}),
-    h('span',{style:{fontFamily:"'DM Mono',monospace",fontSize:'10px',color:'var(--dim)'},html:new Date(r.created_at).toLocaleDateString()})
+    h('span',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'20px',color:gradeColor,fontWeight:'700'},html:r.grade}),
+    h('span',{style:{fontFamily:"Inter,sans-serif",fontSize:'10px',color:'var(--dim)'},html:new Date(r.created_at).toLocaleDateString()})
   ])
 );
 hCard.append(row);
@@ -1558,7 +1558,7 @@ const avgGrade=avg>=3.5?'A':avg>=2.5?'B':'C';
 const avgColor=avgGrade==='A'?'var(--teal)':avgGrade==='B'?'var(--gold)':'#ff8888';
 hCard.append(div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginTop:'12px',paddingTop:'12px',borderTop:'1px solid var(--border)'}},[
   div({cls:'mono',html:'Average Grade'}),
-  h('span',{style:{fontFamily:"'Playfair Display',serif",fontSize:'24px',color:avgColor,fontWeight:'700'},html:avgGrade})
+  h('span',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'24px',color:avgColor,fontWeight:'700'},html:avgGrade})
 ]));
 inner.append(hCard);
 }
@@ -1569,7 +1569,7 @@ if(S.profile?.is_free_tier){
   if(attempts&&attempts.length>0){
     inner.innerHTML='';
     inner.append(div({cls:'card',style:{textAlign:'center',padding:'40px 20px'}},[
-      h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'14px',color:'var(--dim)',marginBottom:'20px'},html:'Free tier allows 1 deck only.'}),
+      h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'14px',color:'var(--dim)',marginBottom:'20px'},html:'Free tier allows 1 deck only.'}),
       btn('Upgrade →','btn-gold',()=>showUpgradeModal())
     ]));
     return;
@@ -1587,19 +1587,19 @@ if(!queue.length||curIdx>=queue.length){showDone();return;}
 const card=queue[curIdx];
 const pct=cards.length>0?Math.round((prog.easy/cards.length)*100):0;
 const hdr=div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'20px'}});
-hdr.append(btn('← Decks','',()=>showDecks(),{style:{background:'none',border:'none',color:'var(--dim)',cursor:'pointer',fontSize:'12px',fontFamily:"'DM Mono',monospace",letterSpacing:'1px'}}),h('span',{style:{fontFamily:"'DM Mono',monospace",fontSize:'11px',color:'var(--muted)'},html:selDeck?.topic||''}),h('span',{style:{fontFamily:"'DM Mono',monospace",fontSize:'11px',color:'var(--dim)'},html:(curIdx+1)+' / '+queue.length}));
+hdr.append(btn('← Decks','',()=>showDecks(),{style:{background:'none',border:'none',color:'var(--dim)',cursor:'pointer',fontSize:'12px',fontFamily:"Inter,sans-serif",letterSpacing:'1px'}}),h('span',{style:{fontFamily:"Inter,sans-serif",fontSize:'11px',color:'var(--muted)'},html:selDeck?.topic||''}),h('span',{style:{fontFamily:"Inter,sans-serif",fontSize:'11px',color:'var(--dim)'},html:(curIdx+1)+' / '+queue.length}));
 inner.append(hdr);
 const pb=div({cls:'progress-bar',style:{marginBottom:'8px'}});pb.append(div({cls:'progress-fill',style:{width:pct+'%',background:'var(--teal)'}}));
 inner.append(pb);
 const pr=div({style:{display:'flex',justifyContent:'space-between',marginBottom:'24px'}});
-pr.append(h('span',{style:{fontFamily:"'DM Mono',monospace",fontSize:'10px',color:'var(--teal)'},html:'✓ '+prog.easy+' easy'}),h('span',{style:{fontFamily:"'DM Mono',monospace",fontSize:'10px',color:'var(--gold)'},html:'~ '+prog.iffy+' iffy'}),h('span',{style:{fontFamily:"'DM Mono',monospace",fontSize:'10px',color:'#ff8888'},html:'✗ '+prog.hard+' hard'}));
+pr.append(h('span',{style:{fontFamily:"Inter,sans-serif",fontSize:'10px',color:'var(--teal)'},html:'✓ '+prog.easy+' easy'}),h('span',{style:{fontFamily:"Inter,sans-serif",fontSize:'10px',color:'var(--gold)'},html:'~ '+prog.iffy+' iffy'}),h('span',{style:{fontFamily:"Inter,sans-serif",fontSize:'10px',color:'#ff8888'},html:'✗ '+prog.hard+' hard'}));
 inner.append(pr);
 const fw=div({cls:'flip-card',style:{width:'100%',height:'240px',marginBottom:'24px'}});
 const fi=div({cls:'flip-inner',style:{height:'100%'}});
 const front=div({cls:'flip-front card',style:{position:'absolute',width:'100%',height:'100%',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:'32px'}});
 front.append(div({cls:'mono',style:{marginBottom:'16px'},html:'Question — tap to flip'}),h('p',{style:{fontSize:'16px',color:'var(--text)',textAlign:'center',lineHeight:'1.7'},html:card.question}));
 const back=div({cls:'flip-back card',style:{position:'absolute',width:'100%',height:'100%',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:'32px',background:'#0a1f18',borderColor:'var(--teal)'}});
-back.append(div({style:{fontFamily:"'DM Mono',monospace",fontSize:'10px',color:'var(--teal)',letterSpacing:'2px',textTransform:'uppercase',marginBottom:'16px'},html:'Answer'}),h('p',{style:{fontSize:'16px',color:'var(--teal)',textAlign:'center',lineHeight:'1.7'},html:card.answer}));
+back.append(div({style:{fontFamily:"Inter,sans-serif",fontSize:'10px',color:'var(--teal)',letterSpacing:'2px',textTransform:'uppercase',marginBottom:'16px'},html:'Answer'}),h('p',{style:{fontSize:'16px',color:'var(--teal)',textAlign:'center',lineHeight:'1.7'},html:card.answer}));
 fi.append(front,back);fw.append(fi);
 fw.onclick=()=>{flipped=!flipped;fi.classList.toggle('flipped',flipped);mbtns.style.display=flipped?'grid':'none';flipBtn.style.display=flipped?'none':'block';};
 inner.append(fw);
@@ -1673,13 +1673,13 @@ const card=div({cls:'card fade',style:{textAlign:'center'}});
 card.append(
   div({style:{fontSize:'48px',marginBottom:'16px'},html:ICONS.sparkles}),
   h('span',{cls:'chapter',html:'Deck Complete'}),
-  h('h2',{style:{fontFamily:"'Playfair Display',serif",fontSize:'28px',marginBottom:'8px'},html:selDeck?.topic||''}),
-  div({style:{fontFamily:"'Playfair Display',serif",fontSize:'80px',color:gradeColor,lineHeight:'1',marginBottom:'8px'},html:grade}),
+  h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'28px',marginBottom:'8px'},html:selDeck?.topic||''}),
+  div({style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'80px',color:gradeColor,lineHeight:'1',marginBottom:'8px'},html:grade}),
   div({cls:'mono',style:{marginBottom:'4px'},html:gradeMsg}),
-  div({style:{fontFamily:"'DM Mono',monospace",fontSize:'11px',color:'var(--gold)',marginBottom:'24px'},html:'+20 points earned'})
+  div({style:{fontFamily:"Inter,sans-serif",fontSize:'11px',color:'var(--gold)',marginBottom:'24px'},html:'+20 points earned'})
 );
 const sg=div({style:{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:'12px',marginBottom:'24px'}});
-[{l:'Easy',v:prog.easy,c:'var(--teal)'},{l:'Iffy',v:prog.iffy,c:'var(--gold)'},{l:'Hard',v:prog.hard,c:'#ff8888'}].forEach(s=>{const c=div({cls:'card',style:{padding:'16px',textAlign:'center'}});c.append(div({style:{fontFamily:"'Playfair Display',serif",fontSize:'28px',color:s.c},html:String(s.v)}),div({cls:'mono',html:s.l}));sg.append(c);});
+[{l:'Easy',v:prog.easy,c:'var(--teal)'},{l:'Iffy',v:prog.iffy,c:'var(--gold)'},{l:'Hard',v:prog.hard,c:'#ff8888'}].forEach(s=>{const c=div({cls:'card',style:{padding:'16px',textAlign:'center'}});c.append(div({style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'28px',color:s.c},html:String(s.v)}),div({cls:'mono',html:s.l}));sg.append(c);});
 card.append(sg);
 const bw=div({style:{display:'grid',gap:'10px'}});
 bw.append(btn('Redo All Cards','btn-gold',()=>{queue=[...cards];curIdx=0;flipped=false;prog={easy:0,iffy:0,hard:0};showCard();}),btn('Back to Decks','btn-outline',()=>showDecks()),btn('Dashboard','btn-outline',()=>go('dashboard')));
@@ -1700,8 +1700,8 @@ const inner=div({cls:'inner-sm'});page.append(inner);
 async function showSetup(){
 inner.innerHTML='';
 const savedQuiz=sessionStorage.getItem('vignette_resume');
-if(savedQuiz){(()=>{const state=JSON.parse(savedQuiz);if(mode==='timed'&&state.timeLeft<=0){sessionStorage.removeItem('vignette_resume');}else{const banner=div({cls:'card',style:{marginBottom:'24px',padding:'16px',border:'1px solid var(--gold)',background:'rgba(200,169,110,0.08)'}},[ h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'11px',color:'var(--gold)',marginBottom:'12px'}},['⏸ Quiz in progress — '+state.selTopic+' · '+Object.keys(state.answers).length+' of '+state.questions.length+' answered']), div({style:{display:'flex',gap:'10px'}},[ btn('Resume','btn-gold',()=>{questions=state.questions;current=state.current;answers=state.answers;selTopic=state.selTopic;mode=state.mode;timeLimit=state.timeLimit;timeLeft=state.timeLeft||0;submitted=false;revealed={};showQuiz();},{style:{padding:'6px 16px',fontSize:'11px'}}), btn('Discard','btn-outline',()=>{sessionStorage.removeItem('vignette_resume');showSetup();},{style:{padding:'6px 16px',fontSize:'11px'}}) ]) ]);inner.append(banner);}})();}
-inner.append(h('span',{cls:'chapter',html:'Question Bank'}),h('h2',{style:{fontFamily:"'Playfair Display',serif",fontSize:'26px',marginBottom:'24px'},html:'Configure Your Quiz'}));
+if(savedQuiz){(()=>{const state=JSON.parse(savedQuiz);if(mode==='timed'&&state.timeLeft<=0){sessionStorage.removeItem('vignette_resume');}else{const banner=div({cls:'card',style:{marginBottom:'24px',padding:'16px',border:'1px solid var(--gold)',background:'rgba(200,169,110,0.08)'}},[ h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'11px',color:'var(--gold)',marginBottom:'12px'}},['⏸ Quiz in progress — '+state.selTopic+' · '+Object.keys(state.answers).length+' of '+state.questions.length+' answered']), div({style:{display:'flex',gap:'10px'}},[ btn('Resume','btn-gold',()=>{questions=state.questions;current=state.current;answers=state.answers;selTopic=state.selTopic;mode=state.mode;timeLimit=state.timeLimit;timeLeft=state.timeLeft||0;submitted=false;revealed={};showQuiz();},{style:{padding:'6px 16px',fontSize:'11px'}}), btn('Discard','btn-outline',()=>{sessionStorage.removeItem('vignette_resume');showSetup();},{style:{padding:'6px 16px',fontSize:'11px'}}) ]) ]);inner.append(banner);}})();}
+inner.append(h('span',{cls:'chapter',html:'Question Bank'}),h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'26px',marginBottom:'24px'},html:'Configure Your Quiz'}));
 const{data}=await sb.from('vignette_questions').select('topic').or('user_id.eq.'+S.user.id+',user_id.is.null');
 const topics=data?[...new Set(data.map(d=>d.topic))]:[];
 if(!topics.length){inner.append(div({cls:'card',style:{textAlign:'center',padding:'48px'}},[h('p',{style:{fontSize:'14px',color:'var(--dim)'},html:'No questions available yet.'})]));return;}
@@ -1710,7 +1710,7 @@ let selectedTopics=[];
 let selectedSubsections=[];
 const topicBtnContainer=div({style:{display:'flex',flexWrap:'wrap',gap:'8px',marginTop:'8px',marginBottom:'8px'}});
 inner.append(h('label',{cls:'label',html:'Select Topics (choose at least one)'}),topicBtnContainer);
-const countDisplay=div({style:{fontFamily:"'DM Mono',monospace",fontSize:'11px',color:'var(--dim)',marginBottom:'12px'}},['Select at least one topic']);
+const countDisplay=div({style:{fontFamily:"Inter,sans-serif",fontSize:'11px',color:'var(--dim)',marginBottom:'12px'}},['Select at least one topic']);
 inner.append(countDisplay);
 function renderTopicButtons(){
   topicBtnContainer.innerHTML='';
@@ -1778,7 +1778,7 @@ if(S.profile?.is_free_tier){
   if(totalAnswered>=10){
     inner.innerHTML='';
     inner.append(div({cls:'card',style:{textAlign:'center',padding:'40px 20px'}},[
-      h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'14px',color:'var(--dim)',marginBottom:'20px'},html:"You've used your 10 free questions."}),
+      h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'14px',color:'var(--dim)',marginBottom:'20px'},html:"You've used your 10 free questions."}),
       btn('Upgrade for 4,000 Questions →','btn-gold',()=>showUpgradeModal())
     ]));
     return;
@@ -1806,14 +1806,14 @@ inner.append(startBtn);
 sb.from('vignette_scores').select('*').eq('user_id',S.user.id).order('created_at',{ascending:false}).limit(10).then(({data:scores})=>{
 if(!scores||!scores.length)return;
 const hCard=div({cls:'card',style:{marginTop:'24px'}});
-hCard.append(h('h3',{style:{fontFamily:"'Playfair Display',serif",fontSize:'18px',marginBottom:'16px'},html:'Past Attempts'}));
+hCard.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'18px',marginBottom:'16px'},html:'Past Attempts'}));
 scores.forEach(s=>{
 const pct=Math.round(s.score/s.total*100);
 const pctColor=pct>=80?'var(--teal)':pct>=50?'var(--gold)':'#ff8888';
 const row=div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'10px 0',borderBottom:'1px solid var(--border)'}});
 const left=div({},[h('span',{style:{fontSize:'13px',color:'var(--text)'},html:s.topic}),div({cls:'mono',style:{fontSize:'9px',marginTop:'2px'},html:s.mode+' mode · '+new Date(s.created_at).toLocaleDateString()})]);
 const right=div({style:{display:'flex',gap:'12px',alignItems:'center'}});
-right.append(h('span',{style:{fontFamily:"'DM Mono',monospace",fontSize:'13px',color:pctColor,fontWeight:'700'},html:pct+'%'}),h('span',{style:{fontFamily:"'DM Mono',monospace",fontSize:'10px',color:'var(--dim)'},html:s.score+'/'+s.total}));
+right.append(h('span',{style:{fontFamily:"Inter,sans-serif",fontSize:'13px',color:pctColor,fontWeight:'700'},html:pct+'%'}),h('span',{style:{fontFamily:"Inter,sans-serif",fontSize:'10px',color:'var(--dim)'},html:s.score+'/'+s.total}));
 if(s.questions&&s.answers){
 right.append(btn('Review','btn-outline',()=>{
 questions=s.questions;answers=s.answers;submitted=true;selTopic=s.topic;mode=s.mode;
@@ -1822,16 +1822,16 @@ showReview();
 row.append(left,right);hCard.append(row);});
 const avgPct=Math.round(scores.reduce((sum,s)=>sum+(s.score/s.total*100),0)/scores.length);
 const avgColor=avgPct>=80?'var(--teal)':avgPct>=50?'var(--gold)':'#ff8888';
-hCard.append(div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginTop:'12px',paddingTop:'12px',borderTop:'1px solid var(--border)'}},[div({cls:'mono',html:'Average Score'}),h('span',{style:{fontFamily:"'DM Mono',monospace",fontSize:'20px',color:avgColor,fontWeight:'700'},html:avgPct+'%'})]));
+hCard.append(div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginTop:'12px',paddingTop:'12px',borderTop:'1px solid var(--border)'}},[div({cls:'mono',html:'Average Score'}),h('span',{style:{fontFamily:"Inter,sans-serif",fontSize:'20px',color:avgColor,fontWeight:'700'},html:avgPct+'%'})]));
 inner.append(hCard);
 });
 }
 function showQuiz(){
 page.innerHTML='';page.append(nav);
 const qNav=div({style:{background:'rgba(15,14,10,.97)',borderBottom:'1px solid var(--border)',padding:'12px 24px',display:'flex',alignItems:'center',justifyContent:'space-between',position:'sticky',top:'0',zIndex:'100'}});
-const tEl=h('span',{style:{fontFamily:"'DM Mono',monospace",fontSize:'16px',color:'var(--gold)',display:mode==='timed'?'inline':'none'},html:fmtMS(timeLeft)});
-const pEl=h('span',{style:{fontFamily:"'DM Mono',monospace",fontSize:'11px',color:'var(--muted)'},html:(current+1)+' / '+questions.length});
-qNav.append(h('span',{style:{fontFamily:"'DM Mono',monospace",fontSize:'11px',color:'var(--muted)',letterSpacing:'1px'},html:selTopic+' · '+(mode==='tutor'?'Tutor':'Timed')}),div({style:{display:'flex',gap:'16px',alignItems:'center'}},[tEl,pEl]));
+const tEl=h('span',{style:{fontFamily:"Inter,sans-serif",fontSize:'16px',color:'var(--gold)',display:mode==='timed'?'inline':'none'},html:fmtMS(timeLeft)});
+const pEl=h('span',{style:{fontFamily:"Inter,sans-serif",fontSize:'11px',color:'var(--muted)'},html:(current+1)+' / '+questions.length});
+qNav.append(h('span',{style:{fontFamily:"Inter,sans-serif",fontSize:'11px',color:'var(--muted)',letterSpacing:'1px'},html:selTopic+' · '+(mode==='tutor'?'Tutor':'Timed')}),div({style:{display:'flex',gap:'16px',alignItems:'center'}},[tEl,pEl]));
 page.append(qNav);
 if(mode==='timed'){tInterval=setInterval(()=>{timeLeft--;tEl.textContent=fmtMS(timeLeft);if(timeLeft<60)tEl.style.color='#ff8888';if(timeLeft<=0){clearInterval(tInterval);submitQuiz();}},1000);}
 const qi=div({style:{display:'grid',gridTemplateColumns:'200px 1fr',maxWidth:'1000px',margin:'0 auto',padding:'24px',gap:'24px'}});
@@ -1839,7 +1839,7 @@ const sidebar=div({});
 sidebar.append(div({cls:'mono',style:{marginBottom:'12px'},html:'Questions'}));
 const ng=div({style:{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:'4px'}});
 questions.forEach((q,i)=>{
-const nb=h('button',{style:{width:'32px',height:'32px',border:'1px solid var(--border)',background:'transparent',color:'var(--muted)',fontFamily:"'DM Mono',monospace",fontSize:'10px',cursor:'pointer',borderRadius:'2px'},html:String(i+1),id:'nb-'+i});
+const nb=h('button',{style:{width:'32px',height:'32px',border:'1px solid var(--border)',background:'transparent',color:'var(--muted)',fontFamily:"Inter,sans-serif",fontSize:'10px',cursor:'pointer',borderRadius:'2px'},html:String(i+1),id:'nb-'+i});
 nb.onclick=()=>{current=i;updateQ();};ng.append(nb);
 });
 sidebar.append(ng);
@@ -1873,7 +1873,7 @@ mainArea.append(ob);
 });
 if((revealed[q.id]||submitted)&&q.explanation){
 const exp=div({style:{background:'#0a1f18',border:'1px solid #7EB8A422',borderRadius:'2px',padding:'16px',marginTop:'16px'}});
-exp.append(div({style:{fontFamily:"'DM Mono',monospace",fontSize:'10px',color:'var(--teal)',letterSpacing:'2px',textTransform:'uppercase',marginBottom:'8px'},html:'Explanation'}),h('p',{style:{fontSize:'14px',color:'var(--muted)',lineHeight:'1.7'},html:q.explanation}));
+exp.append(div({style:{fontFamily:"Inter,sans-serif",fontSize:'10px',color:'var(--teal)',letterSpacing:'2px',textTransform:'uppercase',marginBottom:'8px'},html:'Explanation'}),h('p',{style:{fontSize:'14px',color:'var(--muted)',lineHeight:'1.7'},html:q.explanation}));
 mainArea.append(exp);
 }
 const nr=div({style:{display:'flex',gap:'12px',marginTop:'16px'}});
@@ -1899,9 +1899,9 @@ const pct=Math.round(score/questions.length*100);
 card.append(
   h('span',{cls:'chapter',html:'Quiz Complete'}),
   div({style:{fontSize:'56px',margin:'16px 0'},html:pct>=70?ICONS.sparkles:ICONS.book}),
-  h('h2',{style:{fontFamily:"'Playfair Display',serif",fontSize:'36px',marginBottom:'4px',color:'var(--gold)'},html:score+' / '+questions.length}),
+  h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'36px',marginBottom:'4px',color:'var(--gold)'},html:score+' / '+questions.length}),
   div({cls:'mono',style:{marginBottom:'8px'},html:pct+'% correct'}),
-  h('p',{style:{fontFamily:"'DM Mono',monospace",fontSize:'11px',color:'var(--muted)',marginBottom:'24px'},html:selTopic+' · '+mode+' mode'}),
+  h('p',{style:{fontFamily:"Inter,sans-serif",fontSize:'11px',color:'var(--muted)',marginBottom:'24px'},html:selTopic+' · '+mode+' mode'}),
   div({cls:'quote',style:{textAlign:'left',marginBottom:'24px'},html:pct>=80?'"Excellent. You know this topic well."':pct>=50?'"Good effort. Review the ones you missed."':'"Keep studying. Come back stronger."'})
 );
 const bw=div({style:{display:'grid',gap:'10px'}});
@@ -1916,7 +1916,7 @@ card.append(bw);ri.append(card);page.append(ri);
 function showReview(){
 page.innerHTML='';page.append(nav);
 const inner=div({cls:'inner-sm'});
-inner.append(h('span',{cls:'chapter',html:'Review'}),h('h2',{style:{fontFamily:"'Playfair Display',serif",fontSize:'26px',marginBottom:'8px'},html:'Answer Review'}),h('p',{cls:'muted',style:{fontSize:'14px',marginBottom:'32px'},html:selTopic+' — '+questions.length+' questions'}));
+inner.append(h('span',{cls:'chapter',html:'Review'}),h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'26px',marginBottom:'8px'},html:'Answer Review'}),h('p',{cls:'muted',style:{fontSize:'14px',marginBottom:'32px'},html:selTopic+' — '+questions.length+' questions'}));
 questions.forEach((q,i)=>{
 const userAns=answers[q.id];
 const correct=q.correct_answer;
@@ -1925,7 +1925,7 @@ const qCard=div({style:{background:'var(--card)',border:'1px solid '+(isCorrect?
 qCard.append(
   div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'12px'}},[
     div({cls:'mono',style:{fontSize:'9px'},html:'Question '+(i+1)}),
-    h('span',{style:{fontFamily:"'DM Mono',monospace",fontSize:'11px',color:isCorrect?'var(--teal)':'#ff8888',fontWeight:'700'},html:isCorrect?'✓ Correct':'✗ Incorrect'})
+    h('span',{style:{fontFamily:"Inter,sans-serif",fontSize:'11px',color:isCorrect?'var(--teal)':'#ff8888',fontWeight:'700'},html:isCorrect?'✓ Correct':'✗ Incorrect'})
   ]),
   h('p',{style:{fontSize:'14px',color:'var(--text)',lineHeight:'1.8',marginBottom:'16px'},html:q.question})
 );
@@ -1944,7 +1944,7 @@ qCard.append(
 });
 if(q.explanation){
   qCard.append(div({style:{background:'var(--bg)',border:'1px solid #7EB8A422',borderRadius:'2px',padding:'14px',marginTop:'12px'}},[
-    div({style:{fontFamily:"'DM Mono',monospace",fontSize:'9px',color:'var(--teal)',letterSpacing:'2px',textTransform:'uppercase',marginBottom:'6px'},html:'Explanation'}),
+    div({style:{fontFamily:"Inter,sans-serif",fontSize:'9px',color:'var(--teal)',letterSpacing:'2px',textTransform:'uppercase',marginBottom:'6px'},html:'Explanation'}),
     h('p',{style:{fontSize:'13px',color:'var(--muted)',lineHeight:'1.7'},html:q.explanation})
   ]));
 }
@@ -1976,9 +1976,9 @@ page.append(nav);
 const container=div({cls:'inner'});
 page.append(container);
 container.append(div({style:{marginBottom:'32px'}},[
-  h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'11px',color:'var(--teal)',textTransform:'uppercase',letterSpacing:'1px',marginBottom:'8px'},html:'Feynman Arena'}),
-  h('h1',{style:{fontFamily:"'Playfair Display',serif",fontSize:'32px',color:'var(--gold)',marginBottom:'8px'},html:'Teach It. Own It.'}),
-  h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'12px',color:'var(--dim)'},html:"Explain like you're teaching a 6 year old. The best explanations get crowned 👑"})
+  h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'11px',color:'var(--teal)',textTransform:'uppercase',letterSpacing:'1px',marginBottom:'8px'},html:'Feynman Arena'}),
+  h('h1',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'32px',color:'var(--gold)',marginBottom:'8px'},html:'Teach It. Own It.'}),
+  h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'12px',color:'var(--dim)'},html:"Explain like you're teaching a 6 year old. The best explanations get crowned 👑"})
 ]));
 // TAB SYSTEM
 let activeTab='submit';
@@ -2017,18 +2017,18 @@ function updateTypeSelection(value){
 typeButtons.forEach(bd=>{const tb=btn(bd.label,'btn-outline',()=>updateTypeSelection(bd.value),{style:{padding:'6px 14px',fontSize:'11px'}});tb.id='type-btn-'+bd.value;typeContainer.append(tb);});
 const submitBtn=btn('Submit →','btn-gold',async()=>{
   const topic=topicInput.value.trim();const content=contentTextarea.value.trim();
-  if(!topic){const e=div({style:{fontFamily:"'DM Mono',monospace",fontSize:'11px',color:'#8B3A3A',textAlign:'center',marginTop:'12px'},html:'Please enter a topic.'});submitCard.append(e);setTimeout(()=>e.remove(),2000);return;}
-  if(!content){const e=div({style:{fontFamily:"'DM Mono',monospace",fontSize:'11px',color:'#8B3A3A',textAlign:'center',marginTop:'12px'},html:'Please enter your explanation.'});submitCard.append(e);setTimeout(()=>e.remove(),2000);return;}
-  if(!selectedType){const e=div({style:{fontFamily:"'DM Mono',monospace",fontSize:'11px',color:'#8B3A3A',textAlign:'center',marginTop:'12px'},html:'Please select a type.'});submitCard.append(e);setTimeout(()=>e.remove(),2000);return;}
+  if(!topic){const e=div({style:{fontFamily:"Inter,sans-serif",fontSize:'11px',color:'#8B3A3A',textAlign:'center',marginTop:'12px'},html:'Please enter a topic.'});submitCard.append(e);setTimeout(()=>e.remove(),2000);return;}
+  if(!content){const e=div({style:{fontFamily:"Inter,sans-serif",fontSize:'11px',color:'#8B3A3A',textAlign:'center',marginTop:'12px'},html:'Please enter your explanation.'});submitCard.append(e);setTimeout(()=>e.remove(),2000);return;}
+  if(!selectedType){const e=div({style:{fontFamily:"Inter,sans-serif",fontSize:'11px',color:'#8B3A3A',textAlign:'center',marginTop:'12px'},html:'Please select a type.'});submitCard.append(e);setTimeout(()=>e.remove(),2000);return;}
   const{error}=await sb.from('feynman_submissions').insert({user_id:S.user.id,user_name:S.profile?.full_name||S.user.email,topic,type:selectedType,content,status:'pending',week_of:getCurrentMonday(),is_king:false,points_awarded:false});
   if(!error){
     topicInput.value='';contentTextarea.value='';selectedType=null;updateTypeSelection(null);
     if(submitSuccessDiv)submitSuccessDiv.remove();
-    submitSuccessDiv=div({style:{fontFamily:"'DM Mono',monospace",fontSize:'11px',color:'var(--teal)',textAlign:'center',marginTop:'12px'},html:"✓ Submitted! We'll review it soon."});
+    submitSuccessDiv=div({style:{fontFamily:"Inter,sans-serif",fontSize:'11px',color:'var(--teal)',textAlign:'center',marginTop:'12px'},html:"✓ Submitted! We'll review it soon."});
     submitCard.append(submitSuccessDiv);
     setTimeout(()=>{if(submitSuccessDiv)submitSuccessDiv.remove();submitSuccessDiv=null;},1500);
     (async()=>{await loadWallOfFame();})();
-  }else{const e=div({style:{fontFamily:"'DM Mono',monospace",fontSize:'11px',color:'#8B3A3A',textAlign:'center',marginTop:'12px'},html:'Failed to submit. Please try again.'});submitCard.append(e);setTimeout(()=>e.remove(),2000);}
+  }else{const e=div({style:{fontFamily:"Inter,sans-serif",fontSize:'11px',color:'#8B3A3A',textAlign:'center',marginTop:'12px'},html:'Failed to submit. Please try again.'});submitCard.append(e);setTimeout(()=>e.remove(),2000);}
 },{style:{width:'100%'}});
 const submitCard=div({cls:'card',style:{marginBottom:'32px'}});
 // Voice recognition setup
@@ -2076,14 +2076,14 @@ if(SpeechRecognitionAPI){
   };
 }
 submitCard.append(
-  h('h2',{style:{fontFamily:"'Playfair Display',serif",fontSize:'18px',marginBottom:'4px'},html:'Submit Your Feynman'}),
-  h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'9px',color:'var(--dim)',marginBottom:'16px'},html:'explain / riddle / emoji'}),
+  h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'18px',marginBottom:'4px'},html:'Submit Your Feynman'}),
+  h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'9px',color:'var(--dim)',marginBottom:'16px'},html:'explain / riddle / emoji'}),
   topicInput,typeContainer,contentTextarea,micWrapper,submitBtn
 );
 const wallCard=div({cls:'card',style:{marginBottom:'32px'}});
 wallCard.append(
-  h('h2',{style:{fontFamily:"'Playfair Display',serif",fontSize:'18px',marginBottom:'4px'},html:'Wall of Fame'}),
-  h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'9px',color:'var(--dim)',marginBottom:'16px'},html:'approved feynman submissions'})
+  h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'18px',marginBottom:'4px'},html:'Wall of Fame'}),
+  h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'9px',color:'var(--dim)',marginBottom:'16px'},html:'approved feynman submissions'})
 );
 const submissionsList=div({style:{display:'flex',flexDirection:'column',gap:'16px'}});
 wallCard.append(submissionsList);
@@ -2095,36 +2095,36 @@ function showFullSubmission(sub){
   modal.append(
     div({style:{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:'20px'}},[
       div({},[
-        h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'13px',fontWeight:'bold',color:'var(--text)',marginBottom:'8px'},html:sub.user_name||'Anonymous'}),
+        h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'13px',fontWeight:'bold',color:'var(--text)',marginBottom:'8px'},html:sub.user_name||'Anonymous'}),
         div({style:{display:'flex',alignItems:'center',gap:'12px',flexWrap:'wrap'}},[
-          h('span',{style:{fontFamily:"'DM Mono',monospace",fontSize:'10px',padding:'2px 8px',borderRadius:'2px',background:tc,color:'var(--bg)'},html:sub.type.toUpperCase()}),
-          h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'10px',color:'var(--dim)'},html:sub.topic}),
-          h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'9px',color:'var(--muted)'},html:'Week of '+sub.week_of})
+          h('span',{style:{fontFamily:"Inter,sans-serif",fontSize:'10px',padding:'2px 8px',borderRadius:'2px',background:tc,color:'var(--bg)'},html:sub.type.toUpperCase()}),
+          h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'10px',color:'var(--dim)'},html:sub.topic}),
+          h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'9px',color:'var(--muted)'},html:'Week of '+sub.week_of})
         ])
       ]),
       btn('✕','',()=>overlay.remove(),{style:{background:'none',border:'none',color:'var(--dim)',fontSize:'20px',cursor:'pointer',padding:'4px'}})
     ]),
-    h('div',{style:{background:'var(--card2)',padding:'20px',borderRadius:'4px',fontFamily:"'DM Mono',monospace",fontSize:'13px',color:'var(--text)',lineHeight:'1.5',whiteSpace:'pre-wrap'},html:sub.content})
+    h('div',{style:{background:'var(--card2)',padding:'20px',borderRadius:'4px',fontFamily:"Inter,sans-serif",fontSize:'13px',color:'var(--text)',lineHeight:'1.5',whiteSpace:'pre-wrap'},html:sub.content})
   );
   overlay.append(modal);document.body.append(overlay);
 }
 async function loadWallOfFame(){
   submissionsList.innerHTML='';
   const{data:subs}=await sb.from('feynman_submissions').select('*').eq('status','approved').order('created_at',{ascending:false}).limit(20);
-  if(!subs||!subs.length){submissionsList.append(h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'11px',color:'var(--dim)',textAlign:'center',padding:'20px'},html:'No approved submissions yet. Be the first! ✨'}));return;}
+  if(!subs||!subs.length){submissionsList.append(h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'11px',color:'var(--dim)',textAlign:'center',padding:'20px'},html:'No approved submissions yet. Be the first! ✨'}));return;}
   subs.forEach(sub=>{
     let tc='var(--teal)';if(sub.type==='riddle')tc='var(--gold)';if(sub.type==='emoji')tc='#8B5CF6';
     const card=div({style:{background:'var(--card2)',borderRadius:'4px',padding:'16px',border:sub.is_king?'1px solid var(--gold)':'1px solid var(--border)'}});
-    if(sub.is_king){card.append(div({style:{float:'right',display:'flex',alignItems:'center',gap:'4px',background:'rgba(200,169,110,0.1)',padding:'4px 8px',borderRadius:'4px'}},[h('span',{style:{fontSize:'14px'},html:'👑'}),h('span',{style:{fontFamily:"'DM Mono',monospace",fontSize:'9px',color:'var(--gold)'},html:'Feynman King'})]));}
+    if(sub.is_king){card.append(div({style:{float:'right',display:'flex',alignItems:'center',gap:'4px',background:'rgba(200,169,110,0.1)',padding:'4px 8px',borderRadius:'4px'}},[h('span',{style:{fontSize:'14px'},html:'👑'}),h('span',{style:{fontFamily:"Inter,sans-serif",fontSize:'9px',color:'var(--gold)'},html:'Feynman King'})]));}
     const preview=sub.content.length>120?sub.content.substring(0,120)+'...':sub.content;
     card.append(div({},[
       div({style:{display:'flex',alignItems:'center',gap:'12px',flexWrap:'wrap',marginBottom:'12px'}},[
-        h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'13px',fontWeight:'bold',color:'var(--text)'},html:sub.user_name||'Anonymous'}),
-        h('span',{style:{fontFamily:"'DM Mono',monospace",fontSize:'10px',padding:'2px 8px',borderRadius:'2px',background:tc,color:'var(--bg)'},html:sub.type.toUpperCase()}),
-        h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'10px',color:'var(--dim)'},html:sub.topic}),
-        h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'9px',color:'var(--muted)'},html:'Week of '+sub.week_of})
+        h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'13px',fontWeight:'bold',color:'var(--text)'},html:sub.user_name||'Anonymous'}),
+        h('span',{style:{fontFamily:"Inter,sans-serif",fontSize:'10px',padding:'2px 8px',borderRadius:'2px',background:tc,color:'var(--bg)'},html:sub.type.toUpperCase()}),
+        h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'10px',color:'var(--dim)'},html:sub.topic}),
+        h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'9px',color:'var(--muted)'},html:'Week of '+sub.week_of})
       ]),
-      h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'11px',color:'var(--muted)',lineHeight:'1.5',marginBottom:'12px'},html:preview}),
+      h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'11px',color:'var(--muted)',lineHeight:'1.5',marginBottom:'12px'},html:preview}),
       btn('See Feynman →','btn-outline',()=>showFullSubmission(sub),{style:{fontSize:'10px',padding:'4px 12px'}})
     ]));
     submissionsList.append(card);
@@ -2136,7 +2136,7 @@ async function loadRiddleDecksPage(){
   const{data:decks}=await sb.from('flashcard_decks').select('*').eq('type','riddle').order('unlock_order',{ascending:true});
   const{data:progress}=await sb.from('flashcard_progress').select('deck_id,completed').eq('user_id',S.user.id);
   const completedMap=new Map();progress?.forEach(p=>completedMap.set(p.deck_id,p.completed));
-  if(!decks||!decks.length){riddleSection.append(h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'12px',color:'var(--dim)',textAlign:'center',padding:'40px'},html:'No riddle decks available yet.'}));return;}
+  if(!decks||!decks.length){riddleSection.append(h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'12px',color:'var(--dim)',textAlign:'center',padding:'40px'},html:'No riddle decks available yet.'}));return;}
   const grid=div({style:{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(300px,1fr))',gap:'16px'}});
   for(let i=0;i<decks.length;i++){
     const deck=decks[i];
@@ -2144,16 +2144,16 @@ async function loadRiddleDecksPage(){
     const isUnlocked=deck.unlock_order===1||completedMap.get(decks[i-1]?.id)===true;
     const card=div({style:{background:'var(--card2)',borderRadius:'4px',padding:'20px',border:isCompleted?'1px solid var(--teal)':(isUnlocked?'1px solid var(--gold)':'1px solid var(--border)'),opacity:isUnlocked?1:0.5}});
     card.append(div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'12px'}},[
-      h('div',{style:{fontFamily:"'Playfair Display',serif",fontSize:'20px',color:'var(--gold)'},html:deck.name}),
-      h('span',{style:{fontFamily:"'DM Mono',monospace",fontSize:'10px',color:'var(--dim)',background:'var(--card)',padding:'4px 8px',borderRadius:'4px'},html:`Level ${deck.unlock_order}`})
+      h('div',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'20px',color:'var(--gold)'},html:deck.name}),
+      h('span',{style:{fontFamily:"Inter,sans-serif",fontSize:'10px',color:'var(--dim)',background:'var(--card)',padding:'4px 8px',borderRadius:'4px'},html:`Level ${deck.unlock_order}`})
     ]));
     if(isCompleted){
-      card.append(div({style:{display:'flex',alignItems:'center',gap:'8px',marginBottom:'16px'}},[h('span',{style:{fontSize:'16px'},html:'✓'}),h('span',{style:{fontFamily:"'DM Mono',monospace",fontSize:'11px',color:'var(--teal)'},html:'Completed'})]),
+      card.append(div({style:{display:'flex',alignItems:'center',gap:'8px',marginBottom:'16px'}},[h('span',{style:{fontSize:'16px'},html:'✓'}),h('span',{style:{fontFamily:"Inter,sans-serif",fontSize:'11px',color:'var(--teal)'},html:'Completed'})]),
       btn('Play Again →','btn-outline',()=>showDeckPlayer(deck,'riddle'),{style:{width:'100%'}}));
     }else if(isUnlocked){
       card.append(btn('Start →','btn-gold',()=>showDeckPlayer(deck,'riddle'),{style:{width:'100%'}}));
     }else{
-      card.append(h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'11px',color:'var(--dim)',textAlign:'center',padding:'8px'},html:`Complete Level ${deck.unlock_order-1} first`}));
+      card.append(h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'11px',color:'var(--dim)',textAlign:'center',padding:'8px'},html:`Complete Level ${deck.unlock_order-1} first`}));
     }
     grid.append(card);
   }
@@ -2165,7 +2165,7 @@ async function loadEmojiDecksPage(){
   const{data:decks}=await sb.from('flashcard_decks').select('*').eq('type','emoji').order('unlock_order',{ascending:true});
   const{data:progress}=await sb.from('flashcard_progress').select('deck_id,completed').eq('user_id',S.user.id);
   const completedMap=new Map();progress?.forEach(p=>completedMap.set(p.deck_id,p.completed));
-  if(!decks||!decks.length){emojiSection.append(h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'12px',color:'var(--dim)',textAlign:'center',padding:'40px'},html:'No emoji bitz decks available yet.'}));return;}
+  if(!decks||!decks.length){emojiSection.append(h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'12px',color:'var(--dim)',textAlign:'center',padding:'40px'},html:'No emoji bitz decks available yet.'}));return;}
   const grid=div({style:{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(300px,1fr))',gap:'16px'}});
   for(let i=0;i<decks.length;i++){
     const deck=decks[i];
@@ -2173,16 +2173,16 @@ async function loadEmojiDecksPage(){
     const isUnlocked=deck.unlock_order===1||completedMap.get(decks[i-1]?.id)===true;
     const card=div({style:{background:'var(--card2)',borderRadius:'4px',padding:'20px',border:isCompleted?'1px solid var(--teal)':(isUnlocked?'1px solid var(--gold)':'1px solid var(--border)'),opacity:isUnlocked?1:0.5}});
     card.append(div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'12px'}},[
-      h('div',{style:{fontFamily:"'Playfair Display',serif",fontSize:'20px',color:'var(--gold)'},html:deck.name}),
-      h('span',{style:{fontFamily:"'DM Mono',monospace",fontSize:'10px',color:'var(--dim)',background:'var(--card)',padding:'4px 8px',borderRadius:'4px'},html:`Level ${deck.unlock_order}`})
+      h('div',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'20px',color:'var(--gold)'},html:deck.name}),
+      h('span',{style:{fontFamily:"Inter,sans-serif",fontSize:'10px',color:'var(--dim)',background:'var(--card)',padding:'4px 8px',borderRadius:'4px'},html:`Level ${deck.unlock_order}`})
     ]));
     if(isCompleted){
-      card.append(div({style:{display:'flex',alignItems:'center',gap:'8px',marginBottom:'16px'}},[h('span',{style:{fontSize:'16px'},html:'✓'}),h('span',{style:{fontFamily:"'DM Mono',monospace",fontSize:'11px',color:'var(--teal)'},html:'Completed'})]),
+      card.append(div({style:{display:'flex',alignItems:'center',gap:'8px',marginBottom:'16px'}},[h('span',{style:{fontSize:'16px'},html:'✓'}),h('span',{style:{fontFamily:"Inter,sans-serif",fontSize:'11px',color:'var(--teal)'},html:'Completed'})]),
       btn('Play Again →','btn-outline',()=>showDeckPlayer(deck,'emoji'),{style:{width:'100%'}}));
     }else if(isUnlocked){
       card.append(btn('Start →','btn-gold',()=>showDeckPlayer(deck,'emoji'),{style:{width:'100%'}}));
     }else{
-      card.append(h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'11px',color:'var(--dim)',textAlign:'center',padding:'8px'},html:`Complete Level ${deck.unlock_order-1} first`}));
+      card.append(h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'11px',color:'var(--dim)',textAlign:'center',padding:'8px'},html:`Complete Level ${deck.unlock_order-1} first`}));
     }
     grid.append(card);
   }
@@ -2198,23 +2198,23 @@ async function showDeckPlayer(deck,type){
   function renderCard(){
     modal.innerHTML='';
     const card=cards[currentIndex];
-    modal.append(h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'11px',color:'var(--dim)',marginBottom:'8px',textAlign:'right'},html:`${currentIndex+1} / ${cards.length}`}));
-    modal.append(h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'9px',color:'var(--teal)',marginBottom:'16px',textAlign:'right'},html:`✓ ${gotIt} correct so far`}));
+    modal.append(h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'11px',color:'var(--dim)',marginBottom:'8px',textAlign:'right'},html:`${currentIndex+1} / ${cards.length}`}));
+    modal.append(h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'9px',color:'var(--teal)',marginBottom:'16px',textAlign:'right'},html:`✓ ${gotIt} correct so far`}));
     modal.append(div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'24px'}},[
-      h('h2',{style:{fontFamily:"'Playfair Display',serif",fontSize:'24px',color:'var(--gold)'},html:deck.name}),
+      h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'24px',color:'var(--gold)'},html:deck.name}),
       btn('✕','',()=>overlay.remove(),{style:{background:'none',border:'none',color:'var(--dim)',fontSize:'24px',cursor:'pointer'}})
     ]));
     modal.append(div({style:{textAlign:'center',padding:'40px 20px',background:'var(--card2)',borderRadius:'8px',marginBottom:'24px'}},[
-      h('div',{style:{fontFamily:type==='riddle'?"'Playfair Display',serif":'monospace',fontSize:type==='riddle'?'28px':'48px',color:'var(--text)',lineHeight:'1.3',whiteSpace:'pre-wrap'},html:card.question})
+      h('div',{style:{fontFamily:type==='riddle'?"'Plus Jakarta Sans',sans-serif":'monospace',fontSize:type==='riddle'?'28px':'48px',color:'var(--text)',lineHeight:'1.3',whiteSpace:'pre-wrap'},html:card.question})
     ]));
     if(!revealed){
       modal.append(btn('Reveal Answer →','btn-outline',()=>{revealed=true;renderCard();},{style:{width:'100%',marginBottom:'16px'}}));
     }else{
       modal.append(div({style:{background:'rgba(200,169,110,0.1)',padding:'20px',borderRadius:'8px',marginBottom:'16px'}},[
-        h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'13px',color:'var(--gold)',marginBottom:'8px'},html:'Answer:'}),
+        h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'13px',color:'var(--gold)',marginBottom:'8px'},html:'Answer:'}),
         h('div',{style:{fontFamily:'monospace',fontSize:'14px',color:'var(--text)',lineHeight:'1.4'},html:card.answer})
       ]));
-      if(card.hint){modal.append(div({style:{background:'var(--card2)',padding:'12px',borderRadius:'8px',marginBottom:'16px'}},[h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'10px',color:'var(--dim)'},html:'Hint: '+card.hint})]));}
+      if(card.hint){modal.append(div({style:{background:'var(--card2)',padding:'12px',borderRadius:'8px',marginBottom:'16px'}},[h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'10px',color:'var(--dim)'},html:'Hint: '+card.hint})]));}
       modal.append(div({style:{display:'flex',gap:'12px'}},[
         btn('✓ Got It','btn-teal',()=>{gotIt++;if(currentIndex+1<cards.length){currentIndex++;revealed=false;renderCard();}else{completeDeck();}},{style:{flex:'1'}}),
         btn("✗ Didn't Get It",'btn-outline',()=>{if(currentIndex+1<cards.length){currentIndex++;revealed=false;renderCard();}else{completeDeck();}},{style:{flex:'1'}})
@@ -2231,16 +2231,16 @@ async function showDeckPlayer(deck,type){
       const{data:nextDeck}=await sb.from('flashcard_decks').select('id').eq('type',type).eq('unlock_order',deck.unlock_order+1).maybeSingle();
       modal.append(
         h('div',{style:{fontSize:'48px',textAlign:'center',marginBottom:'16px'},html:ICONS.sparkles}),
-        h('h2',{style:{fontFamily:"'Playfair Display',serif",fontSize:'24px',color:'var(--gold)',textAlign:'center',marginBottom:'8px'},html:`Level ${deck.unlock_order} Complete!`}),
-        h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'16px',color:'var(--teal)',textAlign:'center',marginBottom:'8px'},html:`You scored ${score}%`}),
-        nextDeck?h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'13px',color:'var(--teal)',textAlign:'center',marginBottom:'24px'},html:'Next Level Unlocked!'}):h('div',{style:{marginBottom:'24px'}}),
+        h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'24px',color:'var(--gold)',textAlign:'center',marginBottom:'8px'},html:`Level ${deck.unlock_order} Complete!`}),
+        h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'16px',color:'var(--teal)',textAlign:'center',marginBottom:'8px'},html:`You scored ${score}%`}),
+        nextDeck?h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'13px',color:'var(--teal)',textAlign:'center',marginBottom:'24px'},html:'Next Level Unlocked!'}):h('div',{style:{marginBottom:'24px'}}),
         btn('Close','btn-gold',()=>{overlay.remove();if(activeTab==='riddle')loadRiddleDecksPage();if(activeTab==='emoji')loadEmojiDecksPage();},{style:{width:'100%'}})
       );
     }else{
       modal.append(
         h('div',{style:{fontSize:'48px',textAlign:'center',marginBottom:'16px'},html:ICONS.zap}),
-        h('h2',{style:{fontFamily:"'Playfair Display',serif",fontSize:'24px',color:'var(--gold)',textAlign:'center',marginBottom:'8px'},html:'So Close!'}),
-        h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'16px',color:'var(--dim)',textAlign:'center',marginBottom:'8px'},html:`You scored ${score}% — you need 65% to unlock the next level.`}),
+        h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'24px',color:'var(--gold)',textAlign:'center',marginBottom:'8px'},html:'So Close!'}),
+        h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'16px',color:'var(--dim)',textAlign:'center',marginBottom:'8px'},html:`You scored ${score}% — you need 65% to unlock the next level.`}),
         h('div',{style:{marginBottom:'24px'}}),
         btn('Try Again →','btn-gold',()=>{currentIndex=0;gotIt=0;revealed=false;renderCard();},{style:{width:'100%',marginBottom:'12px'}}),
         btn('Exit','btn-outline',()=>{overlay.remove();if(activeTab==='riddle')loadRiddleDecksPage();if(activeTab==='emoji')loadEmojiDecksPage();},{style:{width:'100%'}})
@@ -2260,11 +2260,11 @@ const nav=div({cls:'dash-nav'});
 nav.append(div({cls:'logo',html:'Deo Fortis'}),btn('← Dashboard','btn-outline',()=>go('dashboard'),{style:{padding:'8px 16px'}}));
 page.append(nav);
 const inner=div({cls:'inner-sm'});
-inner.append(h('span',{cls:'chapter',html:'Rankings'}),h('h1',{style:{fontFamily:"'Playfair Display',serif",fontSize:'48px',fontWeight:'700',marginBottom:'8px'},html:'The <em class="gold-em">Leaderboard</em>'}),h('p',{cls:'muted',style:{fontSize:'14px',marginBottom:'40px'},html:'Rankings based on total study hours. Updated in real time.'}));
+inner.append(h('span',{cls:'chapter',html:'Rankings'}),h('h1',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'48px',fontWeight:'700',marginBottom:'8px'},html:'The <em class="gold-em">Leaderboard</em>'}),h('p',{cls:'muted',style:{fontSize:'14px',marginBottom:'40px'},html:'Rankings based on total study hours. Updated in real time.'}));
 const board=div({cls:'card',style:{marginBottom:'32px'},id:'board',html:'<p style="font-size:14px;color:var(--dim);text-align:center;padding:20px">Loading...</p>'});
 inner.append(board);
 const bc=div({cls:'card',style:{textAlign:'center',borderColor:'#C8A96E33',borderTopWidth:'3px',borderTopColor:'var(--gold)'}});
-bc.append(div({style:{fontSize:'32px',marginBottom:'12px'},html:ICONS.book}),h('h3',{style:{fontFamily:"'Playfair Display',serif",fontSize:'22px',marginBottom:'8px'},html:'Want Personal Tutoring?'}),h('p',{cls:'muted',style:{fontSize:'14px',lineHeight:'1.7',marginBottom:'20px'},html:'Work directly with me. Get personalised guidance and full portal access.'}),btn('Book a Session →','btn-gold',()=>showBooking()));
+bc.append(div({style:{fontSize:'32px',marginBottom:'12px'},html:ICONS.book}),h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'22px',marginBottom:'8px'},html:'Want Personal Tutoring?'}),h('p',{cls:'muted',style:{fontSize:'14px',lineHeight:'1.7',marginBottom:'20px'},html:'Work directly with me. Get personalised guidance and full portal access.'}),btn('Book a Session →','btn-gold',()=>showBooking()));
 inner.append(bc);page.append(inner);
 (async()=>{
 const{data:leaderUsers}=await sb.from('profiles').select('id,full_name,total_points,total_study_minutes,streak_count').eq('status','approved').order('total_points',{ascending:false}).limit(20);
@@ -2320,7 +2320,7 @@ sendAdminEmail(' New Booking Request — Deo Fortis','<h2>New Tutoring Booking</
 box.innerHTML='<div style="text-align:center;padding:20px"><div style="font-size:48px;margin-bottom:16px"> </div><h2 style="font-family:Playfair Display,serif;font-size:22px;margin-bottom:12px">Request Sent!</h2><p style="color:var(--muted);font-size:14px;line-height:1.7">You will be contacted via email to confirm your booking.</p></div>';
 setTimeout(()=>ov.remove(),3000);
 });
-box.append(h('h2',{style:{fontFamily:"'Playfair Display',serif",fontSize:'22px',marginBottom:'20px'},html:'Book a Session'}),field('Full Name',nI),field('Email',eI),field('Package',pSel),field('What do you need help with?',mI),div({style:{display:'flex',gap:'12px'}},[sBtn,btn('Cancel','btn-outline',()=>ov.remove())]));
+box.append(h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'22px',marginBottom:'20px'},html:'Book a Session'}),field('Full Name',nI),field('Email',eI),field('Package',pSel),field('What do you need help with?',mI),div({style:{display:'flex',gap:'12px'}},[sBtn,btn('Cancel','btn-outline',()=>ov.remove())]));
 ov.append(box);document.body.append(ov);
 }
 return page;
@@ -2340,7 +2340,7 @@ const pI=inp('Enter admin password','password');
 const eEl=div({cls:'err hidden'});
 const entBtn=btn('Enter','btn-gold',()=>{if(pI.value===PASS){authed=true;showAdminPanel();}else{eEl.classList.remove('hidden');eEl.textContent='Incorrect password.';}},{style:{width:'100%',marginBottom:'16px'}});
 pI.onkeydown=e=>{if(e.key==='Enter')entBtn.click();};
-card.append(div({style:{fontFamily:"'Playfair Display',serif",fontStyle:'italic',fontSize:'22px',color:'var(--gold)',marginBottom:'4px'},html:'Deo Fortis'}),h('hr',{style:{border:'none',borderTop:'1px solid var(--border)',margin:'16px 0'}}),h('h2',{style:{fontFamily:"'Playfair Display',serif",fontSize:'22px',marginBottom:'16px'},html:'Admin Access'}),eEl,h('label',{cls:'label',html:'Password'}),pI,h('br'),entBtn,h('p',{style:{fontSize:'12px',color:'var(--dim)',textAlign:'center'},html:'<button onclick="go(\'landing\')" style="background:none;border:none;color:var(--dim);cursor:pointer;font-size:12px">← Back to site</button>'}));
+card.append(div({style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontStyle:'italic',fontSize:'22px',color:'var(--gold)',marginBottom:'4px'},html:'Deo Fortis'}),h('hr',{style:{border:'none',borderTop:'1px solid var(--border)',margin:'16px 0'}}),h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'22px',marginBottom:'16px'},html:'Admin Access'}),eEl,h('label',{cls:'label',html:'Password'}),pI,h('br'),entBtn,h('p',{style:{fontSize:'12px',color:'var(--dim)',textAlign:'center'},html:'<button onclick="go(\'landing\')" style="background:none;border:none;color:var(--dim);cursor:pointer;font-size:12px">← Back to site</button>'}));
 wrap.append(card);page.append(wrap);
 }
 async function showAdminPanel(){
@@ -2422,23 +2422,23 @@ if(tab==='settings'){
 const{data:s}=await sb.from('admin_settings').select('*').single();
 const set=s||{};
 const card=div({cls:'card fade'});
-card.append(h('h2',{style:{fontFamily:"'Playfair Display',serif",fontSize:'22px',marginBottom:'24px'},html:'Site Settings'}));
+card.append(h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'22px',marginBottom:'24px'},html:'Site Settings'}));
 // Video
 const vI=inp('https://www.youtube.com/embed/...','text',set.video_url||'');
 card.append(field('Demo Video URL',vI),h('p',{cls:'mono',style:{marginBottom:'20px'},html:'YouTube: Share → Embed → copy the src URL only'}));
 // Payment links
-card.append(h('hr',{style:{border:'none',borderTop:'1px solid var(--border)',margin:'24px 0'}}),h('h3',{style:{fontFamily:"'Playfair Display',serif",fontSize:'18px',marginBottom:'16px'},html:'Study Portal Payment Links'}));
+card.append(h('hr',{style:{border:'none',borderTop:'1px solid var(--border)',margin:'24px 0'}}),h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'18px',marginBottom:'16px'},html:'Study Portal Payment Links'}));
 const lIs={};
 [['link_monthly','Monthly ($10)'],['link_sixmonth','6 Months ($39)'],['link_yearly','1 Year ($59)'],['link_custom','Custom Session ($15)']].forEach(([k,l])=>{const i=inp('https://selar.co/...','text',set[k]||'');lIs[k]=i;card.append(field(l,i));});
 // Community & support
 card.append(h('hr',{style:{border:'none',borderTop:'1px solid var(--border)',margin:'24px 0'}}));
-card.append(h('h3',{style:{fontFamily:"'Playfair Display',serif",fontSize:'18px',marginBottom:'16px'},html:'Platform Links'}));
+card.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'18px',marginBottom:'16px'},html:'Platform Links'}));
 const comI=inp('https://...','text',set.community_link||'');
 const supI=inp('deofortistutors@gmail.com','email',set.support_email||'');
 card.append(field('Community Link (Forum / Discord / WhatsApp)',comI),field('Support Email (shown on dashboard)',supI));
 // White noise
 card.append(h('hr',{style:{border:'none',borderTop:'1px solid var(--border)',margin:'24px 0'}}));
-card.append(h('h3',{style:{fontFamily:"'Playfair Display',serif",fontSize:'18px',marginBottom:'8px'},html:'White Noise Audio Links'}));
+card.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'18px',marginBottom:'8px'},html:'White Noise Audio Links'}));
 card.append(h('p',{cls:'mono',style:{marginBottom:'16px'},html:'Upload MP3 files to GitHub then paste raw URLs here'}));
 const nrI=inp('Rain MP3 URL (.mp3)','text',set.noise_rain||'');
 const noI=inp('Ocean MP3 URL (.mp3)','text',set.noise_ocean||'');
@@ -2462,7 +2462,7 @@ const{data:users}=await sb.from('profiles').select('*').order('created_at',{asce
 const card=div({cls:'card fade'});
 const pend=(users||[]).filter(u=>u.status==='pending').length;
 const upgrades=(users||[]).filter(u=>u.status==='pending'&&u.is_free_tier===false).length;
-card.append(h('h2',{style:{fontFamily:"'Playfair Display',serif",fontSize:'22px',marginBottom:'8px'},html:'Users'}),h('p',{cls:'muted',style:{fontSize:'14px',marginBottom:'4px'},html:pend+' pending approval'}),upgrades>0?h('p',{style:{fontFamily:"'DM Mono',monospace",fontSize:'12px',color:'var(--gold)',marginBottom:'24px'},html:'⬆ '+upgrades+' upgrade'+(upgrades>1?'s':'')+' awaiting approval'}):h('p',{style:{marginBottom:'24px'}}));
+card.append(h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'22px',marginBottom:'8px'},html:'Users'}),h('p',{cls:'muted',style:{fontSize:'14px',marginBottom:'4px'},html:pend+' pending approval'}),upgrades>0?h('p',{style:{fontFamily:"Inter,sans-serif",fontSize:'12px',color:'var(--gold)',marginBottom:'24px'},html:'⬆ '+upgrades+' upgrade'+(upgrades>1?'s':'')+' awaiting approval'}):h('p',{style:{marginBottom:'24px'}}));
 const userRanks=[...(users||[])].sort((a,b)=>(b.total_points||0)-(a.total_points||0));
 (users||[]).forEach(u=>{
   const isFree=u.is_free_tier===true||u.is_free_tier===null||u.is_free_tier===undefined;
@@ -2512,13 +2512,13 @@ content.innerHTML='';content.append(card);
 if(tab==='recalls'){
 const{data:recs}=await sb.from('recall_requests').select('*').order('created_at',{ascending:false});
 content.innerHTML='';
-content.append(h('h2',{style:{fontFamily:"'Playfair Display',serif",fontSize:'22px',marginBottom:'24px'},html:'Recall Requests'}));
+content.append(h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'22px',marginBottom:'24px'},html:'Recall Requests'}));
 if(!recs||!recs.length){content.append(div({cls:'card',style:{textAlign:'center',padding:'40px'}},[h('p',{style:{fontSize:'14px',color:'var(--dim)'},html:'No recall requests yet.'})]));return;}
 const upSt=div({cls:'ok',style:{display:'none',marginTop:'16px'}});
 recs.forEach(r=>{
 const card=div({cls:'card',style:{marginBottom:'16px'}});
 const hdr2=div({style:{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:'12px'}});
-hdr2.append(div({},[div({style:{fontSize:'15px',color:'var(--text)',marginBottom:'4px'},html:r.user_name||'—'}),div({style:{fontSize:'12px',color:'var(--muted)'},html:r.user_email||''})]),h('span',{style:{fontFamily:"'DM Mono',monospace",fontSize:'10px',letterSpacing:'1px',textTransform:'uppercase',color:r.status==='pending'?'var(--gold)':'var(--teal)'},html:r.status}));
+hdr2.append(div({},[div({style:{fontSize:'15px',color:'var(--text)',marginBottom:'4px'},html:r.user_name||'—'}),div({style:{fontSize:'12px',color:'var(--muted)'},html:r.user_email||''})]),h('span',{style:{fontFamily:"Inter,sans-serif",fontSize:'10px',letterSpacing:'1px',textTransform:'uppercase',color:r.status==='pending'?'var(--gold)':'var(--teal)'},html:r.status}));
 card.append(hdr2);
 const dg=div({style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'12px',marginBottom:'12px'}});
 [[r.topic,'Topic'],[r.style,'Style']].forEach(([v,l])=>{const d=div({});d.append(div({cls:'mono',style:{marginBottom:'4px'},html:l}),div({style:{fontSize:'14px',color:l==='Style'?'var(--gold)':'var(--text)'},html:v||'—'}));dg.append(d);});
@@ -2541,10 +2541,10 @@ if(qs.length){await sb.from('vignette_questions').insert(qs);upSt.textContent='�
 }
 setTimeout(()=>upSt.style.display='none',3000);
 }
-if(r.style==='flashcard'){const fi=h('input',{type:'file',accept:'.csv',style:{color:'var(--muted)',fontSize:'12px',fontFamily:"'DM Mono',monospace"}});fi.onchange=e=>{if(e.target.files[0])handleUpload(e.target.files[0],true);};br2.append(div({},[h('label',{cls:'label',html:'Upload CSV'}),fi]));}
-if(r.style==='vignette'){const fi=h('input',{type:'file',accept:'.txt',style:{color:'var(--muted)',fontSize:'12px',fontFamily:"'DM Mono',monospace"}});fi.onchange=e=>{if(e.target.files[0])handleUpload(e.target.files[0],false);};br2.append(div({},[h('label',{cls:'label',html:'Upload TXT'}),fi]));}
+if(r.style==='flashcard'){const fi=h('input',{type:'file',accept:'.csv',style:{color:'var(--muted)',fontSize:'12px',fontFamily:"Inter,sans-serif"}});fi.onchange=e=>{if(e.target.files[0])handleUpload(e.target.files[0],true);};br2.append(div({},[h('label',{cls:'label',html:'Upload CSV'}),fi]));}
+if(r.style==='vignette'){const fi=h('input',{type:'file',accept:'.txt',style:{color:'var(--muted)',fontSize:'12px',fontFamily:"Inter,sans-serif"}});fi.onchange=e=>{if(e.target.files[0])handleUpload(e.target.files[0],false);};br2.append(div({},[h('label',{cls:'label',html:'Upload TXT'}),fi]));}
 if(r.style==='theory'){
-const fi=h('input',{type:'file',accept:'.pdf',style:{color:'var(--muted)',fontSize:'12px',fontFamily:"'DM Mono',monospace"}});
+const fi=h('input',{type:'file',accept:'.pdf',style:{color:'var(--muted)',fontSize:'12px',fontFamily:"Inter,sans-serif"}});
 fi.onchange=async e=>{
 const file=e.target.files[0];if(!file)return;
 upSt.style.display='block';upSt.textContent='Uploading PDF...';
@@ -2572,7 +2572,7 @@ card.append(br2);
       found=true;
       for(const deck of decks){
         const{count}=await sb.from('flashcards').select('*',{count:'exact',head:true}).eq('deck_id',deck.id);
-        delSection.append(h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'11px',color:'var(--dim)',marginBottom:'8px'}},[''+deck.name+' · '+(count||0)+' cards']));
+        delSection.append(h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'11px',color:'var(--dim)',marginBottom:'8px'}},[''+deck.name+' · '+(count||0)+' cards']));
         delSection.append(btn('Delete Deck','btn-outline',async()=>{if(!confirm('Delete this deck and all its cards?'))return;await sb.from('flashcards').delete().eq('deck_id',deck.id);await sb.from('flashcard_decks').delete().eq('id',deck.id);loadTab('recalls');},{style:{padding:'4px 12px',fontSize:'10px',color:'#ff4444',borderColor:'#ff4444',marginBottom:'8px'}}));
       }
     }
@@ -2580,14 +2580,14 @@ card.append(br2);
     const{count}=await sb.from('vignette_questions').select('*',{count:'exact',head:true}).eq('user_id',r.user_id).eq('topic',r.topic);
     if(count&&count>0){
       found=true;
-      delSection.append(h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'11px',color:'var(--dim)',marginBottom:'8px'}},[''+count+' questions for '+r.topic]));
+      delSection.append(h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'11px',color:'var(--dim)',marginBottom:'8px'}},[''+count+' questions for '+r.topic]));
       delSection.append(btn('Delete All Questions','btn-outline',async()=>{if(!confirm('Delete all '+count+' questions for "'+r.topic+'"? Cannot be undone.'))return;await sb.from('vignette_questions').delete().eq('user_id',r.user_id).eq('topic',r.topic);loadTab('recalls');},{style:{padding:'4px 12px',fontSize:'10px',color:'#ff4444',borderColor:'#ff4444'}}));
     }
   } else if(r.style==='theory'){
     const{data:pdfs}=await sb.from('theory_pdfs').select('id,filename').eq('recall_request_id',r.id);
     if(pdfs&&pdfs.length){
       found=true;
-      pdfs.forEach(pdf=>{delSection.append(h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'11px',color:'var(--dim)',marginBottom:'4px'}},[''+pdf.filename]));});
+      pdfs.forEach(pdf=>{delSection.append(h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'11px',color:'var(--dim)',marginBottom:'4px'}},[''+pdf.filename]));});
       delSection.append(btn('Delete PDF','btn-outline',async()=>{if(!confirm('Delete uploaded PDF(s)?'))return;for(const pdf of pdfs){await sb.from('theory_pdfs').delete().eq('id',pdf.id);}loadTab('recalls');},{style:{padding:'4px 12px',fontSize:'10px',color:'#ff4444',borderColor:'#ff4444',marginTop:'8px'}}));
     }
   }
@@ -2599,20 +2599,20 @@ content.append(upSt);
 }
 if(tab==='flashcards'){
 const card=div({cls:'card fade'});
-card.append(h('h2',{style:{fontFamily:"'Playfair Display',serif",fontSize:'22px',marginBottom:'8px'},html:'Upload Flashcard Deck'}),h('p',{cls:'muted',style:{fontSize:'14px',marginBottom:'24px'},html:'CSV format: question, answer (one per line)'}));
+card.append(h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'22px',marginBottom:'8px'},html:'Upload Flashcard Deck'}),h('p',{cls:'muted',style:{fontSize:'14px',marginBottom:'24px'},html:'CSV format: question, answer (one per line)'}));
 const dnI=inp('e.g. Bacteriology Basics');
 const upSt=div({cls:'ok',style:{display:'none',marginTop:'16px'}});
-const fi=h('input',{type:'file',accept:'.csv',style:{color:'var(--muted)',fontSize:'13px',fontFamily:"'DM Mono',monospace",marginTop:'16px'}});
+const fi=h('input',{type:'file',accept:'.csv',style:{color:'var(--muted)',fontSize:'13px',fontFamily:"Inter,sans-serif",marginTop:'16px'}});
 const flashListDiv=div({style:{marginTop:'24px'}});
 async function loadFlashcardList(){
   flashListDiv.innerHTML='';
   const{data:decks}=await sb.from('flashcard_decks').select('*').eq('type','flashcard').order('created_at',{ascending:false});
-  if(!decks||!decks.length){flashListDiv.append(h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'11px',color:'var(--dim)',padding:'8px 0'}},['No flashcard decks uploaded yet.']));return;}
-  flashListDiv.append(h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'9px',letterSpacing:'2px',textTransform:'uppercase',color:'var(--dim)',marginBottom:'12px'}},['Uploaded Decks']));
+  if(!decks||!decks.length){flashListDiv.append(h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'11px',color:'var(--dim)',padding:'8px 0'}},['No flashcard decks uploaded yet.']));return;}
+  flashListDiv.append(h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'9px',letterSpacing:'2px',textTransform:'uppercase',color:'var(--dim)',marginBottom:'12px'}},['Uploaded Decks']));
   for(const deck of decks){
     const{count}=await sb.from('flashcards').select('*',{count:'exact',head:true}).eq('deck_id',deck.id);
     const row=div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'10px 0',borderBottom:'1px solid var(--border)'}},[ 
-      h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'12px',color:'var(--text)'}},[ deck.name+' · '+(count||0)+' cards']),
+      h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'12px',color:'var(--text)'}},[ deck.name+' · '+(count||0)+' cards']),
       btn('Delete','btn-outline',async()=>{if(!confirm('Delete "'+deck.name+'" and all its cards?'))return;await sb.from('flashcards').delete().eq('deck_id',deck.id);await sb.from('flashcard_decks').delete().eq('id',deck.id);loadFlashcardList();},{style:{padding:'4px 12px',fontSize:'10px',color:'#ff4444',borderColor:'#ff4444'}})
     ]);
     flashListDiv.append(row);
@@ -2639,7 +2639,7 @@ card.append(ex,upSt,flashListDiv);content.innerHTML='';content.append(card);
 }
 if(tab==='questions'){
 const card=div({cls:'card fade'});
-card.append(h('h2',{style:{fontFamily:"'Playfair Display',serif",fontSize:'22px',marginBottom:'8px'},html:'Upload Vignette Questions'}),h('p',{cls:'muted',style:{fontSize:'14px',marginBottom:'24px'},html:'Add a subject, then add subsections with TXT files.'}));
+card.append(h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'22px',marginBottom:'8px'},html:'Upload Vignette Questions'}),h('p',{cls:'muted',style:{fontSize:'14px',marginBottom:'24px'},html:'Add a subject, then add subsections with TXT files.'}));
 const tI=inp('e.g. Paediatrics','text','');
 card.append(h('label',{cls:'label',html:'Subject Name'}),tI);
 const subsRowsDiv=div({style:{marginBottom:'16px',marginTop:'16px'}});
@@ -2649,7 +2649,7 @@ function addSubsectionRow(){
   const rowId=Date.now()+'_'+Math.random();
   const rowDiv=div({style:{marginBottom:'12px',padding:'12px',background:'var(--card2)',border:'1px solid var(--border)',borderRadius:'4px'}});
   const nameInp=inp('e.g. Gastroenterology','text','');
-  const fileInp=h('input',{type:'file',accept:'.txt',style:{color:'var(--muted)',fontSize:'13px',fontFamily:"'DM Mono',monospace",marginTop:'8px',display:'block'}});
+  const fileInp=h('input',{type:'file',accept:'.txt',style:{color:'var(--muted)',fontSize:'13px',fontFamily:"Inter,sans-serif",marginTop:'8px',display:'block'}});
   const removeBtn=btn('✕ Remove','btn-outline',()=>{rowDiv.remove();const idx=subsectionRows.findIndex(r=>r.id===rowId);if(idx!==-1)subsectionRows.splice(idx,1);},{style:{padding:'4px 12px',fontSize:'10px',color:'#ff4444',borderColor:'#ff4444',marginLeft:'12px'}});
   const topRow=div({style:{display:'flex',alignItems:'center',gap:'8px'}},[nameInp,removeBtn]);
   rowDiv.append(topRow,fileInp);
@@ -2657,7 +2657,7 @@ function addSubsectionRow(){
   subsectionRows.push({id:rowId,nameInp,fileInp});
 }
 card.append(btn('+ Add Subsection','btn-outline',()=>addSubsectionRow(),{style:{marginBottom:'20px'}}));
-const upSt=div({style:{fontFamily:"'DM Mono',monospace",fontSize:'12px',color:'var(--dim)',marginTop:'12px'}},['']);
+const upSt=div({style:{fontFamily:"Inter,sans-serif",fontSize:'12px',color:'var(--dim)',marginTop:'12px'}},['']);
 const uploadBtn=btn('Upload All Subsections','btn-gold',async()=>{
   const subject=tI.value.trim();
   if(!subject){upSt.textContent='Please enter a subject name';return;}
@@ -2705,12 +2705,12 @@ const qListDiv=div({style:{marginTop:'24px'}});
 async function loadQuestionList(){
   qListDiv.innerHTML='';
   const{data:questions}=await sb.from('vignette_questions').select('id,topic,subsection,question').is('user_id',null).order('created_at',{ascending:false});
-  if(!questions||!questions.length){qListDiv.append(h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'11px',color:'var(--dim)',padding:'8px 0'}},['No questions uploaded yet.']));return;}
-  qListDiv.append(h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'9px',letterSpacing:'2px',textTransform:'uppercase',color:'var(--dim)',marginBottom:'12px'}},[questions.length+' Questions in Bank']));
+  if(!questions||!questions.length){qListDiv.append(h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'11px',color:'var(--dim)',padding:'8px 0'}},['No questions uploaded yet.']));return;}
+  qListDiv.append(h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'9px',letterSpacing:'2px',textTransform:'uppercase',color:'var(--dim)',marginBottom:'12px'}},[questions.length+' Questions in Bank']));
   for(const q of questions){
     const preview=q.question.length>70?q.question.substring(0,70)+'...':q.question;
     const row=div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'10px 0',borderBottom:'1px solid var(--border)'}},[
-      div({style:{fontFamily:"'DM Mono',monospace",fontSize:'11px',color:'var(--text)',flex:'1',marginRight:'12px'}},[h('span',{style:{color:'var(--gold)',marginRight:'8px'}},[q.topic+(q.subsection?' › '+q.subsection:'')]),preview]),
+      div({style:{fontFamily:"Inter,sans-serif",fontSize:'11px',color:'var(--text)',flex:'1',marginRight:'12px'}},[h('span',{style:{color:'var(--gold)',marginRight:'8px'}},[q.topic+(q.subsection?' › '+q.subsection:'')]),preview]),
       btn('Delete','btn-outline',async()=>{if(!confirm('Delete this question?'))return;await sb.from('vignette_questions').delete().eq('id',q.id);loadQuestionList();},{style:{padding:'4px 12px',fontSize:'10px',color:'#ff4444',borderColor:'#ff4444',flexShrink:'0'}})
     ]);
     qListDiv.append(row);
@@ -2723,7 +2723,7 @@ if(tab==='testimonials'){
 const{data:tlist}=await sb.from('testimonials').select('*').order('created_at',{ascending:false});
 content.innerHTML='';
 const addCard=div({cls:'card',style:{marginBottom:'24px'}});
-addCard.append(h('h2',{style:{fontFamily:"'Playfair Display',serif",fontSize:'22px',marginBottom:'20px'},html:'Add Testimonial'}));
+addCard.append(h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'22px',marginBottom:'20px'},html:'Add Testimonial'}));
 const nI=inp('e.g. Sarah K.');const tI=inp('e.g. USMLE Step 1 Student');
 const cI=h('textarea',{cls:'input',placeholder:"What did they say?",style:{minHeight:'100px',resize:'vertical',marginBottom:'20px'}});
 const sm=div({cls:'ok',style:{display:'none',marginTop:'12px'},html:'✓ Added!'});
@@ -2731,7 +2731,7 @@ addCard.append(field('Student Name',nI),field('Title / Course (optional)',tI),h(
 content.append(addCard);
 if(tlist&&tlist.length){
 const lc=div({cls:'card'});
-lc.append(h('h3',{style:{fontFamily:"'Playfair Display',serif",fontSize:'18px',marginBottom:'16px'},html:'Current Testimonials ('+tlist.length+')'}));
+lc.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'18px',marginBottom:'16px'},html:'Current Testimonials ('+tlist.length+')'}));
 tlist.forEach(t=>{
 const row=div({style:{padding:'16px 0',borderBottom:'1px solid var(--border)',display:'flex',justifyContent:'space-between',alignItems:'flex-start'}});
 const info=div({style:{flex:'1'}});info.append(div({style:{fontSize:'14px',color:'var(--text)',marginBottom:'4px'},html:t.name+(t.title?' · <span style="color:var(--dim);font-size:12px">'+t.title+'</span>':'')}),h('p',{style:{fontSize:'13px',color:'var(--muted)',fontStyle:'italic'},html:t.content}));
@@ -2744,7 +2744,7 @@ content.append(lc);
 if(tab==='packages'){
 const{data:pkgs}=await sb.from('tutoring_packages').select('*').order('id');
 const card=div({cls:'card fade'});
-card.append(h('h2',{style:{fontFamily:"'Playfair Display',serif",fontSize:'22px',marginBottom:'24px'},html:'Tutoring Packages'}));
+card.append(h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'22px',marginBottom:'24px'},html:'Tutoring Packages'}));
 const pkgData=[...(pkgs||[])];const inps={};
 pkgData.forEach((pkg,i)=>{
 const box=div({style:{marginBottom:'24px',padding:'20px',border:'1px solid var(--border)',borderRadius:'4px'}});
@@ -2763,7 +2763,7 @@ if(tab==='bookings'){
 const{data:books}=await sb.from('booking_requests').select('*').order('created_at',{ascending:false});
 const card=div({cls:'card fade'});
 const pend=(books||[]).filter(b=>b.status==='pending').length;
-card.append(h('h2',{style:{fontFamily:"'Playfair Display',serif",fontSize:'22px',marginBottom:'8px'},html:'Booking Requests'}),h('p',{cls:'muted',style:{fontSize:'14px',marginBottom:'24px'},html:pend+' new bookings'}));
+card.append(h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'22px',marginBottom:'8px'},html:'Booking Requests'}),h('p',{cls:'muted',style:{fontSize:'14px',marginBottom:'24px'},html:pend+' new bookings'}));
 if(!books||!books.length){card.append(h('p',{style:{fontSize:'14px',color:'var(--dim)',textAlign:'center',padding:'20px'},html:'No bookings yet.'}));content.innerHTML='';content.append(card);return;}
 books.forEach(b=>{
 const row=div({style:{padding:'16px 0',borderBottom:'1px solid var(--border)'}});
@@ -2771,7 +2771,7 @@ const inner2=div({style:{display:'flex',justifyContent:'space-between',alignItem
 const info=div({});info.append(div({style:{fontSize:'15px',color:'var(--text)',marginBottom:'4px'},html:b.name||'—'}),div({style:{fontSize:'12px',color:'var(--muted)',marginBottom:'4px'},html:(b.email||'—')+' · '+(b.package||'—')}));
 if(b.message)info.append(h('p',{style:{fontSize:'13px',color:'var(--dim)',fontStyle:'italic'},html:b.message}));
 info.append(div({cls:'mono',style:{marginTop:'4px'},html:new Date(b.created_at).toLocaleDateString()}));
-inner2.append(info,h('span',{style:{fontFamily:"'DM Mono',monospace",fontSize:'10px',letterSpacing:'1px',textTransform:'uppercase',color:b.status==='pending'?'var(--gold)':'var(--teal)'},html:b.status}));
+inner2.append(info,h('span',{style:{fontFamily:"Inter,sans-serif",fontSize:'10px',letterSpacing:'1px',textTransform:'uppercase',color:b.status==='pending'?'var(--gold)':'var(--teal)'},html:b.status}));
 row.append(inner2);card.append(row);
 });
 content.innerHTML='';content.append(card);
@@ -2788,10 +2788,10 @@ const approvedCount=submissions.filter(s=>s.status==='approved').length;
 const currentMonday=getCurrentMonday();
 const currentKing=submissions.find(s=>s.is_king===true&&s.week_of===currentMonday);
 const statsRow=div({style:{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:'12px',marginBottom:'24px'}},[
-  div({style:{background:'var(--card)',padding:'16px',borderRadius:'4px',textAlign:'center',borderLeft:'2px solid var(--gold)'}},[h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'13px',color:'var(--gold)',marginBottom:'4px'},html:String(totalCount)}),h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'8px',textTransform:'uppercase',color:'var(--dim)'},html:'Total'})]),
-  div({style:{background:'var(--card)',padding:'16px',borderRadius:'4px',textAlign:'center',borderLeft:'2px solid var(--gold)'}},[h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'13px',color:'var(--gold)',marginBottom:'4px'},html:String(pendingCount)}),h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'8px',textTransform:'uppercase',color:'var(--dim)'},html:'Pending'})]),
-  div({style:{background:'var(--card)',padding:'16px',borderRadius:'4px',textAlign:'center',borderLeft:'2px solid var(--teal)'}},[h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'13px',color:'var(--teal)',marginBottom:'4px'},html:String(approvedCount)}),h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'8px',textTransform:'uppercase',color:'var(--dim)'},html:'Approved'})]),
-  div({style:{background:'var(--card)',padding:'16px',borderRadius:'4px',textAlign:'center',borderLeft:'2px solid #8B5CF6'}},[h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'13px',color:'#8B5CF6',marginBottom:'4px'},html:currentKing?currentKing.user_name:'—'}),h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'8px',textTransform:'uppercase',color:'var(--dim)'},html:'Week King'})])
+  div({style:{background:'var(--card)',padding:'16px',borderRadius:'4px',textAlign:'center',borderLeft:'2px solid var(--gold)'}},[h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'13px',color:'var(--gold)',marginBottom:'4px'},html:String(totalCount)}),h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'8px',textTransform:'uppercase',color:'var(--dim)'},html:'Total'})]),
+  div({style:{background:'var(--card)',padding:'16px',borderRadius:'4px',textAlign:'center',borderLeft:'2px solid var(--gold)'}},[h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'13px',color:'var(--gold)',marginBottom:'4px'},html:String(pendingCount)}),h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'8px',textTransform:'uppercase',color:'var(--dim)'},html:'Pending'})]),
+  div({style:{background:'var(--card)',padding:'16px',borderRadius:'4px',textAlign:'center',borderLeft:'2px solid var(--teal)'}},[h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'13px',color:'var(--teal)',marginBottom:'4px'},html:String(approvedCount)}),h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'8px',textTransform:'uppercase',color:'var(--dim)'},html:'Approved'})]),
+  div({style:{background:'var(--card)',padding:'16px',borderRadius:'4px',textAlign:'center',borderLeft:'2px solid #8B5CF6'}},[h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'13px',color:'#8B5CF6',marginBottom:'4px'},html:currentKing?currentKing.user_name:'—'}),h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'8px',textTransform:'uppercase',color:'var(--dim)'},html:'Week King'})])
 ]);
 content.append(statsRow);
 const filterRow=div({style:{display:'flex',gap:'8px',marginBottom:'24px'}});
@@ -2803,7 +2803,7 @@ const filterRow=div({style:{display:'flex',gap:'8px',marginBottom:'24px'}});
 content.append(filterRow);
 const filteredSubs=currentFilter==='all'?submissions:submissions.filter(s=>s.status===currentFilter);
 if(!filteredSubs.length){
-  content.append(h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'12px',color:'var(--dim)',textAlign:'center',padding:'40px'},html:'No submissions yet.'}));
+  content.append(h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'12px',color:'var(--dim)',textAlign:'center',padding:'40px'},html:'No submissions yet.'}));
 }else{
   const list=div({style:{display:'flex',flexDirection:'column',gap:'16px'}});
   filteredSubs.forEach(sub=>{
@@ -2814,15 +2814,15 @@ if(!filteredSubs.length){
     const hdr=div({style:{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:'12px',flexWrap:'wrap',gap:'8px'}});
     const left=div({style:{display:'flex',alignItems:'center',gap:'12px',flexWrap:'wrap'}});
     left.append(
-      h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'13px',fontWeight:'bold',color:'var(--text)'},html:sub.user_name||'Anonymous'}),
-      h('span',{style:{fontFamily:"'DM Mono',monospace",fontSize:'10px',padding:'2px 8px',borderRadius:'2px',background:typeColor,color:'var(--bg)'},html:sub.type.toUpperCase()}),
-      h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'10px',color:'var(--dim)'},html:sub.topic||'—'}),
-      h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'9px',color:'var(--muted)'},html:'Week of '+(sub.week_of||'—')})
+      h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'13px',fontWeight:'bold',color:'var(--text)'},html:sub.user_name||'Anonymous'}),
+      h('span',{style:{fontFamily:"Inter,sans-serif",fontSize:'10px',padding:'2px 8px',borderRadius:'2px',background:typeColor,color:'var(--bg)'},html:sub.type.toUpperCase()}),
+      h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'10px',color:'var(--dim)'},html:sub.topic||'—'}),
+      h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'9px',color:'var(--muted)'},html:'Week of '+(sub.week_of||'—')})
     );
     hdr.append(left);
-    if(sub.status!=='pending'){hdr.append(h('span',{style:{fontFamily:"'DM Mono',monospace",fontSize:'10px',padding:'4px 8px',borderRadius:'2px',background:sub.status==='approved'?'rgba(126,184,164,0.15)':'rgba(139,58,58,0.15)',color:sub.status==='approved'?'var(--teal)':'#8B3A3A',border:'1px solid '+(sub.status==='approved'?'var(--teal)':'#8B3A3A')},html:sub.status.toUpperCase()}));}
+    if(sub.status!=='pending'){hdr.append(h('span',{style:{fontFamily:"Inter,sans-serif",fontSize:'10px',padding:'4px 8px',borderRadius:'2px',background:sub.status==='approved'?'rgba(126,184,164,0.15)':'rgba(139,58,58,0.15)',color:sub.status==='approved'?'var(--teal)':'#8B3A3A',border:'1px solid '+(sub.status==='approved'?'var(--teal)':'#8B3A3A')},html:sub.status.toUpperCase()}));}
     card.append(hdr);
-    card.append(div({style:{background:'var(--card)',padding:'16px',borderRadius:'4px',marginBottom:'16px',fontFamily:"'DM Mono',monospace",fontSize:'13px',color:'var(--text)',lineHeight:'1.5',whiteSpace:'pre-wrap'},html:sub.content||''}));
+    card.append(div({style:{background:'var(--card)',padding:'16px',borderRadius:'4px',marginBottom:'16px',fontFamily:"Inter,sans-serif",fontSize:'13px',color:'var(--text)',lineHeight:'1.5',whiteSpace:'pre-wrap'},html:sub.content||''}));
     if(sub.status==='pending'){
       const actions=div({style:{display:'flex',gap:'10px',marginTop:'12px'}});
       actions.append(btn('✓ Approve','btn-teal',async()=>{
@@ -2844,7 +2844,7 @@ if(!filteredSubs.length){
     }else if(sub.is_king){
       card.append(div({style:{marginTop:'12px',display:'flex',alignItems:'center',gap:'8px',background:'rgba(200,169,110,0.1)',padding:'8px 12px',borderRadius:'4px'}},[
         h('span',{style:{fontSize:'16px'},html:'👑'}),
-        h('span',{style:{fontFamily:"'DM Mono',monospace",fontSize:'11px',color:'var(--gold)'},html:'Feynman King — Week of '+(sub.week_of||'—')})
+        h('span',{style:{fontFamily:"Inter,sans-serif",fontSize:'11px',color:'var(--gold)'},html:'Feynman King — Week of '+(sub.week_of||'—')})
       ]));
     }
     list.append(card);
@@ -2854,8 +2854,8 @@ if(!filteredSubs.length){
 // RIDDLE DECKS SECTION
 const riddleSection=div({cls:'card',style:{marginTop:'32px',marginBottom:'32px'}});
 riddleSection.append(
-  h('h2',{style:{fontFamily:"'Playfair Display',serif",fontSize:'18px',marginBottom:'4px'},html:'Riddle Decks'}),
-  h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'9px',color:'var(--dim)',marginBottom:'16px'},html:'upload riddle deck csv'})
+  h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'18px',marginBottom:'4px'},html:'Riddle Decks'}),
+  h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'9px',color:'var(--dim)',marginBottom:'16px'},html:'upload riddle deck csv'})
 );
 const riddleDeckName=inp('Deck name e.g. Microbiology Riddles','text','');
 riddleDeckName.style.marginBottom='12px';
@@ -2886,11 +2886,11 @@ const riddleList=div({style:{marginTop:'16px'}});
 async function loadRiddleDecks(){
   riddleList.innerHTML='';
   const{data:decks}=await sb.from('flashcard_decks').select('*').eq('type','riddle').order('unlock_order',{ascending:true});
-  if(!decks||!decks.length){riddleList.append(h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'11px',color:'var(--dim)',textAlign:'center',padding:'16px'},html:'No riddle decks yet.'}));return;}
+  if(!decks||!decks.length){riddleList.append(h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'11px',color:'var(--dim)',textAlign:'center',padding:'16px'},html:'No riddle decks yet.'}));return;}
   for(let deck of decks){
     const{count}=await sb.from('flashcards').select('*',{count:'exact',head:true}).eq('deck_id',deck.id);
     const deckRow=div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'12px',borderBottom:'1px solid var(--border)'}},[
-      div({},[h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'13px',fontWeight:'bold'},html:deck.name}),h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'9px',color:'var(--dim)'},html:`Level ${deck.unlock_order} · ${count||0} cards`})]),
+      div({},[h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'13px',fontWeight:'bold'},html:deck.name}),h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'9px',color:'var(--dim)'},html:`Level ${deck.unlock_order} · ${count||0} cards`})]),
       btn('Delete','btn-outline',async()=>{await sb.from('flashcards').delete().eq('deck_id',deck.id);await sb.from('flashcard_decks').delete().eq('id',deck.id);loadRiddleDecks();},{style:{padding:'4px 12px',fontSize:'10px'}})
     ]);
     riddleList.append(deckRow);
@@ -2902,8 +2902,8 @@ await loadRiddleDecks();
 // EMOJI BITZ SECTION
 const emojiSection=div({cls:'card',style:{marginTop:'32px',marginBottom:'32px'}});
 emojiSection.append(
-  h('h2',{style:{fontFamily:"'Playfair Display',serif",fontSize:'18px',marginBottom:'4px'},html:'Emoji Bitz'}),
-  h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'9px',color:'var(--dim)',marginBottom:'16px'},html:'upload emoji bitz csv'})
+  h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'18px',marginBottom:'4px'},html:'Emoji Bitz'}),
+  h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'9px',color:'var(--dim)',marginBottom:'16px'},html:'upload emoji bitz csv'})
 );
 const emojiDeckName=inp('Deck name e.g. Bacteria Emojis','text','');
 emojiDeckName.style.marginBottom='12px';
@@ -2934,11 +2934,11 @@ const emojiList=div({style:{marginTop:'16px'}});
 async function loadEmojiDecks(){
   emojiList.innerHTML='';
   const{data:decks}=await sb.from('flashcard_decks').select('*').eq('type','emoji').order('unlock_order',{ascending:true});
-  if(!decks||!decks.length){emojiList.append(h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'11px',color:'var(--dim)',textAlign:'center',padding:'16px'},html:'No emoji bitz decks yet.'}));return;}
+  if(!decks||!decks.length){emojiList.append(h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'11px',color:'var(--dim)',textAlign:'center',padding:'16px'},html:'No emoji bitz decks yet.'}));return;}
   for(let deck of decks){
     const{count}=await sb.from('flashcards').select('*',{count:'exact',head:true}).eq('deck_id',deck.id);
     const deckRow=div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'12px',borderBottom:'1px solid var(--border)'}},[
-      div({},[h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'13px',fontWeight:'bold'},html:deck.name}),h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'9px',color:'var(--dim)'},html:`Level ${deck.unlock_order} · ${count||0} cards`})]),
+      div({},[h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'13px',fontWeight:'bold'},html:deck.name}),h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'9px',color:'var(--dim)'},html:`Level ${deck.unlock_order} · ${count||0} cards`})]),
       btn('Delete','btn-outline',async()=>{await sb.from('flashcards').delete().eq('deck_id',deck.id);await sb.from('flashcard_decks').delete().eq('id',deck.id);loadEmojiDecks();},{style:{padding:'4px 12px',fontSize:'10px'}})
     ]);
     emojiList.append(deckRow);
