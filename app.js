@@ -2321,7 +2321,38 @@ br2.append(div({},[h('label',{cls:'label',html:'Upload Theory PDF'}),fi]));
 }
 br2.append(btn('Reject','btn-outline',async()=>{await sb.from('recall_requests').update({status:'rejected',updated_at:new Date().toISOString()}).eq('id',r.id);loadTab('recalls');},{style:{padding:'8px 16px',fontSize:'11px',color:'#ff4444',borderColor:'#ff4444'}}));
 br2.append(btn('Mark Done','btn-teal',async()=>{await sb.from('recall_requests').update({status:'fulfilled',updated_at:new Date().toISOString()}).eq('id',r.id);if(r.user_id)await sb.from('profiles').update({has_new_content:true}).eq('id',r.user_id);loadTab('recalls');},{style:{padding:'8px 16px',fontSize:'11px'}}));
-card.append(br2);content.append(card);
+card.append(br2);
+(async()=>{
+  const delSection=div({style:{marginTop:'16px',borderTop:'1px solid var(--border)',paddingTop:'12px'}});
+  let found=false;
+  if(r.style==='flashcard'){
+    const{data:decks}=await sb.from('flashcard_decks').select('*').eq('user_id',r.user_id).eq('topic',r.topic).eq('type','flashcard');
+    if(decks&&decks.length){
+      found=true;
+      for(const deck of decks){
+        const{count}=await sb.from('flashcards').select('*',{count:'exact',head:true}).eq('deck_id',deck.id);
+        delSection.append(h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'11px',color:'var(--dim)',marginBottom:'8px'}},['📚 '+deck.name+' · '+(count||0)+' cards']));
+        delSection.append(btn('Delete Deck','btn-outline',async()=>{if(!confirm('Delete this deck and all its cards?'))return;await sb.from('flashcards').delete().eq('deck_id',deck.id);await sb.from('flashcard_decks').delete().eq('id',deck.id);loadTab('recalls');},{style:{padding:'4px 12px',fontSize:'10px',color:'#ff4444',borderColor:'#ff4444',marginBottom:'8px'}}));
+      }
+    }
+  } else if(r.style==='vignette'){
+    const{count}=await sb.from('vignette_questions').select('*',{count:'exact',head:true}).eq('user_id',r.user_id).eq('topic',r.topic);
+    if(count&&count>0){
+      found=true;
+      delSection.append(h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'11px',color:'var(--dim)',marginBottom:'8px'}},['📝 '+count+' questions for '+r.topic]));
+      delSection.append(btn('Delete All Questions','btn-outline',async()=>{if(!confirm('Delete all '+count+' questions for "'+r.topic+'"? Cannot be undone.'))return;await sb.from('vignette_questions').delete().eq('user_id',r.user_id).eq('topic',r.topic);loadTab('recalls');},{style:{padding:'4px 12px',fontSize:'10px',color:'#ff4444',borderColor:'#ff4444'}}));
+    }
+  } else if(r.style==='theory'){
+    const{data:pdfs}=await sb.from('theory_pdfs').select('id,filename').eq('recall_request_id',r.id);
+    if(pdfs&&pdfs.length){
+      found=true;
+      pdfs.forEach(pdf=>{delSection.append(h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'11px',color:'var(--dim)',marginBottom:'4px'}},['📄 '+pdf.filename]));});
+      delSection.append(btn('Delete PDF','btn-outline',async()=>{if(!confirm('Delete uploaded PDF(s)?'))return;for(const pdf of pdfs){await sb.from('theory_pdfs').delete().eq('id',pdf.id);}loadTab('recalls');},{style:{padding:'4px 12px',fontSize:'10px',color:'#ff4444',borderColor:'#ff4444',marginTop:'8px'}}));
+    }
+  }
+  if(found)card.append(delSection);
+})();
+content.append(card);
 });
 content.append(upSt);
 }
