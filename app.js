@@ -2343,7 +2343,7 @@ const deckTopic=dnI.value||file.name.replace('.csv','');
 const{data:deck,error:deckErr}=await sb.from('flashcard_decks').insert({name:deckTopic,type:'flashcard',topic:deckTopic,user_id:S.user?.id}).select().single();
 if(deckErr){console.error('Deck insert error:',deckErr);upSt.textContent='Error: '+deckErr.message;return;}
 if(!deck){upSt.textContent='Error: No deck returned';return;}
-const cards=lines.map(line=>{const parts=line.split(',');return{deck_id:deck.id,front:parts[0]?.trim(),back:parts.slice(1).join(',').trim(),hint:null};}).filter(c=>c.front&&c.back);
+const cards=lines.map(line=>{const parts=line.split(',');return{decks:deck.id,question:parts[0]?.trim(),answer:parts.slice(1).join(',').trim()};}).filter(c=>c.question&&c.answer);
 if(!cards.length){upSt.textContent='No valid cards found';return;}
 const{error:cardsErr}=await sb.from('flashcards').insert(cards);
 if(cardsErr){console.error('Cards insert error:',cardsErr);upSt.textContent='Error: '+cardsErr.message;return;}
