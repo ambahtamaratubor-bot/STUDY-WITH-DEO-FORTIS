@@ -1673,10 +1673,6 @@ inner.append(h('span',{cls:'chapter',html:'Question Bank'}),h('h2',{style:{fontF
 const{data}=await sb.from('vignette_questions').select('topic').or('user_id.eq.'+S.user.id+',user_id.is.null');
 const topics=data?[...new Set(data.map(d=>d.topic))]:[];
 if(!topics.length){inner.append(div({cls:'card',style:{textAlign:'center',padding:'48px'}},[h('p',{style:{fontSize:'14px',color:'var(--dim)'},html:'No questions available yet.'})]));return;}
-const tSel=h('select',{cls:'input',style:{cursor:'pointer',marginBottom:'8px'}});
-tSel.append(h('option',{value:'',html:'Choose a topic...'}));
-topics.forEach(t=>tSel.append(h('option',{value:t,html:t})));
-const countDisplay=div({style:{fontFamily:"'DM Mono',monospace",fontSize:'11px',color:'var(--dim)',marginBottom:'12px'}},[' ']);
 const qCountI=inp('e.g. 40','number','');qCountI.min='1';qCountI.max='9999';
 let selectedTopics=[];
 let selectedSubsections=[];
