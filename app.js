@@ -2272,16 +2272,73 @@ page.innerHTML='';
 const aN=div({style:{background:'rgba(15,14,10,.97)',borderBottom:'1px solid var(--border)',padding:'16px 24px',display:'flex',alignItems:'center',justifyContent:'space-between',position:'sticky',top:'0',zIndex:'100'}});
 aN.append(div({cls:'logo',html:'Admin — Deo Fortis'}),btn('← Site','btn-outline',()=>go('landing'),{style:{padding:'8px 16px'}}));
 page.append(aN);
-const tabs=div({style:{borderBottom:'1px solid var(--border)',display:'flex',overflowX:'auto'}});
-const content=div({cls:'inner-md'});
+const tabs=div({style:{display:'none'}});
+const content=div({cls:'inner-md',style:{padding:'24px'}});
 let curTab='settings';
-const tabDefs=[['settings','⚙ Settings'],['users',' Users'],['recalls',' Recalls'],['flashcards',' Flashcards'],['questions',' Q-Bank'],['testimonials',' Reviews'],['packages',' Packages'],['bookings',' Bookings'],['feynman','👑 Feynman']];
+const tabDefs=[['settings','⚙ Settings'],['users','Users'],['recalls','Recalls'],['flashcards','Flashcards'],['questions','Q-Bank'],['testimonials','Reviews'],['packages','Packages'],['bookings','Bookings'],['feynman','👑 Feynman']];
 tabDefs.forEach(([id,label])=>{
 const tb=h('button',{cls:'tab-btn'+(id===curTab?' active':''),html:label});
-tb.onclick=()=>{curTab=id;tabs.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));tb.classList.add('active');loadTab(id);};
+tb.onclick=()=>{curTab=id;loadTab(id);};
 tabs.append(tb);
 });
-page.append(tabs,content);
+
+// Badge element refs and sidebar row refs
+const badgeEls={};
+const sidebarRows={};
+
+function setActiveTab(tabId){
+  Object.keys(sidebarRows).forEach(id=>{
+    const row=sidebarRows[id];
+    const active=id===tabId;
+    row.style.borderLeftColor=active?'var(--gold)':'transparent';
+    row.style.color=active?'var(--gold)':'var(--muted)';
+    row.style.backgroundColor=active?'rgba(200,169,110,0.08)':'transparent';
+    row.style.fontWeight=active?'600':'400';
+  });
+}
+
+const tabIconMap={settings:ICONS.target,users:ICONS.layers,recalls:ICONS.pencil,flashcards:ICONS.book,questions:ICONS.question,testimonials:ICONS.star,packages:ICONS.zap,bookings:ICONS.mail,feynman:ICONS.brain};
+
+// Build sidebar
+const sidebar=div({style:{width:'220px',flexShrink:'0',background:'var(--card)',borderRight:'1px solid var(--border)',minHeight:'calc(100vh - 57px)',overflowY:'auto',position:'sticky',top:'57px',paddingTop:'8px'}});
+
+tabDefs.forEach(([id,label])=>{
+  const isActive=id===curTab;
+  const hasBadge=id==='users'||id==='recalls'||id==='feynman';
+  const iconEl=h('span',{style:{display:'inline-block',width:'20px',marginRight:'10px',verticalAlign:'middle',flexShrink:'0'},html:tabIconMap[id]||ICONS.file});
+  const labelEl=h('span',{style:{flex:'1',verticalAlign:'middle'}});
+  labelEl.textContent=label;
+  const badgeEl=h('span',{style:{display:'none',background:'var(--gold)',color:'#0F0E0A',fontSize:'10px',fontWeight:'700',padding:'2px 6px',borderRadius:'10px',marginLeft:'6px',lineHeight:'1.4'}});
+  badgeEl.textContent='0';
+  if(hasBadge)badgeEls[id]=badgeEl;
+  const row=div({style:{display:'flex',alignItems:'center',padding:'11px 16px',margin:'2px 8px',borderRadius:'4px',cursor:'pointer',borderLeft:'3px solid '+(isActive?'var(--gold)':'transparent'),color:isActive?'var(--gold)':'var(--muted)',background:isActive?'rgba(200,169,110,0.08)':'transparent',fontFamily:'Inter,sans-serif',fontSize:'13px',fontWeight:isActive?'600':'400',transition:'background 0.15s'}});
+  row.append(iconEl,labelEl,badgeEl);
+  row.onmouseenter=()=>{if(sidebarRows[id].style.backgroundColor!=='rgba(200,169,110,0.08)')row.style.background='rgba(200,169,110,0.04)';};
+  row.onmouseleave=()=>{if(sidebarRows[id].style.backgroundColor!=='rgba(200,169,110,0.08)')row.style.background='transparent';};
+  row.onclick=()=>{curTab=id;loadTab(id);setActiveTab(id);};
+  sidebarRows[id]=row;
+  sidebar.append(row);
+});
+
+// Fetch badge counts
+(async()=>{
+  const[uRes,rRes,fRes]=await Promise.all([
+    sb.from('profiles').select('id',{count:'exact',head:true}).eq('status','pending'),
+    sb.from('recall_requests').select('id',{count:'exact',head:true}).eq('status','pending'),
+    sb.from('feynman_submissions').select('id',{count:'exact',head:true}).eq('status','pending')
+  ]);
+  const counts={users:uRes.count||0,recalls:rRes.count||0,feynman:fRes.count||0};
+  Object.keys(badgeEls).forEach(id=>{
+    const c=counts[id]||0;
+    if(c>0){badgeEls[id].textContent=String(c);badgeEls[id].style.display='inline-block';}
+    else{badgeEls[id].style.display='none';}
+  });
+})();
+
+// Admin layout — sidebar + content
+const adminLayout=div({style:{display:'flex',minHeight:'calc(100vh - 57px)'}});
+adminLayout.append(sidebar,div({style:{flex:'1',overflowY:'auto'}},[tabs,content]));
+page.append(adminLayout);
 let currentFilter='pending';
 async function loadTab(tab){
 content.innerHTML='<p style="color:var(--dim);font-size:14px;padding:24px">Loading...</p>';
