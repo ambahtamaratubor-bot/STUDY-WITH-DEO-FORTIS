@@ -2251,7 +2251,7 @@ right.append(
   h('span',{style:{fontFamily:"'DM Mono',monospace",fontSize:'10px',letterSpacing:'1px',textTransform:'uppercase',color:u.status==='approved'?'var(--teal)':'var(--gold)'},html:u.status||'pending'}),
   h('span',{style:{fontFamily:"'DM Mono',monospace",fontSize:'10px',letterSpacing:'1px',textTransform:'uppercase',color:isFree?'var(--dim)':'var(--gold)'},html:isFree?'FREE':'PAID'})
 );
-if(u.status!=='approved'){right.append(btn('Approve','btn-teal',async()=>{const exp=new Date();exp.setMonth(exp.getMonth()+1);await sb.from('profiles').update({status:'approved',access_expires_at:exp.toISOString()}).eq('id',u.id);loadTab('users');},{style:{padding:'6px 16px',fontSize:'11px'}}));}
+if(u.status!=='approved'){right.append(btn('Approve','btn-teal',async()=>{const exp=new Date();exp.setMonth(exp.getMonth()+1);await sb.from('profiles').update({status:'approved',access_expires_at:exp.toISOString()}).eq('id',u.id);loadTab('users');},{style:{padding:'6px 16px',fontSize:'11px'}}));right.append(btn('Decline','btn-outline',async()=>{if(!confirm('Delete this user permanently?'))return;await sb.from('profiles').delete().eq('id',u.id);loadTab('users');},{style:{padding:'6px 16px',fontSize:'11px',color:'#ff4444',borderColor:'#ff4444'}}));}
 right.append(btn(isFree?'⬆ Set Paid':'⬇ Set Free',isFree?'btn-teal':'btn-outline',async()=>{await sb.from('profiles').update({is_free_tier:isFree?false:true,status:'approved'}).eq('id',u.id);loadTab('users');},{style:{padding:'6px 16px',fontSize:'11px'}}));
 row.append(info,right);card.append(row);
 });
