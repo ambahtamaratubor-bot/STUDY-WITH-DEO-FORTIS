@@ -2320,18 +2320,39 @@ card.append(h('h2',{style:{fontFamily:"'Playfair Display',serif",fontSize:'22px'
 const dnI=inp('e.g. Bacteriology Basics');
 const upSt=div({cls:'ok',style:{display:'none',marginTop:'16px'}});
 const fi=h('input',{type:'file',accept:'.csv',style:{color:'var(--muted)',fontSize:'13px',fontFamily:"'DM Mono',monospace",marginTop:'16px'}});
+const flashListDiv=div({style:{marginTop:'24px'}});
+async function loadFlashcardList(){
+  flashListDiv.innerHTML='';
+  const{data:decks}=await sb.from('flashcard_decks').select('*').eq('type','flashcard').order('created_at',{ascending:false});
+  if(!decks||!decks.length){flashListDiv.append(h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'11px',color:'var(--dim)',padding:'8px 0'}},['No flashcard decks uploaded yet.']));return;}
+  flashListDiv.append(h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'9px',letterSpacing:'2px',textTransform:'uppercase',color:'var(--dim)',marginBottom:'12px'}},['Uploaded Decks']));
+  for(const deck of decks){
+    const{count}=await sb.from('flashcards').select('*',{count:'exact',head:true}).eq('deck_id',deck.id);
+    const row=div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'10px 0',borderBottom:'1px solid var(--border)'}},[ 
+      h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'12px',color:'var(--text)'}},[ deck.name+' · '+(count||0)+' cards']),
+      btn('Delete','btn-outline',async()=>{if(!confirm('Delete "'+deck.name+'" and all its cards?'))return;await sb.from('flashcards').delete().eq('deck_id',deck.id);await sb.from('flashcard_decks').delete().eq('id',deck.id);loadFlashcardList();},{style:{padding:'4px 12px',fontSize:'10px',color:'#ff4444',borderColor:'#ff4444'}})
+    ]);
+    flashListDiv.append(row);
+  }
+}
 fi.onchange=async e=>{
 const file=e.target.files[0];if(!file)return;
 upSt.style.display='block';upSt.textContent='Uploading...';
 const text=await file.text();const lines=text.split('\n').filter(l=>l.trim());
-const deckTopic=dnI.value||file.name.replace('.csv','');const{data:deck}=await sb.from('flashcard_decks').insert({name:deckTopic,type:'flashcard',topic:deckTopic}).select().single();
-if(!deck){upSt.textContent='Error';return;}
+const deckTopic=dnI.value||file.name.replace('.csv','');
+const{data:deck,error:deckErr}=await sb.from('flashcard_decks').insert({name:deckTopic,type:'flashcard',topic:deckTopic,user_id:S.user?.id}).select().single();
+if(deckErr){console.error('Deck insert error:',deckErr);upSt.textContent='Error: '+deckErr.message;return;}
+if(!deck){upSt.textContent='Error: No deck returned';return;}
 const cards=lines.map(line=>{const parts=line.split(',');return{deck_id:deck.id,front:parts[0]?.trim(),back:parts.slice(1).join(',').trim(),hint:null};}).filter(c=>c.front&&c.back);
-await sb.from('flashcards').insert(cards);upSt.textContent='✓ Uploaded '+cards.length+' cards!';setTimeout(()=>upSt.style.display='none',3000);
+if(!cards.length){upSt.textContent='No valid cards found';return;}
+const{error:cardsErr}=await sb.from('flashcards').insert(cards);
+if(cardsErr){console.error('Cards insert error:',cardsErr);upSt.textContent='Error: '+cardsErr.message;return;}
+upSt.textContent='✓ Uploaded '+cards.length+' cards!';loadFlashcardList();setTimeout(()=>upSt.style.display='none',3000);
 };
 const ex=div({style:{background:'var(--bg)',border:'1px dashed var(--border)',borderRadius:'4px',padding:'32px',marginBottom:'20px'}});
 ex.append(div({cls:'mono',style:{marginBottom:'12px'},html:'Example:'}),div({style:{background:'var(--card)',border:'1px solid var(--border)',borderRadius:'2px',padding:'12px',marginBottom:'16px'},html:'<p style="font-family:\'DM Mono\',monospace;font-size:12px;color:var(--muted);line-height:1.8">What causes malaria?, Plasmodium falciparum<br>What stain is used for TB?, Ziehl-Neelsen stain</p>'}),field('Deck Name',dnI),fi);
-card.append(ex,upSt);content.innerHTML='';content.append(card);
+card.append(ex,upSt,flashListDiv);content.innerHTML='';content.append(card);
+(async()=>{await loadFlashcardList();})();
 }
 if(tab==='questions'){
 const card=div({cls:'card fade'});
@@ -2339,17 +2360,35 @@ card.append(h('h2',{style:{fontFamily:"'Playfair Display',serif",fontSize:'22px'
 const tI=inp('e.g. Bacteriology');
 const upSt=div({cls:'ok',style:{display:'none',marginTop:'16px'}});
 const fi=h('input',{type:'file',accept:'.txt',style:{color:'var(--muted)',fontSize:'13px',fontFamily:"'DM Mono',monospace",marginTop:'16px'}});
+const qListDiv=div({style:{marginTop:'24px'}});
+async function loadQuestionList(){
+  qListDiv.innerHTML='';
+  const{data:questions}=await sb.from('vignette_questions').select('id,topic,question').is('user_id',null).order('created_at',{ascending:false});
+  if(!questions||!questions.length){qListDiv.append(h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'11px',color:'var(--dim)',padding:'8px 0'}},['No questions uploaded yet.']));return;}
+  qListDiv.append(h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'9px',letterSpacing:'2px',textTransform:'uppercase',color:'var(--dim)',marginBottom:'12px'}},[questions.length+' Questions in Bank']));
+  for(const q of questions){
+    const preview=q.question.length>70?q.question.substring(0,70)+'...':q.question;
+    const row=div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'10px 0',borderBottom:'1px solid var(--border)'}},[ 
+      div({style:{fontFamily:"'DM Mono',monospace",fontSize:'11px',color:'var(--text)',flex:'1',marginRight:'12px'}},[h('span',{style:{color:'var(--gold)',marginRight:'8px'}},[q.topic]),preview]),
+      btn('Delete','btn-outline',async()=>{if(!confirm('Delete this question?'))return;await sb.from('vignette_questions').delete().eq('id',q.id);loadQuestionList();},{style:{padding:'4px 12px',fontSize:'10px',color:'#ff4444',borderColor:'#ff4444',flexShrink:'0'}})
+    ]);
+    qListDiv.append(row);
+  }
+}
 fi.onchange=async e=>{
 const file=e.target.files[0];if(!file)return;
 upSt.style.display='block';upSt.textContent='Uploading...';
 const text=await file.text();const blocks=text.split('\n\n').filter(b=>b.trim());const qs=[];
 for(const block of blocks){const lines=block.split('\n').filter(l=>l.trim());if(lines.length<3)continue;let questionText='';let optionA='',optionB='',optionC='',optionD='',optionE='';let correctAnswer='',explanation='';questionText=lines[0];for(const line of lines.slice(1)){if(line.startsWith('A.')||line.startsWith('A)'))optionA=line.slice(2).trim();if(line.startsWith('B.')||line.startsWith('B)'))optionB=line.slice(2).trim();if(line.startsWith('C.')||line.startsWith('C)'))optionC=line.slice(2).trim();if(line.startsWith('D.')||line.startsWith('D)'))optionD=line.slice(2).trim();if(line.startsWith('E.')||line.startsWith('E)'))optionE=line.slice(2).trim();if(line.toLowerCase().startsWith('answer:'))correctAnswer=line.split(':')[1]?.trim()||'';if(line.toLowerCase().startsWith('explanation:'))explanation=line.split(':')[1]?.trim()||'';}if(questionText&&correctAnswer){const options=[optionA?`A. ${optionA}`:null,optionB?`B. ${optionB}`:null,optionC?`C. ${optionC}`:null,optionD?`D. ${optionD}`:null,optionE?`E. ${optionE}`:null].filter(opt=>opt!==null);const q={topic:tI.value||'General',question:questionText,options:options,answer:correctAnswer,explanation:explanation,user_id:null};qs.push(q);}}
-if(qs.length){await sb.from('vignette_questions').insert(qs);upSt.textContent='✓ Uploaded '+qs.length+' questions!';}else upSt.textContent='No valid questions found.';
-setTimeout(()=>upSt.style.display='none',4000);
+if(!qs.length){upSt.textContent='No valid questions found.';setTimeout(()=>upSt.style.display='none',4000);return;}
+const{error:qErr}=await sb.from('vignette_questions').insert(qs);
+if(qErr){console.error('Q insert error:',qErr);upSt.textContent='Error: '+qErr.message;return;}
+upSt.textContent='✓ Uploaded '+qs.length+' questions!';loadQuestionList();setTimeout(()=>upSt.style.display='none',4000);
 };
 const ex=div({style:{background:'var(--bg)',border:'1px dashed var(--border)',borderRadius:'4px',padding:'32px',marginBottom:'20px'}});
 ex.append(div({cls:'mono',style:{marginBottom:'12px'},html:'Format:'}),div({style:{background:'var(--card)',border:'1px solid var(--border)',borderRadius:'2px',padding:'12px',marginBottom:'16px'},html:'<p style="font-family:\'DM Mono\',monospace;font-size:12px;color:var(--muted);line-height:2">A 25-year-old presents with fever...<br>A. Streptococcus pyogenes<br>B. Staphylococcus aureus<br>C. Neisseria meningitidis<br>D. Haemophilus influenzae<br>Answer: C<br>Explanation: Classic presentation...</p>'}),field('Topic Name',tI),fi);
-card.append(ex,upSt);content.innerHTML='';content.append(card);
+card.append(ex,upSt,qListDiv);content.innerHTML='';content.append(card);
+(async()=>{await loadQuestionList();})();
 }
 if(tab==='testimonials'){
 const{data:tlist}=await sb.from('testimonials').select('*').order('created_at',{ascending:false});
