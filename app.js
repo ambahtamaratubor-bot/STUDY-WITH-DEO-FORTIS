@@ -25,11 +25,13 @@ async function getProfile(id){
 const{data}=await sb.from('profiles').select('*').eq('id',id).single();
 if(data){
   S.profile=data;
-  if(data.is_free_tier===null||data.is_free_tier===undefined){
-    const wasFreeSignup=localStorage.getItem('signupType')==='free';
-    const tierValue=wasFreeSignup?true:false;
-    await sb.from('profiles').update({is_free_tier:tierValue}).eq('id',id);
-    S.profile.is_free_tier=tierValue;
+  if(data.is_free_tier===true){
+    if(data.status!=='approved'){
+      await sb.from('profiles').update({status:'approved'}).eq('id',id);
+      S.profile.status='approved';
+    }
+    go('dashboard');
+    return;
   }
   go(data.status==='approved'?'dashboard':'pending');
 }
@@ -299,13 +301,12 @@ function showGoalsModal(){
     btn('Save Goals','btn-gold',async()=>{
       const studyGoals={daily_hours:currentDaily,weekly_hours:currentWeekly};
       const{error}=await sb.from('profiles').update({study_goals:studyGoals,topic_goals:topicGoals}).eq('id',S.user.id);
-      if(!error){
-        if(!S.profile)S.profile={};
-        S.profile.study_goals=studyGoals;
-        S.profile.topic_goals=topicGoals;
-        saveMsg.style.display='block';
-        setTimeout(()=>{overlay.remove();renderGoalsProgress();},800);
-      }
+      if(error){console.error('Goals save error:',error);return;}
+      if(!S.profile)S.profile={};
+      S.profile.study_goals=studyGoals;
+      S.profile.topic_goals=topicGoals;
+      saveMsg.style.display='block';
+      setTimeout(()=>{overlay.remove();renderGoalsProgress();},800);
     },{style:{width:'100%'}}),
     saveMsg
   );
@@ -641,12 +642,30 @@ const errEl=div({cls:'err hidden'});
 const nameI=inp('Your full name');
 const emailI=inp('your@email.com','email');
 const passI=inp('Min. 6 characters','password');
+const pass2I=inp('Confirm password','password');
+function wrapWithEye(inputEl){
+  const wrapper=div({style:{position:'relative',display:'flex',alignItems:'center'}});
+  inputEl.style.flex='1';
+  inputEl.style.paddingRight='44px';
+  const toggleBtn=h('button',{style:{position:'absolute',right:'8px',top:'50%',transform:'translateY(-50%)',background:'none',border:'none',color:'var(--dim)',cursor:'pointer',fontSize:'14px',padding:'4px 8px'}},[document.createTextNode('👁')]);
+  let isVisible=false;
+  toggleBtn.onclick=()=>{
+    isVisible=!isVisible;
+    inputEl.type=isVisible?'text':'password';
+    toggleBtn.innerHTML=isVisible?'👁‍🗨':'👁';
+  };
+  wrapper.append(inputEl,toggleBtn);
+  return wrapper;
+}
+const wrappedPass=wrapWithEye(passI);
+const wrappedPass2=wrapWithEye(pass2I);
 const badge=div({style:{background:plan.color,color:'#0F0E0A',borderRadius:'4px',padding:'12px 16px',marginBottom:'20px',display:'flex',justifyContent:'space-between',alignItems:'center'}});
 badge.append(div({},[div({style:{fontFamily:"Inter,sans-serif",fontSize:'9px',letterSpacing:'2px',textTransform:'uppercase',marginBottom:'4px'},html:'Selected Plan'}),div({style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'20px',fontWeight:'700'},html:plan.name+' — '+plan.price})]),div({style:{fontFamily:"Inter,sans-serif",fontSize:'10px',letterSpacing:'1px'},html:plan.dur+' access'}));
 const submitBtn=btn('Create Account & Pay','btn-gold',async()=>{
 errEl.classList.add('hidden');
 if(!nameI.value||!emailI.value||!passI.value){errEl.classList.remove('hidden');errEl.textContent='Please fill in all fields.';return;}
 if(passI.value.length<6){errEl.classList.remove('hidden');errEl.textContent='Password must be at least 6 characters.';return;}
+if(passI.value!==pass2I.value){errEl.classList.remove('hidden');errEl.textContent='Passwords do not match.';return;}
 const nameVal=nameI.value.trim();
 const emailVal=emailI.value.trim();
 const passVal=passI.value;
@@ -658,7 +677,7 @@ ov.remove();
 window.open(selarLink,'_blank');
 showSignupSuccess(nameVal,selarLink);
 },{style:{width:'100%',padding:'16px',marginTop:'8px'}});
-box.append(div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'16px'}},[h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'22px'},html:'Create Account'}),btn('x','',()=>ov.remove(),{style:{background:'none',border:'none',color:'var(--muted)',fontSize:'18px',cursor:'pointer'}})]),badge,errEl,field('Full Name',nameI),field('Email',emailI),field('Password',passI),submitBtn,h('p',{style:{fontSize:'12px',color:'var(--dim)',textAlign:'center',marginTop:'12px',fontFamily:"Inter,sans-serif",letterSpacing:'1px'},html:'You will be redirected to Selar to complete payment'}),h('p',{style:{fontSize:'13px',color:'var(--muted)',textAlign:'center',marginTop:'12px'},html:'Already have an account? <button onclick="go(\'login\')" style="background:none;border:none;color:var(--gold);cursor:pointer;font-size:13px">Log in</button>'}));
+box.append(div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'16px'}},[h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'22px'},html:'Create Account'}),btn('x','',()=>ov.remove(),{style:{background:'none',border:'none',color:'var(--muted)',fontSize:'18px',cursor:'pointer'}})]),badge,errEl,field('Full Name',nameI),field('Email',emailI),field('Password',wrappedPass),field('Confirm Password',wrappedPass2),submitBtn,h('p',{style:{fontSize:'12px',color:'var(--dim)',textAlign:'center',marginTop:'12px',fontFamily:"Inter,sans-serif",letterSpacing:'1px'},html:'You will be redirected to Selar to complete payment'}),h('p',{style:{fontSize:'13px',color:'var(--muted)',textAlign:'center',marginTop:'12px'},html:'Already have an account? <button onclick="go(\'login\')" style="background:none;border:none;color:var(--gold);cursor:pointer;font-size:13px">Log in</button>'}));
 ov.append(box);document.body.append(ov);
 }
 function showSignupSuccess(name,selarLink){
@@ -864,7 +883,7 @@ if(error){errEl.classList.remove('hidden');errEl.textContent=error.message;sb2.t
 // onAuthStateChange handles redirect
 },{style:{width:'100%',marginBottom:'16px'}});
 passI.onkeydown=e=>{if(e.key==='Enter')sb2.click();};
-card.append(div({style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontStyle:'italic',fontSize:'22px',color:'var(--gold)',marginBottom:'4px'},html:'Deo Fortis'}),h('hr',{style:{border:'none',borderTop:'1px solid var(--border)',margin:'16px 0'}}),h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'24px',marginBottom:'4px'},html:'Welcome Back'}),h('p',{cls:'muted',style:{fontSize:'14px',marginBottom:'24px'},html:'Log in to continue your studies.'}),errEl,field('Email',emailI),field('Password',wrappedPassI,'mb-24'),sb2,h('hr',{style:{border:'none',borderTop:'1px solid var(--border)',margin:'16px 0'}}),h('p',{style:{fontSize:'13px',color:'var(--muted)',textAlign:'center',marginTop:'16px'},html:"Don't have an account? <button onclick=\"go('landing')\" style=\"background:none;border:none;color:var(--gold);cursor:pointer;font-size:13px\">Sign up via home page</button>"}),h('p',{style:{fontSize:'13px',color:'var(--muted)',textAlign:'center',marginTop:'8px'},html:"<button onclick=\"go('landing')\" style=\"background:none;border:none;color:var(--dim);cursor:pointer;font-size:12px\">← Back to home</button>"}));
+card.append(div({style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontStyle:'italic',fontSize:'22px',color:'var(--gold)',marginBottom:'4px'},html:'Deo Fortis'}),h('hr',{style:{border:'none',borderTop:'1px solid var(--border)',margin:'16px 0'}}),h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'24px',marginBottom:'4px'},html:'Welcome Back'}),h('p',{cls:'muted',style:{fontSize:'14px',marginBottom:'24px'},html:'Log in to continue your studies.'}),errEl,field('Email',emailI),field('Password',wrappedPassI,'mb-24'),sb2,fpBtn,h('hr',{style:{border:'none',borderTop:'1px solid var(--border)',margin:'16px 0'}}),h('p',{style:{fontSize:'13px',color:'var(--muted)',textAlign:'center',marginTop:'16px'},html:"Don't have an account? <button onclick=\"go('landing')\" style=\"background:none;border:none;color:var(--gold);cursor:pointer;font-size:13px\">Sign up via home page</button>"}),h('p',{style:{fontSize:'13px',color:'var(--muted)',textAlign:'center',marginTop:'8px'},html:"<button onclick=\"go('landing')\" style=\"background:none;border:none;color:var(--dim);cursor:pointer;font-size:12px\">← Back to home</button>"}));
 page.append(card);return page;
 }
 // ═══════════════════════════════
