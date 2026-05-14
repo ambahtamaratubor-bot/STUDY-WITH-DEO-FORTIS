@@ -16,9 +16,6 @@ body:JSON.stringify({from:'Deo Fortis <onboarding@resend.dev>',to:ADMIN_EMAIL,su
 let S={page:'landing',user:null,profile:null};
 let signingUp=false;
 function go(p){S.page=p;render();}
-sb.auth.getSession().then(({data:{session}})=>{
-  if(session&&!signingUp){S.user=session.user;getProfile(session.user.id);}
-});
 sb.auth.onAuthStateChange((_,session)=>{
   if(signingUp)return;
   if(session){S.user=session.user;getProfile(session.user.id);}
@@ -306,9 +303,8 @@ function showGoalsModal(){
         if(!S.profile)S.profile={};
         S.profile.study_goals=studyGoals;
         S.profile.topic_goals=topicGoals;
-        renderGoalsProgress();
         saveMsg.style.display='block';
-        setTimeout(()=>overlay.remove(),800);
+        setTimeout(()=>{overlay.remove();renderGoalsProgress();},800);
       }
     },{style:{width:'100%'}}),
     saveMsg
@@ -710,8 +706,23 @@ const nameInput=document.createElement('input');nameInput.id='su-name';nameInput
 const emailInput=document.createElement('input');emailInput.id='su-email';emailInput.type='email';emailInput.placeholder='your@email.com';emailInput.style.cssText=nameInput.style.cssText;
 const passInput=document.createElement('input');passInput.id='su-pass';passInput.type='password';passInput.placeholder='Min. 6 characters';passInput.style.cssText=nameInput.style.cssText;
 const pass2Input=document.createElement('input');pass2Input.id='su-pass2';pass2Input.type='password';pass2Input.placeholder='Confirm your password';pass2Input.style.cssText=nameInput.style.cssText;
-function wrapField(labelText,input){const w=div({style:{marginBottom:'16px'}});const l=h('label',{cls:'label',html:labelText});w.append(l,input);return w;}
-fc.append(wrapField('Full Name',nameInput),wrapField('Email',emailInput),wrapField('Password',passInput),wrapField('Confirm Password',pass2Input));
+function wrapWithEye(inputEl){
+  const wrapper=div({style:{position:'relative'}});
+  inputEl.style.paddingRight='50px';
+  const toggleBtn=h('button',{style:{position:'absolute',right:'8px',top:'50%',transform:'translateY(-50%)',background:'none',border:'none',color:'var(--dim)',cursor:'pointer',fontSize:'14px',padding:'4px 8px'}},[document.createTextNode('👁')]);
+  let isVisible=false;
+  toggleBtn.onclick=()=>{
+    isVisible=!isVisible;
+    inputEl.type=isVisible?'text':'password';
+    toggleBtn.innerHTML=isVisible?'👁‍🗨':'👁';
+  };
+  wrapper.append(inputEl,toggleBtn);
+  return wrapper;
+}
+const wrappedPass=wrapWithEye(passInput);
+const wrappedPass2=wrapWithEye(pass2Input);
+function wrapField(labelText,inputWrapper){const w=div({style:{marginBottom:'16px'}});const l=h('label',{cls:'label',html:labelText});w.append(l,inputWrapper);return w;}
+fc.append(wrapField('Full Name',nameInput),wrapField('Email',emailInput),wrapField('Password',wrappedPass),wrapField('Confirm Password',wrappedPass2));
 const submitBtn=document.createElement('button');
 submitBtn.style.cssText='width:100%;padding:16px;font-family:"DM Mono",monospace;font-size:11px;letter-spacing:2px;text-transform:uppercase;cursor:pointer;border:none;border-radius:2px;background:var(--gold);color:#0F0E0A;margin-top:8px;';
 submitBtn.textContent=sel?'Create Account — '+sel.price:'Create Account';
@@ -829,9 +840,23 @@ const page=div({cls:'center',style:{minHeight:'100vh',padding:'24px'}});
 const card=div({cls:'card fade',style:{width:'100%',maxWidth:'400px'}});
 const errEl=div({cls:'err hidden'});
 const emailI=inp('your@email.com','email');const passI=inp('Your password','password');
+function wrapWithEye(inputEl){
+  const wrapper=div({style:{position:'relative'}});
+  inputEl.style.paddingRight='50px';
+  const toggleBtn=h('button',{style:{position:'absolute',right:'8px',top:'50%',transform:'translateY(-50%)',background:'none',border:'none',color:'var(--dim)',cursor:'pointer',fontSize:'14px',padding:'4px 8px'}},[document.createTextNode('👁')]);
+  let isVisible=false;
+  toggleBtn.onclick=()=>{
+    isVisible=!isVisible;
+    inputEl.type=isVisible?'text':'password';
+    toggleBtn.innerHTML=isVisible?'👁‍🗨':'👁';
+  };
+  wrapper.append(inputEl,toggleBtn);
+  return wrapper;
+}
+const wrappedPassI=wrapWithEye(passI);
 // Forgot password
 const fpBtn=document.createElement('button');fpBtn.style.cssText='background:none;border:none;color:var(--gold);cursor:pointer;font-size:12px;font-family:"DM Mono",monospace;letter-spacing:1px;display:block;margin-bottom:16px;';fpBtn.textContent='Forgot password?';
-fpBtn.onclick=async()=>{const em=emailInp.value.trim();if(!em){errEl.classList.remove('hidden');errEl.textContent='Enter your email first.';return;}const{error}=await sb.auth.resetPasswordForEmail(em,{redirectTo:window.location.origin});if(error){errEl.classList.remove('hidden');errEl.textContent=error.message;}else{errEl.classList.remove('hidden');errEl.style.background='#0a1f18';errEl.style.border='1px solid var(--teal)';errEl.style.color='var(--teal)';errEl.textContent='Password reset email sent! Check your inbox.';}};
+fpBtn.onclick=async()=>{const em=emailI.value.trim();if(!em){errEl.classList.remove('hidden');errEl.textContent='Enter your email first.';return;}const{error}=await sb.auth.resetPasswordForEmail(em,{redirectTo:window.location.origin});if(error){errEl.classList.remove('hidden');errEl.textContent=error.message;}else{errEl.classList.remove('hidden');errEl.style.background='#0a1f18';errEl.style.border='1px solid var(--teal)';errEl.style.color='var(--teal)';errEl.textContent='Password reset email sent! Check your inbox.';}};
 const sb2=btn('Log In','btn-gold',async()=>{
 errEl.classList.add('hidden');sb2.textContent='Logging in...';sb2.disabled=true;
 const{data,error}=await sb.auth.signInWithPassword({email:emailI.value,password:passI.value});
@@ -839,7 +864,7 @@ if(error){errEl.classList.remove('hidden');errEl.textContent=error.message;sb2.t
 // onAuthStateChange handles redirect
 },{style:{width:'100%',marginBottom:'16px'}});
 passI.onkeydown=e=>{if(e.key==='Enter')sb2.click();};
-card.append(div({style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontStyle:'italic',fontSize:'22px',color:'var(--gold)',marginBottom:'4px'},html:'Deo Fortis'}),h('hr',{style:{border:'none',borderTop:'1px solid var(--border)',margin:'16px 0'}}),h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'24px',marginBottom:'4px'},html:'Welcome Back'}),h('p',{cls:'muted',style:{fontSize:'14px',marginBottom:'24px'},html:'Log in to continue your studies.'}),errEl,field('Email',emailI),field('Password',passI,{mb:'mb-24'}),sb2,h('hr',{style:{border:'none',borderTop:'1px solid var(--border)',margin:'16px 0'}}),h('p',{style:{fontSize:'13px',color:'var(--muted)',textAlign:'center',marginTop:'16px'},html:"Don't have an account? <button onclick=\"go('landing')\" style=\"background:none;border:none;color:var(--gold);cursor:pointer;font-size:13px\">Sign up via home page</button>"}),h('p',{style:{fontSize:'13px',color:'var(--muted)',textAlign:'center',marginTop:'8px'},html:"<button onclick=\"go('landing')\" style=\"background:none;border:none;color:var(--dim);cursor:pointer;font-size:12px\">← Back to home</button>"}));
+card.append(div({style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontStyle:'italic',fontSize:'22px',color:'var(--gold)',marginBottom:'4px'},html:'Deo Fortis'}),h('hr',{style:{border:'none',borderTop:'1px solid var(--border)',margin:'16px 0'}}),h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'24px',marginBottom:'4px'},html:'Welcome Back'}),h('p',{cls:'muted',style:{fontSize:'14px',marginBottom:'24px'},html:'Log in to continue your studies.'}),errEl,field('Email',emailI),field('Password',wrappedPassI,'mb-24'),sb2,h('hr',{style:{border:'none',borderTop:'1px solid var(--border)',margin:'16px 0'}}),h('p',{style:{fontSize:'13px',color:'var(--muted)',textAlign:'center',marginTop:'16px'},html:"Don't have an account? <button onclick=\"go('landing')\" style=\"background:none;border:none;color:var(--gold);cursor:pointer;font-size:13px\">Sign up via home page</button>"}),h('p',{style:{fontSize:'13px',color:'var(--muted)',textAlign:'center',marginTop:'8px'},html:"<button onclick=\"go('landing')\" style=\"background:none;border:none;color:var(--dim);cursor:pointer;font-size:12px\">← Back to home</button>"}));
 page.append(card);return page;
 }
 // ═══════════════════════════════
@@ -1140,7 +1165,6 @@ twoCol.append(recentCard);
       actionButton(ICONS.target,'Start Session',()=>go('study')),
       actionButton(ICONS.question,'Q-Bank',()=>go('vignette')),
       actionButton(ICONS.layers,'Flashcards',()=>go('flashcards')),
-      actionButton(ICONS.pencil,'Request Recall',()=>S.profile?.is_free_tier?showUpgradeModal():go('dashboard')),
       actionButton(ICONS.trophy,'Leaderboard',()=>isFree?showUpgradeModal():go('leaderboard')),
       actionButton(ICONS.message,'Community',()=>{if(commLink&&commLink!=='#')window.open(commLink,'_blank');}),
       actionButton(ICONS.brain,'Feynman Arena',()=>go('feynman'))
@@ -1653,10 +1677,50 @@ if(S.profile?.is_free_tier){
   }
 }
 selDeck=deck;
-const{data}=await sb.from('flashcards').select('*').eq('deck_id',deck.id);
-if(!data||!data.length){alert('No cards in this deck yet.');return;}
-cards=[...data];queue=[...data];curIdx=0;flipped=false;prog={easy:0,iffy:0,hard:0};
-showCard();
+const{data:allCards}=await sb.from('flashcards').select('*').eq('deck_id',deck.id);
+if(!allCards||!allCards.length){alert('No cards in this deck yet.');return;}
+function shuffle(arr){for(let i=arr.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[arr[i],arr[j]]=[arr[j],arr[i]];}return arr;}
+const total=allCards.length;
+const defaultCount=Math.min(20,total);
+let selectedCount=defaultCount;
+inner.innerHTML='';
+const card=div({cls:'card',style:{textAlign:'center'}});
+const backBtn=btn('← Back','',()=>showDecks(),{style:{background:'none',border:'none',color:'var(--dim)',cursor:'pointer',fontSize:'12px',fontFamily:"Inter,sans-serif",letterSpacing:'1px',marginBottom:'16px'}});
+card.append(backBtn);
+card.append(h('span',{cls:'chapter',html:'Configure Session'}));
+card.append(h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'28px',marginBottom:'8px'},html:deck.topic||deck.name}));
+card.append(h('p',{cls:'muted',style:{fontSize:'14px',marginBottom:'24px'},html:total+' cards available'}));
+card.append(h('label',{cls:'label',html:'How many cards do you want to study?'}));
+const countInput=h('input',{type:'number',value:String(selectedCount),min:'1',max:String(total),style:{width:'100%',padding:'10px',margin:'12px 0',background:'var(--bg)',border:'1px solid var(--border)',borderRadius:'2px',color:'var(--text)',fontSize:'14px',textAlign:'center'}});
+countInput.oninput=(e)=>{let val=parseInt(e.target.value);if(isNaN(val))val=defaultCount;if(val<1)val=1;if(val>total)val=total;selectedCount=val;countInput.value=String(selectedCount);updateButtons();};
+const quickRow=div({style:{display:'flex',gap:'8px',marginBottom:'24px'}});
+const tenBtn=btn('10','btn-outline',()=>{selectedCount=Math.min(10,total);countInput.value=String(selectedCount);updateButtons();},{style:{flex:'1'}});
+const twentyBtn=btn('20','btn-outline',()=>{selectedCount=Math.min(20,total);countInput.value=String(selectedCount);updateButtons();},{style:{flex:'1'}});
+const allBtn=btn('All','btn-outline',()=>{selectedCount=total;countInput.value=String(selectedCount);updateButtons();},{style:{flex:'1'}});
+quickRow.append(tenBtn,twentyBtn,allBtn);
+card.append(quickRow,countInput);
+function updateButtons(){
+  [tenBtn,twentyBtn,allBtn].forEach(b=>{
+    b.style.background='transparent';
+    b.style.color='var(--muted)';
+    b.style.border='1px solid var(--border)';
+  });
+  if(selectedCount===Math.min(10,total)){tenBtn.style.background='var(--gold)';tenBtn.style.color='var(--bg)';tenBtn.style.border='1px solid var(--gold)';}
+  else if(selectedCount===Math.min(20,total)){twentyBtn.style.background='var(--gold)';twentyBtn.style.color='var(--bg)';twentyBtn.style.border='1px solid var(--gold)';}
+  else if(selectedCount===total){allBtn.style.background='var(--gold)';allBtn.style.color='var(--bg)';allBtn.style.border='1px solid var(--gold)';}
+}
+updateButtons();
+const startBtn=btn('Start Session →','btn-gold',()=>{
+  const shuffled=shuffle([...allCards]);
+  cards=shuffled.slice(0,selectedCount);
+  queue=[...cards];
+  curIdx=0;
+  flipped=false;
+  prog={easy:0,iffy:0,hard:0};
+  showCard();
+},{style:{width:'100%',marginTop:'8px'}});
+card.append(startBtn);
+inner.append(card);
 }
 function showCard(){
 inner.innerHTML='';
@@ -1693,45 +1757,59 @@ function markCard(d){
 const cur=queue[curIdx];
 const prev=cur._state||'none';
 let nq=[...queue];
-
+// Increment seen counter
+cur._seen=(cur._seen||0)+1;
 if(prev==='none'){
-  // First time seeing this card
   cur._state=d;
   prog[d]++;
   if(d==='easy'){nq.splice(curIdx,1);}
   else if(d==='iffy'){nq.splice(curIdx,1);nq.push(cur);}
   else{nq.splice(curIdx,1);nq.splice(Math.min(curIdx+2,nq.length),0,cur);}
-  (async()=>{await sb.from('flashcard_progress').upsert({user_id:S.user.id,flashcard_id:cur.id,difficulty:d,updated_at:new Date().toISOString()},{onConflict:'user_id,flashcard_id'});})();
-
+  (async()=>{await sb.from('flashcard_progress').upsert({user_id:S.user.id,flashcard_id:cur.id,difficulty:d.charAt(0).toUpperCase()+d.slice(1),updated_at:new Date().toISOString()},{onConflict:'user_id,flashcard_id'});})();
 } else if(prev==='hard'){
-  if(d==='hard'){
-    // Hard + Hard = stays Hard, repeat soon
-    nq.splice(curIdx,1);nq.splice(Math.min(curIdx+2,nq.length),0,cur);
-  } else {
-    // Hard + Iffy or Easy = moves to Iffy
-    prog.hard=Math.max(0,prog.hard-1);prog.iffy++;
-    cur._state='iffy';
-    nq.splice(curIdx,1);nq.push(cur);
-  }
-
+  if(d==='hard'){nq.splice(curIdx,1);nq.splice(Math.min(curIdx+2,nq.length),0,cur);}
+  else{prog.hard=Math.max(0,prog.hard-1);prog.iffy++;cur._state='iffy';nq.splice(curIdx,1);nq.push(cur);}
 } else if(prev==='iffy'){
-  if(d==='easy'){
-    // Iffy + Easy = moves to Easy, done
-    prog.iffy=Math.max(0,prog.iffy-1);prog.easy++;
-    cur._state='easy';
-    nq.splice(curIdx,1);
-  } else {
-    // Iffy + Iffy or Hard = stays Iffy, repeat at end
-    nq.splice(curIdx,1);nq.push(cur);
-  }
-
+  if(d==='easy'){prog.iffy=Math.max(0,prog.iffy-1);prog.easy++;cur._state='easy';nq.splice(curIdx,1);}
+  else{nq.splice(curIdx,1);nq.push(cur);}
 } else if(prev==='easy'){
-  // Easy stays Easy, remove from queue
   nq.splice(curIdx,1);
 }
-
-if(!nq.length){showDone();return;}
+// After 2 appearances card is permanently done
+if(cur._seen>=2){
+  nq=nq.filter(c=>c!==cur);
+  queue=nq;curIdx=Math.min(curIdx,queue.length-1);
+  if(!queue.length){checkForRemaining();return;}
+  flipped=false;showCard();return;
+}
+if(!nq.length){checkForRemaining();return;}
 queue=nq;curIdx=Math.min(curIdx,queue.length-1);flipped=false;showCard();
+}
+function checkForRemaining(){
+  const remainingCards=cards.filter(c=>c._state==='hard'||c._state==='iffy');
+  if(remainingCards.length>0){showRoundComplete(remainingCards);}
+  else{showDone();}
+}
+function showRoundComplete(remainingCards){
+  inner.innerHTML='';
+  const card=div({cls:'card',style:{textAlign:'center'}});
+  card.append(
+    h('span',{cls:'chapter',html:'Round Complete'}),
+    h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'28px',marginBottom:'8px'},html:selDeck?.topic||''}),
+    h('p',{cls:'muted',style:{fontSize:'14px',marginBottom:'24px'},html:'You have completed one full pass through the deck.'}),
+    div({style:{background:'var(--card2)',borderRadius:'4px',padding:'20px',marginBottom:'24px'}},[
+      h('div',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'18px',color:'var(--gold)',marginBottom:'8px'},html:remainingCards.length+' cards remaining'}),
+      h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'12px',color:'var(--dim)'},html:'Marked as Hard or Iffy — ready for another round.'})
+    ]),
+    div({style:{display:'grid',gap:'12px'}},[
+      btn('Repeat Hard & Iffy →','btn-gold',()=>{
+        queue=[...remainingCards];cards=[...remainingCards];
+        curIdx=0;flipped=false;prog={easy:0,iffy:0,hard:0};showCard();
+      }),
+      btn('Finish Session','btn-outline',()=>showDone())
+    ])
+  );
+  inner.append(card);
 }
 async function showDone(){
 inner.innerHTML='';
@@ -2368,6 +2446,8 @@ async function showDeckPlayer(deck,type){
     modal.innerHTML='';
     if(passed){
       await sb.from('flashcard_progress').upsert({user_id:S.user.id,deck_id:deck.id,completed:true,completed_at:new Date().toISOString()});
+    await sb.from('profiles').update({total_points:(S.profile?.total_points||0)+10}).eq('id',S.user.id);
+    if(S.profile)S.profile.total_points=(S.profile.total_points||0)+10;
       const{data:nextDeck}=await sb.from('flashcard_decks').select('id').eq('type',type).eq('unlock_order',deck.unlock_order+1).maybeSingle();
       modal.append(
         h('div',{style:{fontSize:'48px',textAlign:'center',marginBottom:'16px'},html:ICONS.sparkles}),
