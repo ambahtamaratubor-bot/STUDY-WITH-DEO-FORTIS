@@ -13,24 +13,22 @@ body:JSON.stringify({from:'Deo Fortis <onboarding@resend.dev>',to:ADMIN_EMAIL,su
 });
 }catch(e){console.log('Email error:',e);}
 }
-let S={page:'landing',user:null,profile:null,initialized:false};
+let S={page:'landing',user:null,profile:null};
 let signingUp=false;
 function go(p){S.page=p;render();}
-sb.auth.getSession().then(({data:{session}})=>{if(session&&!signingUp){S.user=session.user;S.initialized=true;getProfile(session.user.id);}});
 sb.auth.onAuthStateChange(async(_,session)=>{
   if(signingUp)return;
   if(session){
-    if(!S.initialized){
-      S.user=session.user;
-      S.initialized=true;
-      await getProfile(session.user.id);
-      return;
-    }
     S.user=session.user;
     const{data}=await sb.from('profiles').select('*').eq('id',session.user.id).single();
     if(data)S.profile=data;
+    const protectedPages=['dashboard','study','vignette','flashcards','feynman','leaderboard','admin'];
+    const isOnProtectedPage=protectedPages.includes(S.page);
+    const isApproved=S.profile?.status==='approved';
+    if(!isOnProtectedPage&&isApproved){go('dashboard');}
+    else if(!isOnProtectedPage&&!isApproved&&S.profile){go('pending');}
   }else{
-    S.user=null;S.profile=null;S.initialized=false;go('landing');
+    S.user=null;S.profile=null;go('landing');
   }
 });
 async function getProfile(id){
@@ -845,7 +843,7 @@ const sb2=btn('Log In','btn-gold',async()=>{
 errEl.classList.add('hidden');sb2.textContent='Logging in...';sb2.disabled=true;
 const{data,error}=await sb.auth.signInWithPassword({email:emailI.value,password:passI.value});
 if(error){errEl.classList.remove('hidden');errEl.textContent=error.message;sb2.textContent='Log In';sb2.disabled=false;return;}
-await getProfile(data.user.id);
+// onAuthStateChange handles redirect
 },{style:{width:'100%',marginBottom:'16px'}});
 passI.onkeydown=e=>{if(e.key==='Enter')sb2.click();};
 card.append(div({style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontStyle:'italic',fontSize:'22px',color:'var(--gold)',marginBottom:'4px'},html:'Deo Fortis'}),h('hr',{style:{border:'none',borderTop:'1px solid var(--border)',margin:'16px 0'}}),h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'24px',marginBottom:'4px'},html:'Welcome Back'}),h('p',{cls:'muted',style:{fontSize:'14px',marginBottom:'24px'},html:'Log in to continue your studies.'}),errEl,field('Email',emailI),field('Password',passI,{mb:'mb-24'}),sb2,h('hr',{style:{border:'none',borderTop:'1px solid var(--border)',margin:'16px 0'}}),h('p',{style:{fontSize:'13px',color:'var(--muted)',textAlign:'center',marginTop:'16px'},html:"Don't have an account? <button onclick=\"go('landing')\" style=\"background:none;border:none;color:var(--gold);cursor:pointer;font-size:13px\">Sign up via home page</button>"}),h('p',{style:{fontSize:'13px',color:'var(--muted)',textAlign:'center',marginTop:'8px'},html:"<button onclick=\"go('landing')\" style=\"background:none;border:none;color:var(--dim);cursor:pointer;font-size:12px\">← Back to home</button>"}));
