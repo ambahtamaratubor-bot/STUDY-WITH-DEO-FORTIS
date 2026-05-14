@@ -24,16 +24,25 @@ sb.auth.onAuthStateChange((_,session)=>{
 async function getProfile(id){
 const{data}=await sb.from('profiles').select('*').eq('id',id).single();
 if(data){
+  if(data.is_free_tier===null||data.is_free_tier===undefined){
+    if(data.status==='approved'){
+      await sb.from('profiles').update({is_free_tier:false}).eq('id',id);
+      data.is_free_tier=false;
+    }else{
+      const wasFreeSignup=localStorage.getItem('signupType')==='free';
+      const tierValue=wasFreeSignup?true:false;
+      await sb.from('profiles').update({is_free_tier:tierValue}).eq('id',id);
+      data.is_free_tier=tierValue;
+    }
+  }
   S.profile=data;
   if(data.is_free_tier===true){
-    if(data.status!=='approved'){
-      await sb.from('profiles').update({status:'approved'}).eq('id',id);
-      S.profile.status='approved';
-    }
     go('dashboard');
-    return;
+  }else if(data.status==='approved'){
+    go('dashboard');
+  }else{
+    go('pending');
   }
-  go(data.status==='approved'?'dashboard':'pending');
 }
 }
 function h(tag,attr,kids){
@@ -301,12 +310,19 @@ function showGoalsModal(){
     btn('Save Goals','btn-gold',async()=>{
       const studyGoals={daily_hours:currentDaily,weekly_hours:currentWeekly};
       const{error}=await sb.from('profiles').update({study_goals:studyGoals,topic_goals:topicGoals}).eq('id',S.user.id);
-      if(error){console.error('Goals save error:',error);return;}
-      if(!S.profile)S.profile={};
-      S.profile.study_goals=studyGoals;
-      S.profile.topic_goals=topicGoals;
-      saveMsg.style.display='block';
-      setTimeout(()=>{overlay.remove();renderGoalsProgress();},800);
+      if(!error){
+        if(!S.profile)S.profile={};
+        S.profile.study_goals=studyGoals;
+        S.profile.topic_goals=topicGoals;
+        saveMsg.style.color='var(--teal)';
+        saveMsg.innerHTML='✓ Saved!';
+        saveMsg.style.display='block';
+        setTimeout(()=>{overlay.remove();renderGoalsProgress();},800);
+      }else{
+        saveMsg.style.color='#ff4444';
+        saveMsg.innerHTML='✗ Failed: '+error.message;
+        saveMsg.style.display='block';
+      }
     },{style:{width:'100%'}}),
     saveMsg
   );
@@ -875,7 +891,7 @@ function wrapWithEye(inputEl){
 const wrappedPassI=wrapWithEye(passI);
 // Forgot password
 const fpBtn=document.createElement('button');fpBtn.style.cssText='background:none;border:none;color:var(--gold);cursor:pointer;font-size:12px;font-family:"DM Mono",monospace;letter-spacing:1px;display:block;margin-bottom:16px;';fpBtn.textContent='Forgot password?';
-fpBtn.onclick=async()=>{const em=emailI.value.trim();if(!em){errEl.classList.remove('hidden');errEl.textContent='Enter your email first.';return;}const{error}=await sb.auth.resetPasswordForEmail(em,{redirectTo:window.location.origin});if(error){errEl.classList.remove('hidden');errEl.textContent=error.message;}else{errEl.classList.remove('hidden');errEl.style.background='#0a1f18';errEl.style.border='1px solid var(--teal)';errEl.style.color='var(--teal)';errEl.textContent='Password reset email sent! Check your inbox.';}};
+fpBtn.onclick=async()=>{const em=emailI.value.trim();if(!em){errEl.classList.remove('hidden');errEl.textContent='Enter your email first.';return;}const{error}=await sb.auth.resetPasswordForEmail(em);if(error){errEl.classList.remove('hidden');errEl.textContent=error.message;}else{errEl.classList.remove('hidden');errEl.style.background='#0a1f18';errEl.style.border='1px solid var(--teal)';errEl.style.color='var(--teal)';errEl.textContent='Password reset email sent! Check your inbox.';}};
 const sb2=btn('Log In','btn-gold',async()=>{
 errEl.classList.add('hidden');sb2.textContent='Logging in...';sb2.disabled=true;
 const{data,error}=await sb.auth.signInWithPassword({email:emailI.value,password:passI.value});
@@ -1054,9 +1070,11 @@ goalsSection.append(
       btn('Study Goals','btn-outline',()=>showGoalsModal(),{style:{fontSize:'11px',padding:'6px 14px'}}),
       btn('Rest Days','btn-outline',()=>showRestDaysModal(),{style:{fontSize:'11px',padding:'6px 14px'}})
     ])
-  ]),
-  div({id:'goals-progress'})
+  ])
 );
+const goalProgressEl=div({});
+goalProgressEl.id='goals-progress';
+goalsSection.append(goalProgressEl);
 container.append(goalsSection);
 setTimeout(renderGoalsProgress,1200);
 
