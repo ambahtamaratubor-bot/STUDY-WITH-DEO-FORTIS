@@ -1654,6 +1654,7 @@ showSetup();return page;
 // ═══════════════════════════════
 function flashcards(){
 const page=div({});
+const isFree=S.profile?.is_free_tier===true;
 const nav=div({cls:'dash-nav'});
 nav.append(div({cls:'logo',html:'Deo Fortis'}),btn('← Dashboard','btn-outline',()=>{sessionStorage.removeItem('vignette_resume');go('dashboard');},{style:{padding:'8px 16px'}}));
 page.append(nav);
@@ -1662,7 +1663,7 @@ const inner=div({cls:'inner-sm'});page.append(inner);
 async function showDecks(){
 inner.innerHTML='';
 inner.append(h('span',{cls:'chapter',html:'Flashcard Decks'}),h('h1',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'40px',fontWeight:'700',marginBottom:'8px'},html:'Study <em class="gold-em">Flashcards</em>'}),h('p',{cls:'muted',style:{fontSize:'14px',marginBottom:'40px'},html:'Select a deck. Mark cards Easy, Iffy, or Hard as you go.'}));
-const{data}=await sb.from('flashcard_decks').select('*').or('user_id.eq.'+S.user.id+',user_id.is.null').order('created_at',{ascending:false});
+const{data}=await (isFree?sb.from('flashcard_decks').select('*').eq('type','flashcard').eq('is_global',true).order('created_at',{ascending:false}):sb.from('flashcard_decks').select('*').or('user_id.eq.'+S.user.id+',user_id.is.null').order('created_at',{ascending:false}));
 decks=data||[];
 if(!decks.length){inner.append(div({cls:'card',style:{textAlign:'center',padding:'48px'}},[div({style:{fontSize:'40px',marginBottom:'16px'},html:' '}),h('p',{style:{fontSize:'14px',color:'var(--dim)'},html:'No flashcard decks yet.'})]));return;}
 const grid=div({style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(240px,1fr))',gap:'16px'}});
@@ -1884,6 +1885,7 @@ showDecks();return page;
 // ═══════════════════════════════
 function vignette(){
 const page=div({});
+const isFree=S.profile?.is_free_tier===true;
 const nav=div({cls:'dash-nav'});
 nav.append(div({cls:'logo',html:'Deo Fortis'}),btn('← Dashboard','btn-outline',()=>go('dashboard'),{style:{padding:'8px 16px'}}));
 page.append(nav);
@@ -1895,7 +1897,7 @@ inner.innerHTML='';
 const savedQuiz=sessionStorage.getItem('vignette_resume');
 if(savedQuiz){(()=>{const state=JSON.parse(savedQuiz);if(mode==='timed'&&state.timeLeft<=0){sessionStorage.removeItem('vignette_resume');}else{const banner=div({cls:'card',style:{marginBottom:'24px',padding:'16px',border:'1px solid var(--gold)',background:'rgba(200,169,110,0.08)'}},[ h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'11px',color:'var(--gold)',marginBottom:'12px'}},['⏸ Quiz in progress — '+state.selTopic+' · '+Object.keys(state.answers).length+' of '+state.questions.length+' answered']), div({style:{display:'flex',gap:'10px'}},[ btn('Resume','btn-gold',()=>{questions=state.questions;current=state.current;answers=state.answers;selTopic=state.selTopic;mode=state.mode;timeLimit=state.timeLimit;timeLeft=state.timeLeft||0;submitted=false;revealed={};showQuiz();},{style:{padding:'6px 16px',fontSize:'11px'}}), btn('Discard','btn-outline',()=>{sessionStorage.removeItem('vignette_resume');showSetup();},{style:{padding:'6px 16px',fontSize:'11px'}}) ]) ]);inner.append(banner);}})();}
 inner.append(h('span',{cls:'chapter',html:'Question Bank'}),h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'26px',marginBottom:'24px'},html:'Configure Your Quiz'}));
-const{data}=await sb.from('vignette_questions').select('topic').or('user_id.eq.'+S.user.id+',user_id.is.null');
+const{data}=await (isFree?sb.from('vignette_questions').select('topic').eq('is_global',true):sb.from('vignette_questions').select('topic').or('user_id.eq.'+S.user.id+',user_id.is.null'));
 const topics=data?[...new Set(data.map(d=>d.topic))]:[];
 if(!topics.length){inner.append(div({cls:'card',style:{textAlign:'center',padding:'48px'}},[h('p',{style:{fontSize:'14px',color:'var(--dim)'},html:'No questions available yet.'})]));return;}
 const qCountI=inp('e.g. 40','number','');qCountI.min='1';qCountI.max='9999';
@@ -1925,7 +1927,7 @@ const subsFilterWrap=div({style:{marginBottom:'16px',display:'none'}},[h('label'
 inner.append(subsFilterWrap);
 async function updateSubsectionUI(){
   if(!selectedTopics.length){subsFilterWrap.style.display='none';selectedSubsections=[];return;}
-  const{data:subs}=await sb.from('vignette_questions').select('subsection').in('topic',selectedTopics).or('user_id.eq.'+S.user.id+',user_id.is.null').not('subsection','is',null);
+  const{data:subs}=await (isFree?sb.from('vignette_questions').select('subsection').in('topic',selectedTopics).eq('is_global',true).not('subsection','is',null):sb.from('vignette_questions').select('subsection').in('topic',selectedTopics).or('user_id.eq.'+S.user.id+',user_id.is.null').not('subsection','is',null));
   const uniqueSubs=[...new Set((subs||[]).map(s=>s.subsection).filter(Boolean))];
   if(!uniqueSubs.length){subsFilterWrap.style.display='none';selectedSubsections=[];return;}
   subsFilterWrap.style.display='block';
@@ -1944,7 +1946,7 @@ async function updateSubsectionUI(){
 }
 async function updateCount(){
   if(!selectedTopics.length){countDisplay.textContent='Select at least one topic';qCountI.value=0;qCountI.max=0;return;}
-  let q=sb.from('vignette_questions').select('*',{count:'exact',head:true}).in('topic',selectedTopics).or('user_id.eq.'+S.user.id+',user_id.is.null');
+  let q=isFree?sb.from('vignette_questions').select('*',{count:'exact',head:true}).in('topic',selectedTopics).eq('is_global',true):sb.from('vignette_questions').select('*',{count:'exact',head:true}).in('topic',selectedTopics).or('user_id.eq.'+S.user.id+',user_id.is.null');
   if(selectedSubsections.length)q=q.in('subsection',selectedSubsections);
   const{count}=await q;
   countDisplay.textContent=(count||0)+' questions available';
@@ -1985,7 +1987,7 @@ if(S.profile?.is_free_tier){
   return;
 }
 const desiredCount=parseInt(qCountI.value)||40;
-let qQuery=sb.from('vignette_questions').select('*').in('topic',selectedTopics).or('user_id.eq.'+S.user.id+',user_id.is.null');
+let qQuery=isFree?sb.from('vignette_questions').select('*').eq('is_global',true).in('topic',selectedTopics):sb.from('vignette_questions').select('*').in('topic',selectedTopics).or('user_id.eq.'+S.user.id+',user_id.is.null');
 if(selectedSubsections&&selectedSubsections.length)qQuery=qQuery.in('subsection',selectedSubsections);
 const{data:qs}=await qQuery.limit(desiredCount);
 if(!qs||!qs.length){alert('No questions for this topic yet.');return;}
@@ -2218,6 +2220,7 @@ showSetup();return page;
 // ═══════════════════════════════
 function feynman(){
 const page=div({cls:'dash-page'});
+if(S.profile?.is_free_tier===true){showUpgradeModal();return page;}
 function getCurrentMonday(){const now=new Date();const day=now.getDay();const diff=day===0?6:day-1;const mon=new Date(now);mon.setDate(now.getDate()-diff);mon.setHours(0,0,0,0);return mon.toISOString().split('T')[0];}
 const nav=div({cls:'dash-nav'},[
   div({cls:'logo',html:'Deo Fortis'}),
@@ -2860,6 +2863,10 @@ card.append(h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:
 const dnI=inp('e.g. Bacteriology Basics');
 const upSt=div({cls:'ok',style:{display:'none',marginTop:'16px'}});
 const fi=h('input',{type:'file',accept:'.csv',style:{color:'var(--muted)',fontSize:'13px',fontFamily:"Inter,sans-serif",marginTop:'16px'}});
+const deckFreeToggleWrap=div({style:{display:'flex',alignItems:'center',gap:'10px',marginBottom:'16px',padding:'12px',background:'var(--card2)',border:'1px solid var(--border)',borderRadius:'4px'}});
+const deckFreeToggle=h('input',{type:'checkbox'});
+deckFreeToggle.style.width='16px';deckFreeToggle.style.height='16px';deckFreeToggle.style.accentColor='var(--gold)';
+deckFreeToggleWrap.append(deckFreeToggle,h('span',{style:{fontFamily:"Inter,sans-serif",fontSize:'13px',color:'var(--text)'},html:'Make available to free tier users'}));
 const flashListDiv=div({style:{marginTop:'24px'}});
 async function loadFlashcardList(){
   flashListDiv.innerHTML='';
@@ -2880,7 +2887,7 @@ const file=e.target.files[0];if(!file)return;
 upSt.style.display='block';upSt.textContent='Uploading...';
 const text=await file.text();const lines=text.split('\n').filter(l=>l.trim());
 const deckTopic=dnI.value||file.name.replace('.csv','');
-const{data:deck,error:deckErr}=await sb.from('flashcard_decks').insert({name:deckTopic,type:'flashcard',topic:deckTopic,user_id:null}).select().single();
+const{data:deck,error:deckErr}=await sb.from('flashcard_decks').insert({name:deckTopic,type:'flashcard',topic:deckTopic,user_id:null,is_global:deckFreeToggle.checked}).select().single();
 if(deckErr){console.error('Deck insert error:',deckErr);upSt.textContent='Error: '+deckErr.message;return;}
 if(!deck){upSt.textContent='Error: No deck returned';return;}
 const cards=lines.map(line=>{const parts=line.split(',');return{deck_id:deck.id,question:parts[0]?.trim(),answer:parts.slice(1).join(',').trim()};}).filter(c=>c.question&&c.answer);
@@ -2890,7 +2897,7 @@ if(cardsErr){console.error('Cards insert error:',cardsErr);upSt.textContent='Err
 upSt.textContent='✓ Uploaded '+cards.length+' cards!';loadFlashcardList();setTimeout(()=>upSt.style.display='none',3000);
 };
 const ex=div({style:{background:'var(--bg)',border:'1px dashed var(--border)',borderRadius:'4px',padding:'32px',marginBottom:'20px'}});
-ex.append(div({cls:'mono',style:{marginBottom:'12px'},html:'Example:'}),div({style:{background:'var(--card)',border:'1px solid var(--border)',borderRadius:'2px',padding:'12px',marginBottom:'16px'},html:'<p style="font-family:\'DM Mono\',monospace;font-size:12px;color:var(--muted);line-height:1.8">What causes malaria?, Plasmodium falciparum<br>What stain is used for TB?, Ziehl-Neelsen stain</p>'}),field('Deck Name',dnI),fi);
+ex.append(div({cls:'mono',style:{marginBottom:'12px'},html:'Example:'}),div({style:{background:'var(--card)',border:'1px solid var(--border)',borderRadius:'2px',padding:'12px',marginBottom:'16px'},html:'<p style="font-family:\'DM Mono\',monospace;font-size:12px;color:var(--muted);line-height:1.8">What causes malaria?, Plasmodium falciparum<br>What stain is used for TB?, Ziehl-Neelsen stain</p>'}),field('Deck Name',dnI),deckFreeToggleWrap,fi);
 card.append(ex,upSt,flashListDiv);content.innerHTML='';content.append(card);
 (async()=>{await loadFlashcardList();})();
 }
@@ -2914,6 +2921,11 @@ function addSubsectionRow(){
   subsectionRows.push({id:rowId,nameInp,fileInp});
 }
 card.append(btn('+ Add Subsection','btn-outline',()=>addSubsectionRow(),{style:{marginBottom:'20px'}}));
+const freeToggleWrap=div({style:{display:'flex',alignItems:'center',gap:'10px',marginBottom:'16px',padding:'12px',background:'var(--card2)',border:'1px solid var(--border)',borderRadius:'4px'}});
+const freeToggle=h('input',{type:'checkbox'});
+freeToggle.style.width='16px';freeToggle.style.height='16px';freeToggle.style.accentColor='var(--gold)';
+freeToggleWrap.append(freeToggle,h('span',{style:{fontFamily:"Inter,sans-serif",fontSize:'13px',color:'var(--text)'},html:'Make available to free tier users'}));
+card.append(freeToggleWrap);
 const upSt=div({style:{fontFamily:"Inter,sans-serif",fontSize:'12px',color:'var(--dim)',marginTop:'12px'}},['']);
 const uploadBtn=btn('Upload All Subsections','btn-gold',async()=>{
   const subject=tI.value.trim();
@@ -2936,7 +2948,7 @@ const uploadBtn=btn('Upload All Subsections','btn-gold',async()=>{
     for(const block of blocks){
       const lines=block.split('\n').filter(l=>l.trim());
       if(lines.length<3)continue;
-      const q={topic:subject,subsection:subName,question:'',option_a:'',option_b:'',option_c:'',option_d:'',correct_answer:'',explanation:'',is_global:true,user_id:null};
+      const q={topic:subject,subsection:subName,question:'',option_a:'',option_b:'',option_c:'',option_d:'',correct_answer:'',explanation:'',is_global:freeToggle.checked,user_id:null};
       q.question=lines[0];
       for(const line of lines.slice(1)){
         if(line.startsWith('A.')||line.startsWith('A)'))q.option_a=line.slice(2).trim();
