@@ -16,20 +16,13 @@ body:JSON.stringify({from:'Deo Fortis <onboarding@resend.dev>',to:ADMIN_EMAIL,su
 let S={page:'landing',user:null,profile:null};
 let signingUp=false;
 function go(p){S.page=p;render();}
-sb.auth.onAuthStateChange(async(_,session)=>{
+sb.auth.getSession().then(({data:{session}})=>{
+  if(session&&!signingUp){S.user=session.user;getProfile(session.user.id);}
+});
+sb.auth.onAuthStateChange((_,session)=>{
   if(signingUp)return;
-  if(session){
-    S.user=session.user;
-    const{data}=await sb.from('profiles').select('*').eq('id',session.user.id).single();
-    if(data)S.profile=data;
-    const protectedPages=['dashboard','study','vignette','flashcards','feynman','leaderboard','admin'];
-    const isOnProtectedPage=protectedPages.includes(S.page);
-    const isApproved=S.profile?.status==='approved';
-    if(!isOnProtectedPage&&isApproved){go('dashboard');}
-    else if(!isOnProtectedPage&&!isApproved&&S.profile){go('pending');}
-  }else{
-    S.user=null;S.profile=null;go('landing');
-  }
+  if(session){S.user=session.user;getProfile(session.user.id);}
+  else{S.user=null;S.profile=null;go('landing');}
 });
 async function getProfile(id){
 const{data}=await sb.from('profiles').select('*').eq('id',id).single();
