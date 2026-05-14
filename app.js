@@ -3101,9 +3101,11 @@ let currentMessages=[];
 
 function initAIChat(){
   if(document.getElementById('ai-chat-btn'))return;
-  const chatBtn=btn(ICONS.brain+' Ask Tutor','btn-gold',()=>toggleChat(),{style:{borderRadius:'40px',padding:'12px 20px',boxShadow:'0 4px 12px rgba(0,0,0,0.3)',display:'inline-flex',alignItems:'center',gap:'8px',fontSize:'13px',width:'auto'}});
+  const chatBtn=document.createElement('button');
   chatBtn.id='ai-chat-btn';
-  chatBtn.style.position='fixed';chatBtn.style.bottom='20px';chatBtn.style.right='20px';chatBtn.style.zIndex='10000';chatBtn.style.width='auto';chatBtn.style.display='inline-flex';
+  chatBtn.innerHTML=ICONS.brain+' Ask Tutor';
+  chatBtn.style.cssText='position:fixed;bottom:20px;right:20px;z-index:10000;display:inline-flex;align-items:center;gap:8px;padding:12px 20px;background:var(--gold);color:var(--bg);border:none;border-radius:40px;font-size:13px;font-family:"DM Mono",monospace;font-weight:600;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,0.3);width:auto;';
+  chatBtn.addEventListener('click',()=>toggleChat());
   document.body.appendChild(chatBtn);
   let isOpen=false;let panel=null;let thinkingDiv=null;
   function toggleChat(){
