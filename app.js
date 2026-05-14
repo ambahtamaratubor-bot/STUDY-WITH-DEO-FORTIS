@@ -340,14 +340,61 @@ function renderGoalsProgress(){
   const el=document.getElementById('goals-progress');
   if(!el)return;
   const goals=S.profile?.topic_goals||{};
-  if(!Object.keys(goals).length){
-    el.innerHTML='<div style="font-size:13px;color:var(--muted);font-family:Inter,sans-serif;padding:8px 0">No topic goals set. Click Study Goals to add some.</div>';
-    return;
-  }
+  const studyGoals=S.profile?.study_goals||{daily_hours:4,weekly_hours:20};
   el.innerHTML='';
-  sb.from('study_sessions').select('topic,duration_minutes').eq('user_id',S.user.id).not('ended_at','is',null).then(({data:sessions})=>{
+  function getLocalDateRange(){
+    const now=new Date();
+    const start=new Date(now.getFullYear(),now.getMonth(),now.getDate());
+    const end=new Date(now.getFullYear(),now.getMonth(),now.getDate()+1);
+    return{start:start.toISOString(),end:end.toISOString()};
+  }
+  function getWeekRange(){
+    const now=new Date();
+    const diff=now.getDay()===0?6:now.getDay()-1;
+    const monday=new Date(now);monday.setDate(now.getDate()-diff);monday.setHours(0,0,0,0);
+    return{start:monday.toISOString(),end:new Date().toISOString()};
+  }
+  function formatTime(mins){
+    const h=Math.floor(mins/60);const m=mins%60;
+    if(h===0)return m+'m';if(m===0)return h+'h';return h+'h '+m+'m';
+  }
+  const todayRange=getLocalDateRange();const weekRange=getWeekRange();
+  sb.from('study_sessions').select('topic,duration_minutes,started_at').eq('user_id',S.user.id).not('ended_at','is',null).then(({data:sessions})=>{
+    const list=sessions||[];
+    let todayMins=0;let weekMins=0;
+    list.forEach(s=>{
+      const t=new Date(s.started_at).toISOString();
+      if(t>=todayRange.start&&t<todayRange.end)todayMins+=s.duration_minutes||0;
+      if(t>=weekRange.start&&t<=weekRange.end)weekMins+=s.duration_minutes||0;
+    });
+    const dailyGoalMins=(studyGoals.daily_hours||0)*60;
+    const weeklyGoalMins=(studyGoals.weekly_hours||0)*60;
+    function makeBar(label,actual,goal){
+      const pct=Math.min(100,Math.round((actual/goal)*100));
+      const color=actual>=goal?'var(--teal)':'var(--gold)';
+      const row=div({style:{marginBottom:'14px'}});
+      row.append(
+        div({style:{display:'flex',justifyContent:'space-between',marginBottom:'4px'}},[
+          h('span',{style:{fontFamily:'Inter,sans-serif',fontSize:'12px',color:'var(--text)'},html:label}),
+          h('span',{style:{fontFamily:'Inter,sans-serif',fontSize:'12px',color:actual>=goal?'var(--teal)':'var(--gold)'},html:formatTime(actual)+' / '+formatTime(goal)})
+        ]),
+        div({style:{background:'var(--card2)',borderRadius:'2px',height:'6px',overflow:'hidden'}},[
+          div({style:{height:'100%',width:pct+'%',background:color,borderRadius:'2px',transition:'width 0.6s ease'}})
+        ])
+      );
+      return row;
+    }
+    if(dailyGoalMins>0)el.append(makeBar("Today's Goal",todayMins,dailyGoalMins));
+    if(weeklyGoalMins>0)el.append(makeBar("This Week's Goal",weekMins,weeklyGoalMins));
+    if((dailyGoalMins>0||weeklyGoalMins>0)&&Object.keys(goals).length){
+      el.append(h('hr',{style:{border:'none',borderTop:'1px solid var(--border)',margin:'12px 0'}}));
+    }
+    if(!Object.keys(goals).length&&dailyGoalMins===0&&weeklyGoalMins===0){
+      el.innerHTML='<div style="font-size:13px;color:var(--muted);font-family:Inter,sans-serif;padding:8px 0">No goals set. Click Study Goals to add some.</div>';
+      return;
+    }
     const actual={};
-    (sessions||[]).forEach(s=>{
+    list.forEach(s=>{
       if(!s.topic)return;
       Object.keys(goals).forEach(goalTopic=>{
         if(s.topic.toLowerCase().includes(goalTopic.toLowerCase())){
