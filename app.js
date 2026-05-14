@@ -86,7 +86,6 @@ function initAIChat(){
 
 function setAITopic(topic){window._currentTopic=topic;}
 
-render();}
 sb.auth.getSession().then(({data:{session}})=>{if(session&&!signingUp){S.user=session.user;S.initialized=true;getProfile(session.user.id);}});
 sb.auth.onAuthStateChange(async(_,session)=>{
   if(signingUp)return;
@@ -3175,5 +3174,6 @@ await loadEmojiDecks();
 loadTab('settings');
 }
 showLogin();return page;
+}
 }
 render();
