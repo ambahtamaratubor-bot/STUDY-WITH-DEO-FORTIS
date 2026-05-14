@@ -13,7 +13,7 @@ body:JSON.stringify({from:'Deo Fortis <onboarding@resend.dev>',to:ADMIN_EMAIL,su
 });
 }catch(e){console.log('Email error:',e);}
 }
-let S={page:'landing',user:null,profile:null,initialized:false};
+let S={page:'landing',user:null,profile:null,initialized:false,gettingProfile:false};
 let signingUp=false;
 function go(p){S.page=p;
 // ═══════════════════════════════
@@ -105,6 +105,8 @@ sb.auth.onAuthStateChange(async(_,session)=>{
   }
 });
 async function getProfile(id){
+if(S.gettingProfile)return;
+S.gettingProfile=true;
 const{data}=await sb.from('profiles').select('*').eq('id',id).single();
 if(data){
   S.profile=data;
@@ -116,6 +118,7 @@ if(data){
   }
   go(data.status==='approved'?'dashboard':'pending');
 }
+S.gettingProfile=false;
 }
 function h(tag,attr,kids){
 const e=document.createElement(tag);
@@ -916,7 +919,7 @@ const sb2=btn('Log In','btn-gold',async()=>{
 errEl.classList.add('hidden');sb2.textContent='Logging in...';sb2.disabled=true;
 const{data,error}=await sb.auth.signInWithPassword({email:emailI.value,password:passI.value});
 if(error){errEl.classList.remove('hidden');errEl.textContent=error.message;sb2.textContent='Log In';sb2.disabled=false;return;}
-await getProfile(data.user.id);
+// onAuthStateChange will handle routing automatically
 },{style:{width:'100%',marginBottom:'16px'}});
 passI.onkeydown=e=>{if(e.key==='Enter')sb2.click();};
 card.append(div({style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontStyle:'italic',fontSize:'22px',color:'var(--gold)',marginBottom:'4px'},html:'Deo Fortis'}),h('hr',{style:{border:'none',borderTop:'1px solid var(--border)',margin:'16px 0'}}),h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'24px',marginBottom:'4px'},html:'Welcome Back'}),h('p',{cls:'muted',style:{fontSize:'14px',marginBottom:'24px'},html:'Log in to continue your studies.'}),errEl,field('Email',emailI),field('Password',passI,{mb:'mb-24'}),sb2,h('hr',{style:{border:'none',borderTop:'1px solid var(--border)',margin:'16px 0'}}),h('p',{style:{fontSize:'13px',color:'var(--muted)',textAlign:'center',marginTop:'16px'},html:"Don't have an account? <button onclick=\"go('landing')\" style=\"background:none;border:none;color:var(--gold);cursor:pointer;font-size:13px\">Sign up via home page</button>"}),h('p',{style:{fontSize:'13px',color:'var(--muted)',textAlign:'center',marginTop:'8px'},html:"<button onclick=\"go('landing')\" style=\"background:none;border:none;color:var(--dim);cursor:pointer;font-size:12px\">← Back to home</button>"}));
