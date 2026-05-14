@@ -15,7 +15,7 @@ body:JSON.stringify({from:'Deo Fortis <onboarding@resend.dev>',to:ADMIN_EMAIL,su
 }
 let S={page:'landing',user:null,profile:null,initialized:false,gettingProfile:false};
 let signingUp=false;
-function go(p){S.page=p;
+function go(p){S.page=p;render();}
 // ═══════════════════════════════
 // AI TUTOR CHAT PANEL
 // ═══════════════════════════════
@@ -3174,6 +3174,5 @@ await loadEmojiDecks();
 loadTab('settings');
 }
 showLogin();return page;
-}
 }
 render();
