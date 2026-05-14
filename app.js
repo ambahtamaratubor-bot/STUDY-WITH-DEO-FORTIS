@@ -16,7 +16,7 @@ body:JSON.stringify({from:'Deo Fortis <onboarding@resend.dev>',to:ADMIN_EMAIL,su
 let S={page:'landing',user:null,profile:null,initialized:false};
 let signingUp=false;
 function go(p){S.page=p;render();}
-sb.auth.getSession().then(({data:{session}})=>{if(session&&!signingUp){S.user=session.user;getProfile(session.user.id);}});
+sb.auth.getSession().then(({data:{session}})=>{if(session&&!signingUp){S.user=session.user;S.initialized=true;getProfile(session.user.id);}});
 sb.auth.onAuthStateChange(async(_,session)=>{
   if(signingUp)return;
   if(session){
@@ -3110,9 +3110,9 @@ let currentMessages=[];
 
 function initAIChat(){
   if(document.getElementById('ai-chat-btn'))return;
-  const chatBtn=btn(ICONS.brain+' Ask Tutor','btn-gold',()=>toggleChat(),{style:{borderRadius:'40px',padding:'12px 20px',boxShadow:'0 4px 12px rgba(0,0,0,0.3)',display:'inline-flex',alignItems:'center',gap:'8px',fontSize:'13px'}});
+  const chatBtn=btn(ICONS.brain+' Ask Tutor','btn-gold',()=>toggleChat(),{style:{borderRadius:'40px',padding:'12px 20px',boxShadow:'0 4px 12px rgba(0,0,0,0.3)',display:'inline-flex',alignItems:'center',gap:'8px',fontSize:'13px',width:'auto'}});
   chatBtn.id='ai-chat-btn';
-  chatBtn.style.position='fixed';chatBtn.style.bottom='20px';chatBtn.style.right='20px';chatBtn.style.zIndex='10000';
+  chatBtn.style.position='fixed';chatBtn.style.bottom='20px';chatBtn.style.right='20px';chatBtn.style.zIndex='10000';chatBtn.style.width='auto';chatBtn.style.display='inline-flex';
   document.body.appendChild(chatBtn);
   let isOpen=false;let panel=null;let thinkingDiv=null;
   function toggleChat(){
