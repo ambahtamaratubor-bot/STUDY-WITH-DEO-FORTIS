@@ -317,7 +317,12 @@ function showGoalsModal(){
         saveMsg.style.color='var(--teal)';
         saveMsg.innerHTML='✓ Saved!';
         saveMsg.style.display='block';
-        setTimeout(()=>{overlay.remove();renderGoalsProgress();},800);
+        setTimeout(async()=>{
+          const{data:fresh}=await sb.from('profiles').select('*').eq('id',S.user.id).single();
+          if(fresh)S.profile=fresh;
+          overlay.remove();
+          renderGoalsProgress();
+        },800);
       }else{
         saveMsg.style.color='#ff4444';
         saveMsg.innerHTML='✗ Failed: '+error.message;
