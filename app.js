@@ -1112,21 +1112,30 @@ container.append(statsGrid);
 
 // GOALS PROGRESS SECTION
 const goalsSection=div({cls:'card',style:{marginBottom:'28px'}});
-goalsSection.append(
-  div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'16px'}},[
+let goalsOpen=true;
+const goalsHeader=div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'16px',cursor:'pointer'}});
+const goalsToggle=h('span',{style:{color:'var(--dim)',fontSize:'12px',transition:'transform 0.2s'},html:'▼'});
+goalsHeader.append(
+  div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',flex:'1'}},[
     div({},[
-      h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'18px',marginBottom:'2px'},html:'Topic Progress'}),
-      h('div',{cls:'mono',style:{fontSize:'9px'},html:'hours studied vs your goals'})
+      h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'18px',marginBottom:'2px'},html:'Study Progress'}),
+      h('div',{cls:'mono',style:{fontSize:'9px'},html:'goals vs actual hours'})
     ]),
-    div({style:{display:'flex',gap:'8px'}},[
-      btn('Study Goals','btn-outline',()=>showGoalsModal(),{style:{fontSize:'11px',padding:'6px 14px'}}),
-      btn('Rest Days','btn-outline',()=>showRestDaysModal(),{style:{fontSize:'11px',padding:'6px 14px'}})
+    div({style:{display:'flex',gap:'8px',alignItems:'center'}},[
+      btn('Study Goals','btn-outline',()=>{event.stopPropagation();showGoalsModal();},{style:{fontSize:'11px',padding:'6px 14px'}}),
+      btn('Rest Days','btn-outline',()=>{event.stopPropagation();showRestDaysModal();},{style:{fontSize:'11px',padding:'6px 14px'}}),
+      goalsToggle
     ])
   ])
 );
 const goalProgressEl=div({});
 goalProgressEl.id='goals-progress';
-goalsSection.append(goalProgressEl);
+goalsHeader.onclick=()=>{
+  goalsOpen=!goalsOpen;
+  goalProgressEl.style.display=goalsOpen?'block':'none';
+  goalsToggle.style.transform=goalsOpen?'rotate(0deg)':'rotate(-90deg)';
+};
+goalsSection.append(goalsHeader,goalProgressEl);
 container.append(goalsSection);
 setTimeout(renderGoalsProgress,1200);
 
