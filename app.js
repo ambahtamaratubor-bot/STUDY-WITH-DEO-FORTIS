@@ -1092,8 +1092,9 @@ nav.append(
     btn('Cards','btn-outline',()=>go('flashcards'),{style:{padding:'8px 16px'}}),
     btn('Q-Bank','btn-outline',()=>go('vignette'),{style:{padding:'8px 16px'}}),
     btn('Leaderboard','btn-outline',()=>go('leaderboard'),{style:{padding:'8px 16px'}}),
+    isFree?btn('⬆ Upgrade','btn-gold',()=>showUpgradeModal(),{style:{padding:'8px 16px'}}):null,
     btn('Log Out','btn-outline',()=>sb.auth.signOut(),{style:{padding:'8px 16px'}})
-  ])
+  ].filter(Boolean))
 );
 page.append(nav);
 
