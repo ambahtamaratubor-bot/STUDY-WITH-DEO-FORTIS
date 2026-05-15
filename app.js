@@ -2877,7 +2877,8 @@ function switchSubTab(key){
     nameDiv.textContent=u.full_name||u.email||'—';
     if(key==='new'){
       const infoDiv=div({style:{fontSize:'12px',color:'var(--muted)',marginTop:'4px'}});
-      infoDiv.textContent=(u.email||'—')+' · '+(u.plan||'No plan')+' · Joined: '+new Date(u.created_at).toLocaleDateString();
+      const planLabel=u.plan==='6 Months'?'6 Months':u.plan==='Yearly'?'1 Year':u.plan==='Monthly'?'1 Month':(u.plan||'No plan');
+      infoDiv.textContent=(u.email||'—')+' · '+planLabel+' · Joined: '+new Date(u.created_at).toLocaleDateString();
       const select=h('select',{style:{padding:'6px 12px',fontSize:'12px',background:'var(--input)',border:'1px solid var(--border)',borderRadius:'4px',color:'var(--text)',marginRight:'8px'}},[
         h('option',{value:'30'},['Monthly — 30 days']),
         h('option',{value:'180'},['6 Months — 180 days']),
@@ -2903,16 +2904,44 @@ function switchSubTab(key){
       topRow.append(nameDiv,actionsDiv);
       row.append(topRow,infoDiv);
     }else if(key==='paid'){
-      const expiryStr=u.access_expires_at?new Date(u.access_expires_at).toLocaleDateString():'No expiry';
+      const expiryDate=u.access_expires_at?new Date(u.access_expires_at):null;
+      const expiryStr=expiryDate?expiryDate.toLocaleDateString():'No expiry';
+      const daysLeft=expiryDate?Math.ceil((expiryDate-new Date())/(1000*60*60*24)):null;
+      const daysLeftStr=daysLeft!==null?(daysLeft>0?daysLeft+' days left':'Expired'):'—';
+      const planLabel=u.plan==='6 Months'?'6 Months':u.plan==='Yearly'?'1 Year':u.plan==='Monthly'?'1 Month':(u.plan||'No plan');
       const infoDiv=div({style:{fontSize:'12px',color:'var(--muted)',marginTop:'4px'}});
-      infoDiv.textContent=(u.email||'—')+' · '+(u.plan||'No plan')+' · Expires: '+expiryStr;
-      const actionsDiv=div({style:{display:'flex',gap:'8px',alignItems:'center'}});
-      actionsDiv.append(btn('Set Free','btn-outline',async()=>{
-        await sb.from('profiles').update({is_free_tier:true,status:'approved'}).eq('id',u.id);
-        loadTab('users');
-      },{style:{padding:'4px 12px',fontSize:'11px'}}));
-      topRow.append(nameDiv,actionsDiv);
-      row.append(topRow,infoDiv);
+      infoDiv.textContent=(u.email||'—');
+      const planBadge=div({style:{display:'flex',gap:'12px',alignItems:'center',marginTop:'6px',flexWrap:'wrap'}});
+      const planSpan=h('span',{style:{fontFamily:"Inter,sans-serif",fontSize:'11px',letterSpacing:'1px',textTransform:'uppercase',color:'var(--gold)',fontWeight:'700'}},[]);
+      planSpan.textContent=planLabel;
+      const expirySpan=h('span',{style:{fontSize:'12px',color:'var(--muted)'}},[]);
+      expirySpan.textContent='Expires: '+expiryStr;
+      const daysSpan=h('span',{style:{fontSize:'12px',color:daysLeft!==null&&daysLeft<=7?'#ff4444':'var(--teal)',fontWeight:'600'}},[]);
+      daysSpan.textContent=daysLeftStr;
+      planBadge.append(planSpan,expirySpan,daysSpan);
+      const extendSelect=h('select',{style:{padding:'6px 10px',fontSize:'12px',background:'var(--input)',border:'1px solid var(--border)',borderRadius:'4px',color:'var(--text)'}},[
+        h('option',{value:'30'},['+ 1 Month']),
+        h('option',{value:'180'},['+ 6 Months']),
+        h('option',{value:'365'},['+ 1 Year'])
+      ]);
+      const actionsDiv=div({style:{display:'flex',gap:'8px',alignItems:'center',flexWrap:'wrap',marginTop:'8px'}});
+      actionsDiv.append(
+        extendSelect,
+        btn('Extend','btn-teal',async()=>{
+          const days=parseInt(extendSelect.value,10);
+          const base=expiryDate&&expiryDate>new Date()?expiryDate:new Date();
+          const newExp=new Date(base);newExp.setDate(newExp.getDate()+days);
+          const planMap={'30':'Monthly','180':'6 Months','365':'Yearly'};
+          await sb.from('profiles').update({access_expires_at:newExp.toISOString(),plan:planMap[extendSelect.value]||u.plan}).eq('id',u.id);
+          loadTab('users');
+        },{style:{padding:'4px 12px',fontSize:'11px'}}),
+        btn('Set Free','btn-outline',async()=>{
+          await sb.from('profiles').update({is_free_tier:true,status:'approved'}).eq('id',u.id);
+          loadTab('users');
+        },{style:{padding:'4px 12px',fontSize:'11px'}})
+      );
+      topRow.append(nameDiv);
+      row.append(topRow,infoDiv,planBadge,actionsDiv);
     }else if(key==='free'){
       const infoDiv=div({style:{fontSize:'12px',color:'var(--muted)',marginTop:'4px'}});
       infoDiv.textContent=(u.email||'—')+' · Joined: '+new Date(u.created_at).toLocaleDateString();
@@ -2951,7 +2980,8 @@ function switchSubTab(key){
       },{style:{padding:'4px 12px',fontSize:'11px'}}));
       topRow.append(nameDiv,actionsDiv);
       const statsRow=div({style:{display:'flex',gap:'16px',fontSize:'12px',color:'var(--muted)',marginBottom:'8px',flexWrap:'wrap'}});
-      const emailPlanEl=h('span',{},[]);emailPlanEl.textContent=(u.email||'—')+' · '+(u.plan||'No plan');
+      const planLabel2=u.plan==='6 Months'?'6 Months':u.plan==='Yearly'?'1 Year':u.plan==='Monthly'?'1 Month':(u.plan||'No plan');
+      const emailPlanEl=h('span',{},[]);emailPlanEl.textContent=(u.email||'—')+' · '+planLabel2;
       const streakEl=h('span',{style:{color:'var(--text)'}},[]);streakEl.textContent='🔥 '+(u.streak_count||0)+' streak';
       const hoursEl=h('span',{style:{color:'var(--text)'}},[]);hoursEl.textContent=Math.floor((u.total_study_minutes||0)/60)+'h studied';
       const ptsEl=h('span',{style:{color:'var(--gold)'}},[]);ptsEl.textContent=(u.total_points||0)+' pts';
