@@ -1100,12 +1100,10 @@ if(S.profile?.has_new_content){
   container.append(banner);
 }
 
-// STAT CARDS — 4 columns
-const statsGrid=div({style:{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:'12px',marginBottom:'28px'}});
+// STAT CARDS — 2 columns
+const statsGrid=div({style:{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:'12px',marginBottom:'28px'}});
 statsGrid.append(
   statCard('Hours Studied',Math.floor((p.total_study_minutes||0)/60)+'h','var(--gold)'),
-  statCard('Questions Done',p.total_questions_answered||0,'var(--teal)'),
-  statCard('Anki Cards',p.total_anki_sessions||0,'var(--dim)'),
   statCard('Total Points',p.total_points||0,'var(--gold)')
 );
 container.append(statsGrid);
@@ -2109,7 +2107,8 @@ const q=questions[current];mainArea.innerHTML='';pEl.textContent=(current+1)+' /
 questions.forEach((qq,i)=>{
 const nb=document.getElementById('nb-'+i);if(!nb)return;
 if(i===current){nb.style.border='1px solid var(--gold)';nb.style.background='#C8A96E22';nb.style.color='var(--gold)';}
-else if(answers[qq.id]){const ok=answers[qq.id]===qq.correct_answer;nb.style.border='1px solid '+(ok?'var(--teal)':'#8B0000');nb.style.background=ok?'#7EB8A422':'#8B000022';nb.style.color=ok?'var(--teal)':'#ff8888';}
+else if(answers[qq.id]&&(submitted||mode==='tutor')){const ok=answers[qq.id]===qq.correct_answer;nb.style.border='1px solid '+(ok?'var(--teal)':'#8B0000');nb.style.background=ok?'#7EB8A422':'#8B000022';nb.style.color=ok?'var(--teal)':'#ff8888';}
+else if(answers[qq.id]){nb.style.border='1px solid var(--gold)';nb.style.background='#C8A96E11';nb.style.color='var(--gold)';}
 else{nb.style.border='1px solid var(--border)';nb.style.background='transparent';nb.style.color='var(--muted)';}
 });
 const qCard=div({cls:'card',style:{marginBottom:'16px'}});
@@ -2857,7 +2856,7 @@ const cards=lines.map(line=>{const parts=line.split(',');return{deck_id:deck.id,
 await sb.from('flashcards').insert(cards);upSt.textContent='✓ Uploaded '+cards.length+' cards!';
 }else{
 const blocks=text.split('\n\n').filter(b=>b.trim());const qs=[];
-for(const block of blocks){const lines=block.split('\n').filter(l=>l.trim());if(lines.length<3)continue;const q={topic:r.topic,question:'',option_a:'',option_b:'',option_c:'',option_d:'',option_e:'',correct_answer:'',explanation:'',is_global:false,user_id:r.user_id};q.question=lines[0];for(const line of lines.slice(1)){if(line.startsWith('A.')||line.startsWith('A)'))q.option_a=line.slice(2).trim();else if(line.startsWith('B.')||line.startsWith('B)'))q.option_b=line.slice(2).trim();else if(line.startsWith('C.')||line.startsWith('C)'))q.option_c=line.slice(2).trim();else if(line.startsWith('D.')||line.startsWith('D)'))q.option_d=line.slice(2).trim();else if(line.startsWith('E.')||line.startsWith('E)'))q.option_e=line.slice(2).trim();else if(line.toLowerCase().startsWith('answer:'))q.correct_answer=line.split(':')[1].trim().toUpperCase();else if(line.toLowerCase().startsWith('explanation:'))q.explanation=line.split(':').slice(1).join(':').trim();}if(q.question&&q.correct_answer)qs.push(q);}
+for(const block of blocks){const lines=block.split('\n').filter(l=>l.trim());if(lines.length<3)continue;const q={topic:r.topic,question:'',option_a:'',option_b:'',option_c:'',option_d:'',option_e:'',correct_answer:'',explanation:'',is_global:false,user_id:r.user_id};q.question=lines[0];let expIdx=-1;for(let li=1;li<lines.length;li++){const line=lines[li];if(line.startsWith('A.')||line.startsWith('A)'))q.option_a=line.slice(2).trim();else if(line.startsWith('B.')||line.startsWith('B)'))q.option_b=line.slice(2).trim();else if(line.startsWith('C.')||line.startsWith('C)'))q.option_c=line.slice(2).trim();else if(line.startsWith('D.')||line.startsWith('D)'))q.option_d=line.slice(2).trim();else if(line.startsWith('E.')||line.startsWith('E)'))q.option_e=line.slice(2).trim();else if(line.toLowerCase().startsWith('answer:'))q.correct_answer=line.split(':')[1].trim().toUpperCase();else if(line.toLowerCase().startsWith('explanation:')){q.explanation=line.split(':').slice(1).join(':').trim();expIdx=li;}}if(expIdx>=0&&expIdx<lines.length-1){const extra=lines.slice(expIdx+1).filter(l=>!l.startsWith('A.')&&!l.startsWith('B.')&&!l.startsWith('C.')&&!l.startsWith('D.')&&!l.startsWith('E.')&&!l.toLowerCase().startsWith('answer:')).join(' ');if(extra)q.explanation+=' '+extra;}if(q.question&&q.correct_answer)qs.push(q);}
 if(qs.length){await sb.from('vignette_questions').insert(qs);upSt.textContent='✓ Uploaded '+qs.length+' questions!';}else upSt.textContent='No valid questions found.';
 }
 setTimeout(()=>upSt.style.display='none',3000);
@@ -3011,14 +3010,17 @@ const uploadBtn=btn('Upload All Subsections','btn-gold',async()=>{
       if(lines.length<3)continue;
       const q={topic:subject,subsection:subName,question:'',option_a:'',option_b:'',option_c:'',option_d:'',correct_answer:'',explanation:'',is_global:freeToggle.checked,user_id:null};
       q.question=lines[0];
-      for(const line of lines.slice(1)){
+      let expIdx=-1;
+      for(let li=1;li<lines.length;li++){
+        const line=lines[li];
         if(line.startsWith('A.')||line.startsWith('A)'))q.option_a=line.slice(2).trim();
         if(line.startsWith('B.')||line.startsWith('B)'))q.option_b=line.slice(2).trim();
         if(line.startsWith('C.')||line.startsWith('C)'))q.option_c=line.slice(2).trim();
         if(line.startsWith('D.')||line.startsWith('D)'))q.option_d=line.slice(2).trim();
         if(line.toLowerCase().startsWith('answer:'))q.correct_answer=line.split(':')[1]?.trim().toUpperCase()||'';
-        if(line.toLowerCase().startsWith('explanation:'))q.explanation=line.split(':').slice(1).join(':').trim();
+        if(line.toLowerCase().startsWith('explanation:')){q.explanation=line.split(':').slice(1).join(':').trim();expIdx=li;}
       }
+      if(expIdx>=0&&expIdx<lines.length-1){const extra=lines.slice(expIdx+1).filter(l=>!l.startsWith('A.')&&!l.startsWith('B.')&&!l.startsWith('C.')&&!l.startsWith('D.')&&!l.toLowerCase().startsWith('answer:')).join(' ');if(extra)q.explanation+=' '+extra;}
       if(q.question&&q.correct_answer)qs.push(q);
     }
     if(qs.length){
