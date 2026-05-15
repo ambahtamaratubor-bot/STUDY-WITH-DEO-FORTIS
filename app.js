@@ -1090,7 +1090,7 @@ nav.append(
     btn('Study','btn-outline',()=>go('study'),{style:{padding:'8px 16px'}}),
     btn('Cards','btn-outline',()=>go('flashcards'),{style:{padding:'8px 16px'}}),
     btn('Q-Bank','btn-outline',()=>go('vignette'),{style:{padding:'8px 16px'}}),
-    btn('Leaderboard','btn-outline',()=>isFree?showUpgradeModal():go('leaderboard'),{style:{padding:'8px 16px'}}),
+    btn('Leaderboard','btn-outline',()=>go('leaderboard'),{style:{padding:'8px 16px'}}),
     btn('Log Out','btn-outline',()=>sb.auth.signOut(),{style:{padding:'8px 16px'}})
   ])
 );
@@ -1325,7 +1325,7 @@ twoCol.append(recentCard);
       actionButton(ICONS.target,'Start Session',()=>go('study')),
       actionButton(ICONS.question,'Q-Bank',()=>go('vignette')),
       actionButton(ICONS.layers,'Flashcards',()=>go('flashcards')),
-      actionButton(ICONS.trophy,'Leaderboard',()=>isFree?showUpgradeModal():go('leaderboard')),
+      actionButton(ICONS.trophy,'Leaderboard',()=>go('leaderboard')),
       actionButton(ICONS.message,'Community',()=>{if(commLink&&commLink!=='#')window.open(commLink,'_blank');}),
       actionButton(ICONS.brain,'Feynman Arena',()=>go('feynman'))
     ])
@@ -2344,7 +2344,54 @@ showSetup();return page;
 // ═══════════════════════════════
 function feynman(){
 const page=div({cls:'dash-page'});
-if(S.profile?.is_free_tier===true){showUpgradeModal();return page;}
+if(S.profile?.is_free_tier===true){
+  const nav2=div({cls:'dash-nav'},[div({cls:'logo',html:'Deo Fortis'}),div({style:{display:'flex',gap:'8px'}},[btn('Back to Dashboard','btn-outline',()=>go('dashboard'),{style:{padding:'8px 16px'}})])]);
+  page.append(nav2);
+  const preview=div({cls:'inner',style:{position:'relative'}});
+  preview.append(
+    div({style:{marginBottom:'32px'}},[
+      h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'11px',color:'var(--teal)',textTransform:'uppercase',letterSpacing:'1px',marginBottom:'8px'},html:'Feynman Arena'}),
+      h('h1',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'32px',color:'var(--gold)',marginBottom:'8px'},html:'Teach It. Own It.'}),
+      h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'13px',color:'var(--dim)',lineHeight:'1.7',maxWidth:'520px'},html:"The Feynman Arena is where the best students shine. Submit your explanation of any medical topic, get reviewed by tutors, and the best ones get crowned 👑 King of the Week. Top explanations appear on the Wall of Fame and earn points on the leaderboard."})
+    ]),
+    div({style:{filter:'blur(4px)',pointerEvents:'none',userSelect:'none',opacity:'0.6'}},[
+      div({cls:'card',style:{marginBottom:'16px',padding:'24px'}},[
+        h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'11px',color:'var(--dim)',marginBottom:'12px'},html:'SUBMIT YOUR EXPLANATION'}),
+        div({style:{height:'12px',background:'var(--border)',borderRadius:'4px',marginBottom:'12px',width:'60%'}},[]),
+        div({style:{height:'80px',background:'var(--border)',borderRadius:'4px',marginBottom:'12px'}},[]),
+        div({style:{height:'36px',background:'var(--gold)',borderRadius:'4px',width:'140px',opacity:'0.4'}},[])
+      ]),
+      div({cls:'card',style:{padding:'24px'}},[
+        h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'11px',color:'var(--dim)',marginBottom:'16px'},html:'WALL OF FAME — THIS WEEK'}),
+        div({style:{display:'flex',gap:'12px',alignItems:'center',padding:'12px 0',borderBottom:'1px solid var(--border)'}},[
+          div({style:{width:'32px',height:'32px',borderRadius:'50%',background:'var(--border)'}},[]),
+          div({style:{flex:'1'}},[div({style:{height:'10px',background:'var(--border)',borderRadius:'4px',marginBottom:'6px',width:'40%'}},[]),div({style:{height:'8px',background:'var(--border)',borderRadius:'4px',width:'70%'}},[])]),
+          div({style:{width:'24px',height:'24px',background:'var(--gold)',borderRadius:'4px',opacity:'0.4'}},[])
+        ]),
+        div({style:{display:'flex',gap:'12px',alignItems:'center',padding:'12px 0',borderBottom:'1px solid var(--border)'}},[
+          div({style:{width:'32px',height:'32px',borderRadius:'50%',background:'var(--border)'}},[]),
+          div({style:{flex:'1'}},[div({style:{height:'10px',background:'var(--border)',borderRadius:'4px',marginBottom:'6px',width:'55%'}},[]),div({style:{height:'8px',background:'var(--border)',borderRadius:'4px',width:'65%'}},[])]),
+          div({style:{width:'24px',height:'24px',background:'var(--gold)',borderRadius:'4px',opacity:'0.4'}},[])
+        ]),
+        div({style:{display:'flex',gap:'12px',alignItems:'center',padding:'12px 0'}},[
+          div({style:{width:'32px',height:'32px',borderRadius:'50%',background:'var(--border)'}},[]),
+          div({style:{flex:'1'}},[div({style:{height:'10px',background:'var(--border)',borderRadius:'4px',marginBottom:'6px',width:'35%'}},[]),div({style:{height:'8px',background:'var(--border)',borderRadius:'4px',width:'80%'}},[])]),
+          div({style:{width:'24px',height:'24px',background:'var(--gold)',borderRadius:'4px',opacity:'0.4'}},[])
+        ])
+      ])
+    ]),
+    div({style:{position:'absolute',top:'180px',left:'0',right:'0',display:'flex',justifyContent:'center'}},[
+      div({style:{background:'var(--card)',border:'1px solid var(--gold)',borderRadius:'8px',padding:'32px',textAlign:'center',maxWidth:'360px',boxShadow:'0 8px 32px rgba(0,0,0,0.4)'}},[
+        h('div',{style:{fontSize:'40px',marginBottom:'12px'},html:'👑'}),
+        h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'20px',color:'var(--gold)',marginBottom:'8px'},html:'Unlock the Feynman Arena'}),
+        h('p',{style:{fontFamily:"Inter,sans-serif",fontSize:'13px',color:'var(--dim)',lineHeight:'1.6',marginBottom:'20px'},html:'Submit explanations, earn points, and compete to be crowned King of the Week.'}),
+        btn('Upgrade to Unlock →','btn-gold',()=>showUpgradeModal(),{style:{width:'100%'}})
+      ])
+    ])
+  );
+  page.append(preview);
+  return page;
+}
 function getCurrentMonday(){const now=new Date();const day=now.getDay();const diff=day===0?6:day-1;const mon=new Date(now);mon.setDate(now.getDate()-diff);mon.setHours(0,0,0,0);return mon.toISOString().split('T')[0];}
 const nav=div({cls:'dash-nav'},[
   div({cls:'logo',html:'Deo Fortis'}),
@@ -2643,6 +2690,41 @@ const page=div({});
 const nav=div({cls:'dash-nav'});
 nav.append(div({cls:'logo',html:'Deo Fortis'}),btn('← Dashboard','btn-outline',()=>go('dashboard'),{style:{padding:'8px 16px'}}));
 page.append(nav);
+if(S.profile?.is_free_tier===true){
+  const preview=div({cls:'inner-sm',style:{position:'relative'}});
+  preview.append(
+    h('span',{cls:'chapter',html:'Rankings'}),
+    h('h1',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'48px',fontWeight:'700',marginBottom:'8px'},html:'The <em class="gold-em">Leaderboard</em>'}),
+    h('p',{cls:'muted',style:{fontSize:'14px',marginBottom:'32px'},html:'Rankings based on total study points. Updated in real time.'}),
+    div({style:{filter:'blur(5px)',pointerEvents:'none',userSelect:'none',opacity:'0.55'}},[
+      div({cls:'card',style:{marginBottom:'16px',padding:'0 16px'}},[
+        ...[['1st','🥇','Alexander O.','2,840 pts','142h','🔥 21'],['2nd','🥈','Priya M.','2,210 pts','118h','🔥 14'],['3rd','🥉','Marcus T.','1,980 pts','99h','🔥 9'],['4.','','Sarah K.','1,640 pts','82h','🔥 6'],['5.','','James R.','1,290 pts','64h','🔥 4']].map(([rank,medal,name,pts,hrs,streak])=>
+          div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'14px 0',borderBottom:'1px solid var(--border)'}},[
+            div({style:{display:'flex',alignItems:'center',gap:'12px'}},[
+              h('span',{style:{fontSize:'13px',color:'var(--gold)',fontWeight:'700',width:'36px'},html:medal||rank},[]),
+              h('span',{style:{fontSize:'15px',color:'var(--text)',fontWeight:'500'},html:name},[]),
+              h('span',{style:{fontSize:'12px',color:'var(--muted)'},html:streak},[])
+            ]),
+            div({style:{display:'flex',gap:'12px',alignItems:'center'}},[
+              h('span',{style:{fontSize:'12px',color:'var(--muted)'},html:hrs},[]),
+              h('span',{style:{fontSize:'13px',color:'var(--gold)',fontWeight:'600'},html:pts},[])
+            ])
+          ])
+        )
+      ])
+    ]),
+    div({style:{position:'absolute',top:'180px',left:'0',right:'0',display:'flex',justifyContent:'center'}},[
+      div({style:{background:'var(--card)',border:'1px solid var(--gold)',borderRadius:'8px',padding:'32px',textAlign:'center',maxWidth:'360px',boxShadow:'0 8px 32px rgba(0,0,0,0.4)'}},[
+        h('div',{style:{fontSize:'40px',marginBottom:'12px'},html:'🏆'}),
+        h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'20px',color:'var(--gold)',marginBottom:'8px'},html:'Unlock the Leaderboard'}),
+        h('p',{style:{fontFamily:"Inter,sans-serif",fontSize:'13px',color:'var(--dim)',lineHeight:'1.6',marginBottom:'20px'},html:'Earn points, build streaks, and see where you rank against every student on the platform.'}),
+        btn('Upgrade to Unlock →','btn-gold',()=>showUpgradeModal(),{style:{width:'100%'}})
+      ])
+    ])
+  );
+  page.append(preview);
+  return page;
+}
 const inner=div({cls:'inner-sm'});
 inner.append(h('span',{cls:'chapter',html:'Rankings'}),h('h1',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'48px',fontWeight:'700',marginBottom:'8px'},html:'The <em class="gold-em">Leaderboard</em>'}),h('p',{cls:'muted',style:{fontSize:'14px',marginBottom:'40px'},html:'Rankings based on total study hours. Updated in real time.'}));
 const board=div({cls:'card',style:{marginBottom:'32px'},id:'board',html:'<p style="font-size:14px;color:var(--dim);text-align:center;padding:20px">Loading...</p>'});
