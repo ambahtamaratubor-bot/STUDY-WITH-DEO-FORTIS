@@ -15,6 +15,8 @@ body:JSON.stringify({from:'Deo Fortis <onboarding@resend.dev>',to:ADMIN_EMAIL,su
 }
 let S={page:'landing',user:null,profile:null};
 let signingUp=false;
+let payLinks={monthly:'#',sixmonth:'#',yearly:'#'};
+sb.from('admin_settings').select('link_monthly,link_sixmonth,link_yearly').single().then(({data})=>{if(data)payLinks={monthly:data.link_monthly||'#',sixmonth:data.link_sixmonth||'#',yearly:data.link_yearly||'#'};});
 function go(p){S.page=p;render();}
 sb.auth.onAuthStateChange((_,session)=>{
   if(signingUp)return;
@@ -792,7 +794,6 @@ function signup(){
 const page=div({cls:'center',style:{minHeight:'100vh',padding:'24px'}});
 let sel=null;
 try{const s=sessionStorage.getItem('selPlan');if(s)sel=JSON.parse(s);}catch(e){}
-let payLinks={monthly:'#',sixmonth:'#',yearly:'#'};
 sb.from('admin_settings').select('link_monthly,link_sixmonth,link_yearly').single().then(({data})=>{if(data)payLinks={monthly:data.link_monthly||'#',sixmonth:data.link_sixmonth||'#',yearly:data.link_yearly||'#'};});
 const wrap=div({cls:'fade',style:{width:'100%',maxWidth:'560px'}});
 const fc=div({cls:'card',style:{marginBottom:'20px'}});
@@ -2352,7 +2353,7 @@ if(S.profile?.is_free_tier===true){
     div({style:{marginBottom:'32px'}},[
       h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'11px',color:'var(--teal)',textTransform:'uppercase',letterSpacing:'1px',marginBottom:'8px'},html:'Feynman Arena'}),
       h('h1',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'32px',color:'var(--gold)',marginBottom:'8px'},html:'Teach It. Own It.'}),
-      h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'13px',color:'var(--dim)',lineHeight:'1.7',maxWidth:'520px'},html:"The Feynman Arena is where the best students shine. Submit your explanation of any medical topic, get reviewed by tutors, and the best ones get crowned 👑 King of the Week. Top explanations appear on the Wall of Fame and earn points on the leaderboard."})
+      h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'13px',color:'var(--dim)',lineHeight:'1.8',maxWidth:'520px'},html:"Can you explain Gram-positive bacteria to a 6-year-old — no jargon, no textbook language? That's the challenge. Pick any topic, speak directly into your mic or type it out, and our tutors review every submission. The clearest, simplest explanations get crowned 👑 King of the Week and published on the Wall of Fame. You earn points. Your peers learn from you. Everyone wins."})
     ]),
     div({style:{filter:'blur(4px)',pointerEvents:'none',userSelect:'none',opacity:'0.6'}},[
       div({cls:'card',style:{marginBottom:'16px',padding:'24px'}},[
