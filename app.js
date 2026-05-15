@@ -38,6 +38,26 @@ if(data){
   S.profile=data;
   if(data.is_free_tier===true){
     go('dashboard');
+  }else if(data.status==='approved'&&data.is_free_tier===false){
+    if(data.access_expires_at){
+      const expiryDate=new Date(data.access_expires_at);
+      const now=new Date();
+      const daysDiff=Math.ceil((expiryDate-now)/(1000*60*60*24));
+      if(daysDiff<-4){
+        await sb.from('profiles').update({is_free_tier:true}).eq('id',id);
+        data.is_free_tier=true;
+        S.profile=data;
+        go('dashboard');
+      }else if(daysDiff<=4){
+        S.expiryWarning=true;
+        S.expiryDaysLeft=daysDiff>0?daysDiff:0;
+        go('dashboard');
+      }else{
+        go('dashboard');
+      }
+    }else{
+      go('dashboard');
+    }
   }else if(data.status==='approved'){
     go('dashboard');
   }else{
@@ -982,12 +1002,44 @@ function showUpgradeModal(){
     ]));
   });
   modal.append(grid);
+  const planRows=div({style:{display:'flex',flexDirection:'column',gap:'10px',marginBottom:'16px'}});
+  [{label:'Monthly',price:'$10',key:'monthly',cls:'btn-gold'},{label:'6 Months',price:'$39',key:'sixmonth',cls:'btn-teal'},{label:'Yearly',price:'$59',key:'yearly',cls:'btn-outline'}].forEach(p=>{
+    const b=btn('',p.cls,()=>{window.open(payLinks[p.key],'_blank');},{style:{width:'100%',display:'flex',justifyContent:'space-between',alignItems:'center',padding:'12px 16px'}});
+    b.innerHTML='<span>'+p.label+'</span><span>'+p.price+'</span>';
+    planRows.append(b);
+  });
+  modal.append(planRows);
   modal.append(
-    btn('Upgrade Now →','btn-gold',()=>{overlay.remove();go('landing');},{style:{width:'100%',marginBottom:'12px'}}),
     btn('Maybe later','',()=>overlay.remove(),{style:{background:'none',border:'none',fontFamily:"Inter,sans-serif",fontSize:'11px',color:'var(--dim)',cursor:'pointer',width:'100%',textAlign:'center'}})
   );
   overlay.append(modal);
   document.body.append(overlay);
+}
+
+// EXPIRY WARNING BANNER
+// ═══════════════════════════════
+let expiryBannerEl=null;
+function showExpiryBanner(daysLeft){
+  if(expiryBannerEl)expiryBannerEl.remove();
+  const banner=div({style:{position:'fixed',top:'60px',left:'0',right:'0',background:'#C9A84C',color:'#1a1a1a',padding:'10px 24px',zIndex:'9998',fontFamily:"Inter,sans-serif",fontSize:'13px',display:'flex',alignItems:'center',justifyContent:'center',gap:'16px',flexWrap:'wrap',borderBottom:'1px solid rgba(0,0,0,0.15)'}});
+  const msg=h('span',{style:{fontWeight:'500'},html:'Your access expires in '+daysLeft+' day'+(daysLeft===1?'':'s')+'. Renew now:'});
+  const mkLink=(label,key)=>{
+    const a=h('span',{style:{fontWeight:'700',textDecoration:'underline',cursor:'pointer'},html:label});
+    a.onclick=()=>window.open(payLinks[key],'_blank');
+    return a;
+  };
+  const links=div({style:{display:'flex',gap:'10px',alignItems:'center'}},[
+    mkLink('Monthly $10','monthly'),
+    h('span',{html:'|'}),
+    mkLink('6 Months $39','sixmonth'),
+    h('span',{html:'|'}),
+    mkLink('Yearly $59','yearly')
+  ]);
+  const closeBtn=h('span',{style:{cursor:'pointer',fontSize:'16px',fontWeight:'bold',marginLeft:'8px'},html:'✕'});
+  closeBtn.onclick=()=>{banner.remove();expiryBannerEl=null;};
+  banner.append(msg,links,closeBtn);
+  document.body.append(banner);
+  expiryBannerEl=banner;
 }
 
 // ═══════════════════════════════
@@ -1017,6 +1069,7 @@ function dashboard(){
 const page=div({});
 const p=S.profile||{};
 const isFree=p.is_free_tier===true;
+if(S.expiryWarning)showExpiryBanner(S.expiryDaysLeft);
 
 // NAV
 const nav=div({cls:'dash-nav'});
@@ -2779,55 +2832,142 @@ content.innerHTML='';content.append(card);
 }
 if(tab==='users'){
 const{data:users}=await sb.from('profiles').select('*').order('created_at',{ascending:false});
-const card=div({cls:'card fade'});
-const pend=(users||[]).filter(u=>u.status==='pending').length;
-const upgrades=(users||[]).filter(u=>u.status==='pending'&&u.is_free_tier===false).length;
-card.append(h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'22px',marginBottom:'8px'},html:'Users'}),h('p',{cls:'muted',style:{fontSize:'14px',marginBottom:'4px'},html:pend+' pending approval'}),upgrades>0?h('p',{style:{fontFamily:"Inter,sans-serif",fontSize:'12px',color:'var(--gold)',marginBottom:'24px'},html:'⬆ '+upgrades+' upgrade'+(upgrades>1?'s':'')+' awaiting approval'}):h('p',{style:{marginBottom:'24px'}}));
-const userRanks=[...(users||[])].sort((a,b)=>(b.total_points||0)-(a.total_points||0));
-(users||[]).forEach(u=>{
-  const isFree=u.is_free_tier===true||u.is_free_tier===null||u.is_free_tier===undefined;
-  const rank=userRanks.findIndex(r=>r.id===u.id)+1;
-  const daysActive=Math.max(1,Math.floor((Date.now()-new Date(u.created_at))/86400000));
-  const dailyGoalMins=(u.study_goals?.daily_hours||0)*60;
-  const avgDailyMins=(u.total_study_minutes||0)/daysActive;
-  const belowGoal=dailyGoalMins>0&&avgDailyMins<(dailyGoalMins*0.8);
-  const pointsInput=inp('Points','number','0');
-  Object.assign(pointsInput.style,{width:'80px',fontSize:'12px',padding:'4px 8px'});
-  const row=div({style:{padding:'14px 0',borderBottom:'1px solid var(--border)'}});
-  const topRow=div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'8px'}});
-  const nameDiv=div({style:{fontSize:'14px',color:'var(--text)',fontWeight:'600'}});
-  nameDiv.textContent=(u.full_name||u.email||'—')+' (#'+rank+')';
-  const statusBadge=h('span',{style:{fontSize:'10px',textTransform:'uppercase',letterSpacing:'1px',color:u.status==='approved'?'var(--teal)':'var(--gold)',marginRight:'8px'}});
-  statusBadge.textContent=u.status||'pending';
-  const tierBadge=h('span',{style:{fontSize:'10px',textTransform:'uppercase',letterSpacing:'1px',color:isFree?'var(--dim)':'var(--gold)'}});
-  tierBadge.textContent=isFree?'FREE':'PAID';
-  const actionsDiv=div({style:{display:'flex',gap:'8px',alignItems:'center'}});
-  actionsDiv.append(statusBadge,tierBadge);
-  if(u.status!=='approved'){
-    actionsDiv.append(btn('Approve','btn-teal',async()=>{const exp=new Date();exp.setMonth(exp.getMonth()+1);await sb.from('profiles').update({status:'approved',access_expires_at:exp.toISOString()}).eq('id',u.id);loadTab('users');},{style:{padding:'4px 12px',fontSize:'11px'}}));
-    actionsDiv.append(btn('Decline','btn-outline',async()=>{if(!confirm('Delete this user permanently?'))return;await sb.from('profiles').delete().eq('id',u.id);loadTab('users');},{style:{padding:'4px 12px',fontSize:'11px',color:'#ff4444',borderColor:'#ff4444'}}));
+let activeSubTab='new';
+const newCount=(users||[]).filter(u=>u.status==='pending'&&u.is_free_tier===false).length;
+const paidCount=(users||[]).filter(u=>u.status==='approved'&&u.is_free_tier===false).length;
+const freeCount=(users||[]).filter(u=>u.is_free_tier===true).length;
+const allCount=(users||[]).length;
+const wrapper=div({cls:'card fade'});
+const tabsRow=div({style:{display:'flex',gap:'8px',marginBottom:'24px',flexWrap:'wrap'}});
+const listDiv=div({});
+const tabDefs2=[
+  {key:'new',label:'New Subscriptions',count:newCount},
+  {key:'paid',label:'Paid',count:paidCount},
+  {key:'free',label:'Free',count:freeCount},
+  {key:'all',label:'All Users',count:allCount}
+];
+const tabBtns2={};
+function renderUserList(){
+  listDiv.innerHTML='';
+  let filtered=[];
+  if(activeSubTab==='new') filtered=(users||[]).filter(u=>u.status==='pending'&&u.is_free_tier===false);
+  else if(activeSubTab==='paid') filtered=(users||[]).filter(u=>u.status==='approved'&&u.is_free_tier===false);
+  else if(activeSubTab==='free') filtered=(users||[]).filter(u=>u.is_free_tier===true);
+  else filtered=(users||[]);
+  if(!filtered.length){
+    const empty=div({style:{textAlign:'center',padding:'40px',color:'var(--dim)',fontFamily:"Inter,sans-serif",fontSize:'13px'}});
+    empty.textContent='No users in this category';
+    listDiv.append(empty);
+    return;
   }
-  actionsDiv.append(btn(isFree?'Set Paid':'Set Free',isFree?'btn-teal':'btn-outline',async()=>{await sb.from('profiles').update({is_free_tier:!isFree,status:'approved'}).eq('id',u.id);loadTab('users');},{style:{padding:'4px 12px',fontSize:'11px'}}));
-  topRow.append(nameDiv,actionsDiv);
-  const statsRow=div({style:{display:'flex',gap:'16px',fontSize:'12px',color:'var(--muted)',marginBottom:'8px',flexWrap:'wrap'}});
-  const emailInfo=h('span',{});emailInfo.textContent=(u.email||'—')+' · '+(u.plan||'No plan');
-  const streakInfo=h('span',{style:{color:'var(--text)'}});streakInfo.textContent='🔥 '+( u.streak_count||0)+' streak';
-  const hoursInfo=h('span',{style:{color:'var(--text)'}});hoursInfo.textContent=Math.floor((u.total_study_minutes||0)/60)+'h studied';
-  const ptsInfo=h('span',{style:{color:'var(--gold)'}});ptsInfo.textContent=(u.total_points||0)+' pts';
-  statsRow.append(emailInfo,streakInfo,hoursInfo,ptsInfo);
-  if(belowGoal){const warn=h('span',{style:{color:'#ff4444',fontWeight:'600'}});warn.textContent='Below Goal';statsRow.append(warn);}
-  const pointsRow=div({style:{display:'flex',gap:'8px',alignItems:'center'}});
-  pointsRow.append(pointsInput,btn('Add/Deduct Points','btn-outline',async()=>{
-    const delta=parseInt(pointsInput.value,10);
-    if(isNaN(delta)||delta===0)return;
-    const newPts=(u.total_points||0)+delta;
-    await sb.from('profiles').update({total_points:newPts}).eq('id',u.id);
-    loadTab('users');
-  },{style:{padding:'4px 12px',fontSize:'11px'}}));
-  row.append(topRow,statsRow,pointsRow);
-  card.append(row);
+  filtered.forEach(u=>{
+    const isFree=u.is_free_tier===true;
+    const isNew=activeSubTab==='new';
+    const isPaid=activeSubTab==='paid';
+    const isFreeTab=activeSubTab==='free';
+    const isAll=activeSubTab==='all';
+    const daysActive=Math.max(1,Math.floor((Date.now()-new Date(u.created_at))/86400000));
+    const dailyGoalMins=(u.study_goals?.daily_hours||0)*60;
+    const avgDailyMins=(u.total_study_minutes||0)/daysActive;
+    const belowGoal=dailyGoalMins>0&&avgDailyMins<(dailyGoalMins*0.8);
+    const row=div({style:{padding:'14px 0',borderBottom:'1px solid var(--border)'}});
+    const topRow=div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'8px',flexWrap:'wrap',gap:'8px'}});
+    const nameDiv=div({style:{fontSize:'14px',color:'var(--text)',fontWeight:'600'}});
+    nameDiv.textContent=u.full_name||u.email||'—';
+    const statusBadge=h('span',{style:{fontSize:'10px',textTransform:'uppercase',letterSpacing:'1px',color:u.status==='approved'?'var(--teal)':'var(--gold)',marginRight:'8px'}});
+    statusBadge.textContent=u.status||'pending';
+    const tierBadge=h('span',{style:{fontSize:'10px',textTransform:'uppercase',letterSpacing:'1px',color:isFree?'var(--dim)':'var(--gold)'}});
+    tierBadge.textContent=isFree?'FREE':'PAID';
+    const actionsDiv=div({style:{display:'flex',gap:'8px',alignItems:'center',flexWrap:'wrap'}});
+    actionsDiv.append(statusBadge,tierBadge);
+    if(isNew){
+      actionsDiv.append(btn('Approve','btn-teal',async()=>{
+        let days=30;
+        if(u.plan==='6 Months')days=180;
+        if(u.plan==='Yearly')days=365;
+        const exp=new Date();exp.setDate(exp.getDate()+days);
+        await sb.from('profiles').update({status:'approved',is_free_tier:false,access_expires_at:exp.toISOString()}).eq('id',u.id);
+        loadTab('users');
+      },{style:{padding:'4px 12px',fontSize:'11px'}}));
+      actionsDiv.append(btn('Decline','btn-outline',async()=>{
+        if(!confirm('Delete this user permanently?'))return;
+        await sb.from('profiles').delete().eq('id',u.id);
+        loadTab('users');
+      },{style:{padding:'4px 12px',fontSize:'11px',color:'#ff4444',borderColor:'#ff4444'}}));
+    }else if(isPaid){
+      actionsDiv.append(btn('Set Free','btn-outline',async()=>{
+        await sb.from('profiles').update({is_free_tier:true,status:'approved'}).eq('id',u.id);
+        loadTab('users');
+      },{style:{padding:'4px 12px',fontSize:'11px'}}));
+    }else if(isFreeTab){
+      actionsDiv.append(btn('Set Paid','btn-teal',async()=>{
+        const exp=new Date();exp.setDate(exp.getDate()+30);
+        await sb.from('profiles').update({is_free_tier:false,status:'approved',access_expires_at:exp.toISOString()}).eq('id',u.id);
+        loadTab('users');
+      },{style:{padding:'4px 12px',fontSize:'11px'}}));
+    }else{
+      if(u.status!=='approved'){
+        actionsDiv.append(btn('Approve','btn-teal',async()=>{
+          const exp=new Date();exp.setDate(exp.getDate()+30);
+          await sb.from('profiles').update({status:'approved',is_free_tier:false,access_expires_at:exp.toISOString()}).eq('id',u.id);
+          loadTab('users');
+        },{style:{padding:'4px 12px',fontSize:'11px'}}));
+        actionsDiv.append(btn('Decline','btn-outline',async()=>{
+          if(!confirm('Delete this user permanently?'))return;
+          await sb.from('profiles').delete().eq('id',u.id);
+          loadTab('users');
+        },{style:{padding:'4px 12px',fontSize:'11px',color:'#ff4444',borderColor:'#ff4444'}}));
+      }
+      actionsDiv.append(btn(isFree?'Set Paid':'Set Free',isFree?'btn-teal':'btn-outline',async()=>{
+        if(isFree){const exp=new Date();exp.setDate(exp.getDate()+30);await sb.from('profiles').update({is_free_tier:false,status:'approved',access_expires_at:exp.toISOString()}).eq('id',u.id);}
+        else{await sb.from('profiles').update({is_free_tier:true,status:'approved'}).eq('id',u.id);}
+        loadTab('users');
+      },{style:{padding:'4px 12px',fontSize:'11px'}}));
+    }
+    topRow.append(nameDiv,actionsDiv);
+    const statsRow=div({style:{display:'flex',gap:'16px',fontSize:'12px',color:'var(--muted)',marginBottom:'8px',flexWrap:'wrap'}});
+    const emailEl=h('span',{});emailEl.textContent=u.email||'—';
+    const planEl=h('span',{});planEl.textContent=u.plan||'No plan';
+    const expiryEl=h('span',{});if(u.access_expires_at)expiryEl.textContent='Expires: '+new Date(u.access_expires_at).toLocaleDateString();
+    const createdEl=h('span',{});createdEl.textContent='Joined: '+new Date(u.created_at).toLocaleDateString();
+    const streakEl=h('span',{style:{color:'var(--text)'}});streakEl.textContent='🔥 '+(u.streak_count||0)+' streak';
+    const hoursEl=h('span',{style:{color:'var(--text)'}});hoursEl.textContent=Math.floor((u.total_study_minutes||0)/60)+'h studied';
+    const ptsEl=h('span',{style:{color:'var(--gold)'}});ptsEl.textContent=(u.total_points||0)+' pts';
+    if(isNew){statsRow.append(emailEl,planEl,createdEl);}
+    else if(isPaid){statsRow.append(emailEl,planEl,expiryEl,streakEl,hoursEl,ptsEl);}
+    else if(isFreeTab){statsRow.append(emailEl,createdEl,streakEl,hoursEl,ptsEl);}
+    else{statsRow.append(emailEl,planEl,streakEl,hoursEl,ptsEl);if(u.access_expires_at)statsRow.append(expiryEl);}
+    if(belowGoal&&!isNew){const warn=h('span',{style:{color:'#ff4444',fontWeight:'600'}});warn.textContent='Below Goal';statsRow.append(warn);}
+    const pointsInput=inp('Points','number','0');
+    Object.assign(pointsInput.style,{width:'80px',fontSize:'12px',padding:'4px 8px'});
+    const pointsRow=div({style:{display:'flex',gap:'8px',alignItems:'center',marginTop:'8px'}});
+    pointsRow.append(pointsInput,btn('Add/Deduct Points','btn-outline',async()=>{
+      const delta=parseInt(pointsInput.value,10);
+      if(isNaN(delta)||delta===0)return;
+      await sb.from('profiles').update({total_points:(u.total_points||0)+delta}).eq('id',u.id);
+      loadTab('users');
+    },{style:{padding:'4px 12px',fontSize:'11px'}}));
+    row.append(topRow,statsRow,pointsRow);
+    listDiv.append(row);
+  });
+}
+function switchSubTab(key){
+  activeSubTab=key;
+  tabDefs2.forEach(t=>{
+    const b=tabBtns2[t.key];
+    Object.assign(b.style,{background:t.key===key?'var(--gold)':'transparent',color:t.key===key?'#111':'var(--text)',border:t.key===key?'1px solid var(--gold)':'1px solid var(--border)'});
+  });
+  renderUserList();
+}
+tabDefs2.forEach(t=>{
+  const label=t.label+(t.count>0?' ('+t.count+')':'');
+  const b=btn(label,t.key==='new'?'btn-gold':'btn-outline',()=>switchSubTab(t.key),{style:{fontSize:'13px',padding:'6px 16px'}});
+  tabBtns2[t.key]=b;
+  tabsRow.append(b);
 });
-content.innerHTML='';content.append(card);
+wrapper.append(tabsRow,listDiv);
+content.innerHTML='';content.append(wrapper);
+renderUserList();
 }
 if(tab==='recalls'){
 const{data:recs}=await sb.from('recall_requests').select('*').order('created_at',{ascending:false});
