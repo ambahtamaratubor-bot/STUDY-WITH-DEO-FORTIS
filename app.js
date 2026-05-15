@@ -3043,13 +3043,16 @@ async function loadQuestionList(){
   const headerRow=div({style:{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'12px'}});
   const selectAllChk=h('input',{type:'checkbox',style:{accentColor:'var(--gold)',width:'14px',height:'14px',cursor:'pointer'}});
   const totalLabel=h('span',{style:{fontFamily:"Inter,sans-serif",fontSize:'9px',letterSpacing:'2px',textTransform:'uppercase',color:'var(--dim)',marginLeft:'8px'}},[questions.length+' Questions in Bank']);
-  const delSelBtn=btn('Delete Selected','btn-outline',async()=>{
+  const delSelBtn=btn('Delete Selected','btn-outline',null,{style:{padding:'4px 12px',fontSize:'10px',color:'#ff4444',borderColor:'#ff4444'}});
+  delSelBtn._confirming=false;
+  delSelBtn.onclick=async()=>{
     if(!selectedIds.size)return;
-    if(!confirm('Delete '+selectedIds.size+' selected question(s)? Cannot be undone.'))return;
+    if(!delSelBtn._confirming){delSelBtn._confirming=true;delSelBtn.textContent='Click again to confirm ('+selectedIds.size+')';setTimeout(()=>{delSelBtn._confirming=false;delSelBtn.textContent='Delete Selected';},3000);return;}
+    delSelBtn._confirming=false;delSelBtn.textContent='Delete Selected';
     const ids=Array.from(selectedIds);
     await sb.from('vignette_questions').delete().in('id',ids);
     loadQuestionList();
-  },{style:{padding:'4px 12px',fontSize:'10px',color:'#ff4444',borderColor:'#ff4444'}});
+  };
   const leftSide=div({style:{display:'flex',alignItems:'center'}});
   leftSide.append(selectAllChk,totalLabel);
   headerRow.append(leftSide,delSelBtn);
@@ -3066,14 +3069,17 @@ async function loadQuestionList(){
   for(const topic of Object.keys(grouped)){
     const topicIds=Object.values(grouped[topic]).flat().map(q=>q.id);
     const topicBlock=div({style:{marginBottom:'16px',border:'1px solid var(--border)',borderRadius:'2px',overflow:'hidden'}});
-    const topicHdr=div({style:{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'8px 12px',background:'var(--card2)||var(--card)',borderBottom:'1px solid var(--border)'}});
+    const topicHdr=div({style:{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'8px 12px',background:'var(--card)',borderBottom:'1px solid var(--border)'}});
+    const delSubjectBtn=btn('Delete Subject','btn-outline',null,{style:{padding:'4px 10px',fontSize:'10px',color:'#ff4444',borderColor:'#ff4444'}});
+    delSubjectBtn._confirming=false;
+    delSubjectBtn.onclick=async()=>{
+      if(!delSubjectBtn._confirming){delSubjectBtn._confirming=true;delSubjectBtn.textContent='Click again to confirm';setTimeout(()=>{delSubjectBtn._confirming=false;delSubjectBtn.textContent='Delete Subject';},3000);return;}
+      delSubjectBtn._confirming=false;delSubjectBtn.textContent='Delete Subject';
+      await sb.from('vignette_questions').delete().eq('topic',topic).is('user_id',null);loadQuestionList();
+    };
     topicHdr.append(
       h('span',{style:{fontFamily:"Inter,sans-serif",fontSize:'12px',color:'var(--gold)',fontWeight:'600'}},[topic+' ('+topicIds.length+')']),
-      btn('Delete Subject','btn-outline',async()=>{
-        if(!confirm('Delete ALL '+topicIds.length+' questions for "'+topic+'"? Cannot be undone.'))return;
-        await sb.from('vignette_questions').delete().eq('topic',topic).is('user_id',null);
-        loadQuestionList();
-      },{style:{padding:'4px 10px',fontSize:'10px',color:'#ff4444',borderColor:'#ff4444'}})
+      delSubjectBtn
     );
     topicBlock.append(topicHdr);
     for(const sub of Object.keys(grouped[topic])){
@@ -3083,11 +3089,13 @@ async function loadQuestionList(){
       const subHdr=div({style:{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'6px 12px',borderBottom:'1px solid var(--border)',background:'#0F0E0A'}});
       subHdr.append(
         h('span',{style:{fontFamily:"Inter,sans-serif",fontSize:'11px',color:'var(--muted)'}},[subLabel+' — '+subIds.length+' questions']),
-        btn('Delete Subsection','btn-outline',async()=>{
-          if(!confirm('Delete all '+subIds.length+' questions in "'+subLabel+'"? Cannot be undone.'))return;
-          await sb.from('vignette_questions').delete().in('id',subIds);
-          loadQuestionList();
-        },{style:{padding:'3px 8px',fontSize:'10px',color:'#ff4444',borderColor:'#ff4444'}})
+        (()=>{const delSubBtn=btn('Delete Subsection','btn-outline',null,{style:{padding:'3px 8px',fontSize:'10px',color:'#ff4444',borderColor:'#ff4444'}});
+        delSubBtn._confirming=false;
+        delSubBtn.onclick=async()=>{
+          if(!delSubBtn._confirming){delSubBtn._confirming=true;delSubBtn.textContent='Click again to confirm';setTimeout(()=>{delSubBtn._confirming=false;delSubBtn.textContent='Delete Subsection';},3000);return;}
+          delSubBtn._confirming=false;delSubBtn.textContent='Delete Subsection';
+          await sb.from('vignette_questions').delete().in('id',subIds);loadQuestionList();
+        };return delSubBtn;})()
       );
       topicBlock.append(subHdr);
       for(const q of subQs){
