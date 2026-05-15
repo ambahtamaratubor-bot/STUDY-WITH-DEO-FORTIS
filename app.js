@@ -99,7 +99,8 @@ mic:`<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0
 function render(){
 const root=document.getElementById('root');
 root.innerHTML='';
-const pages={landing,signup,login,pending,dashboard,study,flashcards,vignette,leaderboard,admin,feynman};
+const pages={landing,signup,login,pending,dashboard,study,flashcards,vignette,leaderboard,admin,feynman,updatePassword};
+if(window.location.hash==="#update-password"){root.append(updatePassword());return;}
 root.append((pages[S.page]||landing)());
 if(window.activeSessionId){showNoiseBar();showTimerBar();}else{removeNoiseBar();removeTimerBar();}
 }
@@ -943,7 +944,7 @@ function wrapWithEye(inputEl){
 const wrappedPassI=wrapWithEye(passI);
 // Forgot password
 const fpBtn=document.createElement('button');fpBtn.style.cssText='background:none;border:none;color:var(--gold);cursor:pointer;font-size:12px;font-family:"DM Mono",monospace;letter-spacing:1px;display:block;margin-bottom:16px;';fpBtn.textContent='Forgot password?';
-fpBtn.onclick=async()=>{const em=emailI.value.trim();if(!em){errEl.classList.remove('hidden');errEl.textContent='Enter your email first.';return;}const{error}=await sb.auth.resetPasswordForEmail(em);if(error){errEl.classList.remove('hidden');errEl.textContent=error.message;}else{errEl.classList.remove('hidden');errEl.style.background='#0a1f18';errEl.style.border='1px solid var(--teal)';errEl.style.color='var(--teal)';errEl.textContent='Password reset email sent! Check your inbox.';}};
+fpBtn.onclick=async()=>{const em=emailI.value.trim();if(!em){errEl.classList.remove('hidden');errEl.textContent='Enter your email first.';return;}const redirectUrl=window.location.origin+'/#update-password';const{error}=await sb.auth.resetPasswordForEmail(em,{redirectTo:redirectUrl});if(error){errEl.classList.remove('hidden');errEl.textContent=error.message;}else{errEl.classList.remove('hidden');errEl.style.background='#0a1f18';errEl.style.border='1px solid var(--teal)';errEl.style.color='var(--teal)';errEl.textContent='Password reset email sent! Check your inbox.';}};
 const sb2=btn('Log In','btn-gold',async()=>{
 errEl.classList.add('hidden');sb2.textContent='Logging in...';sb2.disabled=true;
 const{data,error}=await sb.auth.signInWithPassword({email:emailI.value,password:passI.value});
@@ -952,6 +953,39 @@ if(error){errEl.classList.remove('hidden');errEl.textContent=error.message;sb2.t
 },{style:{width:'100%',marginBottom:'16px'}});
 passI.onkeydown=e=>{if(e.key==='Enter')sb2.click();};
 card.append(div({style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontStyle:'italic',fontSize:'22px',color:'var(--gold)',marginBottom:'4px'},html:'Deo Fortis'}),h('hr',{style:{border:'none',borderTop:'1px solid var(--border)',margin:'16px 0'}}),h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'24px',marginBottom:'4px'},html:'Welcome Back'}),h('p',{cls:'muted',style:{fontSize:'14px',marginBottom:'24px'},html:'Log in to continue your studies.'}),errEl,field('Email',emailI),field('Password',wrappedPassI,'mb-24'),sb2,fpBtn,h('hr',{style:{border:'none',borderTop:'1px solid var(--border)',margin:'16px 0'}}),h('p',{style:{fontSize:'13px',color:'var(--muted)',textAlign:'center',marginTop:'16px'},html:"Don't have an account? <button onclick=\"go('landing')\" style=\"background:none;border:none;color:var(--gold);cursor:pointer;font-size:13px\">Sign up via home page</button>"}),h('p',{style:{fontSize:'13px',color:'var(--muted)',textAlign:'center',marginTop:'8px'},html:"<button onclick=\"go('landing')\" style=\"background:none;border:none;color:var(--dim);cursor:pointer;font-size:12px\">← Back to home</button>"}));
+page.append(card);return page;
+}
+// ═══════════════════════════════
+// UPDATE PASSWORD
+// ═══════════════════════════════
+function updatePassword(){
+const page=div({cls:'center',style:{minHeight:'100vh',padding:'24px'}});
+const card=div({cls:'card fade',style:{width:'100%',maxWidth:'400px'}});
+const errEl=div({cls:'err hidden'});
+const passI=inp('New password','password');
+const pass2I=inp('Confirm new password','password');
+const updateBtn=btn('Update Password','btn-gold',async()=>{
+errEl.classList.add('hidden');
+if(passI.value.length<6){errEl.classList.remove('hidden');errEl.textContent='Password must be at least 6 characters.';return;}
+if(passI.value!==pass2I.value){errEl.classList.remove('hidden');errEl.textContent='Passwords do not match.';return;}
+updateBtn.textContent='Updating...';updateBtn.disabled=true;
+const{error}=await sb.auth.updateUser({password:passI.value});
+if(error){errEl.classList.remove('hidden');errEl.textContent=error.message;updateBtn.textContent='Update Password';updateBtn.disabled=false;return;}
+errEl.classList.remove('hidden');errEl.style.background='#0a1f18';errEl.style.border='1px solid var(--teal)';errEl.style.color='var(--teal)';
+errEl.textContent='✓ Password updated! Redirecting...';
+setTimeout(()=>{window.location.hash='';go('login');},2000);
+},{style:{width:'100%',marginBottom:'16px'}});
+card.append(
+div({style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontStyle:'italic',fontSize:'22px',color:'var(--gold)',marginBottom:'4px'},html:'Deo Fortis'}),
+h('hr',{style:{border:'none',borderTop:'1px solid var(--border)',margin:'16px 0'}}),
+h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'24px',marginBottom:'4px'},html:'Set New Password'}),
+h('p',{cls:'muted',style:{fontSize:'14px',marginBottom:'24px'},html:'Enter your new password below.'}),
+errEl,
+field('New Password',passI),
+field('Confirm Password',pass2I,'mb-24'),
+updateBtn,
+btn('← Back to Login','',()=>{window.location.hash='';go('login');},{style:{background:'none',border:'none',color:'var(--dim)',cursor:'pointer',fontSize:'12px',fontFamily:"Inter,sans-serif",letterSpacing:'1px'}})
+);
 page.append(card);return page;
 }
 // ═══════════════════════════════
