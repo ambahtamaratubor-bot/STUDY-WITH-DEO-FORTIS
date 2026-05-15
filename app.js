@@ -99,8 +99,7 @@ mic:`<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0
 function render(){
 const root=document.getElementById('root');
 root.innerHTML='';
-const pages={landing,signup,login,pending,dashboard,study,flashcards,vignette,leaderboard,admin,feynman,updatePassword};
-if(window.location.hash==="#update-password"){root.append(updatePassword());return;}
+const pages={landing,signup,login,pending,dashboard,study,flashcards,vignette,leaderboard,admin,feynman};
 root.append((pages[S.page]||landing)());
 if(window.activeSessionId){showNoiseBar();showTimerBar();}else{removeNoiseBar();removeTimerBar();}
 }
@@ -944,7 +943,7 @@ function wrapWithEye(inputEl){
 const wrappedPassI=wrapWithEye(passI);
 // Forgot password
 const fpBtn=document.createElement('button');fpBtn.style.cssText='background:none;border:none;color:var(--gold);cursor:pointer;font-size:12px;font-family:"DM Mono",monospace;letter-spacing:1px;display:block;margin-bottom:16px;';fpBtn.textContent='Forgot password?';
-fpBtn.onclick=async()=>{const em=emailI.value.trim();if(!em){errEl.classList.remove('hidden');errEl.textContent='Enter your email first.';return;}const redirectUrl=window.location.origin+'/#update-password';const{error}=await sb.auth.resetPasswordForEmail(em,{redirectTo:redirectUrl});if(error){errEl.classList.remove('hidden');errEl.textContent=error.message;}else{errEl.classList.remove('hidden');errEl.style.background='#0a1f18';errEl.style.border='1px solid var(--teal)';errEl.style.color='var(--teal)';errEl.textContent='Password reset email sent! Check your inbox.';}};
+fpBtn.onclick=async()=>{const em=emailI.value.trim();if(!em){errEl.classList.remove('hidden');errEl.textContent='Enter your email first.';return;}const{error}=await sb.auth.resetPasswordForEmail(em);if(error){errEl.classList.remove('hidden');errEl.textContent=error.message;}else{errEl.classList.remove('hidden');errEl.style.background='#0a1f18';errEl.style.border='1px solid var(--teal)';errEl.style.color='var(--teal)';errEl.textContent='Password reset email sent! Check your inbox.';}};
 const sb2=btn('Log In','btn-gold',async()=>{
 errEl.classList.add('hidden');sb2.textContent='Logging in...';sb2.disabled=true;
 const{data,error}=await sb.auth.signInWithPassword({email:emailI.value,password:passI.value});
@@ -953,39 +952,6 @@ if(error){errEl.classList.remove('hidden');errEl.textContent=error.message;sb2.t
 },{style:{width:'100%',marginBottom:'16px'}});
 passI.onkeydown=e=>{if(e.key==='Enter')sb2.click();};
 card.append(div({style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontStyle:'italic',fontSize:'22px',color:'var(--gold)',marginBottom:'4px'},html:'Deo Fortis'}),h('hr',{style:{border:'none',borderTop:'1px solid var(--border)',margin:'16px 0'}}),h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'24px',marginBottom:'4px'},html:'Welcome Back'}),h('p',{cls:'muted',style:{fontSize:'14px',marginBottom:'24px'},html:'Log in to continue your studies.'}),errEl,field('Email',emailI),field('Password',wrappedPassI,'mb-24'),sb2,fpBtn,h('hr',{style:{border:'none',borderTop:'1px solid var(--border)',margin:'16px 0'}}),h('p',{style:{fontSize:'13px',color:'var(--muted)',textAlign:'center',marginTop:'16px'},html:"Don't have an account? <button onclick=\"go('landing')\" style=\"background:none;border:none;color:var(--gold);cursor:pointer;font-size:13px\">Sign up via home page</button>"}),h('p',{style:{fontSize:'13px',color:'var(--muted)',textAlign:'center',marginTop:'8px'},html:"<button onclick=\"go('landing')\" style=\"background:none;border:none;color:var(--dim);cursor:pointer;font-size:12px\">← Back to home</button>"}));
-page.append(card);return page;
-}
-// ═══════════════════════════════
-// UPDATE PASSWORD
-// ═══════════════════════════════
-function updatePassword(){
-const page=div({cls:'center',style:{minHeight:'100vh',padding:'24px'}});
-const card=div({cls:'card fade',style:{width:'100%',maxWidth:'400px'}});
-const errEl=div({cls:'err hidden'});
-const passI=inp('New password','password');
-const pass2I=inp('Confirm new password','password');
-const updateBtn=btn('Update Password','btn-gold',async()=>{
-errEl.classList.add('hidden');
-if(passI.value.length<6){errEl.classList.remove('hidden');errEl.textContent='Password must be at least 6 characters.';return;}
-if(passI.value!==pass2I.value){errEl.classList.remove('hidden');errEl.textContent='Passwords do not match.';return;}
-updateBtn.textContent='Updating...';updateBtn.disabled=true;
-const{error}=await sb.auth.updateUser({password:passI.value});
-if(error){errEl.classList.remove('hidden');errEl.textContent=error.message;updateBtn.textContent='Update Password';updateBtn.disabled=false;return;}
-errEl.classList.remove('hidden');errEl.style.background='#0a1f18';errEl.style.border='1px solid var(--teal)';errEl.style.color='var(--teal)';
-errEl.textContent='✓ Password updated! Redirecting...';
-setTimeout(()=>{window.location.hash='';go('login');},2000);
-},{style:{width:'100%',marginBottom:'16px'}});
-card.append(
-div({style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontStyle:'italic',fontSize:'22px',color:'var(--gold)',marginBottom:'4px'},html:'Deo Fortis'}),
-h('hr',{style:{border:'none',borderTop:'1px solid var(--border)',margin:'16px 0'}}),
-h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'24px',marginBottom:'4px'},html:'Set New Password'}),
-h('p',{cls:'muted',style:{fontSize:'14px',marginBottom:'24px'},html:'Enter your new password below.'}),
-errEl,
-field('New Password',passI),
-field('Confirm Password',pass2I,'mb-24'),
-updateBtn,
-btn('← Back to Login','',()=>{window.location.hash='';go('login');},{style:{background:'none',border:'none',color:'var(--dim)',cursor:'pointer',fontSize:'12px',fontFamily:"Inter,sans-serif",letterSpacing:'1px'}})
-);
 page.append(card);return page;
 }
 // ═══════════════════════════════
@@ -2177,7 +2143,7 @@ qCard.onmouseup=(e)=>{
   const sel=window.getSelection();
   if(!sel||sel.isCollapsed)return;
   const rng=sel.getRangeAt(0);const selectedText=rng.toString().trim();
-  if(!selectedText)return;
+  if(!selectedText||selectedText.length<3)return;
   saveHighlight(rng,selectedText);
   sel.removeAllRanges();
 };
@@ -3068,19 +3034,78 @@ const uploadBtn=btn('Upload All Subsections','btn-gold',async()=>{
 },{});
 card.append(uploadBtn,upSt);
 const qListDiv=div({style:{marginTop:'24px'}});
+let selectedIds=new Set();
 async function loadQuestionList(){
-  qListDiv.innerHTML='';
-  const{data:questions}=await sb.from('vignette_questions').select('id,topic,subsection,question').is('user_id',null).order('created_at',{ascending:false});
+  qListDiv.innerHTML='';selectedIds=new Set();
+  const{data:questions}=await sb.from('vignette_questions').select('id,topic,subsection,question').is('user_id',null).order('topic,subsection,created_at',{ascending:false});
   if(!questions||!questions.length){qListDiv.append(h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'11px',color:'var(--dim)',padding:'8px 0'}},['No questions uploaded yet.']));return;}
-  qListDiv.append(h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'9px',letterSpacing:'2px',textTransform:'uppercase',color:'var(--dim)',marginBottom:'12px'}},[questions.length+' Questions in Bank']));
-  for(const q of questions){
-    const preview=q.question.length>70?q.question.substring(0,70)+'...':q.question;
-    const row=div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'10px 0',borderBottom:'1px solid var(--border)'}},[
-      div({style:{fontFamily:"Inter,sans-serif",fontSize:'11px',color:'var(--text)',flex:'1',marginRight:'12px'}},[h('span',{style:{color:'var(--gold)',marginRight:'8px'}},[q.topic+(q.subsection?' › '+q.subsection:'')]),preview]),
-      btn('Delete','btn-outline',async()=>{if(!confirm('Delete this question?'))return;await sb.from('vignette_questions').delete().eq('id',q.id);loadQuestionList();},{style:{padding:'4px 12px',fontSize:'10px',color:'#ff4444',borderColor:'#ff4444',flexShrink:'0'}})
-    ]);
-    qListDiv.append(row);
+  // Header row
+  const headerRow=div({style:{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'12px'}});
+  const selectAllChk=h('input',{type:'checkbox',style:{accentColor:'var(--gold)',width:'14px',height:'14px',cursor:'pointer'}});
+  const totalLabel=h('span',{style:{fontFamily:"Inter,sans-serif",fontSize:'9px',letterSpacing:'2px',textTransform:'uppercase',color:'var(--dim)',marginLeft:'8px'}},[questions.length+' Questions in Bank']);
+  const delSelBtn=btn('Delete Selected','btn-outline',async()=>{
+    if(!selectedIds.size)return;
+    if(!confirm('Delete '+selectedIds.size+' selected question(s)? Cannot be undone.'))return;
+    const ids=Array.from(selectedIds);
+    await sb.from('vignette_questions').delete().in('id',ids);
+    loadQuestionList();
+  },{style:{padding:'4px 12px',fontSize:'10px',color:'#ff4444',borderColor:'#ff4444'}});
+  const leftSide=div({style:{display:'flex',alignItems:'center'}});
+  leftSide.append(selectAllChk,totalLabel);
+  headerRow.append(leftSide,delSelBtn);
+  qListDiv.append(headerRow);
+  // Group by topic then subsection
+  const grouped={};
+  questions.forEach(q=>{
+    if(!grouped[q.topic])grouped[q.topic]={};
+    const sub=q.subsection||'__none__';
+    if(!grouped[q.topic][sub])grouped[q.topic][sub]=[];
+    grouped[q.topic][sub].push(q);
+  });
+  const allChks=[];
+  for(const topic of Object.keys(grouped)){
+    const topicIds=Object.values(grouped[topic]).flat().map(q=>q.id);
+    const topicBlock=div({style:{marginBottom:'16px',border:'1px solid var(--border)',borderRadius:'2px',overflow:'hidden'}});
+    const topicHdr=div({style:{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'8px 12px',background:'var(--card2)||var(--card)',borderBottom:'1px solid var(--border)'}});
+    topicHdr.append(
+      h('span',{style:{fontFamily:"Inter,sans-serif",fontSize:'12px',color:'var(--gold)',fontWeight:'600'}},[topic+' ('+topicIds.length+')']),
+      btn('Delete Subject','btn-outline',async()=>{
+        if(!confirm('Delete ALL '+topicIds.length+' questions for "'+topic+'"? Cannot be undone.'))return;
+        await sb.from('vignette_questions').delete().eq('topic',topic).is('user_id',null);
+        loadQuestionList();
+      },{style:{padding:'4px 10px',fontSize:'10px',color:'#ff4444',borderColor:'#ff4444'}})
+    );
+    topicBlock.append(topicHdr);
+    for(const sub of Object.keys(grouped[topic])){
+      const subQs=grouped[topic][sub];
+      const subIds=subQs.map(q=>q.id);
+      const subLabel=sub==='__none__'?'(no subsection)':sub;
+      const subHdr=div({style:{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'6px 12px',borderBottom:'1px solid var(--border)',background:'#0F0E0A'}});
+      subHdr.append(
+        h('span',{style:{fontFamily:"Inter,sans-serif",fontSize:'11px',color:'var(--muted)'}},[subLabel+' — '+subIds.length+' questions']),
+        btn('Delete Subsection','btn-outline',async()=>{
+          if(!confirm('Delete all '+subIds.length+' questions in "'+subLabel+'"? Cannot be undone.'))return;
+          await sb.from('vignette_questions').delete().in('id',subIds);
+          loadQuestionList();
+        },{style:{padding:'3px 8px',fontSize:'10px',color:'#ff4444',borderColor:'#ff4444'}})
+      );
+      topicBlock.append(subHdr);
+      for(const q of subQs){
+        const preview=q.question.length>80?q.question.substring(0,80)+'...':q.question;
+        const chk=h('input',{type:'checkbox',style:{accentColor:'var(--gold)',width:'13px',height:'13px',cursor:'pointer',flexShrink:'0'}});
+        allChks.push(chk);
+        chk.onchange=()=>{if(chk.checked)selectedIds.add(q.id);else selectedIds.delete(q.id);};
+        const row=div({style:{display:'flex',alignItems:'center',gap:'10px',padding:'8px 12px',borderBottom:'1px solid var(--border)'}});
+        row.append(chk,h('span',{style:{fontFamily:"Inter,sans-serif",fontSize:'11px',color:'var(--muted)',flex:'1'}},[preview]));
+        topicBlock.append(row);
+      }
+    }
+    qListDiv.append(topicBlock);
   }
+  selectAllChk.onchange=()=>{
+    allChks.forEach(c=>{c.checked=selectAllChk.checked;if(selectAllChk.checked)selectedIds.add(Number(c._qid)||c._qid);else selectedIds.clear();});
+    if(selectAllChk.checked)questions.forEach(q=>selectedIds.add(q.id));else selectedIds.clear();
+  };
 }
 card.append(qListDiv);content.innerHTML='';content.append(card);
 (async()=>{await loadQuestionList();})();
