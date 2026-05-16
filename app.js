@@ -980,7 +980,16 @@ function login(){
 const page=div({cls:'center',style:{minHeight:'100vh',padding:'24px'}});
 const card=div({cls:'card fade',style:{width:'100%',maxWidth:'400px'}});
 const errEl=div({cls:'err hidden'});
-const emailI=inp('your@email.com','email');const passI=inp('Your password','password');
+const fpErr=div({cls:'err hidden'});
+const otpErr=div({cls:'err hidden'});
+const newPassErr=div({cls:'err hidden'});
+const emailI=inp('your@email.com','email','');
+const passI=inp('Your password','password','');
+const fpEmailI=inp('Your email address','email','');
+const otpInput=inp('000000','text','');
+Object.assign(otpInput.style,{letterSpacing:'8px',fontSize:'22px',textAlign:'center',fontFamily:"'DM Mono',monospace"});
+const newPassI=inp('New password','password','');
+const newPassI2=inp('Confirm new password','password','');
 function wrapWithEye(inputEl){
   const wrapper=div({style:{position:'relative'}});
   inputEl.style.paddingRight='50px';
@@ -989,70 +998,95 @@ function wrapWithEye(inputEl){
   toggleBtn.onclick=()=>{
     isVisible=!isVisible;
     inputEl.type=isVisible?'text':'password';
-    toggleBtn.innerHTML=isVisible?'👁‍🗨':'👁';
+    toggleBtn.innerHTML=isVisible?'👁\u200D🗨':'👁';
   };
   wrapper.append(inputEl,toggleBtn);
   return wrapper;
+}
 const wrappedPassI=wrapWithEye(passI);
-const sb2=btn('Log In','btn-gold',async()=>{
-errEl.classList.add('hidden');sb2.textContent='Logging in...';sb2.disabled=true;
-const{data,error}=await sb.auth.signInWithPassword({email:emailI.value,password:passI.value});
-if(error){errEl.classList.remove('hidden');errEl.textContent=error.message;sb2.textContent='Log In';sb2.disabled=false;return;}
-},{style:{width:'100%',marginBottom:'16px'}});
-passI.onkeydown=e=>{if(e.key==='Enter')sb2.click();};
-const RESET_WEB_APP='https://script.google.com/macros/s/AKfycbwUQZjwbwAMiNC1yoMUUVIRzP3HV0MQ6TXyjvjhb79UoJk5CefbwUWhtrCpvs9hRbDU/exec';
 let resetUserId=null;
+const otpLabel=div({style:{fontSize:'13px',color:'var(--dim)',marginBottom:'20px'}});
 const loginView=div({});
 const fpView=div({style:{display:'none'}});
-const fpErr=div({cls:'err hidden'});
-const fpEmail=inp('Your email address','email','');
-const fpSubmitBtn=btn('Send Reset Code','btn-gold',async()=>{
-  const em=fpEmail.value.trim();
+const otpView=div({style:{display:'none'}});
+const newPassView=div({style:{display:'none'}});
+function show(viewName){
+  loginView.style.display='none';
+  fpView.style.display='none';
+  otpView.style.display='none';
+  newPassView.style.display='none';
+  if(viewName==='login')loginView.style.display='block';
+  else if(viewName==='fp')fpView.style.display='block';
+  else if(viewName==='otp')otpView.style.display='block';
+  else if(viewName==='newpass')newPassView.style.display='block';
+}
+const loginBtn=btn('Log In','btn-gold',async()=>{
+  errEl.classList.add('hidden');
+  loginBtn.textContent='Logging in...';
+  loginBtn.disabled=true;
+  const{data,error}=await sb.auth.signInWithPassword({email:emailI.value,password:passI.value});
+  if(error){errEl.classList.remove('hidden');errEl.textContent=error.message;loginBtn.textContent='Log In';loginBtn.disabled=false;return;}
+},{style:{width:'100%',marginBottom:'16px'}});
+passI.onkeydown=e=>{if(e.key==='Enter')loginBtn.click();};
+const fpLink=h('span',{style:{display:'block',textAlign:'center',fontSize:'12px',color:'var(--gold)',cursor:'pointer',marginBottom:'16px',fontFamily:"'DM Mono',monospace",letterSpacing:'1px'}},[document.createTextNode('Forgot password?')]);
+fpLink.onclick=()=>show('fp');
+const signupSpan=h('span',{style:{color:'var(--gold)',cursor:'pointer',fontSize:'13px'}},['Sign up via home page']);
+signupSpan.onclick=()=>go('landing');
+const backSpan=h('span',{style:{fontSize:'13px',color:'var(--dim)',textAlign:'center',cursor:'pointer',marginTop:'8px'}},['← Back to home']);
+backSpan.onclick=()=>go('landing');
+loginView.append(
+  div({style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontStyle:'italic',fontSize:'22px',color:'var(--gold)',marginBottom:'4px'}},[document.createTextNode('Deo Fortis')]),
+  h('hr',{style:{border:'none',borderTop:'1px solid var(--border)',margin:'16px 0'}}),
+  h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'24px',marginBottom:'4px'}},[document.createTextNode('Welcome Back')]),
+  h('p',{cls:'muted',style:{fontSize:'14px',marginBottom:'24px'}},[document.createTextNode('Log in to continue your studies.')]),
+  errEl,field('Email',emailI),field('Password',wrappedPassI,'mb-24'),loginBtn,fpLink,
+  h('hr',{style:{border:'none',borderTop:'1px solid var(--border)',margin:'16px 0'}}),
+  h('p',{style:{fontSize:'13px',color:'var(--muted)',textAlign:'center',marginTop:'16px'}},[document.createTextNode("Don't have an account? "),signupSpan]),
+  h('p',{style:{fontSize:'13px',color:'var(--muted)',textAlign:'center',marginTop:'8px'}},[backSpan])
+);
+const fpSendBtn=btn('Send Reset Code','btn-gold',async()=>{
+  const em=fpEmailI.value.trim();
   if(!em){fpErr.classList.remove('hidden');fpErr.textContent='Enter your email address.';return;}
-  fpErr.classList.add('hidden');fpSubmitBtn.textContent='Sending...';fpSubmitBtn.disabled=true;
+  fpErr.classList.add('hidden');fpSendBtn.textContent='Sending...';fpSendBtn.disabled=true;
   const{data:prof}=await sb.from('profiles').select('id,email').eq('email',em).single();
-  if(!prof){fpErr.classList.remove('hidden');fpErr.textContent='No account found with that email.';fpSubmitBtn.textContent='Send Reset Code';fpSubmitBtn.disabled=false;return;}
+  if(!prof){fpErr.classList.remove('hidden');fpErr.textContent='No account found with that email.';fpSendBtn.textContent='Send Reset Code';fpSendBtn.disabled=false;return;}
   resetUserId=prof.id;
   const code=String(Math.floor(100000+Math.random()*900000));
   const expires=new Date(Date.now()+15*60*1000).toISOString();
   await sb.from('reset_codes').insert({email:em,code,expires_at:expires,is_used:false,email_sent:false,attempts:0});
-  fpSubmitBtn.textContent='Send Reset Code';fpSubmitBtn.disabled=false;
-  showOtpView(em);
+  fpSendBtn.textContent='Send Reset Code';fpSendBtn.disabled=false;
+  otpLabel.textContent='We sent a 6-digit code to '+em+'. It may take up to 1 minute to arrive.';
+  show('otp');
 },{style:{width:'100%',marginBottom:'12px'}});
-const fpBackBtn=h('span',{style:{display:'block',textAlign:'center',fontSize:'12px',color:'var(--dim)',cursor:'pointer',marginTop:'8px'},html:'← Back to login'});
-fpBackBtn.onclick=()=>{fpView.style.display='none';loginView.style.display='block';fpErr.classList.add('hidden');};
+const fpBackLink=h('span',{style:{display:'block',textAlign:'center',fontSize:'12px',color:'var(--dim)',cursor:'pointer',marginTop:'8px'}},['← Back to login']);
+fpBackLink.onclick=()=>show('login');
 fpView.append(
-  h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'20px',marginBottom:'8px'},html:'Reset Password'}),
-  h('p',{style:{fontSize:'13px',color:'var(--dim)',marginBottom:'20px'},html:'Enter your email and we will send you a 6-digit reset code.'}),
-  fpErr,field('Email',fpEmail),fpSubmitBtn,fpBackBtn
+  h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'20px',marginBottom:'8px'}},[document.createTextNode('Reset Password')]),
+  h('p',{style:{fontSize:'13px',color:'var(--dim)',marginBottom:'20px'}},[document.createTextNode('Enter your email and we will send you a 6-digit reset code.')]),
+  fpErr,field('Email',fpEmailI),fpSendBtn,fpBackLink
 );
-const otpView=div({style:{display:'none'}});
-const otpErr=div({cls:'err hidden'});
-const otpEmailLabel=div({style:{fontSize:'13px',color:'var(--dim)',marginBottom:'20px'}});
-const otpInput=inp('6-digit code','text','');
-Object.assign(otpInput.style,{letterSpacing:'8px',fontSize:'22px',textAlign:'center',fontFamily:"'DM Mono',monospace"});
-const otpSubmitBtn=btn('Verify Code','btn-gold',async()=>{
+const otpVerifyBtn=btn('Verify Code','btn-gold',async()=>{
   const code=otpInput.value.trim();
   if(code.length!==6){otpErr.classList.remove('hidden');otpErr.textContent='Enter the 6-digit code.';return;}
-  otpErr.classList.add('hidden');otpSubmitBtn.textContent='Verifying...';otpSubmitBtn.disabled=true;
-  const em=fpEmail.value.trim();
+  otpErr.classList.add('hidden');otpVerifyBtn.textContent='Verifying...';otpVerifyBtn.disabled=true;
+  const em=fpEmailI.value.trim();
   const now=new Date().toISOString();
   const{data:rows}=await sb.from('reset_codes').select('*').eq('email',em).eq('is_used',false).gt('expires_at',now).order('created_at',{ascending:false}).limit(1);
-  if(!rows||!rows.length){otpErr.classList.remove('hidden');otpErr.textContent='Code expired or not found. Request a new one.';otpSubmitBtn.textContent='Verify Code';otpSubmitBtn.disabled=false;return;}
+  if(!rows||!rows.length){otpErr.classList.remove('hidden');otpErr.textContent='Code expired or not found. Request a new one.';otpVerifyBtn.textContent='Verify Code';otpVerifyBtn.disabled=false;return;}
   const row=rows[0];
-  if(row.attempts>=5){otpErr.classList.remove('hidden');otpErr.textContent='Too many attempts. Request a new code.';otpSubmitBtn.textContent='Verify Code';otpSubmitBtn.disabled=false;return;}
+  if(row.attempts>=5){otpErr.classList.remove('hidden');otpErr.textContent='Too many attempts. Request a new code.';otpVerifyBtn.textContent='Verify Code';otpVerifyBtn.disabled=false;return;}
   if(row.code!==code){
     await sb.from('reset_codes').update({attempts:(row.attempts||0)+1}).eq('id',row.id);
     otpErr.classList.remove('hidden');otpErr.textContent='Incorrect code. '+(4-row.attempts)+' attempts remaining.';
-    otpSubmitBtn.textContent='Verify Code';otpSubmitBtn.disabled=false;return;
+    otpVerifyBtn.textContent='Verify Code';otpVerifyBtn.disabled=false;return;
   }
   await sb.from('reset_codes').update({is_used:true}).eq('id',row.id);
-  otpSubmitBtn.textContent='Verify Code';otpSubmitBtn.disabled=false;
-  showNewPasswordView();
+  otpVerifyBtn.textContent='Verify Code';otpVerifyBtn.disabled=false;
+  show('newpass');
 },{style:{width:'100%',marginBottom:'12px'}});
-const otpResend=h('span',{style:{display:'block',textAlign:'center',fontSize:'12px',color:'var(--gold)',cursor:'pointer',marginTop:'8px'},html:'Resend code'});
+const otpResend=h('span',{style:{display:'block',textAlign:'center',fontSize:'12px',color:'var(--gold)',cursor:'pointer',marginTop:'8px'}},['Resend code']);
 otpResend.onclick=async()=>{
-  const em=fpEmail.value.trim();
+  const em=fpEmailI.value.trim();
   const code=String(Math.floor(100000+Math.random()*900000));
   const expires=new Date(Date.now()+15*60*1000).toISOString();
   await sb.from('reset_codes').insert({email:em,code,expires_at:expires,is_used:false,email_sent:false,attempts:0});
@@ -1060,13 +1094,9 @@ otpResend.onclick=async()=>{
   otpErr.textContent='New code sent. Check your email.';
 };
 otpView.append(
-  h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'20px',marginBottom:'8px'},html:'Enter Reset Code'}),
-  otpEmailLabel,otpErr,field('6-Digit Code',otpInput),otpSubmitBtn,otpResend
+  h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'20px',marginBottom:'8px'}},[document.createTextNode('Enter Reset Code')]),
+  otpLabel,otpErr,field('6-Digit Code',otpInput),otpVerifyBtn,otpResend
 );
-const newPassView=div({style:{display:'none'}});
-const newPassErr=div({cls:'err hidden'});
-const newPassI=inp('New password','password','');
-const newPassI2=inp('Confirm new password','password','');
 const newPassBtn=btn('Set New Password','btn-gold',async()=>{
   const p1=newPassI.value;const p2=newPassI2.value;
   if(p1.length<6){newPassErr.classList.remove('hidden');newPassErr.textContent='Password must be at least 6 characters.';return;}
@@ -1074,39 +1104,25 @@ const newPassBtn=btn('Set New Password','btn-gold',async()=>{
   if(!resetUserId){newPassErr.classList.remove('hidden');newPassErr.textContent='Session expired. Please start again.';return;}
   newPassErr.classList.add('hidden');newPassBtn.textContent='Updating...';newPassBtn.disabled=true;
   try{
-    const res=await fetch(RESET_WEB_APP,{method:'POST',body:JSON.stringify({user_id:resetUserId,password:p1})});
+    const res=await fetch('https://script.google.com/macros/s/AKfycbwUQZjwbwAMiNC1yoMUUVIRzP3HV0MQ6TXyjvjhb79UoJk5CefbwUWhtrCpvs9hRbDU/exec',{method:'POST',body:JSON.stringify({user_id:resetUserId,password:p1})});
     const json=await res.json();
     if(json.success){
-      newPassView.style.display='none';loginView.style.display='block';
-      errEl.classList.remove('hidden');errEl.style.background='#0a1f18';errEl.style.border='1px solid var(--teal)';errEl.style.color='var(--teal)';
+      show('login');errEl.classList.remove('hidden');errEl.style.background='#0a1f18';errEl.style.border='1px solid var(--teal)';errEl.style.color='var(--teal)';
       errEl.textContent='Password updated! Log in with your new password.';
     }else{newPassErr.classList.remove('hidden');newPassErr.textContent=json.error||'Something went wrong. Try again.';}
   }catch(e){newPassErr.classList.remove('hidden');newPassErr.textContent='Network error. Try again.';}
   newPassBtn.textContent='Set New Password';newPassBtn.disabled=false;
 },{style:{width:'100%',marginBottom:'12px'}});
 newPassView.append(
-  h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'20px',marginBottom:'8px'},html:'Set New Password'}),
-  h('p',{style:{fontSize:'13px',color:'var(--dim)',marginBottom:'20px'},html:'Choose a strong password for your account.'}),
+  h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'20px',marginBottom:'8px'}},[document.createTextNode('Set New Password')]),
+  h('p',{style:{fontSize:'13px',color:'var(--dim)',marginBottom:'20px'}},[document.createTextNode('Choose a strong password for your account.')]),
   newPassErr,field('New Password',newPassI),field('Confirm Password',newPassI2),newPassBtn
 );
-function showOtpView(em){fpView.style.display='none';otpEmailLabel.textContent='We sent a 6-digit code to '+em+'. It may take up to 1 minute to arrive.';otpView.style.display='block';}
-function showNewPasswordView(){otpView.style.display='none';newPassView.style.display='block';}
-const fpBtn=h('span',{style:{display:'block',textAlign:'center',fontSize:'12px',color:'var(--gold)',cursor:'pointer',marginBottom:'16px',fontFamily:"'DM Mono',monospace",letterSpacing:'1px'},html:'Forgot password?'});
-fpBtn.onclick=()=>{loginView.style.display='none';fpView.style.display='block';};
-loginView.append(
-  div({style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontStyle:'italic',fontSize:'22px',color:'var(--gold)',marginBottom:'4px'},html:'Deo Fortis'}),
-  h('hr',{style:{border:'none',borderTop:'1px solid var(--border)',margin:'16px 0'}}),
-  h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'24px',marginBottom:'4px'},html:'Welcome Back'}),
-  h('p',{cls:'muted',style:{fontSize:'14px',marginBottom:'24px'},html:'Log in to continue your studies.'}),
-  errEl,field('Email',emailI),field('Password',wrappedPassI,'mb-24'),sb2,fpBtn,
-  h('hr',{style:{border:'none',borderTop:'1px solid var(--border)',margin:'16px 0'}}),
-  h('p',{style:{fontSize:'13px',color:'var(--muted)',textAlign:'center',marginTop:'16px'},html:"Don't have an account? <button onclick=\"go('landing')\" style=\"background:none;border:none;color:var(--gold);cursor:pointer;font-size:13px\">Sign up via home page</button>"}),
-  h('p',{style:{fontSize:'13px',color:'var(--muted)',textAlign:'center',marginTop:'8px'},html:"<button onclick=\"go('landing')\" style=\"background:none;border:none;color:var(--dim);cursor:pointer;font-size:12px\">← Back to home</button>"})
-);
 card.append(loginView,fpView,otpView,newPassView);
-page.append(card);return page;
+page.append(card);
+return page;
 }
-}
+
 // ═══════════════════════════════
 // PENDING
 // ═══════════════════════════════
