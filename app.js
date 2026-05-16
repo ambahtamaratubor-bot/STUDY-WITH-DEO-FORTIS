@@ -1002,6 +1002,7 @@ if(error){errEl.classList.remove('hidden');errEl.textContent=error.message;sb2.t
 passI.onkeydown=e=>{if(e.key==='Enter')sb2.click();};
 const RESET_WEB_APP='https://script.google.com/macros/s/AKfycbwUQZjwbwAMiNC1yoMUUVIRzP3HV0MQ6TXyjvjhb79UoJk5CefbwUWhtrCpvs9hRbDU/exec';
 let resetUserId=null;
+const loginView=div({});
 const fpView=div({style:{display:'none'}});
 const fpErr=div({cls:'err hidden'});
 const fpEmail=inp('Your email address','email','');
@@ -1092,7 +1093,6 @@ function showOtpView(em){fpView.style.display='none';otpEmailLabel.textContent='
 function showNewPasswordView(){otpView.style.display='none';newPassView.style.display='block';}
 const fpBtn=h('span',{style:{display:'block',textAlign:'center',fontSize:'12px',color:'var(--gold)',cursor:'pointer',marginBottom:'16px',fontFamily:"'DM Mono',monospace",letterSpacing:'1px'},html:'Forgot password?'});
 fpBtn.onclick=()=>{loginView.style.display='none';fpView.style.display='block';};
-const loginView=div({});
 loginView.append(
   div({style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontStyle:'italic',fontSize:'22px',color:'var(--gold)',marginBottom:'4px'},html:'Deo Fortis'}),
   h('hr',{style:{border:'none',borderTop:'1px solid var(--border)',margin:'16px 0'}}),
