@@ -9,7 +9,7 @@ try{
 await fetch('https://api.resend.com/emails',{
 method:'POST',
 headers:{'Content-Type':'application/json','Authorization':'Bearer '+RESEND_KEY},
-body:JSON.stringify({from:'Deo Fortis <onboarding@resend.dev>',to:ADMIN_EMAIL,subject,html:body})
+body:JSON.stringify({from:'Deo Fortis <noreply@deofortis.work>',to:ADMIN_EMAIL,subject,html:body})
 });
 }catch(e){console.log('Email error:',e);}
 }
@@ -18,7 +18,7 @@ try{
 await fetch('https://api.resend.com/emails',{
 method:'POST',
 headers:{'Content-Type':'application/json','Authorization':'Bearer '+RESEND_KEY},
-body:JSON.stringify({from:'Deo Fortis <onboarding@resend.dev>',to:toEmail,subject,html:body})
+body:JSON.stringify({from:'Deo Fortis <noreply@deofortis.work>',to:toEmail,subject,html:body})
 });
 }catch(e){console.log('Student email error:',e);}
 }
@@ -30,7 +30,7 @@ return `<div style="font-family:'Plus Jakarta Sans',Arial,sans-serif;max-width:5
   </div>
   <div style="padding:36px 40px">${content}</div>
   <div style="padding:20px 40px;border-top:1px solid #2a2820;text-align:center">
-    <div style="font-family:Inter,Arial,sans-serif;font-size:11px;color:#555;line-height:1.6">Deo Fortis · studywithdeofortis.netlify.app<br>Everyone is gifted.</div>
+    <div style="font-family:Inter,Arial,sans-serif;font-size:11px;color:#555;line-height:1.6">Deo Fortis · deofortis.work<br>Everyone is gifted.</div>
   </div>
 </div>`;
 }
@@ -80,9 +80,9 @@ if(data){
         if(daysDiff>0&&!localStorage.getItem('expiryEmailSent_'+id+'_'+daysDiff)){
           localStorage.setItem('expiryEmailSent_'+id+'_'+daysDiff,'1');
           sb.from('admin_settings').select('link_monthly,link_sixmonth,link_yearly').single().then(({data:ls})=>{
-            const ml=ls?.link_monthly||'https://studywithdeofortis.netlify.app';
-            const sl=ls?.link_sixmonth||'https://studywithdeofortis.netlify.app';
-            const yl=ls?.link_yearly||'https://studywithdeofortis.netlify.app';
+            const ml=ls?.link_monthly||'https://deofortis.work';
+            const sl=ls?.link_sixmonth||'https://deofortis.work';
+            const yl=ls?.link_yearly||'https://deofortis.work';
             sendStudentEmail(data.email,'Your Deo Fortis access expires in '+daysDiff+' day'+(daysDiff===1?'':'s'),emailBase(`<h2 style="font-family:'Plus Jakarta Sans',Arial,sans-serif;font-size:22px;color:#C9A84C;margin:0 0 12px">Your access expires in ${daysDiff} day${daysDiff===1?'':'s'}.</h2><p style="font-size:14px;color:#aaa;line-height:1.7;margin:0 0 16px">You have been studying hard and we do not want you to lose your momentum. Renew now to keep your streak, your points, and your full access to the Q-Bank, Flashcards, Feynman Arena and Leaderboard.</p><p style="font-size:14px;color:#aaa;line-height:1.7;margin:0 0 24px">Choose the plan that works for you:</p><p style="margin:0 0 10px">${emailBtn('Monthly — $10',ml)}</p><p style="margin:0 0 10px">${emailBtn('6 Months — $39',sl)}</p><p style="margin:0 0 24px">${emailBtn('1 Year — $59',yl)}</p><p style="font-size:12px;color:#555">Once payment is confirmed your access is extended immediately.</p>`));
           });
         }
@@ -3638,7 +3638,7 @@ if(!filteredSubs.length){
     if(sub.status==='pending'){
       const actions=div({style:{display:'flex',gap:'10px',marginTop:'12px'}});
       actions.append(btn('✓ Approve','btn-teal',async()=>{
-        if(!sub.points_awarded){const{data:up}=await sb.from('profiles').select('total_points,email').eq('id',sub.user_id).single();if(up){await sb.from('profiles').update({total_points:(up.total_points||0)+50}).eq('id',sub.user_id);await sendStudentEmail(up.email,'Your Feynman submission was accepted 🎉',emailBase(`<h2 style="font-family:'Plus Jakarta Sans',Arial,sans-serif;font-size:22px;color:#C9A84C;margin:0 0 12px">Your explanation was accepted.</h2><p style="font-size:14px;color:#aaa;line-height:1.7;margin:0 0 16px">You submitted a Feynman explanation on <strong style="color:#E8E4DC">${sub.topic}</strong> and it passed review. That means you explained it clearly enough that a 6-year-old could follow. That is not easy.</p><p style="font-size:14px;color:#aaa;line-height:1.7;margin:0 0 24px">You just earned <strong style="color:#C9A84C">50 points</strong> on the leaderboard. Keep teaching — the best explanation this week gets crowned 👑 King of the Week.</p>${emailBtn('Go to Feynman Arena →','https://studywithdeofortis.netlify.app')}`)  );}}
+        if(!sub.points_awarded){const{data:up}=await sb.from('profiles').select('total_points,email').eq('id',sub.user_id).single();if(up){await sb.from('profiles').update({total_points:(up.total_points||0)+50}).eq('id',sub.user_id);await sendStudentEmail(up.email,'Your Feynman submission was accepted 🎉',emailBase(`<h2 style="font-family:'Plus Jakarta Sans',Arial,sans-serif;font-size:22px;color:#C9A84C;margin:0 0 12px">Your explanation was accepted.</h2><p style="font-size:14px;color:#aaa;line-height:1.7;margin:0 0 16px">You submitted a Feynman explanation on <strong style="color:#E8E4DC">${sub.topic}</strong> and it passed review. That means you explained it clearly enough that a 6-year-old could follow. That is not easy.</p><p style="font-size:14px;color:#aaa;line-height:1.7;margin:0 0 24px">You just earned <strong style="color:#C9A84C">50 points</strong> on the leaderboard. Keep teaching — the best explanation this week gets crowned 👑 King of the Week.</p>${emailBtn('Go to Feynman Arena →','https://deofortis.work')}`)  );}}
         await sb.from('feynman_submissions').update({status:'approved',points_awarded:true}).eq('id',sub.id);
         loadTab('feynman');
       },{style:{padding:'6px 16px',fontSize:'11px'}}));
@@ -3648,7 +3648,7 @@ if(!filteredSubs.length){
       },{style:{padding:'6px 16px',fontSize:'11px'}}));
       actions.append(btn('👑 King','btn-gold',async()=>{
         await sb.from('feynman_submissions').update({is_king:false}).eq('week_of',currentMonday).eq('is_king',true);
-        if(!sub.points_awarded){const{data:up}=await sb.from('profiles').select('total_points,email').eq('id',sub.user_id).single();if(up){await sb.from('profiles').update({total_points:(up.total_points||0)+50}).eq('id',sub.user_id);await sendStudentEmail(up.email,'You have been crowned 👑 Feynman King of the Week',emailBase(`<h2 style="font-family:'Plus Jakarta Sans',Arial,sans-serif;font-size:22px;color:#C9A84C;margin:0 0 12px">You are this week's Feynman King. 👑</h2><p style="font-size:14px;color:#aaa;line-height:1.7;margin:0 0 16px">Your explanation on <strong style="color:#E8E4DC">${sub.topic}</strong> was chosen as the best submission of the week. Out of every student on this platform, yours stood out.</p><p style="font-size:14px;color:#aaa;line-height:1.7;margin:0 0 16px">You earned <strong style="color:#C9A84C">50 points</strong> and your explanation is now published on the Wall of Fame for every student to learn from.</p><p style="font-size:14px;color:#aaa;line-height:1.7;margin:0 0 24px">This is what Deo Fortis is about. Everyone is gifted — and this week, you proved it.</p>${emailBtn('See the Wall of Fame →','https://studywithdeofortis.netlify.app')}`) );}}
+        if(!sub.points_awarded){const{data:up}=await sb.from('profiles').select('total_points,email').eq('id',sub.user_id).single();if(up){await sb.from('profiles').update({total_points:(up.total_points||0)+50}).eq('id',sub.user_id);await sendStudentEmail(up.email,'You have been crowned 👑 Feynman King of the Week',emailBase(`<h2 style="font-family:'Plus Jakarta Sans',Arial,sans-serif;font-size:22px;color:#C9A84C;margin:0 0 12px">You are this week's Feynman King. 👑</h2><p style="font-size:14px;color:#aaa;line-height:1.7;margin:0 0 16px">Your explanation on <strong style="color:#E8E4DC">${sub.topic}</strong> was chosen as the best submission of the week. Out of every student on this platform, yours stood out.</p><p style="font-size:14px;color:#aaa;line-height:1.7;margin:0 0 16px">You earned <strong style="color:#C9A84C">50 points</strong> and your explanation is now published on the Wall of Fame for every student to learn from.</p><p style="font-size:14px;color:#aaa;line-height:1.7;margin:0 0 24px">This is what Deo Fortis is about. Everyone is gifted — and this week, you proved it.</p>${emailBtn('See the Wall of Fame →','https://deofortis.work')}`) );}}
         await sb.from('feynman_submissions').update({is_king:true,status:'approved',points_awarded:true,week_of:currentMonday}).eq('id',sub.id);
         loadTab('feynman');
       },{style:{padding:'6px 16px',fontSize:'11px'}}));
