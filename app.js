@@ -1271,7 +1271,7 @@ function statCard(title,value,barColor,subLabel=''){
   wrap.append(
     div({style:{position:'absolute',top:'0',left:'0',right:'0',height:'2px',background:barColor}}),
     div({style:{padding:'16px'}},[
-      h('div',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'32px',color:'#ffffff',fontWeight:'700',marginBottom:'2px'},html:String(value)}),
+      h('div',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'32px',color:'var(--text)',fontWeight:'700',marginBottom:'2px'},html:String(value)}),
       h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'12px',textTransform:'uppercase',color:'var(--muted)',letterSpacing:'1px'},html:title}),
       subLabel?h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'12px',color:'var(--teal)',marginTop:'4px'},html:subLabel}):null
     ].filter(Boolean))
