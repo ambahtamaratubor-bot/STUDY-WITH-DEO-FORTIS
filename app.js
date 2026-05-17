@@ -76,6 +76,7 @@ if(data){
     }
   }
   S.profile=data;
+  checkStreakOnLogin();
   if(data.is_free_tier===true){
     go('dashboard');
   }else if(data.status==='approved'&&data.is_free_tier===false){
@@ -259,34 +260,60 @@ document.body.style.paddingTop='0';
 // ═══════════════════════════════
 // STREAK
 // ═══════════════════════════════
-async function updateStreak(){
+function streakDateHelpers(){
   function toYMD(d){return d.toISOString().split('T')[0];}
   function getDayName(d){return['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d.getDay()];}
-  // Use local date not UTC
   function todayLocal(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+  function gapDaysBetween(lastDateStr,todayStr){
+    const last=new Date(lastDateStr+'T12:00:00');
+    const days=[];
+    const cur=new Date(last);cur.setDate(cur.getDate()+1);
+    while(toYMD(cur)<todayStr){days.push(getDayName(new Date(cur)));cur.setDate(cur.getDate()+1);}
+    return days;
+  }
+  return{toYMD,getDayName,todayLocal,gapDaysBetween};
+}
+async function checkStreakOnLogin(){
+  if(!S.profile||!S.user)return;
+  if(S.profile.is_free_tier===true)return;
+  const{todayLocal,gapDaysBetween}=streakDateHelpers();
+  const todayStr=todayLocal();
+  const lastDateStr=S.profile.last_study_date;
+  if(!lastDateStr||lastDateStr===todayStr)return;
+  const restDays=S.profile.rest_days||[];
+  const gap=gapDaysBetween(lastDateStr,todayStr);
+  const missedNonRest=gap.some(d=>!restDays.includes(d));
+  if(!missedNonRest)return;
+  const prevStreak=S.profile.streak_count||0;
+  if(prevStreak===0)return;
+  await sb.from('profiles').update({streak_count:0}).eq('id',S.user.id);
+  S.profile.streak_count=0;
+  const emailKey='streakResetEmail_'+S.user.id+'_'+lastDateStr;
+  if(!localStorage.getItem(emailKey)&&S.profile.email){
+    localStorage.setItem(emailKey,'1');
+    sendStudentEmail(
+      S.profile.email,
+      'Your '+prevStreak+'-day streak was reset',
+      emailBase('<h2 style="font-family:\'Plus Jakarta Sans\',Arial,sans-serif;font-size:22px;color:#C9A84C;margin:0 0 12px">Your '+prevStreak+'-day streak was reset.</h2><p style="font-size:14px;color:#aaa;line-height:1.7;margin:0 0 16px">It looks like you missed a study day. That happens — but do not let it turn into two. The students climbing the leaderboard are the ones who show up consistently, even on hard days.</p><p style="font-size:14px;color:#aaa;line-height:1.7;margin:0 0 16px"><strong style="color:#E8E4DC">Important:</strong> make sure you are clocking your study hours on the platform. Your streak only counts sessions you log on Deo Fortis — time spent studying outside the app does not count toward your streak or leaderboard points.</p><p style="font-size:14px;color:#aaa;line-height:1.7;margin:0 0 24px">Start a new session today and begin building again. One day at a time.</p>'+emailBtn('Start Studying Now →','https://deofortis.work'))
+    );
+  }
+}
+async function updateStreak(){
+  const{todayLocal,gapDaysBetween}=streakDateHelpers();
   const todayStr=todayLocal();
   const lastDateStr=S.profile?.last_study_date;
-  // Already studied today
   if(lastDateStr===todayStr)return;
   let newStreak;
   if(!lastDateStr){
     newStreak=1;
   }else{
     const restDays=S.profile?.rest_days||[];
-    // Build gap days between lastDate and today (exclusive both ends)
-    const last=new Date(lastDateStr+'T12:00:00');// noon to avoid DST issues
-    const tod=new Date(todayStr+'T12:00:00');
-    const gapDays=[];
-    const cur=new Date(last);cur.setDate(cur.getDate()+1);
-    while(toYMD(cur)<todayStr){gapDays.push(getDayName(new Date(cur)));cur.setDate(cur.getDate()+1);}
+    const gapDays=gapDaysBetween(lastDateStr,todayStr);
     if(gapDays.length===0){
-      // lastDate was yesterday
       newStreak=(S.profile.streak_count||0)+1;
     }else if(gapDays.every(d=>restDays.includes(d))){
-      // all gap days are rest days — streak continues
       newStreak=(S.profile.streak_count||0)+1;
     }else{
-      // streak broken
       newStreak=1;
     }
   }
@@ -316,19 +343,21 @@ function showGoalsModal(){
   modal.append(headerRow);
 
   // DAILY SLIDER
-  const dailyValSpan=h('span',{style:{color:'var(--gold)'},html:currentDaily+'h'});
-  const dailyLabelRow=div({style:{fontFamily:"Inter,sans-serif",fontSize:'9px',textTransform:'uppercase',color:'var(--dim)',marginBottom:'4px'}});
-  dailyLabelRow.append(document.createTextNode('Daily Goal — '),dailyValSpan);
-  const dailySlider=h('input',{type:'range',min:'1',max:'12',value:String(currentDaily),style:{width:'100%',accentColor:'var(--gold)',margin:'8px 0 20px 0'}});
-  dailySlider.oninput=e=>{currentDaily=parseInt(e.target.value);dailyValSpan.textContent=currentDaily+'h';};
+  const dailyValSpan=h('span',{style:{color:'var(--gold)'},html:currentDaily>0?currentDaily+'h':'Off'});
+  const dailyLabelRow=div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',fontFamily:"Inter,sans-serif",fontSize:'9px',textTransform:'uppercase',color:'var(--dim)',marginBottom:'4px'}});
+  const dailyClearBtn=btn('Clear','',()=>{currentDaily=0;dailyValSpan.textContent='Off';dailySlider.value='0';},{style:{background:'none',border:'none',color:'var(--dim)',fontSize:'10px',cursor:'pointer',padding:'0',textDecoration:'underline',fontFamily:"Inter,sans-serif",letterSpacing:'0.5px'}});
+  dailyLabelRow.append(div({},[document.createTextNode('Daily Goal — '),dailyValSpan]),dailyClearBtn);
+  const dailySlider=h('input',{type:'range',min:'0',max:'12',value:String(currentDaily),style:{width:'100%',accentColor:'var(--gold)',margin:'8px 0 20px 0'}});
+  dailySlider.oninput=e=>{currentDaily=parseInt(e.target.value);dailyValSpan.textContent=currentDaily>0?currentDaily+'h':'Off';};
   modal.append(dailyLabelRow,dailySlider);
 
   // WEEKLY SLIDER
-  const weeklyValSpan=h('span',{style:{color:'var(--gold)'},html:currentWeekly+'h'});
-  const weeklyLabelRow=div({style:{fontFamily:"Inter,sans-serif",fontSize:'9px',textTransform:'uppercase',color:'var(--dim)',marginBottom:'4px'}});
-  weeklyLabelRow.append(document.createTextNode('Weekly Goal — '),weeklyValSpan);
-  const weeklySlider=h('input',{type:'range',min:'5',max:'60',value:String(currentWeekly),style:{width:'100%',accentColor:'var(--gold)',margin:'8px 0 24px 0'}});
-  weeklySlider.oninput=e=>{currentWeekly=parseInt(e.target.value);weeklyValSpan.textContent=currentWeekly+'h';};
+  const weeklyValSpan=h('span',{style:{color:'var(--gold)'},html:currentWeekly>0?currentWeekly+'h':'Off'});
+  const weeklyLabelRow=div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',fontFamily:"Inter,sans-serif",fontSize:'9px',textTransform:'uppercase',color:'var(--dim)',marginBottom:'4px'}});
+  const weeklyClearBtn=btn('Clear','',()=>{currentWeekly=0;weeklyValSpan.textContent='Off';weeklySlider.value='0';},{style:{background:'none',border:'none',color:'var(--dim)',fontSize:'10px',cursor:'pointer',padding:'0',textDecoration:'underline',fontFamily:"Inter,sans-serif",letterSpacing:'0.5px'}});
+  weeklyLabelRow.append(div({},[document.createTextNode('Weekly Goal — '),weeklyValSpan]),weeklyClearBtn);
+  const weeklySlider=h('input',{type:'range',min:'0',max:'60',value:String(currentWeekly),style:{width:'100%',accentColor:'var(--gold)',margin:'8px 0 24px 0'}});
+  weeklySlider.oninput=e=>{currentWeekly=parseInt(e.target.value);weeklyValSpan.textContent=currentWeekly>0?currentWeekly+'h':'Off';};
   modal.append(weeklyLabelRow,weeklySlider);
 
   // TOPIC GOALS HEADER
@@ -409,7 +438,7 @@ function renderGoalsProgress(){
   const el=document.getElementById('goals-progress');
   if(!el)return;
   const goals=S.profile?.topic_goals||{};
-  const studyGoals=S.profile?.study_goals||{daily_hours:4,weekly_hours:20};
+  const studyGoals=S.profile?.study_goals||{daily_hours:0,weekly_hours:0};
   el.innerHTML='';
   function getLocalDateRange(){
     const now=new Date();
@@ -423,12 +452,13 @@ function renderGoalsProgress(){
     const monday=new Date(now);monday.setDate(now.getDate()-diff);monday.setHours(0,0,0,0);
     return{start:monday.toISOString(),end:new Date().toISOString()};
   }
-  function formatTime(mins){
-    const h=Math.floor(mins/60);const m=mins%60;
-    if(h===0)return m+'m';if(m===0)return h+'h';return h+'h '+m+'m';
-  }
+  function getTodayStr(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+  function getWeekStartStr(){const now=new Date();const diff=now.getDay()===0?6:now.getDay()-1;const m=new Date(now);m.setDate(now.getDate()-diff);m.setHours(0,0,0,0);return m.toISOString().split('T')[0];}
+  function formatTime(mins){const h=Math.floor(mins/60);const m=mins%60;if(h===0)return m+'m';if(m===0)return h+'h';return h+'h '+m+'m';}
   const todayRange=getLocalDateRange();const weekRange=getWeekRange();
-  sb.from('study_sessions').select('topic,duration_minutes,started_at').eq('user_id',S.user.id).not('ended_at','is',null).then(({data:sessions})=>{
+  const todayStr=getTodayStr();const weekStartStr=getWeekStartStr();
+  const uid=S.user?.id||'';
+  sb.from('study_sessions').select('topic,duration_minutes,started_at').eq('user_id',uid).not('ended_at','is',null).then(({data:sessions})=>{
     const list=sessions||[];
     let todayMins=0;let weekMins=0;
     list.forEach(s=>{
@@ -438,6 +468,39 @@ function renderGoalsProgress(){
     });
     const dailyGoalMins=(studyGoals.daily_hours||0)*60;
     const weeklyGoalMins=(studyGoals.weekly_hours||0)*60;
+    // --- Goal completion emails (paid only, once per period) ---
+    if(S.profile&&S.profile.is_free_tier!==true&&S.profile.email){
+      if(dailyGoalMins>0&&todayMins>=dailyGoalMins){
+        const k='dailyGoalEmail_'+uid+'_'+todayStr;
+        if(!localStorage.getItem(k)){
+          localStorage.setItem(k,'1');
+          sendStudentEmail(S.profile.email,'You hit your daily study goal!',emailBase('<h2 style="font-family:\'Plus Jakarta Sans\',Arial,sans-serif;font-size:22px;color:#C9A84C;margin:0 0 12px">Daily goal complete.</h2><p style="font-size:14px;color:#aaa;line-height:1.7;margin:0 0 16px">You studied for <strong style="color:#E8E4DC">'+formatTime(todayMins)+'</strong> today and hit your daily target. That is exactly the kind of consistency that separates the top students from the rest.</p><p style="font-size:14px;color:#aaa;line-height:1.7;margin:0 0 24px">Log in tomorrow and do it again.</p>'+emailBtn('Back to Studying →','https://deofortis.work')));
+        }
+      }
+      if(weeklyGoalMins>0&&weekMins>=weeklyGoalMins){
+        const k='weeklyGoalEmail_'+uid+'_'+weekStartStr;
+        if(!localStorage.getItem(k)){
+          localStorage.setItem(k,'1');
+          sendStudentEmail(S.profile.email,'You hit your weekly study goal!',emailBase('<h2 style="font-family:\'Plus Jakarta Sans\',Arial,sans-serif;font-size:22px;color:#C9A84C;margin:0 0 12px">Weekly goal complete.</h2><p style="font-size:14px;color:#aaa;line-height:1.7;margin:0 0 16px">You put in <strong style="color:#E8E4DC">'+formatTime(weekMins)+'</strong> this week and hit your weekly target. That is a full week of focused work — it compounds.</p><p style="font-size:14px;color:#aaa;line-height:1.7;margin:0 0 24px">A new week starts Monday. Set a new goal and keep the momentum going.</p>'+emailBtn('Set Next Week\'s Goal →','https://deofortis.work')));
+        }
+      }
+    }
+    // --- Prompt to set new goal if previous period was completed ---
+    const prevDailyKey='dailyGoalEmail_'+uid+'_';
+    const prevWeeklyKey='weeklyGoalEmail_'+uid+'_';
+    // Check if daily goal was hit yesterday but no goal exists for today yet
+    function yesterdayStr(){const d=new Date();d.setDate(d.getDate()-1);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+    const hitYesterday=dailyGoalMins>0&&localStorage.getItem('dailyGoalEmail_'+uid+'_'+yesterdayStr());
+    const hitLastWeek=(()=>{const now=new Date();const diff=now.getDay()===0?6:now.getDay()-1;const prevMon=new Date(now);prevMon.setDate(now.getDate()-diff-7);prevMon.setHours(0,0,0,0);const ps=prevMon.toISOString().split('T')[0];return weeklyGoalMins>0&&localStorage.getItem('weeklyGoalEmail_'+uid+'_'+ps);})();
+    if((hitYesterday||hitLastWeek)&&todayMins<(dailyGoalMins||1)){
+      const prompt=div({style:{background:'var(--card-alt)',border:'1px solid var(--gold-border)',borderRadius:'4px',padding:'12px 16px',marginBottom:'14px',display:'flex',alignItems:'center',justifyContent:'space-between',gap:'12px'}});
+      prompt.append(
+        h('span',{style:{fontFamily:'Inter,sans-serif',fontSize:'12px',color:'var(--gold)'},html:'You hit your goal '+(hitYesterday?'yesterday':'last week')+'. Set a new one?'}),
+        btn('Set Goals','btn-outline',()=>showGoalsModal(),{style:{padding:'4px 12px',fontSize:'11px'}})
+      );
+      el.append(prompt);
+    }
+    // --- Daily / weekly bars ---
     function makeBar(label,actual,goal){
       const pct=Math.min(100,Math.round((actual/goal)*100));
       const color=actual>=goal?'var(--teal)':'var(--gold)';
@@ -445,7 +508,7 @@ function renderGoalsProgress(){
       row.append(
         div({style:{display:'flex',justifyContent:'space-between',marginBottom:'4px'}},[
           h('span',{style:{fontFamily:'Inter,sans-serif',fontSize:'12px',color:'var(--text)'},html:label}),
-          h('span',{style:{fontFamily:'Inter,sans-serif',fontSize:'12px',color:actual>=goal?'var(--teal)':'var(--gold)'},html:formatTime(actual)+' / '+formatTime(goal)})
+          h('span',{style:{fontFamily:'Inter,sans-serif',fontSize:'12px',color:actual>=goal?'var(--teal)':'var(--gold)'},html:formatTime(actual)+' / '+formatTime(goal)+(actual>=goal?' ✓':'')})
         ]),
         div({style:{background:'var(--card2)',borderRadius:'2px',height:'6px',overflow:'hidden'}},[
           div({style:{height:'100%',width:pct+'%',background:color,borderRadius:'2px',transition:'width 0.6s ease'}})
@@ -455,13 +518,14 @@ function renderGoalsProgress(){
     }
     if(dailyGoalMins>0)el.append(makeBar("Today's Goal",todayMins,dailyGoalMins));
     if(weeklyGoalMins>0)el.append(makeBar("This Week's Goal",weekMins,weeklyGoalMins));
-    if((dailyGoalMins>0||weeklyGoalMins>0)&&Object.keys(goals).length){
-      el.append(h('hr',{style:{border:'none',borderTop:'1px solid var(--border)',margin:'12px 0'}}));
-    }
     if(!Object.keys(goals).length&&dailyGoalMins===0&&weeklyGoalMins===0){
       el.innerHTML='<div style="font-size:13px;color:var(--muted);font-family:Inter,sans-serif;padding:8px 0">No goals set. Click Study Goals to add some.</div>';
       return;
     }
+    if((dailyGoalMins>0||weeklyGoalMins>0)&&Object.keys(goals).length){
+      el.append(h('hr',{style:{border:'none',borderTop:'1px solid var(--border)',margin:'12px 0'}}));
+    }
+    // --- Topic goals ---
     const actual={};
     list.forEach(s=>{
       if(!s.topic)return;
@@ -474,21 +538,49 @@ function renderGoalsProgress(){
     Object.entries(goals).forEach(([topic,targetHours])=>{
       const actualHours=Math.round((actual[topic]||0)/60*10)/10;
       const pct=Math.min(100,Math.round((actualHours/targetHours)*100));
+      const met=pct>=100;
+      // Send topic goal email once when first met
+      if(met&&S.profile&&S.profile.is_free_tier!==true&&S.profile.email){
+        const k='topicGoalEmail_'+uid+'_'+topic;
+        if(!localStorage.getItem(k)){
+          localStorage.setItem(k,'1');
+          sendStudentEmail(S.profile.email,'You hit your '+topic+' goal!',emailBase('<h2 style="font-family:\'Plus Jakarta Sans\',Arial,sans-serif;font-size:22px;color:#C9A84C;margin:0 0 12px">Topic goal complete: '+topic.charAt(0).toUpperCase()+topic.slice(1)+'.</h2><p style="font-size:14px;color:#aaa;line-height:1.7;margin:0 0 16px">You put in <strong style="color:#E8E4DC">'+actualHours+'h</strong> on '+topic.charAt(0).toUpperCase()+topic.slice(1)+' and hit your target of <strong style="color:#E8E4DC">'+targetHours+'h</strong>. Log in to archive it or keep tracking.</p>'+emailBtn('Go to Dashboard →','https://deofortis.work')));
+        }
+      }
       const row=div({style:{marginBottom:'12px'}});
+      const topRow=div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'4px'}});
+      topRow.append(
+        h('span',{style:{fontFamily:'Inter,sans-serif',fontSize:'13px',color:'var(--text)'},html:topic.charAt(0).toUpperCase()+topic.slice(1)}),
+        h('span',{style:{fontFamily:'Inter,sans-serif',fontSize:'13px',color:met?'var(--teal)':'var(--gold)'},html:actualHours+'h / '+targetHours+'h'+(met?' ✓':'')})
+      );
       row.append(
-        div({style:{display:'flex',justifyContent:'space-between',marginBottom:'4px'}},[
-          h('span',{style:{fontFamily:'Inter,sans-serif',fontSize:'13px',color:'var(--text)'},html:topic.charAt(0).toUpperCase()+topic.slice(1)}),
-          h('span',{style:{fontFamily:'Inter,sans-serif',fontSize:'13px',color:'var(--teal)'},html:actualHours+'h / '+targetHours+'h'})
-        ]),
+        topRow,
         div({style:{background:'var(--card2)',borderRadius:'2px',height:'6px',overflow:'hidden'}},[
-          div({style:{height:'100%',width:pct+'%',background:pct>=100?'var(--teal)':'var(--gold)',borderRadius:'2px',transition:'width 0.6s ease'}})
+          div({style:{height:'100%',width:pct+'%',background:met?'var(--teal)':'var(--gold)',borderRadius:'2px',transition:'width 0.6s ease'}})
         ])
       );
+      // Archive / Keep prompt when met
+      if(met){
+        const archiveRow=div({style:{display:'flex',gap:'8px',marginTop:'8px'}});
+        archiveRow.append(
+          btn('Archive','btn-outline',async()=>{
+            const newGoals={...S.profile.topic_goals};
+            delete newGoals[topic];
+            const archived=[...(S.profile.topic_goals_archived||[]),{topic,targetHours,actualHours,archivedAt:new Date().toISOString()}];
+            await sb.from('profiles').update({topic_goals:newGoals,topic_goals_archived:archived}).eq('id',uid);
+            S.profile.topic_goals=newGoals;
+            S.profile.topic_goals_archived=archived;
+            localStorage.removeItem('topicGoalEmail_'+uid+'_'+topic);
+            renderGoalsProgress();
+          },{style:{padding:'4px 12px',fontSize:'11px'}}),
+          btn('Keep','btn-outline',()=>{row.removeChild(archiveRow);},{style:{padding:'4px 12px',fontSize:'11px'}})
+        );
+        row.append(archiveRow);
+      }
       el.append(row);
     });
   });
 }
-
 // ═══════════════════════════════
 // REST DAYS MODAL
 // ═══════════════════════════════
