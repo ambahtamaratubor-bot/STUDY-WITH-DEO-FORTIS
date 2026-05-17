@@ -92,14 +92,9 @@ if(data){
       }else if(daysDiff<=7){
         S.expiryWarning=true;
         S.expiryDaysLeft=daysDiff>0?daysDiff:0;
-        if(daysDiff>0&&!localStorage.getItem('expiryEmailSent_'+id+'_'+daysDiff)){
-          localStorage.setItem('expiryEmailSent_'+id+'_'+daysDiff,'1');
-          sb.from('admin_settings').select('link_monthly,link_sixmonth,link_yearly').single().then(({data:ls})=>{
-            const ml=ls?.link_monthly||'https://deofortis.work';
-            const sl=ls?.link_sixmonth||'https://deofortis.work';
-            const yl=ls?.link_yearly||'https://deofortis.work';
-            sendStudentEmail(data.email,'Your Deo Fortis access expires in '+daysDiff+' day'+(daysDiff===1?'':'s'),emailBase(`<h2 style="font-family:'Plus Jakarta Sans',Arial,sans-serif;font-size:22px;color:#C9A84C;margin:0 0 12px">Your access expires in ${daysDiff} day${daysDiff===1?'':'s'}.</h2><p style="font-size:14px;color:#aaa;line-height:1.7;margin:0 0 16px">You have been studying hard and we do not want you to lose your momentum. Renew now to keep your streak, your points, and your full access to the Q-Bank, Flashcards, Feynman Arena and Leaderboard.</p><p style="font-size:14px;color:#aaa;line-height:1.7;margin:0 0 24px">Choose the plan that works for you:</p><p style="margin:0 0 10px">${emailBtn('Monthly — $10',ml)}</p><p style="margin:0 0 10px">${emailBtn('6 Months — $39',sl)}</p><p style="margin:0 0 24px">${emailBtn('1 Year — $59',yl)}</p><p style="font-size:12px;color:#555">Once payment is confirmed your access is extended immediately.</p>`));
-          });
+        if(daysDiff>0&&String(data.expiry_email_sent_days||'')!==String(daysDiff)){
+          sb.from('profiles').update({expiry_email_sent_days:daysDiff}).eq('id',id);
+          data.expiry_email_sent_days=daysDiff;
         }
         go('dashboard');
       }else{
@@ -286,16 +281,17 @@ async function checkStreakOnLogin(){
   if(!missedNonRest)return;
   const prevStreak=S.profile.streak_count||0;
   if(prevStreak===0)return;
-  await sb.from('profiles').update({streak_count:0}).eq('id',S.user.id);
+  // Reset streak and write flag for Apps Script to pick up
+  const alreadySent=S.profile.streak_reset_email_sent_at;
+  const sentForThisReset=alreadySent&&alreadySent>=(lastDateStr);
+  await sb.from('profiles').update({
+    streak_count:0,
+    ...(sentForThisReset?{}:{streak_reset_email_sent_at:null,streak_reset_prev_count:prevStreak})
+  }).eq('id',S.user.id);
   S.profile.streak_count=0;
-  const emailKey='streakResetEmail_'+S.user.id+'_'+lastDateStr;
-  if(!localStorage.getItem(emailKey)&&S.profile.email){
-    localStorage.setItem(emailKey,'1');
-    sendStudentEmail(
-      S.profile.email,
-      'Your '+prevStreak+'-day streak was reset',
-      emailBase('<h2 style="font-family:\'Plus Jakarta Sans\',Arial,sans-serif;font-size:22px;color:#C9A84C;margin:0 0 12px">Your '+prevStreak+'-day streak was reset.</h2><p style="font-size:14px;color:#aaa;line-height:1.7;margin:0 0 16px">It looks like you missed a study day. That happens — but do not let it turn into two. The students climbing the leaderboard are the ones who show up consistently, even on hard days.</p><p style="font-size:14px;color:#aaa;line-height:1.7;margin:0 0 16px"><strong style="color:#E8E4DC">Important:</strong> make sure you are clocking your study hours on the platform. Your streak only counts sessions you log on Deo Fortis — time spent studying outside the app does not count toward your streak or leaderboard points.</p><p style="font-size:14px;color:#aaa;line-height:1.7;margin:0 0 24px">Start a new session today and begin building again. One day at a time.</p>'+emailBtn('Start Studying Now →','https://deofortis.work'))
-    );
+  if(!sentForThisReset){
+    S.profile.streak_reset_email_sent_at=null;
+    S.profile.streak_reset_prev_count=prevStreak;
   }
 }
 async function updateStreak(){
@@ -454,11 +450,14 @@ function renderGoalsProgress(){
   }
   function getTodayStr(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
   function getWeekStartStr(){const now=new Date();const diff=now.getDay()===0?6:now.getDay()-1;const m=new Date(now);m.setDate(now.getDate()-diff);m.setHours(0,0,0,0);return m.toISOString().split('T')[0];}
+  function yesterdayStr(){const d=new Date();d.setDate(d.getDate()-1);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+  function prevWeekStartStr(){const now=new Date();const diff=now.getDay()===0?6:now.getDay()-1;const m=new Date(now);m.setDate(now.getDate()-diff-7);m.setHours(0,0,0,0);return m.toISOString().split('T')[0];}
   function formatTime(mins){const h=Math.floor(mins/60);const m=mins%60;if(h===0)return m+'m';if(m===0)return h+'h';return h+'h '+m+'m';}
   const todayRange=getLocalDateRange();const weekRange=getWeekRange();
   const todayStr=getTodayStr();const weekStartStr=getWeekStartStr();
   const uid=S.user?.id||'';
-  sb.from('study_sessions').select('topic,duration_minutes,started_at').eq('user_id',uid).not('ended_at','is',null).then(({data:sessions})=>{
+  const isPaid=S.profile&&S.profile.is_free_tier!==true;
+  sb.from('study_sessions').select('topic,duration_minutes,started_at').eq('user_id',uid).not('ended_at','is',null).then(async({data:sessions})=>{
     const list=sessions||[];
     let todayMins=0;let weekMins=0;
     list.forEach(s=>{
@@ -468,30 +467,53 @@ function renderGoalsProgress(){
     });
     const dailyGoalMins=(studyGoals.daily_hours||0)*60;
     const weeklyGoalMins=(studyGoals.weekly_hours||0)*60;
-    // --- Goal completion emails (paid only, once per period) ---
-    if(S.profile&&S.profile.is_free_tier!==true&&S.profile.email){
+    // --- Write Supabase flags for Apps Script to pick up (paid only) ---
+    if(isPaid){
+      const updates={};
       if(dailyGoalMins>0&&todayMins>=dailyGoalMins){
-        const k='dailyGoalEmail_'+uid+'_'+todayStr;
-        if(!localStorage.getItem(k)){
-          localStorage.setItem(k,'1');
-          sendStudentEmail(S.profile.email,'You hit your daily study goal!',emailBase('<h2 style="font-family:\'Plus Jakarta Sans\',Arial,sans-serif;font-size:22px;color:#C9A84C;margin:0 0 12px">Daily goal complete.</h2><p style="font-size:14px;color:#aaa;line-height:1.7;margin:0 0 16px">You studied for <strong style="color:#E8E4DC">'+formatTime(todayMins)+'</strong> today and hit your daily target. That is exactly the kind of consistency that separates the top students from the rest.</p><p style="font-size:14px;color:#aaa;line-height:1.7;margin:0 0 24px">Log in tomorrow and do it again.</p>'+emailBtn('Back to Studying →','https://deofortis.work')));
+        if(S.profile.daily_goal_email_sent_date!==todayStr){
+          updates.daily_goal_email_sent_date=null;// clear so Apps Script sees it needs sending
+          updates.daily_goal_achieved_date=todayStr;
+          updates.daily_goal_achieved_mins=todayMins;
         }
       }
       if(weeklyGoalMins>0&&weekMins>=weeklyGoalMins){
-        const k='weeklyGoalEmail_'+uid+'_'+weekStartStr;
-        if(!localStorage.getItem(k)){
-          localStorage.setItem(k,'1');
-          sendStudentEmail(S.profile.email,'You hit your weekly study goal!',emailBase('<h2 style="font-family:\'Plus Jakarta Sans\',Arial,sans-serif;font-size:22px;color:#C9A84C;margin:0 0 12px">Weekly goal complete.</h2><p style="font-size:14px;color:#aaa;line-height:1.7;margin:0 0 16px">You put in <strong style="color:#E8E4DC">'+formatTime(weekMins)+'</strong> this week and hit your weekly target. That is a full week of focused work — it compounds.</p><p style="font-size:14px;color:#aaa;line-height:1.7;margin:0 0 24px">A new week starts Monday. Set a new goal and keep the momentum going.</p>'+emailBtn('Set Next Week\'s Goal →','https://deofortis.work')));
+        if(S.profile.weekly_goal_email_sent_week!==weekStartStr){
+          updates.weekly_goal_email_sent_week=null;
+          updates.weekly_goal_achieved_week=weekStartStr;
+          updates.weekly_goal_achieved_mins=weekMins;
         }
       }
+      if(Object.keys(updates).length){
+        await sb.from('profiles').update(updates).eq('id',uid);
+        Object.assign(S.profile,updates);
+      }
+      // Topic goals — write flag per topic
+      const topicEmailsSent={...(S.profile.topic_goal_emails_sent||{})};
+      const actual2={};
+      list.forEach(s=>{
+        if(!s.topic)return;
+        Object.keys(goals).forEach(gt=>{
+          if(s.topic.toLowerCase().includes(gt.toLowerCase()))
+            actual2[gt]=(actual2[gt]||0)+(s.duration_minutes||0);
+        });
+      });
+      let topicFlagsChanged=false;
+      Object.entries(goals).forEach(([topic,targetHours])=>{
+        const actualHours=Math.round((actual2[topic]||0)/60*10)/10;
+        if(actualHours>=targetHours&&!topicEmailsSent[topic]){
+          topicEmailsSent[topic]={sent:false,actualHours,targetHours,achievedAt:new Date().toISOString()};
+          topicFlagsChanged=true;
+        }
+      });
+      if(topicFlagsChanged){
+        await sb.from('profiles').update({topic_goal_emails_sent:topicEmailsSent}).eq('id',uid);
+        S.profile.topic_goal_emails_sent=topicEmailsSent;
+      }
     }
-    // --- Prompt to set new goal if previous period was completed ---
-    const prevDailyKey='dailyGoalEmail_'+uid+'_';
-    const prevWeeklyKey='weeklyGoalEmail_'+uid+'_';
-    // Check if daily goal was hit yesterday but no goal exists for today yet
-    function yesterdayStr(){const d=new Date();d.setDate(d.getDate()-1);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
-    const hitYesterday=dailyGoalMins>0&&localStorage.getItem('dailyGoalEmail_'+uid+'_'+yesterdayStr());
-    const hitLastWeek=(()=>{const now=new Date();const diff=now.getDay()===0?6:now.getDay()-1;const prevMon=new Date(now);prevMon.setDate(now.getDate()-diff-7);prevMon.setHours(0,0,0,0);const ps=prevMon.toISOString().split('T')[0];return weeklyGoalMins>0&&localStorage.getItem('weeklyGoalEmail_'+uid+'_'+ps);})();
+    // --- "Set new goal" prompt ---
+    const hitYesterday=dailyGoalMins>0&&S.profile.daily_goal_achieved_date===yesterdayStr();
+    const hitLastWeek=weeklyGoalMins>0&&S.profile.weekly_goal_achieved_week===prevWeekStartStr();
     if((hitYesterday||hitLastWeek)&&todayMins<(dailyGoalMins||1)){
       const prompt=div({style:{background:'var(--card-alt)',border:'1px solid var(--gold-border)',borderRadius:'4px',padding:'12px 16px',marginBottom:'14px',display:'flex',alignItems:'center',justifyContent:'space-between',gap:'12px'}});
       prompt.append(
@@ -539,14 +561,6 @@ function renderGoalsProgress(){
       const actualHours=Math.round((actual[topic]||0)/60*10)/10;
       const pct=Math.min(100,Math.round((actualHours/targetHours)*100));
       const met=pct>=100;
-      // Send topic goal email once when first met
-      if(met&&S.profile&&S.profile.is_free_tier!==true&&S.profile.email){
-        const k='topicGoalEmail_'+uid+'_'+topic;
-        if(!localStorage.getItem(k)){
-          localStorage.setItem(k,'1');
-          sendStudentEmail(S.profile.email,'You hit your '+topic+' goal!',emailBase('<h2 style="font-family:\'Plus Jakarta Sans\',Arial,sans-serif;font-size:22px;color:#C9A84C;margin:0 0 12px">Topic goal complete: '+topic.charAt(0).toUpperCase()+topic.slice(1)+'.</h2><p style="font-size:14px;color:#aaa;line-height:1.7;margin:0 0 16px">You put in <strong style="color:#E8E4DC">'+actualHours+'h</strong> on '+topic.charAt(0).toUpperCase()+topic.slice(1)+' and hit your target of <strong style="color:#E8E4DC">'+targetHours+'h</strong>. Log in to archive it or keep tracking.</p>'+emailBtn('Go to Dashboard →','https://deofortis.work')));
-        }
-      }
       const row=div({style:{marginBottom:'12px'}});
       const topRow=div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'4px'}});
       topRow.append(
@@ -559,7 +573,6 @@ function renderGoalsProgress(){
           div({style:{height:'100%',width:pct+'%',background:met?'var(--teal)':'var(--gold)',borderRadius:'2px',transition:'width 0.6s ease'}})
         ])
       );
-      // Archive / Keep prompt when met
       if(met){
         const archiveRow=div({style:{display:'flex',gap:'8px',marginTop:'8px'}});
         archiveRow.append(
@@ -567,10 +580,12 @@ function renderGoalsProgress(){
             const newGoals={...S.profile.topic_goals};
             delete newGoals[topic];
             const archived=[...(S.profile.topic_goals_archived||[]),{topic,targetHours,actualHours,archivedAt:new Date().toISOString()}];
-            await sb.from('profiles').update({topic_goals:newGoals,topic_goals_archived:archived}).eq('id',uid);
+            const newSent={...(S.profile.topic_goal_emails_sent||{})};
+            delete newSent[topic];
+            await sb.from('profiles').update({topic_goals:newGoals,topic_goals_archived:archived,topic_goal_emails_sent:newSent}).eq('id',uid);
             S.profile.topic_goals=newGoals;
             S.profile.topic_goals_archived=archived;
-            localStorage.removeItem('topicGoalEmail_'+uid+'_'+topic);
+            S.profile.topic_goal_emails_sent=newSent;
             renderGoalsProgress();
           },{style:{padding:'4px 12px',fontSize:'11px'}}),
           btn('Keep','btn-outline',()=>{row.removeChild(archiveRow);},{style:{padding:'4px 12px',fontSize:'11px'}})
@@ -3746,8 +3761,8 @@ if(!filteredSubs.length){
     if(sub.status==='pending'){
       const actions=div({style:{display:'flex',gap:'10px',marginTop:'12px'}});
       actions.append(btn('✓ Approve','btn-teal',async()=>{
-        if(!sub.points_awarded){const{data:up}=await sb.from('profiles').select('total_points,email').eq('id',sub.user_id).single();if(up){await sb.from('profiles').update({total_points:(up.total_points||0)+50}).eq('id',sub.user_id);await sendStudentEmail(up.email,'Your Feynman submission was accepted 🎉',emailBase(`<h2 style="font-family:'Plus Jakarta Sans',Arial,sans-serif;font-size:22px;color:#C9A84C;margin:0 0 12px">Your explanation was accepted.</h2><p style="font-size:14px;color:#aaa;line-height:1.7;margin:0 0 16px">You submitted a Feynman explanation on <strong style="color:#E8E4DC">${sub.topic}</strong> and it passed review. That means you explained it clearly enough that a 6-year-old could follow. That is not easy.</p><p style="font-size:14px;color:#aaa;line-height:1.7;margin:0 0 24px">You just earned <strong style="color:#C9A84C">50 points</strong> on the leaderboard. Keep teaching — the best explanation this week gets crowned 👑 King of the Week.</p>${emailBtn('Go to Feynman Arena →','https://deofortis.work')}`)  );}}
-        await sb.from('feynman_submissions').update({status:'approved',points_awarded:true}).eq('id',sub.id);
+        if(!sub.points_awarded){const{data:up}=await sb.from('profiles').select('total_points').eq('id',sub.user_id).single();if(up){await sb.from('profiles').update({total_points:(up.total_points||0)+50}).eq('id',sub.user_id);}}
+        await sb.from('feynman_submissions').update({status:'approved',points_awarded:true,student_notified:false,notification_type:'accepted'}).eq('id',sub.id);
         loadTab('feynman');
       },{style:{padding:'6px 16px',fontSize:'11px'}}));
       actions.append(btn('✕ Reject','btn-outline',async()=>{
@@ -3756,8 +3771,8 @@ if(!filteredSubs.length){
       },{style:{padding:'6px 16px',fontSize:'11px'}}));
       actions.append(btn('👑 King','btn-gold',async()=>{
         await sb.from('feynman_submissions').update({is_king:false}).eq('week_of',currentMonday).eq('is_king',true);
-        if(!sub.points_awarded){const{data:up}=await sb.from('profiles').select('total_points,email').eq('id',sub.user_id).single();if(up){await sb.from('profiles').update({total_points:(up.total_points||0)+50}).eq('id',sub.user_id);await sendStudentEmail(up.email,'You have been crowned 👑 Feynman King of the Week',emailBase(`<h2 style="font-family:'Plus Jakarta Sans',Arial,sans-serif;font-size:22px;color:#C9A84C;margin:0 0 12px">You are this week's Feynman King. 👑</h2><p style="font-size:14px;color:#aaa;line-height:1.7;margin:0 0 16px">Your explanation on <strong style="color:#E8E4DC">${sub.topic}</strong> was chosen as the best submission of the week. Out of every student on this platform, yours stood out.</p><p style="font-size:14px;color:#aaa;line-height:1.7;margin:0 0 16px">You earned <strong style="color:#C9A84C">50 points</strong> and your explanation is now published on the Wall of Fame for every student to learn from.</p><p style="font-size:14px;color:#aaa;line-height:1.7;margin:0 0 24px">This is what Deo Fortis is about. Everyone is gifted — and this week, you proved it.</p>${emailBtn('See the Wall of Fame →','https://deofortis.work')}`) );}}
-        await sb.from('feynman_submissions').update({is_king:true,status:'approved',points_awarded:true,week_of:currentMonday}).eq('id',sub.id);
+        if(!sub.points_awarded){const{data:up}=await sb.from('profiles').select('total_points').eq('id',sub.user_id).single();if(up){await sb.from('profiles').update({total_points:(up.total_points||0)+50}).eq('id',sub.user_id);}}
+        await sb.from('feynman_submissions').update({is_king:true,status:'approved',points_awarded:true,week_of:currentMonday,student_notified:false,notification_type:'king'}).eq('id',sub.id);
         loadTab('feynman');
       },{style:{padding:'6px 16px',fontSize:'11px'}}));
       card.append(actions);
