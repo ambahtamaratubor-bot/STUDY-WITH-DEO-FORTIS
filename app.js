@@ -3574,13 +3574,27 @@ card.append(uploadBtn,upSt);
 const qListDiv=div({style:{marginTop:'24px'}});
 let selectedIds=new Set();
 async function loadQuestionList(){
-  qListDiv.innerHTML='';selectedIds=new Set();
-  const{data:questions}=await sb.from('vignette_questions').select('id,topic,subsection,question').is('user_id',null).order('topic,subsection,created_at',{ascending:false});
-  if(!questions||!questions.length){qListDiv.append(h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'11px',color:'var(--dim)',padding:'8px 0'}},['No questions uploaded yet.']));return;}
-  // Header row
-  const headerRow=div({style:{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'12px'}});
-  const selectAllChk=h('input',{type:'checkbox',style:{accentColor:'var(--gold)',width:'14px',height:'14px',cursor:'pointer'}});
-  const totalLabel=h('span',{style:{fontFamily:"Inter,sans-serif",fontSize:'9px',letterSpacing:'2px',textTransform:'uppercase',color:'var(--dim)',marginLeft:'8px'}},[questions.length+' Questions in Bank']);
+  qListDiv.innerHTML='<div style="font-family:Inter,sans-serif;font-size:11px;color:var(--dim);padding:8px 0">Loading...</div>';
+  selectedIds=new Set();
+  // Get total count first (no limit)
+  const{count}=await sb.from('vignette_questions').select('*',{count:'exact',head:true}).is('user_id',null);
+  // Fetch grouped summary: topic + subsection + count using pagination to get all rows
+  // We only need id,topic,subsection,question — fetch in pages of 1000
+  let allQuestions=[];
+  let page=0;
+  const pageSize=1000;
+  while(true){
+    const{data:batch}=await sb.from('vignette_questions').select('id,topic,subsection,question').is('user_id',null).order('topic,subsection',{ascending:true}).range(page*pageSize,(page+1)*pageSize-1);
+    if(!batch||!batch.length)break;
+    allQuestions=allQuestions.concat(batch);
+    if(batch.length<pageSize)break;
+    page++;
+  }
+  qListDiv.innerHTML='';
+  if(!allQuestions.length){qListDiv.append(h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'11px',color:'var(--dim)',padding:'8px 0'}},['No questions uploaded yet.']));return;}
+  // Header
+  const headerRow=div({style:{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'16px'}});
+  const totalLabel=h('span',{style:{fontFamily:"Inter,sans-serif",fontSize:'13px',color:'var(--text)',fontWeight:'600'}},[String(allQuestions.length)+' Questions in Bank']);
   const delSelBtn=btn('Delete Selected','btn-outline',null,{style:{padding:'4px 12px',fontSize:'10px',color:'#ff4444',borderColor:'#ff4444'}});
   delSelBtn._confirming=false;
   delSelBtn.onclick=async()=>{
@@ -3591,67 +3605,93 @@ async function loadQuestionList(){
     await sb.from('vignette_questions').delete().in('id',ids);
     loadQuestionList();
   };
-  const leftSide=div({style:{display:'flex',alignItems:'center'}});
-  leftSide.append(selectAllChk,totalLabel);
-  headerRow.append(leftSide,delSelBtn);
+  headerRow.append(totalLabel,delSelBtn);
   qListDiv.append(headerRow);
   // Group by topic then subsection
   const grouped={};
-  questions.forEach(q=>{
+  allQuestions.forEach(q=>{
     if(!grouped[q.topic])grouped[q.topic]={};
     const sub=q.subsection||'__none__';
     if(!grouped[q.topic][sub])grouped[q.topic][sub]=[];
     grouped[q.topic][sub].push(q);
   });
-  const allChks=[];
-  for(const topic of Object.keys(grouped)){
+  // Render collapsed folder tree
+  for(const topic of Object.keys(grouped).sort()){
     const topicIds=Object.values(grouped[topic]).flat().map(q=>q.id);
-    const topicBlock=div({style:{marginBottom:'16px',border:'1px solid var(--border)',borderRadius:'2px',overflow:'hidden'}});
-    const topicHdr=div({style:{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'8px 12px',background:'var(--card)',borderBottom:'1px solid var(--border)'}});
-    const delSubjectBtn=btn('Delete Subject','btn-outline',null,{style:{padding:'4px 10px',fontSize:'10px',color:'#ff4444',borderColor:'#ff4444'}});
+    const topicBlock=div({style:{marginBottom:'8px',border:'1px solid var(--border)',borderRadius:'4px',overflow:'hidden'}});
+    // Topic header — clickable to expand/collapse subsections
+    let topicOpen=false;
+    const subsectionContainer=div({style:{display:'none'}});
+    const topicHdr=div({style:{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'10px 14px',background:'var(--card)',cursor:'pointer'}});
+    const topicLeft=div({style:{display:'flex',alignItems:'center',gap:'10px'}});
+    const arrow=h('span',{style:{color:'var(--muted)',fontSize:'10px',transition:'transform .2s',display:'inline-block'}},['▶']);
+    topicLeft.append(
+      arrow,
+      h('span',{style:{fontFamily:"Inter,sans-serif",fontSize:'13px',color:'var(--gold)',fontWeight:'600'}},[topic]),
+      h('span',{style:{fontFamily:"Inter,sans-serif",fontSize:'11px',color:'var(--dim)'}},[' ('+topicIds.length+' questions)'])
+    );
+    const delSubjectBtn=btn('Delete Topic','btn-outline',null,{style:{padding:'3px 10px',fontSize:'10px',color:'#ff4444',borderColor:'#ff4444'}});
     delSubjectBtn._confirming=false;
-    delSubjectBtn.onclick=async()=>{
-      if(!delSubjectBtn._confirming){delSubjectBtn._confirming=true;delSubjectBtn.textContent='Click again to confirm';setTimeout(()=>{delSubjectBtn._confirming=false;delSubjectBtn.textContent='Delete Subject';},3000);return;}
-      delSubjectBtn._confirming=false;delSubjectBtn.textContent='Delete Subject';
+    delSubjectBtn.onclick=async(e)=>{
+      e.stopPropagation();
+      if(!delSubjectBtn._confirming){delSubjectBtn._confirming=true;delSubjectBtn.textContent='Confirm?';setTimeout(()=>{delSubjectBtn._confirming=false;delSubjectBtn.textContent='Delete Topic';},3000);return;}
+      delSubjectBtn._confirming=false;delSubjectBtn.textContent='Delete Topic';
       await sb.from('vignette_questions').delete().eq('topic',topic).is('user_id',null);loadQuestionList();
     };
-    topicHdr.append(
-      h('span',{style:{fontFamily:"Inter,sans-serif",fontSize:'12px',color:'var(--gold)',fontWeight:'600'}},[topic+' ('+topicIds.length+')']),
-      delSubjectBtn
-    );
-    topicBlock.append(topicHdr);
-    for(const sub of Object.keys(grouped[topic])){
+    topicHdr.append(topicLeft,delSubjectBtn);
+    topicHdr.onclick=()=>{
+      topicOpen=!topicOpen;
+      subsectionContainer.style.display=topicOpen?'block':'none';
+      arrow.style.transform=topicOpen?'rotate(90deg)':'rotate(0deg)';
+    };
+    topicBlock.append(topicHdr,subsectionContainer);
+    // Subsections — collapsed by default, expand on click
+    for(const sub of Object.keys(grouped[topic]).sort()){
       const subQs=grouped[topic][sub];
       const subIds=subQs.map(q=>q.id);
       const subLabel=sub==='__none__'?'(no subsection)':sub;
-      const subHdr=div({style:{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'6px 12px',borderBottom:'1px solid var(--border)',background:'#0F0E0A'}});
-      subHdr.append(
-        h('span',{style:{fontFamily:"Inter,sans-serif",fontSize:'11px',color:'var(--muted)'}},[subLabel+' — '+subIds.length+' questions']),
-        (()=>{const delSubBtn=btn('Delete Subsection','btn-outline',null,{style:{padding:'3px 8px',fontSize:'10px',color:'#ff4444',borderColor:'#ff4444'}});
-        delSubBtn._confirming=false;
-        delSubBtn.onclick=async()=>{
-          if(!delSubBtn._confirming){delSubBtn._confirming=true;delSubBtn.textContent='Click again to confirm';setTimeout(()=>{delSubBtn._confirming=false;delSubBtn.textContent='Delete Subsection';},3000);return;}
-          delSubBtn._confirming=false;delSubBtn.textContent='Delete Subsection';
-          await sb.from('vignette_questions').delete().in('id',subIds);loadQuestionList();
-        };return delSubBtn;})()
+      let subOpen=false;
+      const questionsContainer=div({style:{display:'none'}});
+      const subHdr=div({style:{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'8px 14px 8px 28px',borderTop:'1px solid var(--border)',background:'var(--bg)',cursor:'pointer'}});
+      const subArrow=h('span',{style:{color:'var(--dim)',fontSize:'9px',transition:'transform .2s',display:'inline-block',marginRight:'8px'}},['▶']);
+      const subLeft=div({style:{display:'flex',alignItems:'center'}});
+      subLeft.append(
+        subArrow,
+        h('span',{style:{fontFamily:"Inter,sans-serif",fontSize:'12px',color:'var(--text)'}},[subLabel]),
+        h('span',{style:{fontFamily:"Inter,sans-serif",fontSize:'11px',color:'var(--dim)',marginLeft:'8px'}},[' — '+subIds.length+' questions'])
       );
-      topicBlock.append(subHdr);
-      for(const q of subQs){
-        const preview=q.question.length>80?q.question.substring(0,80)+'...':q.question;
+      const delSubBtn=btn('Delete','btn-outline',null,{style:{padding:'2px 8px',fontSize:'10px',color:'#ff4444',borderColor:'#ff4444'}});
+      delSubBtn._confirming=false;
+      delSubBtn.onclick=async(e)=>{
+        e.stopPropagation();
+        if(!delSubBtn._confirming){delSubBtn._confirming=true;delSubBtn.textContent='Confirm?';setTimeout(()=>{delSubBtn._confirming=false;delSubBtn.textContent='Delete';},3000);return;}
+        delSubBtn._confirming=false;delSubBtn.textContent='Delete';
+        await sb.from('vignette_questions').delete().in('id',subIds);loadQuestionList();
+      };
+      subHdr.append(subLeft,delSubBtn);
+      subHdr.onclick=()=>{
+        subOpen=!subOpen;
+        questionsContainer.style.display=subOpen?'block':'none';
+        subArrow.style.transform=subOpen?'rotate(90deg)':'rotate(0deg)';
+      };
+      // Questions inside subsection (only rendered when opened)
+      subQs.forEach(q=>{
+        const preview=q.question.length>90?q.question.substring(0,90)+'...':q.question;
         const chk=h('input',{type:'checkbox',style:{accentColor:'var(--gold)',width:'13px',height:'13px',cursor:'pointer',flexShrink:'0'}});
-        allChks.push(chk);
+        chk._qid=q.id;
         chk.onchange=()=>{if(chk.checked)selectedIds.add(q.id);else selectedIds.delete(q.id);};
-        const row=div({style:{display:'flex',alignItems:'center',gap:'10px',padding:'8px 12px',borderBottom:'1px solid var(--border)'}});
-        row.append(chk,h('span',{style:{fontFamily:"Inter,sans-serif",fontSize:'11px',color:'var(--muted)',flex:'1'}},[preview]));
-        topicBlock.append(row);
-      }
+        const row=div({style:{display:'flex',alignItems:'flex-start',gap:'10px',padding:'7px 14px 7px 42px',borderTop:'1px solid var(--border)',background:'var(--card)'}});
+        const hasE=q.option_e&&q.option_e.trim()?'':null;
+        row.append(
+          chk,
+          h('span',{style:{fontFamily:"Inter,sans-serif",fontSize:'11px',color:'var(--muted)',flex:'1',lineHeight:'1.5'}},[preview])
+        );
+        questionsContainer.append(row);
+      });
+      subsectionContainer.append(subHdr,questionsContainer);
     }
     qListDiv.append(topicBlock);
   }
-  selectAllChk.onchange=()=>{
-    allChks.forEach(c=>{c.checked=selectAllChk.checked;if(selectAllChk.checked)selectedIds.add(Number(c._qid)||c._qid);else selectedIds.clear();});
-    if(selectAllChk.checked)questions.forEach(q=>selectedIds.add(q.id));else selectedIds.clear();
-  };
 }
 card.append(qListDiv);content.innerHTML='';content.append(card);
 (async()=>{await loadQuestionList();})();
