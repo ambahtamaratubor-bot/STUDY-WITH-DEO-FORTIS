@@ -3533,7 +3533,7 @@ const uploadBtn=btn('Upload All Subsections','btn-gold',async()=>{
     if(!row.fileInp.files||!row.fileInp.files.length){upSt.textContent='Subsection "'+row.nameInp.value.trim()+'" has no file';return;}
   }
   upSt.textContent='Uploading '+subsectionRows.length+' subsection(s)...';
-  let total=0;
+  let total=0;let withE=0;
   for(let i=0;i<subsectionRows.length;i++){
     const row=subsectionRows[i];
     const subName=row.nameInp.value.trim();
@@ -3544,7 +3544,7 @@ const uploadBtn=btn('Upload All Subsections','btn-gold',async()=>{
     for(const block of blocks){
       const lines=block.split('\n').filter(l=>l.trim());
       if(lines.length<3)continue;
-      const q={topic:subject,subsection:subName,question:'',option_a:'',option_b:'',option_c:'',option_d:'',correct_answer:'',explanation:'',is_global:freeToggle.checked,user_id:null};
+      const q={topic:subject,subsection:subName,question:'',option_a:'',option_b:'',option_c:'',option_d:'',option_e:'',correct_answer:'',explanation:'',is_global:freeToggle.checked,user_id:null};
       q.question=lines[0];
       let expIdx=-1;
       for(let li=1;li<lines.length;li++){
@@ -3553,19 +3553,21 @@ const uploadBtn=btn('Upload All Subsections','btn-gold',async()=>{
         if(line.startsWith('B.')||line.startsWith('B)'))q.option_b=line.slice(2).trim();
         if(line.startsWith('C.')||line.startsWith('C)'))q.option_c=line.slice(2).trim();
         if(line.startsWith('D.')||line.startsWith('D)'))q.option_d=line.slice(2).trim();
+        if(line.startsWith('E.')||line.startsWith('E)'))q.option_e=line.slice(2).trim();
         if(line.toLowerCase().startsWith('answer:'))q.correct_answer=line.split(':')[1]?.trim().toUpperCase()||'';
         if(line.toLowerCase().startsWith('explanation:')){q.explanation=line.split(':').slice(1).join(':').trim();expIdx=li;}
       }
-      if(expIdx>=0&&expIdx<lines.length-1){const extra=lines.slice(expIdx+1).filter(l=>!l.startsWith('A.')&&!l.startsWith('B.')&&!l.startsWith('C.')&&!l.startsWith('D.')&&!l.toLowerCase().startsWith('answer:')).join(' ');if(extra)q.explanation+=' '+extra;}
+      if(expIdx>=0&&expIdx<lines.length-1){const extra=lines.slice(expIdx+1).filter(l=>!l.startsWith('A.')&&!l.startsWith('B.')&&!l.startsWith('C.')&&!l.startsWith('D.')&&!l.startsWith('E.')&&!l.toLowerCase().startsWith('answer:')).join(' ');if(extra)q.explanation+=' '+extra;}
       if(q.question&&q.correct_answer)qs.push(q);
     }
     if(qs.length){
       const{error}=await sb.from('vignette_questions').insert(qs);
       if(error){upSt.textContent='Error in "'+subName+'": '+error.message;return;}
       total+=qs.length;
+      withE+=qs.filter(q=>q.option_e&&q.option_e.trim()).length;
     }
   }
-  upSt.textContent='Uploaded '+total+' questions across '+subsectionRows.length+' subsection(s)';
+  upSt.textContent='Uploaded '+total+' questions ('+withE+' with option E) across '+subsectionRows.length+' subsection(s)';
   await loadQuestionList();
 },{});
 card.append(uploadBtn,upSt);
