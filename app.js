@@ -1703,7 +1703,9 @@ setTimeout(loadSess,1000);
       btn('Clock Out Now','btn-gold',async()=>{
         const mins=Math.max(1,Math.round((Date.now()-startDate)/60000));
         await sb.from('study_sessions').update({ended_at:new Date().toISOString(),duration_minutes:mins}).eq('id',orphan.id);
-        await sb.from('profiles').update({total_study_minutes:(S.profile?.total_study_minutes||0)+mins,total_points:(S.profile?.total_points||0)+5}).eq('id',S.user.id);
+        const upd1={total_study_minutes:(S.profile?.total_study_minutes||0)+mins};
+        if(S.profile?.is_free_tier!==true)upd1.total_points=(S.profile?.total_points||0)+5;
+        await sb.from('profiles').update(upd1).eq('id',S.user.id);
         banner.remove();
         setTimeout(loadSess,500);
       },{style:{fontSize:'11px',padding:'8px 16px'}}),
@@ -1903,7 +1905,9 @@ const coutBtn=btn('⏹ Clock Out & Save Session','btn-gold',async()=>{
     }
     if(!verified)console.warn('Could not verify session write, proceeding anyway');
     // Update profile
-    await sb.from('profiles').update({total_study_minutes:(S.profile?.total_study_minutes||0)+actualMins,total_points:(S.profile?.total_points||0)+5}).eq('id',S.user.id);
+    const upd2={total_study_minutes:(S.profile?.total_study_minutes||0)+actualMins};
+    if(S.profile?.is_free_tier!==true)upd2.total_points=(S.profile?.total_points||0)+5;
+    await sb.from('profiles').update(upd2).eq('id',S.user.id);
     await updateStreak();
     // Clear all state
     window.activeSessionId=null;window.sessionStartTime=null;window.pomPlan=null;
@@ -2540,7 +2544,7 @@ async function submitQuiz(){
 clearInterval(tInterval);submitted=true;
 const score=questions.filter(q=>answers[q.id]===q.correct_answer).length;
 await sb.from('vignette_scores').insert({user_id:S.user.id,topic:selTopic,score,total:questions.length,mode,answers:answers,questions:questions});
-await sb.from('profiles').update({total_points:(S.profile?.total_points||0)+30}).eq('id',S.user.id);
+if(S.profile?.is_free_tier!==true)await sb.from('profiles').update({total_points:(S.profile?.total_points||0)+30}).eq('id',S.user.id);
 showResults(score);
 }
 function showResults(score){
@@ -2930,8 +2934,7 @@ async function showDeckPlayer(deck,type){
     modal.innerHTML='';
     if(passed){
       await sb.from('flashcard_progress').upsert({user_id:S.user.id,deck_id:deck.id,completed:true,completed_at:new Date().toISOString()});
-    await sb.from('profiles').update({total_points:(S.profile?.total_points||0)+10}).eq('id',S.user.id);
-    if(S.profile)S.profile.total_points=(S.profile.total_points||0)+10;
+    if(S.profile?.is_free_tier!==true){await sb.from('profiles').update({total_points:(S.profile?.total_points||0)+10}).eq('id',S.user.id);if(S.profile)S.profile.total_points=(S.profile.total_points||0)+10;}
       const{data:nextDeck}=await sb.from('flashcard_decks').select('id').eq('type',type).eq('unlock_order',deck.unlock_order+1).maybeSingle();
       modal.append(
         h('div',{style:{fontSize:'48px',textAlign:'center',marginBottom:'16px'},html:ICONS.sparkles}),
