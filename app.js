@@ -1079,7 +1079,7 @@ if(sel)profileData.plan=sel.name;
 await new Promise(r=>setTimeout(r,1000));
 await sb.from('profiles').upsert(profileData,{onConflict:'id'});
 localStorage.removeItem('signupType');
-if(isFreeSignup){
+if(freeTierApproved){
 sendAdminEmail('New Free Signup — Deo Fortis','<h2>New Free Student</h2><p>Name: '+nameVal+'</p><p>Email: '+emailVal+'</p>');
 S.user=data.user;
 S.profile={
@@ -1099,6 +1099,12 @@ S.profile={
 };
 signingUp=false;
 go('dashboard');
+return;
+}
+if(isFreeSignup&&!freeTierApproved){
+sendAdminEmail('New Free Signup (Pending) — Deo Fortis','<h2>New Free Student — Pending</h2><p>Name: '+nameVal+'</p><p>Email: '+emailVal+'</p>');
+signingUp=false;
+go('pending');
 return;
 }
 sendAdminEmail('New Signup — Deo Fortis','<h2>New Student</h2><p>Name: '+nameVal+'</p><p>Email: '+emailVal+'</p><p>Plan: '+(sel?sel.name:'None')+'</p>');
