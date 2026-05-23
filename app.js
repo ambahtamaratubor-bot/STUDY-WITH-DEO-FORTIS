@@ -1070,13 +1070,19 @@ if(error.message.toLowerCase().includes('already registered')||error.message.toL
 errBox.classList.remove('hidden');errBox.textContent=error.message;submitBtn.textContent=sel?'Create Account — '+sel.price:'Create Account';submitBtn.disabled=false;return;
 }
 if(data&&data.user){
-const isFreeSignup=localStorage.getItem('signupType')==='free';
-let launchModeOn=false;
-try{const{data:lm}=await sb.from('admin_settings').select('launch_mode').single();launchModeOn=lm&&lm.launch_mode===true;}catch(e){}
-const freeTierApproved=isFreeSignup&&launchModeOn;
-const profileData={id:data.user.id,email:emailVal,full_name:nameVal,status:freeTierApproved?'approved':'pending',is_free_tier:freeTierApproved?true:false};
+var isFreeSignup=localStorage.getItem('signupType')==='free';
+var launchModeOn=false;
+try{
+var lmRes=await sb.from('admin_settings').select('launch_mode').eq('id',1).maybeSingle();
+if(!lmRes.error&&lmRes.data){
+var raw=lmRes.data.launch_mode;
+if(raw===true||raw===1||raw==='true')launchModeOn=true;
+}
+}catch(e){console.warn('Failed to fetch launch_mode',e);}
+var freeTierApproved=isFreeSignup&&launchModeOn;
+var profileData={id:data.user.id,email:emailVal,full_name:nameVal,status:freeTierApproved?'approved':'pending',is_free_tier:freeTierApproved?true:false};
 if(sel)profileData.plan=sel.name;
-await new Promise(r=>setTimeout(r,1000));
+await new Promise(function(r){setTimeout(r,1000);});
 await sb.from('profiles').upsert(profileData,{onConflict:'id'});
 localStorage.removeItem('signupType');
 if(freeTierApproved){
