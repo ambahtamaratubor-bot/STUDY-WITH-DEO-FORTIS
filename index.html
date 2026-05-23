@@ -84,6 +84,8 @@ h2.big{font-family:'Playfair Display',serif;font-size:clamp(32px,5vw,56px);font-
 .gold-em{font-style:italic;color:var(--gold);}
 .muted{color:var(--muted);font-weight:300;}
 .mono{font-family:'Plus Jakarta Sans',sans-serif;font-size:10px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;color:var(--dim);}
+@keyframes rsvpPulse{0%,100%{box-shadow:0 0 0 0 rgba(200,169,110,0.5);}50%{box-shadow:0 0 0 10px rgba(200,169,110,0);}}
+.btn-rsvp{background:var(--gold);color:#0F0E0A;animation:rsvpPulse 2s ease-in-out infinite;}
 </style>
 <script>(function(){var t=localStorage.getItem('theme');document.documentElement.setAttribute('data-theme',t==='light'?'light':'dark');})()</script>
 </head>
