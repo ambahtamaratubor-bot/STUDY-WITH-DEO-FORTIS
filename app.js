@@ -2596,7 +2596,28 @@ mainArea.append(ob);
 });
 if((revealed[q.id]||submitted)&&q.explanation){
 const exp=div({style:{background:'var(--correct-bg)',border:'1px solid var(--teal-border)',borderRadius:'2px',padding:'16px',marginTop:'16px'}});
-exp.append(div({style:{fontFamily:"Inter,sans-serif",fontSize:'10px',color:'var(--teal)',letterSpacing:'2px',textTransform:'uppercase',marginBottom:'8px'},html:'Explanation'}),h('p',{style:{fontSize:'14px',color:'var(--muted)',lineHeight:'1.7'},html:q.explanation}));
+exp.append(div({style:{fontFamily:"Inter,sans-serif",fontSize:'10px',color:'var(--teal)',letterSpacing:'2px',textTransform:'uppercase',marginBottom:'12px'},html:'Explanation'}));
+const rawExp=q.explanation;
+const splitExp=rawExp.split(/(?=\b[A-E]\s*[\(\-])/);
+splitExp.forEach(function(chunk){
+  chunk=chunk.trim();
+  if(!chunk)return;
+  const isCorrect=/^[A-E]\s*[\(\-]/.test(chunk)&&(chunk.toUpperCase().startsWith(q.correct_answer));
+  const isOption=/^[A-E]\s*[\(\-]/.test(chunk);
+  const block=div({style:{marginBottom:'12px',padding:'12px',borderRadius:'2px',background:isCorrect?'rgba(126,184,164,0.08)':'var(--bg)',border:'1px solid '+(isCorrect?'var(--teal)':'var(--border)')}});
+  const label=chunk.match(/^([A-E]\s*[\(\-][^:)]+[:\)]?)/);
+  if(label&&isOption){
+    const labelStr=label[0];
+    const rest=chunk.slice(labelStr.length).trim().replace(/^[:\s]+/,'');
+    block.append(
+      h('div',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'12px',fontWeight:'700',color:isCorrect?'var(--teal)':'var(--muted)',marginBottom:'4px'},html:labelStr+(isCorrect?' ✓':'')}),
+      h('p',{style:{fontSize:'13px',color:'var(--muted)',lineHeight:'1.7'},html:rest})
+    );
+  }else{
+    block.append(h('p',{style:{fontSize:'13px',color:'var(--muted)',lineHeight:'1.7'},html:chunk}));
+  }
+  exp.append(block);
+});
 mainArea.append(exp);
 }
 const nr=div({style:{display:'flex',gap:'12px',marginTop:'16px'}});
