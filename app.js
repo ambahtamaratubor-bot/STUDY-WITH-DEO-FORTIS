@@ -77,6 +77,7 @@ if(data){
   }
   S.profile=data;
   checkStreakOnLogin();
+  if(data.test_access===true&&data.status==='pending'){go('dashboard');return;}
   if(data.is_free_tier===true){
     go('dashboard');
   }else if(data.status==='approved'&&data.is_free_tier===false){
@@ -1070,7 +1071,10 @@ errBox.classList.remove('hidden');errBox.textContent=error.message;submitBtn.tex
 }
 if(data&&data.user){
 const isFreeSignup=localStorage.getItem('signupType')==='free';
-const profileData={id:data.user.id,email:emailVal,full_name:nameVal,status:isFreeSignup?'approved':'pending',is_free_tier:isFreeSignup?true:false};
+let launchModeOn=false;
+try{const{data:lm}=await sb.from('admin_settings').select('launch_mode').single();launchModeOn=lm&&lm.launch_mode===true;}catch(e){}
+const freeTierApproved=isFreeSignup&&launchModeOn;
+const profileData={id:data.user.id,email:emailVal,full_name:nameVal,status:freeTierApproved?'approved':'pending',is_free_tier:freeTierApproved?true:false};
 if(sel)profileData.plan=sel.name;
 await new Promise(r=>setTimeout(r,1000));
 await sb.from('profiles').upsert(profileData,{onConflict:'id'});
@@ -1293,7 +1297,14 @@ return page;
 function pending(){
 const page=div({cls:'center',style:{minHeight:'100vh',padding:'24px'}});
 const card=div({cls:'card fade',style:{width:'100%',maxWidth:'480px',textAlign:'center'}});
-card.append(div({style:{fontSize:'48px',marginBottom:'20px'},html:' '}),div({style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontStyle:'italic',fontSize:'22px',color:'var(--gold)',marginBottom:'16px'},html:'Deo Fortis'}),h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'24px',marginBottom:'12px'},html:'Awaiting Approval'}),h('p',{cls:'muted',style:{fontSize:'15px',lineHeight:'1.7',marginBottom:'24px'},html:'Thanks for joining Deo Fortis! Your account is pending approval. You will be approved as soon as your payment is verified.'}),div({cls:'quote',style:{marginBottom:'24px',textAlign:'left'},html:'"Great students are patient students."'}),btn('Log Out','btn-outline',()=>sb.auth.signOut()));
+card.append(
+div({style:{fontSize:'48px',marginBottom:'20px'},html:' '}),
+div({style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontStyle:'italic',fontSize:'22px',color:'var(--gold)',marginBottom:'16px'},html:'Deo Fortis'}),
+h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'24px',marginBottom:'12px'},html:"You're on the list."}),
+h('p',{cls:'muted',style:{fontSize:'15px',lineHeight:'1.7',marginBottom:'24px'},html:'The platform launches <strong style="color:var(--gold)">June 7</strong>. You will get access on launch day. Join the live event below.'}),
+div({cls:'quote',style:{marginBottom:'24px',textAlign:'left'},html:'"Everyone is gifted."'}),
+btn('RSVP — Join the Launch Event','btn-rsvp',()=>showRsvpModal(),{style:{width:'100%',marginBottom:'12px',padding:'14px'}}),
+btn('Log Out','btn-outline',()=>sb.auth.signOut(),{style:{width:'100%'}}));
 page.append(card);return page;
 }
 // ═══════════════════════════════
@@ -3231,9 +3242,23 @@ const ncI=inp('Cafe MP3 URL (.mp3)','text',set.noise_cafe||'');
 const nwI=inp('White Noise MP3 URL (.mp3)','text',set.noise_white||'');
 card.append(field(' Rain',nrI),field(' Ocean',noI),field(' Cafe',ncI),field(' White Noise',nwI));
 // Save
+// Launch Mode
+card.append(h('hr',{style:{border:'none',borderTop:'1px solid var(--border)',margin:'24px 0'}}));
+card.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'18px',marginBottom:'4px'},html:'Launch Settings'}));
+card.append(h('p',{cls:'mono',style:{marginBottom:'16px'},html:'Controls signup behaviour before and after launch'}));
+const launchModeRow=div({style:{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'16px',background:'var(--card2)',border:'1px solid var(--border)',borderRadius:'4px',marginBottom:'8px'}});
+const launchModeLabel=div({});
+launchModeLabel.append(h('div',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'14px',color:'var(--text)',fontWeight:'600',marginBottom:'4px'},html:'Launch Mode'}),h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'12px',color:'var(--muted)'},html:'OFF = new signups land on Pending, no auto free tier. ON = normal behaviour, free tier assigned immediately.'}));
+const launchToggle=div({style:{width:'48px',height:'26px',borderRadius:'13px',background:set.launch_mode?'var(--teal)':'var(--border)',cursor:'pointer',position:'relative',transition:'background .2s',flexShrink:'0'}});
+const launchKnob=div({style:{width:'20px',height:'20px',borderRadius:'50%',background:'#fff',position:'absolute',top:'3px',left:set.launch_mode?'25px':'3px',transition:'left .2s'}});
+launchToggle.append(launchKnob);
+let launchModeVal=set.launch_mode||false;
+launchToggle.onclick=()=>{launchModeVal=!launchModeVal;launchToggle.style.background=launchModeVal?'var(--teal)':'var(--border)';launchKnob.style.left=launchModeVal?'25px':'3px';};
+launchModeRow.append(launchModeLabel,launchToggle);
+card.append(launchModeRow);
 const sm=div({cls:'ok',style:{display:'none',marginTop:'12px'},html:'✓ Settings saved!'});
 const saveBtn=btn('Save Settings','btn-gold',async()=>{
-const obj={id:1,video_url:vI.value,community_link:comI.value,support_email:supI.value,noise_rain:nrI.value,noise_ocean:noI.value,noise_cafe:ncI.value,noise_white:nwI.value};
+const obj={id:1,video_url:vI.value,community_link:comI.value,support_email:supI.value,noise_rain:nrI.value,noise_ocean:noI.value,noise_cafe:ncI.value,noise_white:nwI.value,launch_mode:launchModeVal};
 Object.keys(lIs).forEach(k=>obj[k]=lIs[k].value);
 const{error}=await sb.from('admin_settings').upsert(obj);
 if(error){alert('Save error: '+error.message);return;}
@@ -3288,8 +3313,16 @@ function switchSubTab(key){
       if(u.plan==='6 Months')select.value='180';
       else if(u.plan==='Yearly')select.value='365';
       else select.value='30';
-      const actionsDiv=div({style:{display:'flex',gap:'8px',alignItems:'center'}});
-      actionsDiv.append(select,
+      const actionsDiv=div({style:{display:'flex',gap:'8px',alignItems:'center',flexWrap:'wrap'}});
+      const testAccessWrap=div({style:{display:'flex',alignItems:'center',gap:'8px',padding:'4px 10px',background:'var(--card2)',border:'1px solid var(--border)',borderRadius:'4px'}});
+      const testLabel=h('span',{style:{fontFamily:"Inter,sans-serif",fontSize:'11px',color:'var(--muted)'},html:'Test Access'});
+      const testToggle=div({style:{width:'36px',height:'20px',borderRadius:'10px',background:u.test_access?'var(--teal)':'var(--border)',cursor:'pointer',position:'relative',transition:'background .2s',flexShrink:'0'}});
+      const testKnob=div({style:{width:'14px',height:'14px',borderRadius:'50%',background:'#fff',position:'absolute',top:'3px',left:u.test_access?'19px':'3px',transition:'left .2s'}});
+      testToggle.append(testKnob);
+      let testAccessVal=u.test_access||false;
+      testToggle.onclick=async()=>{testAccessVal=!testAccessVal;testToggle.style.background=testAccessVal?'var(--teal)':'var(--border)';testKnob.style.left=testAccessVal?'19px':'3px';await sb.from('profiles').update({test_access:testAccessVal}).eq('id',u.id);};
+      testAccessWrap.append(testLabel,testToggle);
+      actionsDiv.append(testAccessWrap,select,
         btn('Approve','btn-teal',async()=>{
           const days=parseInt(select.value,10);
           const exp=new Date();exp.setDate(exp.getDate()+days);
