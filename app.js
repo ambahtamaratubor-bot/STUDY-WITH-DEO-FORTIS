@@ -685,6 +685,8 @@ h('p',{cls:'muted',style:{fontSize:'16px',lineHeight:'1.8',maxWidth:'520px'},htm
 );
 const hbtns=div({style:{display:'flex',gap:'16px',marginTop:'32px',flexWrap:'wrap',alignItems:'center'}});
 hbtns.append(h('a',{cls:'btn btn-gold',href:'#plans',html:'View Plans →'}));
+const rsvpBtn=btn('🎉 RSVP — Launch Event','btn-rsvp',()=>showRsvpModal(),{style:{padding:'12px 24px',fontSize:'12px',letterSpacing:'0.5px',borderRadius:'2px'}});
+hbtns.append(rsvpBtn);
 const vbtn=div({style:{display:'inline-flex',alignItems:'center',gap:'10px',padding:'12px 24px',border:'1px solid var(--border)',borderRadius:'2px',fontFamily:"Inter,sans-serif",fontSize:'11px',letterSpacing:'2px',textTransform:'uppercase',color:'var(--muted)',cursor:'pointer'}});
 vbtn.append(div({style:{width:'24px',height:'24px',borderRadius:'50%',border:'1px solid var(--dim)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'10px',color:'var(--gold)',html:'▶'}}),document.createTextNode('Watch Demo (Optional)'));
 vbtn.onclick=()=>showVidModal(cfg.video);
@@ -877,6 +879,47 @@ const tsg=document.getElementById('ts-grid');
 if(ts&&ts.length&&tss&&tsg){tss.style.display='block';ts.forEach(t=>{const c=div({cls:'card'});c.append(div({style:{fontSize:'24px',color:'var(--gold)',marginBottom:'16px',opacity:'.6'},html:'"'}),h('p',{style:{fontSize:'15px',color:'var(--muted)',lineHeight:'1.8',marginBottom:'20px',fontStyle:'italic',fontWeight:'300'},html:t.content}),div({style:{borderTop:'1px solid var(--border)',paddingTop:'16px'}},[div({style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'15px',color:'var(--text)',fontWeight:'600'},html:t.name}),t.title?div({cls:'mono',style:{marginTop:'4px'},html:t.title}):null].filter(Boolean)));tsg.append(c);});}
 })();
 return page;
+}
+function showRsvpModal(){
+const ov=div({cls:'modal-bg'});
+ov.onclick=e=>{if(e.target===ov)ov.remove();};
+const box=div({cls:'card',style:{maxWidth:'480px',width:'100%'}});
+const errEl=div({cls:'err hidden'});
+const okEl=div({cls:'ok hidden'});
+const nameI=inp('Your full name');
+const emailI=inp('your@email.com','email');
+const submitBtn=btn('Reserve My Spot →','btn-gold',async()=>{
+  errEl.classList.add('hidden');
+  if(!nameI.value.trim()||!emailI.value.trim()){errEl.classList.remove('hidden');errEl.textContent='Please fill in your name and email.';return;}
+  submitBtn.textContent='Saving...';submitBtn.disabled=true;
+  const{error}=await sb.from('rsvp').insert({name:nameI.value.trim(),email:emailI.value.trim().toLowerCase()});
+  if(error&&error.code!=='23505'){errEl.classList.remove('hidden');errEl.textContent='Something went wrong. Please try again.';submitBtn.textContent='Reserve My Spot →';submitBtn.disabled=false;return;}
+  box.innerHTML='';
+  box.append(
+    div({style:{textAlign:'center',padding:'16px 0'}},[
+      div({style:{fontSize:'48px',marginBottom:'16px'},html:'🎉'}),
+      h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'24px',color:'var(--gold)',marginBottom:'12px'},html:"You're in!"}),
+      h('p',{cls:'muted',style:{fontSize:'14px',lineHeight:'1.8',marginBottom:'24px'},html:'Check your email for the Zoom link and everything you need for the Deo Fortis launch event on June 7.'}),
+      btn('Close','btn-outline',()=>ov.remove(),{style:{width:'100%'}})
+    ])
+  );
+},{style:{width:'100%',padding:'16px',marginTop:'8px'}});
+box.append(
+  div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'8px'}},[
+    h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'22px'},html:'RSVP — Launch Event'}),
+    btn('✕','',()=>ov.remove(),{style:{background:'none',border:'none',color:'var(--muted)',fontSize:'18px',cursor:'pointer'}})
+  ]),
+  div({style:{background:'var(--gold-subtle)',border:'1px solid var(--gold-border)',borderRadius:'4px',padding:'12px 16px',marginBottom:'20px'}},[
+    div({style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'13px',color:'var(--gold)',fontWeight:'600',marginBottom:'4px'},html:'📅 Sunday, June 7, 2026 — Launch Day'}),
+    div({style:{fontFamily:"Inter,sans-serif",fontSize:'12px',color:'var(--muted)'},html:'You will receive the Zoom link + a discount code + Kahoot details by email.'})
+  ]),
+  errEl,okEl,
+  field('Full Name',nameI),
+  field('Email',emailI),
+  submitBtn,
+  h('p',{style:{fontFamily:"Inter,sans-serif",fontSize:'11px',color:'var(--dim)',textAlign:'center',marginTop:'12px'},html:'Free to attend. No payment required.'})
+);
+ov.append(box);document.body.append(ov);
 }
 function showEnrolModal(plan, selarLink){
 const ov=div({cls:'modal-bg'});
