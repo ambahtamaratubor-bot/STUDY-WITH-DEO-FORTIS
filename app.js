@@ -1532,13 +1532,16 @@ if(S.profile?.has_new_content){
       div({style:{lineHeight:'1'},html:ICONS.brain}),
       div({},[
         div({style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'16px',color:'var(--teal)',fontWeight:'600',marginBottom:'2px'},html:'Your recall content is ready!'}),
-        div({style:{fontSize:'13px',color:'var(--muted)'},html:'Your active recall request has been fulfilled. Go to Flashcards or Q-Bank to access it.'})
+        div({style:{fontSize:'13px',color:'var(--muted)'},html:'Your active recall request has been fulfilled. Scroll down to view your Theory content, or go to Flashcards / Q-Bank.'})
       ])
     ]),
-    btn('Dismiss','',async()=>{
-      await sb.from('profiles').update({has_new_content:false}).eq('id',S.user.id);
-      banner.remove();
-    },{style:{background:'none',border:'1px solid var(--teal)',color:'var(--teal)',fontSize:'11px',padding:'6px 12px',flexShrink:'0'}})
+    div({style:{display:'flex',gap:'8px',flexShrink:'0'}},[
+      btn('View Content','btn-teal',()=>{const el=Array.from(container.children).find(c=>c.id==='theory-card'||c.querySelector('h3'));if(el)el.scrollIntoView({behavior:'smooth'});},{style:{fontSize:'11px',padding:'6px 12px'}}),
+      btn('Dismiss','',async()=>{
+        await sb.from('profiles').update({has_new_content:false}).eq('id',S.user.id);
+        banner.remove();
+      },{style:{background:'none',border:'1px solid var(--teal)',color:'var(--teal)',fontSize:'11px',padding:'6px 12px'}})
+    ])
   );
   container.append(banner);
 }
@@ -1706,7 +1709,8 @@ twoCol.append(recentCard);
       actionButton(ICONS.layers,'Flashcards',()=>go('flashcards')),
       actionButton(ICONS.trophy,'Leaderboard',()=>go('leaderboard')),
       actionButton(ICONS.message,'Community',()=>{if(commLink&&commLink!=='#')window.open(commLink,'_blank');}),
-      actionButton(ICONS.brain,'Feynman Arena',()=>go('feynman'))
+      actionButton(ICONS.brain,'Feynman Arena',()=>go('feynman')),
+      actionButton(ICONS.book,'My Notes',()=>{const el=Array.from(container.children).find(c=>c.id==='notes-card');if(el)el.scrollIntoView({behavior:'smooth'});})
     ])
   );
   twoCol.append(actionsCard);
