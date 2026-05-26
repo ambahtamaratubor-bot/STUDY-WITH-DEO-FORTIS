@@ -214,7 +214,66 @@ inner.append(pdfCard);
 page.append(nav,inner);
 return page;
 }
-const pages={landing,signup,login,pending,dashboard,study,flashcards,vignette,leaderboard,admin,feynman,theory};
+function notes(){
+const page=div({});
+const nav=div({cls:'dash-nav'});
+const logo=div({cls:'logo',html:'Deo Fortis'});
+const dashboardBtn=btn('← Dashboard','btn-outline',()=>go('dashboard'),{style:{padding:'8px 16px'}});
+nav.append(logo,div({style:{display:'flex',gap:'12px',alignItems:'center'}},[dashboardBtn,makeThemeBtn()]));
+const inner=div({cls:'inner'});
+inner.append(h('span',{cls:'chapter',html:'My Notes'}),h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'26px',marginBottom:'8px'},html:'My Notes'}),h('p',{cls:'muted',style:{fontSize:'14px',marginBottom:'32px'},html:'Your saved recall responses, organised by topic.'}));
+async function loadNotes(){
+const{data:nlist}=await sb.from('notes').select('*').eq('user_id',S.user.id).order('created_at',{ascending:false});
+Array.from(inner.children).forEach(c=>{if(c.id==='notes-content')c.remove();});
+const notesContent=div({});notesContent.id='notes-content';
+if(!nlist||nlist.length===0){const emptyCard=div({cls:'card',style:{textAlign:'center',padding:'40px'}});emptyCard.append(h('p',{style:{color:'var(--muted)',fontSize:'14px'},html:'No notes yet. Complete an active recall session in Theory Hub to save your first note.'}));notesContent.append(emptyCard);}
+else{
+const grouped={};nlist.forEach(n=>{const key=n.folder||'General';if(!grouped[key])grouped[key]=[];grouped[key].push(n);});
+for(const folderName in grouped){
+const ids=grouped[folderName].map(n=>n.id);
+const folderHeader=div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginTop:'24px',marginBottom:'8px'}});
+const folderInput=h('input',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'13px',fontWeight:'700',color:'var(--gold)',letterSpacing:'1px',textTransform:'uppercase',background:'transparent',border:'none',borderBottom:'1px solid transparent',padding:'2px 4px',cursor:'text',width:'200px'}});
+folderInput.value=folderName;
+folderInput.onfocus=()=>{folderInput.style.borderBottom='1px solid var(--gold)';};
+folderInput.onblur=async()=>{folderInput.style.borderBottom='1px solid transparent';if(folderInput.value.trim()&&folderInput.value.trim()!==folderName){await sb.from('notes').update({folder:folderInput.value.trim()}).in('id',ids);loadNotes();}};
+const deleteFolderBtn=btn('Delete Folder','btn-outline',async()=>{if(!confirm('Delete all notes in "'+folderName+'"?'))return;await sb.from('notes').delete().in('id',ids);loadNotes();},{style:{fontSize:'10px',padding:'3px 8px',color:'#ff4444',borderColor:'#ff4444'}});
+folderHeader.append(folderInput,deleteFolderBtn);notesContent.append(folderHeader);
+grouped[folderName].forEach(n=>{
+const noteCard=div({cls:'card',style:{marginBottom:'12px'}});
+const headerRow=div({style:{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:'8px'}});
+const titleInput=h('input',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'16px',fontWeight:'600',color:'var(--text)',background:'transparent',border:'none',borderBottom:'1px solid transparent',padding:'2px 4px',cursor:'text',width:'100%'}});
+titleInput.value=n.title;
+titleInput.onfocus=()=>{titleInput.style.borderBottom='1px solid var(--teal)';};
+titleInput.onblur=async()=>{titleInput.style.borderBottom='1px solid transparent';if(titleInput.value.trim()&&titleInput.value.trim()!==n.title){await sb.from('notes').update({title:titleInput.value.trim()}).eq('id',n.id);n.title=titleInput.value.trim();}};
+const exportHandler=()=>{const win=window.open('','_blank');let html='<!DOCTYPE html><html><head><meta charset="UTF-8"><title>'+n.title+'</title><style>body{font-family:Georgia,serif;max-width:600px;margin:40px auto;padding:0 24px;color:#1a1814;background:#fff;}h1{font-size:20px;font-weight:700;margin-bottom:8px;}pre{font-family:inherit;font-size:15px;line-height:1.8;white-space:pre-wrap;color:#333;}</style></head><body>';html+='<div style="text-align:center;margin-bottom:32px;"><div style="font-family:Georgia,serif;font-style:italic;font-size:28px;color:#C8A96E;">Deo Fortis</div><div style="font-size:10px;color:#888;letter-spacing:3px;text-transform:uppercase;margin-top:4px;">Everyone is gifted.</div></div><hr style="border:none;border-top:1px solid #eee;margin:24px 0;"><h1>'+n.title+'</h1><div style="font-size:12px;color:#888;margin-bottom:16px;">Topic: '+n.topic+(n.folder?' &bull; Folder: '+n.folder:'')+'</div><pre>'+n.content+'</pre><div style="text-align:center;margin-top:40px;font-size:11px;color:#aaa;">Deo Fortis &bull; deofortis.work</div></body></html>';win.document.write(html);win.document.close();win.print();};
+const deleteHandler=async()=>{if(!confirm('Delete this note?'))return;await sb.from('notes').delete().eq('id',n.id);loadNotes();};
+const buttonRow=div({style:{display:'flex',gap:'8px'}});
+buttonRow.append(btn('Export','btn-outline',exportHandler,{style:{fontSize:'10px',padding:'4px 10px'}}),btn('Delete','btn-outline',deleteHandler,{style:{fontSize:'10px',padding:'4px 10px',color:'#ff4444',borderColor:'#ff4444'}}));
+headerRow.append(titleInput,buttonRow);
+const metaDiv=div({style:{fontSize:'11px',color:'var(--dim)',marginBottom:'12px'}});metaDiv.textContent=new Date(n.created_at).toLocaleDateString()+' · '+n.topic;
+let isEditing=false;
+const viewDiv=div({style:{fontSize:'14px',color:'var(--muted)',lineHeight:'1.8',whiteSpace:'pre-wrap'}});viewDiv.textContent=n.content;
+const editDiv=div({style:{display:'none'}});
+const ta=h('textarea',{cls:'input',style:{minHeight:'160px',resize:'vertical',marginBottom:'8px'}},[]);ta.value=n.content;ta.placeholder='Edit your note...';
+const moveRow=div({style:{display:'flex',gap:'8px',alignItems:'center',marginBottom:'8px'}});moveRow.append(h('span',{style:{fontSize:'12px',color:'var(--muted)'}},['Folder:']));
+const moveInput=h('input',{cls:'input',style:{fontSize:'12px',padding:'4px 8px',flex:'1'}});moveInput.value=n.folder||'';moveInput.placeholder='Folder name';
+const saveStatus=div({style:{fontSize:'11px',color:'var(--teal)',marginTop:'4px',display:'none'}},[]);
+const saveEditHandler=async()=>{await sb.from('notes').update({content:ta.value.trim(),folder:moveInput.value.trim()||null,updated_at:new Date().toISOString()}).eq('id',n.id);saveStatus.style.display='block';saveStatus.textContent='Saved!';setTimeout(()=>{n.content=ta.value.trim();n.folder=moveInput.value.trim()||null;viewDiv.textContent=ta.value.trim();editDiv.style.display='none';viewDiv.style.display='block';editBtn.textContent='Edit';isEditing=false;saveStatus.style.display='none';loadNotes();},1500);};
+const saveBtn=btn('Save','btn-teal',saveEditHandler,{style:{fontSize:'11px',padding:'6px 14px'}});
+moveRow.append(moveInput,saveBtn);editDiv.append(ta,moveRow,saveStatus);
+const toggleEdit=()=>{if(isEditing){editDiv.style.display='none';viewDiv.style.display='block';editBtn.textContent='Edit';isEditing=false;}else{editDiv.style.display='block';viewDiv.style.display='none';editBtn.textContent='Cancel';isEditing=true;}};
+const editBtn=btn('Edit','btn-outline',toggleEdit,{style:{fontSize:'10px',padding:'4px 10px',marginBottom:'12px'}});
+noteCard.append(headerRow,metaDiv,editBtn,viewDiv,editDiv);notesContent.append(noteCard);
+});
+}
+}
+inner.append(notesContent);
+}
+loadNotes();
+page.append(nav,inner);
+return page;
+}
+const pages={landing,signup,login,pending,dashboard,study,flashcards,vignette,leaderboard,admin,feynman,theory,notes};
 root.append((pages[S.page]||landing)());
 if(window.activeSessionId){showNoiseBar();showTimerBar();}else{removeNoiseBar();removeTimerBar();}
 }
@@ -1760,7 +1819,7 @@ twoCol.append(recentCard);
       actionButton(ICONS.message,'Community',()=>{if(commLink&&commLink!=='#')window.open(commLink,'_blank');}),
       actionButton(ICONS.brain,'Feynman Arena',()=>go('feynman')),
       actionButton(ICONS.file,'Theory Hub',()=>go('theory')),
-      actionButton(ICONS.book,'My Notes',()=>{const el=Array.from(container.children).find(c=>c.id==='notes-card');if(el)el.scrollIntoView({behavior:'smooth'});})
+      actionButton(ICONS.book,'My Notes',()=>go('notes'))
     ])
   );
   twoCol.append(actionsCard);
@@ -1792,47 +1851,6 @@ twoCol.append(recentCard);
   supCard.append(h('div',{style:{fontSize:'20px'},html:ICONS.mail}),supTxt);
   container.append(supCard);
 })();
-async function loadNotes(){
-  const{data:notes}=await sb.from('notes').select('*').eq('user_id',S.user.id).order('created_at',{ascending:false});
-  if(!notes||notes.length===0)return;
-  Array.from(container.children).forEach(c=>{if(c.id==='notes-card')c.remove();});
-  const notesCard=div({cls:'card',style:{marginTop:'12px'}});
-  notesCard.id='notes-card';
-  const heading=h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'18px',marginBottom:'16px'}},[]);
-  heading.textContent='My Notes';notesCard.append(heading);
-  const grouped={};
-  notes.forEach(n=>{const key=n.folder||'General';if(!grouped[key])grouped[key]=[];grouped[key].push(n);});
-  for(const folderName in grouped){
-    const folderHeader=div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginTop:'16px',marginBottom:'8px'}});
-    const folderLabel=h('div',{style:{fontSize:'11px',fontWeight:'700',color:'var(--gold)',letterSpacing:'1px',textTransform:'uppercase'}},[]);
-    folderLabel.textContent=folderName;
-    const deleteFolderBtn=btn('Delete Folder','btn-outline',async()=>{if(!confirm('Delete all notes in "'+folderName+'"?'))return;const ids=grouped[folderName].map(n=>n.id);await sb.from('notes').delete().in('id',ids);loadNotes();},{style:{fontSize:'10px',padding:'3px 8px',color:'#ff4444',borderColor:'#ff4444'}});
-    folderHeader.append(folderLabel,deleteFolderBtn);notesCard.append(folderHeader);
-    grouped[folderName].forEach(n=>{
-      const leftDiv=div({style:{flex:'1',marginRight:'12px'}});
-      const titleDiv=h('div',{style:{fontSize:'14px',color:'var(--text)'}},[]);titleDiv.textContent=n.title;
-      const previewDiv=h('div',{style:{fontSize:'12px',color:'var(--muted)',marginTop:'4px'}},[]);previewDiv.textContent=n.content.length>80?n.content.substring(0,80)+'...':n.content;
-      const dateDiv=h('div',{style:{fontSize:'11px',color:'var(--dim)',marginTop:'2px'}},[]);dateDiv.textContent=new Date(n.created_at).toLocaleDateString();
-      leftDiv.append(titleDiv,previewDiv,dateDiv);
-      const exportHandler=()=>{const win=window.open('','_blank');let html='<!DOCTYPE html><html><head><meta charset="UTF-8"><title>'+n.title+'</title><style>body{font-family:Georgia,serif;max-width:600px;margin:40px auto;padding:0 24px;color:#1a1814;background:#fff;}h1{font-size:20px;font-weight:700;margin-bottom:8px;}pre{font-family:inherit;font-size:15px;line-height:1.8;white-space:pre-wrap;color:#333;}</style></head><body>';html+='<div style="text-align:center;margin-bottom:32px;">';html+='<div style="font-family:Georgia,serif;font-style:italic;font-size:28px;color:#C8A96E;">Deo Fortis</div>';html+='<div style="font-size:10px;color:#888;letter-spacing:3px;text-transform:uppercase;margin-top:4px;">Everyone is gifted.</div>';html+='</div>';html+='<hr style="border:none;border-top:1px solid #eee;margin:24px 0;">';html+='<h1>'+n.title+'</h1>';html+='<div style="font-size:12px;color:#888;margin-bottom:16px;">Topic: '+n.topic+(n.folder?' &bull; Folder: '+n.folder:'')+'</div>';html+='<pre>'+n.content+'</pre>';html+='<div style="text-align:center;margin-top:40px;font-size:11px;color:#aaa;">Deo Fortis &bull; deofortis.work</div>';html+='</body></html>';win.document.write(html);win.document.close();win.print();};
-      const moveInput=h('input',{cls:'input',style:{fontSize:'11px',padding:'4px 8px',marginBottom:'4px'}});
-      moveInput.placeholder='New folder name';moveInput.value=n.folder||'';
-      const confirmMoveHandler=async()=>{if(!moveInput.value.trim())return;await sb.from('notes').update({folder:moveInput.value.trim()}).eq('id',n.id);loadNotes();};
-      const confirmMoveBtn=btn('Confirm','btn-teal',confirmMoveHandler,{style:{fontSize:'10px',padding:'4px 10px'}});
-      const moveArea=div({style:{display:'none',marginTop:'6px'}});moveArea.append(moveInput,confirmMoveBtn);
-      const moveHandler=()=>{moveArea.style.display=moveArea.style.display==='none'?'block':'none';};
-      const deleteHandler=async()=>{if(!confirm('Delete this note?'))return;await sb.from('notes').delete().eq('id',n.id);loadNotes();};
-      const topBtnRow=div({style:{display:'flex',gap:'6px'}});
-      topBtnRow.append(btn('Export','btn-outline',exportHandler,{style:{fontSize:'10px',padding:'4px 10px'}}),btn('Move','btn-outline',moveHandler,{style:{fontSize:'10px',padding:'4px 10px'}}),btn('Delete','btn-outline',deleteHandler,{style:{fontSize:'10px',padding:'4px 10px',color:'#ff4444',borderColor:'#ff4444'}}));
-      const rightDiv=div({style:{display:'flex',gap:'6px',flexDirection:'column',alignItems:'flex-end'}});
-      rightDiv.append(topBtnRow,moveArea);
-      const noteRow=div({style:{padding:'10px 0',borderBottom:'1px solid var(--border)',display:'flex',justifyContent:'space-between',alignItems:'flex-start'}});
-      noteRow.append(leftDiv,rightDiv);notesCard.append(noteRow);
-    });
-  }
-  container.append(notesCard);
-}
-loadNotes();
 
 // LOAD SESSIONS
 async function loadSess(){
@@ -2216,7 +2234,7 @@ br.append(
 );
 card.append(br);
 const qr=div({style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'10px'}});
-qr.append(btn('Flashcards','btn-outline',()=>go('flashcards'),{style:{fontSize:'11px'}}),btn('Q-Bank','btn-outline',()=>go('vignette'),{style:{fontSize:'11px'}}),btn('My Notes','btn-outline',()=>go('dashboard'),{style:{fontSize:'11px'}}));
+qr.append(btn('Flashcards','btn-outline',()=>go('flashcards'),{style:{fontSize:'11px'}}),btn('Q-Bank','btn-outline',()=>go('vignette'),{style:{fontSize:'11px'}}),btn('My Notes','btn-outline',()=>go('notes'),{style:{fontSize:'11px'}}));
 card.append(qr);
 card.append(
   div({style:{fontFamily:"Inter,sans-serif",fontSize:'9px',color:'var(--dim)',textAlign:'center',marginTop:'8px',letterSpacing:'1px'},html:'Step away? Click End Session to save your progress.'}),
