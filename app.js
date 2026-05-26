@@ -2543,7 +2543,7 @@ function renderQuestionText(text, container){
     tableWrap.append(row);
   });
   container.append(tableWrap);
-  if(after.trim()){var pAfter=h('p',{style:{fontSize:'15px',color:'var(--text)',lineHeight:'1.8',marginTop:'14px'}},[]);pAfter.textContent=after.trim();container.append(pAfter);}
+  if(after.trim()){var pAfter=h('p',{style:{fontSize:'15px',color:'var(--text)',lineHeight:'1.8',marginTop:'14px'}},[]);pAfter.textContent=after.replace(/^[\s\.\,;]+/,'');container.append(pAfter);}
 }
 function updateQ(){
 if(activeHighlightBtn){activeHighlightBtn.remove();activeHighlightBtn=null;}
