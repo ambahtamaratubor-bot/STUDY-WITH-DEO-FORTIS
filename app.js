@@ -910,7 +910,14 @@ pg.append(customCard);
 const[testimonialsRes,reviewsRes]=await Promise.all([sb.from('testimonials').select('*').order('created_at',{ascending:false}),sb.from('reviews').select('*').eq('approved',true).order('created_at',{ascending:false})]);
 const testimonials=testimonialsRes.data||[];const reviews=reviewsRes.data||[];
 const allItems=[...testimonials,...reviews].sort((a,b)=>new Date(b.created_at)-new Date(a.created_at));
-if(allItems.length){tsSection.style.display='block';allItems.forEach(item=>{const card=div({cls:'card'});const quoteDiv=div({style:{fontSize:'24px',color:'var(--gold)',marginBottom:'16px',opacity:'.6'}});quoteDiv.textContent='"';const contentP=h('p',{style:{fontSize:'15px',color:'var(--muted)',lineHeight:'1.8',marginBottom:'20px',fontStyle:'italic',fontWeight:'300'}},[]);contentP.textContent=item.content;const nameDiv=div({style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'15px',color:'var(--text)',fontWeight:'600'}});nameDiv.textContent=item.name;const footerChildren=[nameDiv];if(item.title){const titleDiv=div({cls:'mono',style:{marginTop:'4px'}});titleDiv.textContent=item.title;footerChildren.push(titleDiv);}const footer=div({style:{borderTop:'1px solid var(--border)',paddingTop:'16px'}},footerChildren);card.append(quoteDiv,contentP,footer);tsGrid.append(card);});}
+if(allItems.length){tsSection.style.display='block';
+  const initialItems=allItems.slice(0,4);const remainingItems=allItems.slice(4);
+  let expanded=false;let extraCards=[];let toggleBtn=null;
+  function renderCards(items,container){items.forEach(item=>{const card=div({cls:'card'});const quoteDiv=div({style:{fontSize:'24px',color:'var(--gold)',marginBottom:'16px',opacity:'.6'}});quoteDiv.textContent='"';const contentP=h('p',{style:{fontSize:'15px',color:'var(--muted)',lineHeight:'1.8',marginBottom:'20px',fontStyle:'italic',fontWeight:'300'}},[]);contentP.textContent=item.content;const nameDiv=div({style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'15px',color:'var(--text)',fontWeight:'600'}});nameDiv.textContent=item.name;const footerChildren=[nameDiv];if(item.title){const titleDiv=div({cls:'mono',style:{marginTop:'4px'}});titleDiv.textContent=item.title;footerChildren.push(titleDiv);}const footer=div({style:{borderTop:'1px solid var(--border)',paddingTop:'16px'}},footerChildren);card.append(quoteDiv,contentP,footer);container.append(card);});}
+  renderCards(initialItems,tsGrid);
+  function toggleReviews(){if(!expanded){const tempDiv=div({});renderCards(remainingItems,tempDiv);extraCards=Array.from(tempDiv.children);extraCards.forEach(card=>tsGrid.append(card));toggleBtn.textContent='Show less';expanded=true;}else{extraCards.forEach(card=>card.remove());extraCards=[];toggleBtn.textContent='Show more';expanded=false;tsGrid.scrollIntoView({behavior:'smooth',block:'start'});}}
+  if(remainingItems.length>0){toggleBtn=btn('Show more','btn-outline',toggleReviews,{style:{fontSize:'12px',padding:'10px 24px'}});const toggleContainer=div({style:{textAlign:'center',marginTop:'12px'}});toggleContainer.append(toggleBtn);tsSection.append(toggleContainer);}
+}
 })();
 })();
 return page;
@@ -3885,6 +3892,7 @@ row.append(info,btn('✕','',async()=>{await sb.from('testimonials').delete().eq
 lc.append(row);
 });
 content.append(lc);
+(async()=>{const{data:approvedReviews}=await sb.from('reviews').select('*').eq('approved',true).order('created_at',{ascending:false});if(approvedReviews&&approvedReviews.length){const approvedCard=div({cls:'card',style:{marginTop:'24px'}});approvedCard.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'18px',marginBottom:'16px'},html:'Approved Reviews ('+approvedReviews.length+')'}));approvedReviews.forEach(r=>{const contentPreview=r.content.length>120?r.content.substring(0,120)+'...':r.content;const row=div({style:{padding:'16px 0',borderBottom:'1px solid var(--border)',display:'flex',justifyContent:'space-between',alignItems:'flex-start'}});const info=div({style:{flex:'1'}});const nameHtml=r.name+(r.title?' · <span style="color:var(--dim);font-size:12px">'+r.title+'</span>':'');info.append(div({style:{fontSize:'14px',color:'var(--text)',marginBottom:'4px'},html:nameHtml}),h('p',{style:{fontSize:'13px',color:'var(--muted)',fontStyle:'italic'},html:contentPreview}));const deleteBtn=btn('x','',async()=>{await sb.from('reviews').delete().eq('id',r.id);loadTab('testimonials');},{style:{background:'none',border:'none',color:'#8B0000',cursor:'pointer',fontSize:'16px',marginLeft:'12px'}});row.append(info,deleteBtn);approvedCard.append(row);});content.append(approvedCard);}})();
 }
 }
 if(tab==='packages'){
