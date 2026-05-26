@@ -657,6 +657,37 @@ function showRestDaysModal(){
 // ═══════════════════════════════
 // LANDING
 // ═══════════════════════════════
+function showReviewModal(){
+const overlay=div({cls:'modal-bg'});
+const modalBox=div({cls:'card',style:{maxWidth:'480px',width:'100%'}});
+const headerRow=div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'8px'}});
+const titleEl=h('h3',{style:{fontFamily:"'Playfair Display',serif",fontSize:'22px',color:'var(--gold)',margin:'0'}},['Leave a Review']);
+const closeBtn=btn('\u2715','',()=>overlay.remove(),{style:{background:'none',border:'none',color:'var(--muted)',fontSize:'18px',cursor:'pointer'}});
+headerRow.append(titleEl,closeBtn);
+const note=div({style:{fontSize:'11px',color:'var(--dim)',fontStyle:'italic',marginBottom:'16px'}},['Your name will appear publicly. Please use your real name.']);
+const nameI=inp('Your name','text','');
+const titleI=inp('e.g. USMLE Step 1 Student','text','');
+const reviewTA=h('textarea',{cls:'input',style:{minHeight:'100px',resize:'vertical',marginBottom:'4px'},placeholder:'Share your experience with Deo Fortis...'},[]);
+const footerNote=div({style:{fontSize:'10px',color:'var(--dim)',marginBottom:'16px'}},['Reviews are approved before publishing.']);
+const errEl=div({cls:'err hidden'});
+const submitBtn=btn('Submit Review \u2192','btn-gold',null,{style:{width:'100%'}});
+modalBox.append(headerRow,note,field('Full Name',nameI),field('Title (optional)',titleI),field('Review',reviewTA),footerNote,errEl,submitBtn);
+overlay.append(modalBox);document.body.append(overlay);
+overlay.onclick=(e)=>{if(e.target===overlay)overlay.remove();};
+submitBtn.onclick=async()=>{
+const name=nameI.value.trim();const c=reviewTA.value.trim();
+if(!name||!c){errEl.classList.remove('hidden');errEl.textContent='Please provide both your name and review content.';return;}
+errEl.classList.add('hidden');
+const{error}=await sb.from('reviews').insert({name:name,title:titleI.value.trim(),content:c,approved:false});
+if(error){errEl.classList.remove('hidden');errEl.textContent=error.message||'Failed to submit. Please try again.';return;}
+modalBox.innerHTML='';
+const ty=div({style:{textAlign:'center',padding:'20px 0'}});
+const tyTitle=h('h3',{style:{fontFamily:"'Playfair Display',serif",fontSize:'22px',color:'var(--gold)',marginBottom:'16px'}},['\U0001f525 Thank you!']);
+const tyMsg=div({style:{fontSize:'14px',color:'var(--muted)',marginBottom:'24px'}},['Your review has been submitted and will appear once approved.']);
+ty.append(tyTitle,tyMsg,btn('Close','btn-outline',()=>overlay.remove(),{style:{width:'100%'}}));
+modalBox.append(ty);
+};
+}
 function landing(){
 const page=div({});
 let scrolled=false;
@@ -823,7 +854,8 @@ page.append(gameSection);
 
 // TESTIMONIALS
 const tsSection=div({cls:'section',id:'ts-section',style:{display:'none'}});
-tsSection.append(div({cls:'divider'}),h('br'),h('span',{cls:'chapter',html:'Chapter IV — Results'}),h('h2',{cls:'big',style:{marginBottom:'40px'},html:"What Students<br><em class='gold-em'>Are Saying</em>"}),div({cls:'grid-auto',id:'ts-grid'}));
+const tsGrid=div({cls:'grid-auto',id:'ts-grid'});
+tsSection.append(div({cls:'divider'}),h('br'),h('span',{cls:'chapter',html:'Chapter IV — Results'}),h('h2',{cls:'big',style:{marginBottom:'40px'},html:"What Students<br><em class='gold-em'>Are Saying</em>"}),tsGrid,div({style:{textAlign:'center',marginTop:'32px'}},[btn('+ Add a Review','btn-outline',()=>showReviewModal(),{style:{fontSize:'12px',padding:'10px 24px'}})]));
 page.append(tsSection);
 // HOW
 const howSection=div({cls:'section'});
@@ -874,7 +906,12 @@ customBtn.href=s?.link_custom||'#';customBtn.target='_blank';
 customCard.append(customBtn,h('p',{style:{fontFamily:"Inter,sans-serif",fontSize:'10px',color:'var(--dim)',textAlign:'center',marginTop:'12px',letterSpacing:'1px',textTransform:'uppercase'},html:'One session · No commitment'}));
 pg.append(customCard);
 }}
-const{data:ts}=await sb.from('testimonials').select('*').order('created_at',{ascending:false});
+(async()=>{
+const[testimonialsRes,reviewsRes]=await Promise.all([sb.from('testimonials').select('*').order('created_at',{ascending:false}),sb.from('reviews').select('*').eq('approved',true).order('created_at',{ascending:false})]);
+const testimonials=testimonialsRes.data||[];const reviews=reviewsRes.data||[];
+const allItems=[...testimonials,...reviews].sort((a,b)=>new Date(b.created_at)-new Date(a.created_at));
+if(allItems.length){tsSection.style.display='block';allItems.forEach(item=>{const card=div({cls:'card'});const quoteDiv=div({style:{fontSize:'24px',color:'var(--gold)',marginBottom:'16px',opacity:'.6'}});quoteDiv.textContent='"';const contentP=h('p',{style:{fontSize:'15px',color:'var(--muted)',lineHeight:'1.8',marginBottom:'20px',fontStyle:'italic',fontWeight:'300'}},[]);contentP.textContent=item.content;const nameDiv=div({style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'15px',color:'var(--text)',fontWeight:'600'}});nameDiv.textContent=item.name;const footerChildren=[nameDiv];if(item.title){const titleDiv=div({cls:'mono',style:{marginTop:'4px'}});titleDiv.textContent=item.title;footerChildren.push(titleDiv);}const footer=div({style:{borderTop:'1px solid var(--border)',paddingTop:'16px'}},footerChildren);card.append(quoteDiv,contentP,footer);tsGrid.append(card);});}
+})();
 const tss=document.getElementById('ts-section');
 const tsg=document.getElementById('ts-grid');
 if(ts&&ts.length&&tss&&tsg){tss.style.display='block';ts.forEach(t=>{const c=div({cls:'card'});c.append(div({style:{fontSize:'24px',color:'var(--gold)',marginBottom:'16px',opacity:'.6'},html:'"'}),h('p',{style:{fontSize:'15px',color:'var(--muted)',lineHeight:'1.8',marginBottom:'20px',fontStyle:'italic',fontWeight:'300'},html:t.content}),div({style:{borderTop:'1px solid var(--border)',paddingTop:'16px'}},[div({style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'15px',color:'var(--text)',fontWeight:'600'},html:t.name}),t.title?div({cls:'mono',style:{marginTop:'4px'},html:t.title}):null].filter(Boolean)));tsg.append(c);});}
@@ -1708,8 +1745,7 @@ twoCol.append(recentCard);
       const row=div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'10px 0',borderBottom:'1px solid var(--border)'}});
       row.append(h('span',{style:{fontSize:'14px',color:'var(--text)'},html:pdf.topic+' — '+pdf.filename}));
       row.append(btn('View PDF','btn-outline',()=>{
-        const win=window.open();
-        win.document.write('<iframe src="data:application/pdf;base64,'+pdf.data+'" style="width:100%;height:100vh;border:none;"></iframe>');
+        const bytes=atob(pdf.data);const arr=new Uint8Array(bytes.length);for(let i=0;i<bytes.length;i++)arr[i]=bytes.charCodeAt(i);const blob=new Blob([arr],{type:'application/pdf'});const url=URL.createObjectURL(blob);window.open(url,'_blank');
       },{style:{fontSize:'11px',padding:'6px 12px'}}));
       pdfCard.append(row);
     });
@@ -2507,43 +2543,24 @@ if(mode==='timed'&&!submitted)sidebar.append(btn('Submit All →','btn-gold',()=
 const mainArea=div({id:'quiz-main'});
 qi.append(sidebar,mainArea);page.append(qi);
 updateQ();
-function renderQuestionText(text, container){
-  var LAB_BLOCK_RE=/Laboratory (?:studies|results|findings|data|values)[^\:]*:\s*([\s\S]+?)(?=\n\n|\.\s*[A-Z][a-z]|$)/i;
-  var LAB_INLINE_RE=/(?:(?:Laboratory|Lab) (?:studies|results|findings|data|values)[^\:]*:|studies show:|results show:|values show:)\s*((?:[^;]+(?:\/[^\s;]+)?\s*\([^)]+\);?\s*)+)/i;
-  var LAB_ITEM_RE=/([^;:\(\)\/\d]+?)\s+([\d,\.]+(?:[-–][\d,\.]+)?\s*(?:\/[\w\u00b5]+)?)\s+(?:U\/L|g\/dL|mg\/dL|mEq\/L|mmol\/L|µmol\/L|umol\/L|IU\/L|ng\/mL|pg\/mL|µg\/dL|ug\/dL|%|\/µL|\/uL|mm\/hr|mm Hg|cm|x10\^?\d+\/?\w*)?\s*\((?:normal\s+)?([^)]+)\)/gi;
-  var match=LAB_BLOCK_RE.exec(text)||LAB_INLINE_RE.exec(text);
-  if(!match){container.append(h('p',{style:{fontSize:'15px',color:'var(--text)',lineHeight:'1.8'}},[]));container.lastElementChild.textContent=text;return;}
-  var matchStart=text.indexOf(match[0]);
-  var before=text.slice(0,matchStart);
-  var after=text.slice(matchStart+match[0].length);
-  var labStr=match[1];
-  var labItems=[];var m2;LAB_ITEM_RE.lastIndex=0;
-  while((m2=LAB_ITEM_RE.exec(labStr))!==null){
-    var n=m2[1].replace(/^[;\s,]+/,'').trim();n=n.charAt(0).toUpperCase()+n.slice(1);
-    labItems.push({name:n,value:m2[2].trim(),normal:m2[3].trim()});
-  }
-  if(!labItems.length){container.append(h('p',{style:{fontSize:'15px',color:'var(--text)',lineHeight:'1.8'}},[]));container.lastElementChild.textContent=text;return;}
-  if(before.trim()){var pBefore=h('p',{style:{fontSize:'15px',color:'var(--text)',lineHeight:'1.8',marginBottom:'14px'}},[]);pBefore.textContent=before.trim();container.append(pBefore);}
-  var labLabel=match[0].slice(0,match[0].indexOf(match[1])).trim().replace(/:$/,'');
-  var tableWrap=div({style:{margin:'16px 0',borderRadius:'3px',border:'1px solid var(--teal-border)',overflow:'hidden'}});
-  var tableHead=div({style:{background:'rgba(126,184,164,0.1)',padding:'8px 16px',borderBottom:'1px solid var(--teal-border)',display:'flex',alignItems:'center',gap:'8px'}});
-  tableHead.append(h('span',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'10px',fontWeight:'700',letterSpacing:'1.5px',textTransform:'uppercase',color:'var(--teal)'},html:'Laboratory Studies'}));
-  tableWrap.append(tableHead);
-  labItems.forEach(function(item){
-    var vals=item.value.split(/\s+/);var numStr=vals[0];var unit=vals.slice(1).join(' ');
-    var num=parseFloat(numStr.replace(/[^\d\.]/g,''));
-    var normParts=item.normal.replace(/\s/g,'').split(/[-–]/);
-    var lo=parseFloat(normParts[0]);var hi=parseFloat(normParts[1]);
-    var abnormal=!isNaN(num)&&!isNaN(lo)&&!isNaN(hi)&&(num<lo||num>hi);
-    var row=div({style:{display:'flex',alignItems:'baseline',padding:'9px 16px',borderBottom:'1px solid var(--border)',background:'transparent'}});
-    var nameEl=h('span',{style:{flex:'1',fontSize:'13px',color:'var(--text)',lineHeight:'1.5'}},[]); nameEl.textContent=item.name;
-    var valEl=h('span',{style:{fontSize:'13px',fontWeight:'400',color:'var(--text)',minWidth:'90px',textAlign:'right'}},[]); valEl.textContent=item.value+(unit?' '+unit:'');
-    var normEl=h('span',{style:{fontSize:'11px',color:'var(--muted)',minWidth:'120px',textAlign:'right',marginLeft:'16px'}},[]); normEl.textContent='('+item.normal+')';
-    row.append(nameEl,valEl,normEl);
-    tableWrap.append(row);
-  });
-  container.append(tableWrap);
-  if(after.trim()){var pAfter=h('p',{style:{fontSize:'15px',color:'var(--text)',lineHeight:'1.8',marginTop:'14px'}},[]);pAfter.textContent=after.replace(/^[\s\.\,;]+/,'');container.append(pAfter);}
+function renderQuestionText(text,container){
+var LAB_INLINE_RE=/(?:(?:Laboratory|Lab) (?:studies|results|findings|data|values)[^:]*:|studies show:|results show:|values show:)\s*((?:[^;]+(?:\/[^\s;]+)?\s*\([^)]+\);?\s*)+)/i;
+var LAB_ITEM_RE=/([^;:()\\/\d]+?)\s+([\d,\.]+(?:[-\u2013][\d,\.]+)?\s*(?:\/[\w\u00b5]+)?)\s+(?:U\/L|g\/dL|mg\/dL|mEq\/L|mmol\/L|\u00b5mol\/L|umol\/L|IU\/L|ng\/mL|pg\/mL|\u00b5g\/dL|ug\/dL|%|\/\u00b5L|\/uL|mm\/hr|mm Hg|cm|x10\^?\d+\/?\\w*)?\s*\((?:normal\s+)?([^)]+)\)/gi;
+var match=LAB_INLINE_RE.exec(text);
+if(!match){var p=h('p',{style:{fontSize:'15px',color:'var(--text)',lineHeight:'1.8'}},[]);p.textContent=text;container.append(p);return;}
+var matchStart=text.indexOf(match[0]);
+var before=text.slice(0,matchStart);var after=text.slice(matchStart+match[0].length);
+var labStr=match[1];var labItems=[];var m2;LAB_ITEM_RE.lastIndex=0;
+while((m2=LAB_ITEM_RE.exec(labStr))!==null){var n=m2[1].replace(/^[;\s,]+/,'').trim();n=n.charAt(0).toUpperCase()+n.slice(1);labItems.push({name:n,value:m2[2].trim(),normal:m2[3].trim()});}
+if(!labItems.length){var p2=h('p',{style:{fontSize:'15px',color:'var(--text)',lineHeight:'1.8'}},[]);p2.textContent=text;container.append(p2);return;}
+if(before.trim()){var pBefore=h('p',{style:{fontSize:'15px',color:'var(--text)',lineHeight:'1.8',marginBottom:'14px'}},[]);pBefore.textContent=before.trim();container.append(pBefore);}
+var tableWrap=div({style:{margin:'16px 0',borderRadius:'3px',border:'1px solid var(--teal-border)',overflow:'hidden'}});
+var tableHead=div({style:{background:'rgba(126,184,164,0.1)',padding:'8px 16px',borderBottom:'1px solid var(--teal-border)',display:'flex',alignItems:'center'}});
+tableHead.append(h('span',{style:{fontSize:'10px',fontWeight:'700',letterSpacing:'1.5px',textTransform:'uppercase',color:'var(--teal)'}},['Laboratory Studies']));
+tableWrap.append(tableHead);
+labItems.forEach(function(item){var row=div({style:{display:'flex',alignItems:'baseline',padding:'9px 16px',borderBottom:'1px solid var(--border)'}});var nameEl=h('span',{style:{flex:'1',fontSize:'13px',color:'var(--text)',lineHeight:'1.5'}},[]);nameEl.textContent=item.name;var valEl=h('span',{style:{fontSize:'13px',fontWeight:'400',color:'var(--text)',minWidth:'90px',textAlign:'right'}},[]);valEl.textContent=item.value;var normEl=h('span',{style:{fontSize:'11px',color:'var(--muted)',minWidth:'120px',textAlign:'right',marginLeft:'16px'}},[]);normEl.textContent='('+item.normal+')';row.append(nameEl,valEl,normEl);tableWrap.append(row);});
+container.append(tableWrap);
+if(after.trim()){var pAfter=h('p',{style:{fontSize:'15px',color:'var(--text)',lineHeight:'1.8',marginTop:'14px'}},[]);pAfter.textContent=after.replace(/^[\s.,;]+/,'');container.append(pAfter);}
 }
 function updateQ(){
 if(activeHighlightBtn){activeHighlightBtn.remove();activeHighlightBtn=null;}
@@ -3848,6 +3865,11 @@ card.append(qListDiv);content.innerHTML='';content.append(card);
 }
 if(tab==='testimonials'){
 const{data:tlist}=await sb.from('testimonials').select('*').order('created_at',{ascending:false});
+const pendingSection=div({style:{marginBottom:'24px'}});
+const{data:pendingReviews}=await sb.from('reviews').select('*').eq('approved',false).order('created_at',{ascending:false});
+if(!pendingReviews||pendingReviews.length===0){pendingSection.append(div({cls:'card',style:{padding:'20px',textAlign:'center'}},[div({style:{fontSize:'13px',color:'var(--dim)'}},['No pending reviews.'])]));}
+else{const pendingCard=div({cls:'card',style:{marginBottom:'24px'}});pendingCard.append(h('h3',{style:{fontSize:'18px',fontFamily:"'Plus Jakarta Sans',sans-serif",marginBottom:'16px'}},['Pending Reviews ('+pendingReviews.length+')']));pendingReviews.forEach(r=>{const preview=r.content.length>120?r.content.substring(0,120)+'...':r.content;const row=div({style:{padding:'16px 0',borderBottom:'1px solid var(--border)',display:'flex',justifyContent:'space-between',alignItems:'flex-start'}});const leftSide=div({style:{flex:'1',marginRight:'16px'}});const leftChildren=[div({style:{fontSize:'14px',color:'var(--text)',fontWeight:'bold'}},[r.name])];if(r.title)leftChildren.push(div({style:{fontSize:'12px',color:'var(--dim)',marginTop:'2px'}},[r.title]));leftChildren.push(div({style:{fontSize:'13px',color:'var(--muted)',fontStyle:'italic',marginTop:'4px'}},[preview]));leftSide.append(...leftChildren);const rightSide=div({style:{display:'flex',gap:'8px'}});rightSide.append(btn('Approve','btn-teal',async()=>{await sb.from('reviews').update({approved:true}).eq('id',r.id);loadTab('testimonials');},{style:{padding:'6px 14px',fontSize:'11px'}}),btn('Reject','btn-outline',async()=>{await sb.from('reviews').delete().eq('id',r.id);loadTab('testimonials');},{style:{padding:'6px 14px',fontSize:'11px',color:'#ff4444',borderColor:'#ff4444'}}));row.append(leftSide,rightSide);pendingCard.append(row);});pendingSection.append(pendingCard);}
+content.append(pendingSection);
 content.innerHTML='';
 const addCard=div({cls:'card',style:{marginBottom:'24px'}});
 addCard.append(h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'22px',marginBottom:'20px'},html:'Add Testimonial'}));
