@@ -853,7 +853,7 @@ gameSection.append(gameGrid);
 page.append(gameSection);
 
 // TESTIMONIALS
-const tsSection=div({cls:'section',id:'ts-section',style:{display:'none'}});
+const tsSection=div({cls:'section',id:'ts-section'});
 const tsGrid=div({cls:'grid-auto',id:'ts-grid'});
 tsSection.append(div({cls:'divider'}),h('br'),h('span',{cls:'chapter',html:'Chapter IV — Results'}),h('h2',{cls:'big',style:{marginBottom:'40px'},html:"What Students<br><em class='gold-em'>Are Saying</em>"}),tsGrid,div({style:{textAlign:'center',marginTop:'32px'}},[btn('+ Add a Review','btn-outline',()=>showReviewModal(),{style:{fontSize:'12px',padding:'10px 24px'}})]));
 page.append(tsSection);
@@ -912,9 +912,6 @@ const testimonials=testimonialsRes.data||[];const reviews=reviewsRes.data||[];
 const allItems=[...testimonials,...reviews].sort((a,b)=>new Date(b.created_at)-new Date(a.created_at));
 if(allItems.length){tsSection.style.display='block';allItems.forEach(item=>{const card=div({cls:'card'});const quoteDiv=div({style:{fontSize:'24px',color:'var(--gold)',marginBottom:'16px',opacity:'.6'}});quoteDiv.textContent='"';const contentP=h('p',{style:{fontSize:'15px',color:'var(--muted)',lineHeight:'1.8',marginBottom:'20px',fontStyle:'italic',fontWeight:'300'}},[]);contentP.textContent=item.content;const nameDiv=div({style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'15px',color:'var(--text)',fontWeight:'600'}});nameDiv.textContent=item.name;const footerChildren=[nameDiv];if(item.title){const titleDiv=div({cls:'mono',style:{marginTop:'4px'}});titleDiv.textContent=item.title;footerChildren.push(titleDiv);}const footer=div({style:{borderTop:'1px solid var(--border)',paddingTop:'16px'}},footerChildren);card.append(quoteDiv,contentP,footer);tsGrid.append(card);});}
 })();
-const tss=document.getElementById('ts-section');
-const tsg=document.getElementById('ts-grid');
-if(ts&&ts.length&&tss&&tsg){tss.style.display='block';ts.forEach(t=>{const c=div({cls:'card'});c.append(div({style:{fontSize:'24px',color:'var(--gold)',marginBottom:'16px',opacity:'.6'},html:'"'}),h('p',{style:{fontSize:'15px',color:'var(--muted)',lineHeight:'1.8',marginBottom:'20px',fontStyle:'italic',fontWeight:'300'},html:t.content}),div({style:{borderTop:'1px solid var(--border)',paddingTop:'16px'}},[div({style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'15px',color:'var(--text)',fontWeight:'600'},html:t.name}),t.title?div({cls:'mono',style:{marginTop:'4px'},html:t.title}):null].filter(Boolean)));tsg.append(c);});}
 })();
 return page;
 }
@@ -3871,7 +3868,7 @@ if(!pendingReviews||pendingReviews.length===0){pendingSection.append(div({cls:'c
 else{const pendingCard=div({cls:'card',style:{marginBottom:'24px'}});pendingCard.append(h('h3',{style:{fontSize:'18px',fontFamily:"'Plus Jakarta Sans',sans-serif",marginBottom:'16px'}},['Pending Reviews ('+pendingReviews.length+')']));pendingReviews.forEach(r=>{const preview=r.content.length>120?r.content.substring(0,120)+'...':r.content;const row=div({style:{padding:'16px 0',borderBottom:'1px solid var(--border)',display:'flex',justifyContent:'space-between',alignItems:'flex-start'}});const leftSide=div({style:{flex:'1',marginRight:'16px'}});const leftChildren=[div({style:{fontSize:'14px',color:'var(--text)',fontWeight:'bold'}},[r.name])];if(r.title)leftChildren.push(div({style:{fontSize:'12px',color:'var(--dim)',marginTop:'2px'}},[r.title]));leftChildren.push(div({style:{fontSize:'13px',color:'var(--muted)',fontStyle:'italic',marginTop:'4px'}},[preview]));leftSide.append(...leftChildren);const rightSide=div({style:{display:'flex',gap:'8px'}});rightSide.append(btn('Approve','btn-teal',async()=>{await sb.from('reviews').update({approved:true}).eq('id',r.id);loadTab('testimonials');},{style:{padding:'6px 14px',fontSize:'11px'}}),btn('Reject','btn-outline',async()=>{await sb.from('reviews').delete().eq('id',r.id);loadTab('testimonials');},{style:{padding:'6px 14px',fontSize:'11px',color:'#ff4444',borderColor:'#ff4444'}}));row.append(leftSide,rightSide);pendingCard.append(row);});pendingSection.append(pendingCard);}
 content.append(pendingSection);
 content.innerHTML='';
-const addCard=div({cls:'card',style:{marginBottom:'24px'}});
+content.append(pendingSection);
 addCard.append(h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'22px',marginBottom:'20px'},html:'Add Testimonial'}));
 const nI=inp('e.g. Sarah K.');const tI=inp('e.g. USMLE Step 1 Student');
 const cI=h('textarea',{cls:'input',placeholder:"What did they say?",style:{minHeight:'100px',resize:'vertical',marginBottom:'20px'}});
