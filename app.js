@@ -1747,15 +1747,79 @@ twoCol.append(recentCard);
     pdfCard.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'18px',marginBottom:'16px'},html:'Theory Questions'}));
     pdfs.forEach(pdf=>{
       const row=div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'10px 0',borderBottom:'1px solid var(--border)'}});
-      row.append(h('span',{style:{fontSize:'14px',color:'var(--text)'},html:pdf.topic+' — '+pdf.filename}));
-      row.append(btn('View PDF','btn-outline',()=>{
-        const bytes=atob(pdf.data);const arr=new Uint8Array(bytes.length);for(let i=0;i<bytes.length;i++)arr[i]=bytes.charCodeAt(i);const blob=new Blob([arr],{type:'application/pdf'});const url=URL.createObjectURL(blob);window.open(url,'_blank');
-      },{style:{fontSize:'11px',padding:'6px 12px'}}));
+      let responseArea=null;let responseOpen=false;
+      const viewBtn=btn('View PDF','btn-outline',()=>{const bytes=atob(pdf.data);const arr=new Uint8Array(bytes.length);for(let i=0;i<bytes.length;i++)arr[i]=bytes.charCodeAt(i);const blob=new Blob([arr],{type:'application/pdf'});const url=URL.createObjectURL(blob);window.open(url,'_blank');},{style:{fontSize:'11px',padding:'6px 12px'}});
+      const respondBtn=btn('Respond','btn-outline',()=>{
+        if(responseOpen&&responseArea&&responseArea.parentNode){responseArea.remove();responseOpen=false;return;}
+        if(responseArea)responseArea.remove();
+        const ta=h('textarea',{cls:'input',style:{minHeight:'120px',resize:'vertical',marginBottom:'12px'}},[]);
+        ta.placeholder='Write your recall response here...';
+        let recognition=null;let isRecording=false;
+        const micStatus=h('span',{style:{fontSize:'11px',color:'var(--muted)'}},[]);
+        const micHandler=()=>{const SR=window.SpeechRecognition||window.webkitSpeechRecognition;if(!SR){micStatus.textContent='Speech not supported';return;}if(!recognition){recognition=new SR();recognition.continuous=true;recognition.interimResults=false;recognition.lang='en-US';recognition.onresult=(e)=>{ta.value+=e.results[e.results.length-1][0].transcript+' ';};recognition.onerror=(e)=>{micStatus.textContent='Mic error: '+e.error;isRecording=false;micBtn.textContent='Mic';};}if(isRecording){recognition.stop();isRecording=false;micBtn.textContent='Mic';micStatus.textContent='';}else{recognition.start();isRecording=true;micBtn.textContent='Stop';micStatus.textContent='Recording...';}};
+        const micBtn=btn('Mic','btn-outline',micHandler,{style:{fontSize:'11px',padding:'6px 12px'}});
+        const micRow=div({style:{display:'flex',gap:'8px',alignItems:'center',marginBottom:'12px'}});
+        micRow.append(micBtn,micStatus);
+        const folderInput=h('input',{cls:'input',style:{fontSize:'12px',padding:'6px 10px',flex:'1'}});
+        folderInput.placeholder='e.g. Cardiology, Week 1';
+        const folderRow=div({style:{display:'flex',gap:'8px',alignItems:'center',marginBottom:'12px'}});
+        folderRow.append(h('span',{style:{fontSize:'12px',color:'var(--muted)'}},['Folder (optional):']),folderInput);
+        const saveStatus=div({style:{fontSize:'11px',color:'var(--teal)',marginTop:'8px',display:'none'}},[]);
+        const saveHandler=async()=>{if(!ta.value.trim())return;const{error}=await sb.from('notes').insert({user_id:S.user.id,topic:pdf.topic,recall_request_id:pdf.recall_request_id,title:pdf.topic+' — '+pdf.filename,content:ta.value.trim(),folder:folderInput.value.trim()||null});if(error){saveStatus.textContent=error.message;saveStatus.style.color='var(--gold)';saveStatus.style.display='block';return;}saveStatus.textContent='Note saved!';saveStatus.style.color='var(--teal)';saveStatus.style.display='block';setTimeout(()=>{saveStatus.style.display='none';},2000);};
+        const saveBtn=btn('Save Note','btn-teal',saveHandler,{style:{fontSize:'11px',padding:'8px 16px'}});
+        const lbl=h('label',{cls:'label'},[]);lbl.textContent='Your Response';
+        responseArea=div({style:{padding:'16px 0',borderBottom:'1px solid var(--border)'}});
+        responseArea.append(lbl,ta,micRow,folderRow,saveBtn,saveStatus);
+        row.after(responseArea);responseOpen=true;
+      },{style:{fontSize:'11px',padding:'6px 12px',marginLeft:'8px'}});
+      row.append(h('span',{style:{fontSize:'14px',color:'var(--text)'},html:pdf.topic+' — '+pdf.filename}),div({style:{display:'flex',gap:'8px'}},[viewBtn,respondBtn]));
       pdfCard.append(row);
     });
     container.append(pdfCard);
   }
 })();
+
+async function loadNotes(){
+  const{data:notes}=await sb.from('notes').select('*').eq('user_id',S.user.id).order('created_at',{ascending:false});
+  if(!notes||notes.length===0)return;
+  Array.from(container.children).forEach(c=>{if(c.id==='notes-card')c.remove();});
+  const notesCard=div({cls:'card',style:{marginTop:'12px'}});
+  notesCard.id='notes-card';
+  const heading=h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'18px',marginBottom:'16px'}},[]);
+  heading.textContent='My Notes';notesCard.append(heading);
+  const grouped={};
+  notes.forEach(n=>{const key=n.folder||'General';if(!grouped[key])grouped[key]=[];grouped[key].push(n);});
+  for(const folderName in grouped){
+    const folderHeader=div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginTop:'16px',marginBottom:'8px'}});
+    const folderLabel=h('div',{style:{fontSize:'11px',fontWeight:'700',color:'var(--gold)',letterSpacing:'1px',textTransform:'uppercase'}},[]);
+    folderLabel.textContent=folderName;
+    const deleteFolderBtn=btn('Delete Folder','btn-outline',async()=>{if(!confirm('Delete all notes in "'+folderName+'"?'))return;const ids=grouped[folderName].map(n=>n.id);await sb.from('notes').delete().in('id',ids);loadNotes();},{style:{fontSize:'10px',padding:'3px 8px',color:'#ff4444',borderColor:'#ff4444'}});
+    folderHeader.append(folderLabel,deleteFolderBtn);notesCard.append(folderHeader);
+    grouped[folderName].forEach(n=>{
+      const leftDiv=div({style:{flex:'1',marginRight:'12px'}});
+      const titleDiv=h('div',{style:{fontSize:'14px',color:'var(--text)'}},[]);titleDiv.textContent=n.title;
+      const previewDiv=h('div',{style:{fontSize:'12px',color:'var(--muted)',marginTop:'4px'}},[]);previewDiv.textContent=n.content.length>80?n.content.substring(0,80)+'...':n.content;
+      const dateDiv=h('div',{style:{fontSize:'11px',color:'var(--dim)',marginTop:'2px'}},[]);dateDiv.textContent=new Date(n.created_at).toLocaleDateString();
+      leftDiv.append(titleDiv,previewDiv,dateDiv);
+      const exportHandler=()=>{const win=window.open('','_blank');let html='<!DOCTYPE html><html><head><meta charset="UTF-8"><title>'+n.title+'</title><style>body{font-family:Georgia,serif;max-width:600px;margin:40px auto;padding:0 24px;color:#1a1814;background:#fff;}h1{font-size:20px;font-weight:700;margin-bottom:8px;}pre{font-family:inherit;font-size:15px;line-height:1.8;white-space:pre-wrap;color:#333;}</style></head><body>';html+='<div style="text-align:center;margin-bottom:32px;">';html+='<div style="font-family:Georgia,serif;font-style:italic;font-size:28px;color:#C8A96E;">Deo Fortis</div>';html+='<div style="font-size:10px;color:#888;letter-spacing:3px;text-transform:uppercase;margin-top:4px;">Everyone is gifted.</div>';html+='</div>';html+='<hr style="border:none;border-top:1px solid #eee;margin:24px 0;">';html+='<h1>'+n.title+'</h1>';html+='<div style="font-size:12px;color:#888;margin-bottom:16px;">Topic: '+n.topic+(n.folder?' &bull; Folder: '+n.folder:'')+'</div>';html+='<pre>'+n.content+'</pre>';html+='<div style="text-align:center;margin-top:40px;font-size:11px;color:#aaa;">Deo Fortis &bull; deofortis.work</div>';html+='</body></html>';win.document.write(html);win.document.close();win.print();};
+      const moveInput=h('input',{cls:'input',style:{fontSize:'11px',padding:'4px 8px',marginBottom:'4px'}});
+      moveInput.placeholder='New folder name';moveInput.value=n.folder||'';
+      const confirmMoveHandler=async()=>{if(!moveInput.value.trim())return;await sb.from('notes').update({folder:moveInput.value.trim()}).eq('id',n.id);loadNotes();};
+      const confirmMoveBtn=btn('Confirm','btn-teal',confirmMoveHandler,{style:{fontSize:'10px',padding:'4px 10px'}});
+      const moveArea=div({style:{display:'none',marginTop:'6px'}});moveArea.append(moveInput,confirmMoveBtn);
+      const moveHandler=()=>{moveArea.style.display=moveArea.style.display==='none'?'block':'none';};
+      const deleteHandler=async()=>{if(!confirm('Delete this note?'))return;await sb.from('notes').delete().eq('id',n.id);loadNotes();};
+      const topBtnRow=div({style:{display:'flex',gap:'6px'}});
+      topBtnRow.append(btn('Export','btn-outline',exportHandler,{style:{fontSize:'10px',padding:'4px 10px'}}),btn('Move','btn-outline',moveHandler,{style:{fontSize:'10px',padding:'4px 10px'}}),btn('Delete','btn-outline',deleteHandler,{style:{fontSize:'10px',padding:'4px 10px',color:'#ff4444',borderColor:'#ff4444'}}));
+      const rightDiv=div({style:{display:'flex',gap:'6px',flexDirection:'column',alignItems:'flex-end'}});
+      rightDiv.append(topBtnRow,moveArea);
+      const noteRow=div({style:{padding:'10px 0',borderBottom:'1px solid var(--border)',display:'flex',justifyContent:'space-between',alignItems:'flex-start'}});
+      noteRow.append(leftDiv,rightDiv);notesCard.append(noteRow);
+    });
+  }
+  container.append(notesCard);
+}
+loadNotes();
 
 // LOAD SESSIONS
 async function loadSess(){
@@ -2139,7 +2203,7 @@ br.append(
 );
 card.append(br);
 const qr=div({style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'10px'}});
-qr.append(btn('Flashcards','btn-outline',()=>go('flashcards'),{style:{fontSize:'11px'}}),btn('Q-Bank','btn-outline',()=>go('vignette'),{style:{fontSize:'11px'}}));
+qr.append(btn('Flashcards','btn-outline',()=>go('flashcards'),{style:{fontSize:'11px'}}),btn('Q-Bank','btn-outline',()=>go('vignette'),{style:{fontSize:'11px'}}),btn('My Notes','btn-outline',()=>go('dashboard'),{style:{fontSize:'11px'}}));
 card.append(qr);
 card.append(
   div({style:{fontFamily:"Inter,sans-serif",fontSize:'9px',color:'var(--dim)',textAlign:'center',marginTop:'8px',letterSpacing:'1px'},html:'Step away? Click End Session to save your progress.'}),
