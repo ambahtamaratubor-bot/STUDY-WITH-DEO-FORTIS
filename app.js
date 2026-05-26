@@ -218,61 +218,74 @@ function notes(){
 const page=div({});
 const nav=div({cls:'dash-nav'});
 const logo=div({cls:'logo',html:'Deo Fortis'});
-const dashboardBtn=btn('← Dashboard','btn-outline',()=>go('dashboard'),{style:{padding:'8px 16px'}});
-nav.append(logo,div({style:{display:'flex',gap:'12px',alignItems:'center'}},[dashboardBtn,makeThemeBtn()]));
+const rightNav=div({style:{display:'flex',gap:'12px',alignItems:'center'}},[]);
+const dashboardBtn=btn('\u2190 Dashboard','btn-outline',()=>go('dashboard'),{style:{padding:'8px 16px'}});
+rightNav.append(dashboardBtn,makeThemeBtn());
+nav.append(logo,rightNav);
 const inner=div({cls:'inner'});
-inner.append(h('span',{cls:'chapter',html:'My Notes'}),h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'26px',marginBottom:'8px'},html:'My Notes'}),h('p',{cls:'muted',style:{fontSize:'14px',marginBottom:'32px'},html:'Your saved recall responses, organised by topic.'}));
+inner.append(h('span',{cls:'chapter',html:'My Notes'},[]),h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'26px',marginBottom:'8px'},html:'My Notes'},[]),h('p',{cls:'muted',style:{fontSize:'14px',marginBottom:'32px'},html:'Your saved recall responses, organised by topic.'},[]));
 async function loadNotes(){
 const{data:nlist}=await sb.from('notes').select('*').eq('user_id',S.user.id).order('created_at',{ascending:false});
-Array.from(inner.children).forEach(c=>{if(c.id==='notes-content')c.remove();});
+Array.from(inner.children).forEach(function(c){if(c.id==='notes-content')c.remove();});
 const notesContent=div({});notesContent.id='notes-content';
-if(!nlist||nlist.length===0){const emptyCard=div({cls:'card',style:{textAlign:'center',padding:'40px'}});emptyCard.append(h('p',{style:{color:'var(--muted)',fontSize:'14px'},html:'No notes yet. Complete an active recall session in Theory Hub to save your first note.'}));notesContent.append(emptyCard);}
-else{
-const grouped={};nlist.forEach(n=>{const key=n.folder||'General';if(!grouped[key])grouped[key]=[];grouped[key].push(n);});
-for(const folderName in grouped){
-const ids=grouped[folderName].map(n=>n.id);
-const folderHeader=div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginTop:'24px',marginBottom:'8px'}});
-const folderInput=h('input',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'13px',fontWeight:'700',color:'var(--gold)',letterSpacing:'1px',textTransform:'uppercase',background:'transparent',border:'none',borderBottom:'1px solid transparent',padding:'2px 4px',cursor:'text',width:'200px'}});
-folderInput.value=folderName;
-folderInput.onfocus=()=>{folderInput.style.borderBottom='1px solid var(--gold)';};
-folderInput.onblur=async()=>{folderInput.style.borderBottom='1px solid transparent';if(folderInput.value.trim()&&folderInput.value.trim()!==folderName){await sb.from('notes').update({folder:folderInput.value.trim()}).in('id',ids);loadNotes();}};
-const deleteFolderBtn=btn('Delete Folder','btn-outline',async()=>{if(!confirm('Delete all notes in "'+folderName+'"?'))return;await sb.from('notes').delete().in('id',ids);loadNotes();},{style:{fontSize:'10px',padding:'3px 8px',color:'#ff4444',borderColor:'#ff4444'}});
-folderHeader.append(folderInput,deleteFolderBtn);notesContent.append(folderHeader);
-grouped[folderName].forEach(n=>{
-const noteCard=div({cls:'card',style:{marginBottom:'12px'}});
-const headerRow=div({style:{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:'8px'}});
-const titleInput=h('input',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'16px',fontWeight:'600',color:'var(--text)',background:'transparent',border:'none',borderBottom:'1px solid transparent',padding:'2px 4px',cursor:'text',width:'100%'}});
-titleInput.value=n.title;
-titleInput.onfocus=()=>{titleInput.style.borderBottom='1px solid var(--teal)';};
-titleInput.onblur=async()=>{titleInput.style.borderBottom='1px solid transparent';if(titleInput.value.trim()&&titleInput.value.trim()!==n.title){await sb.from('notes').update({title:titleInput.value.trim()}).eq('id',n.id);n.title=titleInput.value.trim();}};
-const exportHandler=()=>{const win=window.open('','_blank');let html='<!DOCTYPE html><html><head><meta charset="UTF-8"><title>'+n.title+'</title><style>body{font-family:Georgia,serif;max-width:600px;margin:40px auto;padding:0 24px;color:#1a1814;background:#fff;}h1{font-size:20px;font-weight:700;margin-bottom:8px;}pre{font-family:inherit;font-size:15px;line-height:1.8;white-space:pre-wrap;color:#333;}</style></head><body>';html+='<div style="text-align:center;margin-bottom:32px;"><div style="font-family:Georgia,serif;font-style:italic;font-size:28px;color:#C8A96E;">Deo Fortis</div><div style="font-size:10px;color:#888;letter-spacing:3px;text-transform:uppercase;margin-top:4px;">Everyone is gifted.</div></div><hr style="border:none;border-top:1px solid #eee;margin:24px 0;"><h1>'+n.title+'</h1><div style="font-size:12px;color:#888;margin-bottom:16px;">Topic: '+n.topic+(n.folder?' &bull; Folder: '+n.folder:'')+'</div><pre>'+n.content+'</pre><div style="text-align:center;margin-top:40px;font-size:11px;color:#aaa;">Deo Fortis &bull; deofortis.work</div></body></html>';win.document.write(html);win.document.close();win.print();};
-const deleteHandler=async()=>{if(!confirm('Delete this note?'))return;await sb.from('notes').delete().eq('id',n.id);loadNotes();};
-const buttonRow=div({style:{display:'flex',gap:'8px'}});
-buttonRow.append(btn('Export','btn-outline',exportHandler,{style:{fontSize:'10px',padding:'4px 10px'}}),btn('Delete','btn-outline',deleteHandler,{style:{fontSize:'10px',padding:'4px 10px',color:'#ff4444',borderColor:'#ff4444'}}));
-headerRow.append(titleInput,buttonRow);
-const metaDiv=div({style:{fontSize:'11px',color:'var(--dim)',marginBottom:'12px'}});metaDiv.textContent=new Date(n.created_at).toLocaleDateString()+' · '+n.topic;
-let isEditing=false;
-const viewDiv=div({style:{fontSize:'14px',color:'var(--muted)',lineHeight:'1.8',whiteSpace:'pre-wrap'}});viewDiv.textContent=n.content;
-const editDiv=div({style:{display:'none'}});
-const ta=h('textarea',{cls:'input',style:{minHeight:'160px',resize:'vertical',marginBottom:'8px'}},[]);ta.value=n.content;ta.placeholder='Edit your note...';
-const moveRow=div({style:{display:'flex',gap:'8px',alignItems:'center',marginBottom:'8px'}});moveRow.append(h('span',{style:{fontSize:'12px',color:'var(--muted)'}},['Folder:']));
-const moveInput=h('input',{cls:'input',style:{fontSize:'12px',padding:'4px 8px',flex:'1'}});moveInput.value=n.folder||'';moveInput.placeholder='Folder name';
-const saveStatus=div({style:{fontSize:'11px',color:'var(--teal)',marginTop:'4px',display:'none'}},[]);
-const saveEditHandler=async()=>{await sb.from('notes').update({content:ta.value.trim(),folder:moveInput.value.trim()||null,updated_at:new Date().toISOString()}).eq('id',n.id);saveStatus.style.display='block';saveStatus.textContent='Saved!';setTimeout(()=>{n.content=ta.value.trim();n.folder=moveInput.value.trim()||null;viewDiv.textContent=ta.value.trim();editDiv.style.display='none';viewDiv.style.display='block';editBtn.textContent='Edit';isEditing=false;saveStatus.style.display='none';loadNotes();},1500);};
-const saveBtn=btn('Save','btn-teal',saveEditHandler,{style:{fontSize:'11px',padding:'6px 14px'}});
-moveRow.append(moveInput,saveBtn);editDiv.append(ta,moveRow,saveStatus);
-const toggleEdit=()=>{if(isEditing){editDiv.style.display='none';viewDiv.style.display='block';editBtn.textContent='Edit';isEditing=false;}else{editDiv.style.display='block';viewDiv.style.display='none';editBtn.textContent='Cancel';isEditing=true;}};
-const editBtn=btn('Edit','btn-outline',toggleEdit,{style:{fontSize:'10px',padding:'4px 10px',marginBottom:'12px'}});
-noteCard.append(headerRow,metaDiv,editBtn,viewDiv,editDiv);notesContent.append(noteCard);
-});
-}
-}
-inner.append(notesContent);
-}
+if(!nlist||nlist.length===0){const emptyCard=div({cls:'card',style:{textAlign:'center',padding:'40px'}},[]);const emptyMsg=h('p',{style:{color:'var(--muted)',fontSize:'14px'},html:'No notes yet. Go to Theory Hub to save your first recall response.'},[]);emptyCard.append(emptyMsg);notesContent.append(emptyCard);inner.append(notesContent);return;}
+const tree={};
+nlist.forEach(function(n){const fk=n.folder||'General';if(!tree[fk])tree[fk]={notes:[],subfolders:{}};if(n.subfolder&&n.subfolder.trim()){const sk=n.subfolder.trim();if(!tree[fk].subfolders[sk])tree[fk].subfolders[sk]=[];tree[fk].subfolders[sk].push(n);}else{tree[fk].notes.push(n);}});
+function exportNote(n){const win=window.open('','_blank');let xhtml='<!DOCTYPE html><html><head><meta charset="UTF-8"><title>'+n.title+'</title><style>body{font-family:Georgia,serif;max-width:600px;margin:40px auto;padding:0 24px;color:#1a1814;background:#fff;}h1{font-size:20px;font-weight:700;margin-bottom:8px;}pre{font-family:inherit;font-size:15px;line-height:1.8;white-space:pre-wrap;color:#333;}</style></head><body>';xhtml+='<div style="text-align:center;margin-bottom:32px;"><div style="font-family:Georgia,serif;font-style:italic;font-size:28px;color:#C8A96E;">Deo Fortis</div><div style="font-size:10px;color:#888;letter-spacing:3px;text-transform:uppercase;margin-top:4px;">Everyone is gifted.</div></div>';xhtml+='<hr style="border:none;border-top:1px solid #eee;margin:24px 0;">';xhtml+='<h1>'+n.title+'</h1>';xhtml+='<div style="font-size:12px;color:#888;margin-bottom:16px;">Topic: '+n.topic+(n.folder?' &bull; Folder: '+n.folder:'')+(n.subfolder?' &bull; '+n.subfolder:'')+'</div>';xhtml+='<pre>'+n.content+'</pre>';xhtml+='<div style="text-align:center;margin-top:40px;font-size:11px;color:#aaa;">Deo Fortis &bull; deofortis.work</div>';xhtml+='</body></html>';win.document.write(xhtml);win.document.close();win.print();}
+function openNoteModal(n){const overlay=div({cls:'modal-bg'},[]);const modal=div({cls:'card',style:{maxWidth:'680px',width:'100%',maxHeight:'85vh',overflowY:'auto',position:'relative'}},[]);overlay.onclick=function(e){if(e.target===overlay)overlay.remove();};const modalHeader=div({style:{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:'16px'}},[]);const titleInput=h('input',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'18px',fontWeight:'600',color:'var(--text)',background:'transparent',border:'none',borderBottom:'1px solid transparent',padding:'2px 4px',cursor:'text',flex:'1',marginRight:'12px'}});titleInput.value=n.title;titleInput.onfocus=function(){titleInput.style.borderBottom='1px solid var(--teal)';};titleInput.onblur=async function(){titleInput.style.borderBottom='1px solid transparent';if(titleInput.value.trim()&&titleInput.value.trim()!==n.title){await sb.from('notes').update({title:titleInput.value.trim()}).eq('id',n.id);n.title=titleInput.value.trim();}};const topBtns=div({style:{display:'flex',gap:'8px',flexShrink:'0'}},[]);let isFullscreen=false;const fullscreenBtn=btn('Expand','btn-outline',function(){isFullscreen=!isFullscreen;if(isFullscreen){modal.style.maxWidth='100vw';modal.style.width='100vw';modal.style.maxHeight='100vh';modal.style.height='100vh';modal.style.borderRadius='0';modal.style.margin='0';overlay.style.padding='0';fullscreenBtn.textContent='Collapse';}else{modal.style.maxWidth='680px';modal.style.width='100%';modal.style.maxHeight='85vh';modal.style.height='';modal.style.borderRadius='';modal.style.margin='';overlay.style.padding='24px';fullscreenBtn.textContent='Expand';}},{style:{fontSize:'10px',padding:'4px 10px'}});const closeBtn=btn('\u2715','',function(){overlay.remove();},{style:{background:'none',border:'none',color:'var(--muted)',fontSize:'18px',cursor:'pointer',padding:'4px'}});topBtns.append(fullscreenBtn,closeBtn);modalHeader.append(titleInput,topBtns);const metaDiv=div({style:{fontSize:'11px',color:'var(--dim)',marginBottom:'16px'}},[]);metaDiv.textContent=new Date(n.created_at).toLocaleDateString()+' \u00b7 '+n.topic+(n.subfolder?' \u00b7 '+n.subfolder:'');let isEditing=false;const viewDiv=div({style:{fontSize:'14px',color:'var(--muted)',lineHeight:'1.8',whiteSpace:'pre-wrap',marginBottom:'16px'}},[]);viewDiv.textContent=n.content;const editDiv=div({style:{display:'none',marginBottom:'16px'}},[]);const ta=h('textarea',{cls:'input',style:{minHeight:'200px',resize:'vertical',marginBottom:'8px'}},[]);ta.value=n.content;ta.placeholder='Edit your note...';const editMeta=div({style:{display:'flex',gap:'8px',marginBottom:'8px'}},[]);const folderInp=h('input',{cls:'input',style:{fontSize:'12px',padding:'6px 10px',flex:'1'}});folderInp.value=n.folder||'';folderInp.placeholder='Folder';const subfolderInp=h('input',{cls:'input',style:{fontSize:'12px',padding:'6px 10px',flex:'1'}});subfolderInp.value=n.subfolder||'';subfolderInp.placeholder='Subfolder (optional)';editMeta.append(folderInp,subfolderInp);const saveStatus=div({style:{fontSize:'11px',color:'var(--teal)',marginBottom:'8px',display:'none'}},[]);const saveEditHandler=async function(){const{error}=await sb.from('notes').update({content:ta.value.trim(),folder:folderInp.value.trim()||null,subfolder:subfolderInp.value.trim()||null,updated_at:new Date().toISOString()}).eq('id',n.id);if(error){saveStatus.textContent=error.message;saveStatus.style.color='var(--gold)';saveStatus.style.display='block';return;}n.content=ta.value.trim();n.folder=folderInp.value.trim()||null;n.subfolder=subfolderInp.value.trim()||null;viewDiv.textContent=ta.value.trim();saveStatus.textContent='Saved!';saveStatus.style.color='var(--teal)';saveStatus.style.display='block';setTimeout(function(){saveStatus.style.display='none';},1500);};const saveBtn=btn('Save','btn-teal',saveEditHandler,{style:{fontSize:'11px',padding:'6px 14px'}});editDiv.append(ta,editMeta,saveStatus,saveBtn);const actionRow=div({style:{display:'flex',gap:'8px',borderTop:'1px solid var(--border)',paddingTop:'16px',marginTop:'8px'}},[]);const editBtn=btn('Edit','btn-outline',function(){isEditing=!isEditing;if(isEditing){editDiv.style.display='block';viewDiv.style.display='none';editBtn.textContent='Cancel';}else{editDiv.style.display='none';viewDiv.style.display='block';editBtn.textContent='Edit';}},{style:{fontSize:'11px',padding:'6px 14px'}});const exportBtn=btn('Export','btn-outline',function(){exportNote(n);},{style:{fontSize:'11px',padding:'6px 14px'}});actionRow.append(editBtn,exportBtn);modal.append(modalHeader,metaDiv,viewDiv,editDiv,actionRow);overlay.append(modal);document.body.append(overlay);}
+function renderNoteRow(n,container){const row=div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 0',borderBottom:'1px solid var(--border)'}},[]);const leftDiv=div({style:{flex:'1'}},[]);const titleEl=h('div',{style:{fontSize:'14px',color:'var(--text)',fontWeight:'500'}},[]);titleEl.textContent=n.title;const metaEl=h('div',{style:{fontSize:'11px',color:'var(--dim)',marginTop:'2px'}},[]);metaEl.textContent=new Date(n.created_at).toLocaleDateString()+' \u00b7 '+n.topic;leftDiv.append(titleEl,metaEl);const btnRow=div({style:{display:'flex',gap:'6px'}},[]);const viewBtn=btn('View','btn-outline',function(){openNoteModal(n);},{style:{fontSize:'10px',padding:'4px 8px'}});const xBtn=btn('Export','btn-outline',function(){exportNote(n);},{style:{fontSize:'10px',padding:'4px 8px'}});const deleteBtn=btn('Delete','btn-outline',async function(){if(!confirm('Delete this note?'))return;await sb.from('notes').delete().eq('id',n.id);loadNotes();},{style:{fontSize:'10px',padding:'4px 8px',color:'#ff4444',borderColor:'#ff4444'}});btnRow.append(viewBtn,xBtn,deleteBtn);row.append(leftDiv,btnRow);container.append(row);}
+for(const folderName in tree){
+const allFolderIds=[];tree[folderName].notes.forEach(function(n){allFolderIds.push(n.id);});for(const sk in tree[folderName].subfolders){tree[folderName].subfolders[sk].forEach(function(n){allFolderIds.push(n.id);});}
+const totalCount=tree[folderName].notes.length+Object.values(tree[folderName].subfolders).reduce(function(acc,arr){return acc+arr.length;},0);
+const folderBlock=div({style:{marginBottom:'8px'}},[]);let folderOpen=false;
+const arrow=h('span',{style:{fontSize:'11px',color:'var(--dim)',marginRight:'8px',transition:'transform .2s'}},['▶']);
+const folderHeader=div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'10px 14px',background:'var(--card)',border:'1px solid var(--border)',borderRadius:'2px',cursor:'pointer',marginBottom:'2px'}},[]);
+const leftHeader=div({style:{display:'flex',alignItems:'center'}},[arrow,h('span',{style:{fontSize:'12px',fontWeight:'700',color:'var(--gold)',letterSpacing:'1px',textTransform:'uppercase'}},[folderName])]);
+const rightHeader=div({style:{display:'flex',alignItems:'center'}},[]);
+const countSpan=h('span',{style:{fontSize:'11px',color:'var(--dim)',marginRight:'12px'}},[totalCount+' notes']);
+let renameRowVisible=false;
+const renameRow=div({style:{display:'none',padding:'8px 14px',background:'var(--card2)',borderBottom:'1px solid var(--border)',gap:'8px',alignItems:'center'}},[]);
+const renameInput=inp('New folder name','text',folderName);
+const renameSaveBtn=btn('Save','btn-teal',async function(){if(!renameInput.value.trim())return;await sb.from('notes').update({folder:renameInput.value.trim()}).in('id',allFolderIds);loadNotes();},{style:{fontSize:'10px',padding:'3px 8px'}});
+renameRow.append(renameInput,renameSaveBtn);
+const renameBtn=btn('Rename','btn-outline',function(){renameRowVisible=!renameRowVisible;renameRow.style.display=renameRowVisible?'flex':'none';},{style:{fontSize:'10px',padding:'3px 8px',marginRight:'6px'}});
+const deleteFolderBtn=btn('Delete','btn-outline',async function(){if(!confirm('Delete all notes in this folder?'))return;await sb.from('notes').delete().in('id',allFolderIds);loadNotes();},{style:{fontSize:'10px',padding:'3px 8px',color:'#ff4444',borderColor:'#ff4444'}});
+rightHeader.append(countSpan,renameBtn,deleteFolderBtn);folderHeader.append(leftHeader,rightHeader);
+const folderBody=div({style:{display:'none',paddingLeft:'16px',borderLeft:'2px solid var(--border)',marginLeft:'8px',marginBottom:'8px'}},[]);
+folderHeader.onclick=function(e){if(e.target.tagName==='BUTTON')return;folderOpen=!folderOpen;folderBody.style.display=folderOpen?'block':'none';arrow.style.transform=folderOpen?'rotate(90deg)':'rotate(0deg)';};
+tree[folderName].notes.forEach(function(n){renderNoteRow(n,folderBody);});
+for(const subfolderName in tree[folderName].subfolders){
+const subNotes=tree[folderName].subfolders[subfolderName];const subIds=subNotes.map(function(n){return n.id;});
+const subBlock=div({style:{marginTop:'8px',marginBottom:'4px'}},[]);let subOpen=false;
+const subArrow=h('span',{style:{fontSize:'11px',color:'var(--dim)',marginRight:'8px',transition:'transform .2s'}},['▶']);
+const subHeader=div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 12px',background:'var(--card2)',border:'1px solid var(--border)',borderRadius:'2px',cursor:'pointer'}},[]);
+const subLeft=div({style:{display:'flex',alignItems:'center'}},[subArrow,h('span',{style:{fontSize:'11px',fontWeight:'600',color:'var(--teal)'}},[subfolderName])]);
+const subRight=div({style:{display:'flex',alignItems:'center'}},[]);
+const subCountSpan=h('span',{style:{fontSize:'10px',color:'var(--dim)',marginRight:'8px'}},[subNotes.length+' notes']);
+let subRenameVisible=false;
+const subRenameRow=div({style:{display:'none',padding:'8px 12px',background:'var(--card2)',borderBottom:'1px solid var(--border)',gap:'8px',alignItems:'center'}},[]);
+const subRenameInput=inp('New subfolder name','text',subfolderName);
+const subRenameSaveBtn=btn('Save','btn-teal',async function(){if(!subRenameInput.value.trim())return;await sb.from('notes').update({subfolder:subRenameInput.value.trim()}).in('id',subIds);loadNotes();},{style:{fontSize:'10px',padding:'3px 8px'}});
+subRenameRow.append(subRenameInput,subRenameSaveBtn);
+const subRenameBtn=btn('Rename','btn-outline',function(){subRenameVisible=!subRenameVisible;subRenameRow.style.display=subRenameVisible?'flex':'none';},{style:{fontSize:'9px',padding:'2px 6px',marginRight:'6px'}});
+const subDeleteBtn=btn('Delete','btn-outline',async function(){if(!confirm('Delete all notes in this subfolder?'))return;await sb.from('notes').delete().in('id',subIds);loadNotes();},{style:{fontSize:'9px',padding:'2px 6px',color:'#ff4444',borderColor:'#ff4444'}});
+subRight.append(subCountSpan,subRenameBtn,subDeleteBtn);subHeader.append(subLeft,subRight);
+const subBody=div({style:{display:'none',paddingLeft:'12px',borderLeft:'2px solid var(--teal-border)'}},[]);
+subHeader.onclick=function(e){if(e.target.tagName==='BUTTON')return;subOpen=!subOpen;subBody.style.display=subOpen?'block':'none';subArrow.style.transform=subOpen?'rotate(90deg)':'rotate(0deg)';};
+subNotes.forEach(function(n){renderNoteRow(n,subBody);});
+subBlock.append(subHeader,subRenameRow,subBody);folderBody.append(subBlock);}
+let addSubRowVisible=false;
+const addSubBtn=btn('+ Add subfolder','btn-outline',function(){addSubRowVisible=!addSubRowVisible;addSubRow.style.display=addSubRowVisible?'flex':'none';},{style:{fontSize:'10px',padding:'4px 10px',marginTop:'8px'}});
+const addSubRow=div({style:{display:'none',marginTop:'8px',padding:'8px',background:'var(--card2)',borderRadius:'2px'}},[]);
+const tempMsg=h('span',{style:{fontSize:'11px',color:'var(--muted)'}},['Add notes to this subfolder when saving from Theory Hub, or move existing notes here via Edit.']);
+addSubRow.append(tempMsg);folderBody.append(addSubBtn,addSubRow);
+folderBlock.append(folderHeader,renameRow,folderBody);notesContent.append(folderBlock);}
+inner.append(notesContent);}
 loadNotes();
 page.append(nav,inner);
 return page;
 }
+
 const pages={landing,signup,login,pending,dashboard,study,flashcards,vignette,leaderboard,admin,feynman,theory,notes};
 root.append((pages[S.page]||landing)());
 if(window.activeSessionId){showNoiseBar();showTimerBar();}else{removeNoiseBar();removeTimerBar();}
