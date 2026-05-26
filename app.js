@@ -2536,8 +2536,8 @@ function renderQuestionText(text, container){
     var abnormal=!isNaN(num)&&!isNaN(lo)&&!isNaN(hi)&&(num<lo||num>hi);
     var row=div({style:{display:'flex',alignItems:'baseline',padding:'9px 16px',borderBottom:'1px solid var(--border)',background:'transparent'}});
     var nameEl=h('span',{style:{flex:'1',fontSize:'13px',color:'var(--text)',lineHeight:'1.5'}},[]); nameEl.textContent=item.name;
-    var valEl=h('span',{style:{fontSize:'13px',fontWeight:'600',color:'var(--text)',minWidth:'90px',textAlign:'right',fontFamily:"'DM Mono',monospace"}},[]); valEl.textContent=item.value+(unit?' '+unit:'');
-    var normEl=h('span',{style:{fontSize:'11px',color:'var(--muted)',minWidth:'120px',textAlign:'right',marginLeft:'16px',fontFamily:"'DM Mono',monospace"}},[]); normEl.textContent='('+item.normal+')';
+    var valEl=h('span',{style:{fontSize:'13px',fontWeight:'400',color:'var(--text)',minWidth:'90px',textAlign:'right'}},[]); valEl.textContent=item.value+(unit?' '+unit:'');
+    var normEl=h('span',{style:{fontSize:'11px',color:'var(--muted)',minWidth:'120px',textAlign:'right',marginLeft:'16px'}},[]); normEl.textContent='('+item.normal+')';
     row.append(nameEl,valEl,normEl);
     tableWrap.append(row);
   });
