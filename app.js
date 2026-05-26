@@ -1895,7 +1895,6 @@ const attachStatus=div({style:{fontSize:'11px',color:'var(--teal)',marginBottom:
 ro.append(attachLabel,attachNote,attachI,attachStatus);
 const sentMsg=div({cls:'ok',style:{display:reqSent?'block':'none',marginBottom:'20px'},html:'✓ Request sent! You will be notified when your content is ready.'});
 const sendBtn=btn('Send Recall Request →','btn-teal',async()=>{
-const sendBtn=btn('Send Recall Request →','btn-teal',async()=>{
 if(!cfg.recallStyle)return;
 let attachmentData=null;let attachmentName=null;
 if(attachI.files[0]){
@@ -1909,7 +1908,6 @@ attachStatus.style.display='none';
 await sb.from('recall_requests').insert({user_id:S.user.id,user_name:S.profile?.full_name,user_email:S.profile?.email,topic:cfg.topic,style:cfg.recallStyle,details:cfg.recallDetails,quantity:parseInt(qtyI.value)||0,status:'pending',attachment_data:attachmentData,attachment_name:attachmentName});
 sendAdminEmail('🧠 New Recall Request — Deo Fortis','<h2>New Active Recall Request</h2><p><b>Student:</b> '+S.profile?.full_name+'</p><p><b>Email:</b> '+S.profile?.email+'</p><p><b>Topic:</b> '+cfg.topic+'</p><p><b>Style:</b> '+cfg.recallStyle+'</p><p><b>Quantity:</b> '+(qtyI.value||'Not specified')+'</p><p><b>Details:</b> '+(cfg.recallDetails||'None')+'</p><p><b>Attachment:</b> '+(attachmentName||'None')+'</p>');
 reqSent=true;sentMsg.style.display='block';sendBtn.style.display='none';
-},{style:{width:'100%',marginBottom:'20px',display:reqSent?'none':'block'}});
 },{style:{width:'100%',marginBottom:'20px',display:reqSent?'none':'block'}});
 ro.append(sentMsg,sendBtn);
 card.append(ro);
