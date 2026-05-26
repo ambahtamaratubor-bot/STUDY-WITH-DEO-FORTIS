@@ -165,7 +165,56 @@ mic:`<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0
 function render(){
 const root=document.getElementById('root');
 root.innerHTML='';
-const pages={landing,signup,login,pending,dashboard,study,flashcards,vignette,leaderboard,admin,feynman};
+function theory(){
+const page=div({});
+const nav=div({cls:'dash-nav'});
+const logo=div({cls:'logo',html:'Deo Fortis'});
+const dashboardBtn=btn('← Dashboard','btn-outline',()=>go('dashboard'),{style:{padding:'8px 16px'}});
+nav.append(logo,div({style:{display:'flex',gap:'12px',alignItems:'center'}},[dashboardBtn,makeThemeBtn()]));
+const inner=div({cls:'inner'});
+inner.append(h('span',{cls:'chapter',html:'Theory Hub'}),h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'26px',marginBottom:'8px'},html:'Your Theory Content'}),h('p',{cls:'muted',style:{fontSize:'14px',marginBottom:'32px'},html:'Review your theory materials and record your recall responses.'}));
+(async()=>{
+const{data:pdfs}=await sb.from('theory_pdfs').select('*').eq('user_id',S.user.id).order('created_at',{ascending:false});
+if(!pdfs||pdfs.length===0){const emptyCard=div({cls:'card',style:{textAlign:'center',padding:'40px'}});emptyCard.append(h('p',{style:{color:'var(--muted)',fontSize:'14px'},html:'No theory content yet. Request an active recall session to get started.'}));inner.append(emptyCard);}
+else{
+const pdfCard=div({cls:'card',style:{marginTop:'12px'}});
+pdfCard.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'18px',marginBottom:'16px'},html:'Theory Questions'}));
+pdfs.forEach(pdf=>{
+const row=div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'10px 0',borderBottom:'1px solid var(--border)'}});
+let responseArea=null;let responseOpen=false;
+const viewBtn=btn('View PDF','btn-outline',()=>{const bytes=atob(pdf.data);const arr=new Uint8Array(bytes.length);for(let i=0;i<bytes.length;i++)arr[i]=bytes.charCodeAt(i);const blob=new Blob([arr],{type:'application/pdf'});const url=URL.createObjectURL(blob);window.open(url,'_blank');},{style:{fontSize:'11px',padding:'6px 12px'}});
+const respondBtn=btn('Respond','btn-outline',()=>{
+if(responseOpen&&responseArea&&responseArea.parentNode){responseArea.remove();responseOpen=false;return;}
+if(responseArea)responseArea.remove();
+const ta=h('textarea',{cls:'input',style:{minHeight:'120px',resize:'vertical',marginBottom:'12px'}},[]);
+ta.placeholder='Write your recall response here...';
+let recognition=null;let isRecording=false;
+const micStatus=h('span',{style:{fontSize:'11px',color:'var(--muted)'}},[]);
+const micHandler=()=>{const SR=window.SpeechRecognition||window.webkitSpeechRecognition;if(!SR){micStatus.textContent='Speech not supported';return;}if(!recognition){recognition=new SR();recognition.continuous=true;recognition.interimResults=false;recognition.lang='en-US';recognition.onresult=(e)=>{ta.value+=e.results[e.results.length-1][0].transcript+' ';};recognition.onerror=(e)=>{micStatus.textContent='Mic error: '+e.error;isRecording=false;micBtn.textContent='Mic';};}if(isRecording){recognition.stop();isRecording=false;micBtn.textContent='Mic';micStatus.textContent='';}else{recognition.start();isRecording=true;micBtn.textContent='Stop';micStatus.textContent='Recording...';}};
+const micBtn=btn('Mic','btn-outline',micHandler,{style:{fontSize:'11px',padding:'6px 12px'}});
+const micRow=div({style:{display:'flex',gap:'8px',alignItems:'center',marginBottom:'12px'}});micRow.append(micBtn,micStatus);
+const folderInput=h('input',{cls:'input',style:{fontSize:'12px',padding:'6px 10px',flex:'1'}});
+folderInput.placeholder='e.g. Cardiology, Week 1';
+const folderRow=div({style:{display:'flex',gap:'8px',alignItems:'center',marginBottom:'12px'}});
+folderRow.append(h('span',{style:{fontSize:'12px',color:'var(--muted)'}},['Folder (optional):']),folderInput);
+const saveStatus=div({style:{fontSize:'11px',color:'var(--teal)',marginTop:'8px',display:'none'}},[]);
+const saveHandler=async()=>{if(!ta.value.trim())return;const{error}=await sb.from('notes').insert({user_id:S.user.id,topic:pdf.topic,recall_request_id:pdf.recall_request_id,title:pdf.topic+' — '+pdf.filename,content:ta.value.trim(),folder:folderInput.value.trim()||null});if(error){saveStatus.textContent=error.message;saveStatus.style.color='var(--gold)';saveStatus.style.display='block';return;}saveStatus.textContent='Note saved!';saveStatus.style.color='var(--teal)';saveStatus.style.display='block';setTimeout(()=>{saveStatus.style.display='none';responseArea.remove();responseOpen=false;},2000);};
+const saveBtn=btn('Save Note','btn-teal',saveHandler,{style:{fontSize:'11px',padding:'8px 16px'}});
+const lbl=h('label',{cls:'label'},[]);lbl.textContent='Your Response';
+responseArea=div({style:{padding:'16px 0',borderBottom:'1px solid var(--border)'}});
+responseArea.append(lbl,ta,micRow,folderRow,saveBtn,saveStatus);
+row.after(responseArea);responseOpen=true;
+},{style:{fontSize:'11px',padding:'6px 12px',marginLeft:'8px'}});
+row.append(h('span',{style:{fontSize:'14px',color:'var(--text)'},html:pdf.topic+' — '+pdf.filename}),div({style:{display:'flex',gap:'8px'}},[viewBtn,respondBtn]));
+pdfCard.append(row);
+});
+inner.append(pdfCard);
+}
+})();
+page.append(nav,inner);
+return page;
+}
+const pages={landing,signup,login,pending,dashboard,study,flashcards,vignette,leaderboard,admin,feynman,theory};
 root.append((pages[S.page]||landing)());
 if(window.activeSessionId){showNoiseBar();showTimerBar();}else{removeNoiseBar();removeTimerBar();}
 }
@@ -1532,11 +1581,11 @@ if(S.profile?.has_new_content){
       div({style:{lineHeight:'1'},html:ICONS.brain}),
       div({},[
         div({style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'16px',color:'var(--teal)',fontWeight:'600',marginBottom:'2px'},html:'Your recall content is ready!'}),
-        div({style:{fontSize:'13px',color:'var(--muted)'},html:'Your active recall request has been fulfilled. Scroll down to view your Theory content, or go to Flashcards / Q-Bank.'})
+        div({style:{fontSize:'13px',color:'var(--muted)'},html:'Your active recall request has been fulfilled. Go to Theory Hub, Flashcards or Q-Bank to access your content.'})
       ])
     ]),
     div({style:{display:'flex',gap:'8px',flexShrink:'0'}},[
-      btn('View Content','btn-teal',()=>{const el=Array.from(container.children).find(c=>c.id==='theory-card'||c.querySelector('h3'));if(el)el.scrollIntoView({behavior:'smooth'});},{style:{fontSize:'11px',padding:'6px 12px'}}),
+      btn('View Content','btn-teal',()=>go('theory'),{style:{fontSize:'11px',padding:'6px 12px'}}),
       btn('Dismiss','',async()=>{
         await sb.from('profiles').update({has_new_content:false}).eq('id',S.user.id);
         banner.remove();
@@ -1710,6 +1759,7 @@ twoCol.append(recentCard);
       actionButton(ICONS.trophy,'Leaderboard',()=>go('leaderboard')),
       actionButton(ICONS.message,'Community',()=>{if(commLink&&commLink!=='#')window.open(commLink,'_blank');}),
       actionButton(ICONS.brain,'Feynman Arena',()=>go('feynman')),
+      actionButton(ICONS.file,'Theory Hub',()=>go('theory')),
       actionButton(ICONS.book,'My Notes',()=>{const el=Array.from(container.children).find(c=>c.id==='notes-card');if(el)el.scrollIntoView({behavior:'smooth'});})
     ])
   );
@@ -1742,47 +1792,6 @@ twoCol.append(recentCard);
   supCard.append(h('div',{style:{fontSize:'20px'},html:ICONS.mail}),supTxt);
   container.append(supCard);
 })();
-
-// THEORY PDFs
-(async()=>{
-  const{data:pdfs}=await sb.from('theory_pdfs').select('*').eq('user_id',S.user.id).order('created_at',{ascending:false});
-  if(pdfs&&pdfs.length){
-    const pdfCard=div({cls:'card',style:{marginTop:'12px'}});
-    pdfCard.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'18px',marginBottom:'16px'},html:'Theory Questions'}));
-    pdfs.forEach(pdf=>{
-      const row=div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'10px 0',borderBottom:'1px solid var(--border)'}});
-      let responseArea=null;let responseOpen=false;
-      const viewBtn=btn('View PDF','btn-outline',()=>{const bytes=atob(pdf.data);const arr=new Uint8Array(bytes.length);for(let i=0;i<bytes.length;i++)arr[i]=bytes.charCodeAt(i);const blob=new Blob([arr],{type:'application/pdf'});const url=URL.createObjectURL(blob);window.open(url,'_blank');},{style:{fontSize:'11px',padding:'6px 12px'}});
-      const respondBtn=btn('Respond','btn-outline',()=>{
-        if(responseOpen&&responseArea&&responseArea.parentNode){responseArea.remove();responseOpen=false;return;}
-        if(responseArea)responseArea.remove();
-        const ta=h('textarea',{cls:'input',style:{minHeight:'120px',resize:'vertical',marginBottom:'12px'}},[]);
-        ta.placeholder='Write your recall response here...';
-        let recognition=null;let isRecording=false;
-        const micStatus=h('span',{style:{fontSize:'11px',color:'var(--muted)'}},[]);
-        const micHandler=()=>{const SR=window.SpeechRecognition||window.webkitSpeechRecognition;if(!SR){micStatus.textContent='Speech not supported';return;}if(!recognition){recognition=new SR();recognition.continuous=true;recognition.interimResults=false;recognition.lang='en-US';recognition.onresult=(e)=>{ta.value+=e.results[e.results.length-1][0].transcript+' ';};recognition.onerror=(e)=>{micStatus.textContent='Mic error: '+e.error;isRecording=false;micBtn.textContent='Mic';};}if(isRecording){recognition.stop();isRecording=false;micBtn.textContent='Mic';micStatus.textContent='';}else{recognition.start();isRecording=true;micBtn.textContent='Stop';micStatus.textContent='Recording...';}};
-        const micBtn=btn('Mic','btn-outline',micHandler,{style:{fontSize:'11px',padding:'6px 12px'}});
-        const micRow=div({style:{display:'flex',gap:'8px',alignItems:'center',marginBottom:'12px'}});
-        micRow.append(micBtn,micStatus);
-        const folderInput=h('input',{cls:'input',style:{fontSize:'12px',padding:'6px 10px',flex:'1'}});
-        folderInput.placeholder='e.g. Cardiology, Week 1';
-        const folderRow=div({style:{display:'flex',gap:'8px',alignItems:'center',marginBottom:'12px'}});
-        folderRow.append(h('span',{style:{fontSize:'12px',color:'var(--muted)'}},['Folder (optional):']),folderInput);
-        const saveStatus=div({style:{fontSize:'11px',color:'var(--teal)',marginTop:'8px',display:'none'}},[]);
-        const saveHandler=async()=>{if(!ta.value.trim())return;const{error}=await sb.from('notes').insert({user_id:S.user.id,topic:pdf.topic,recall_request_id:pdf.recall_request_id,title:pdf.topic+' — '+pdf.filename,content:ta.value.trim(),folder:folderInput.value.trim()||null});if(error){saveStatus.textContent=error.message;saveStatus.style.color='var(--gold)';saveStatus.style.display='block';return;}saveStatus.textContent='Note saved!';saveStatus.style.color='var(--teal)';saveStatus.style.display='block';setTimeout(()=>{saveStatus.style.display='none';},2000);};
-        const saveBtn=btn('Save Note','btn-teal',saveHandler,{style:{fontSize:'11px',padding:'8px 16px'}});
-        const lbl=h('label',{cls:'label'},[]);lbl.textContent='Your Response';
-        responseArea=div({style:{padding:'16px 0',borderBottom:'1px solid var(--border)'}});
-        responseArea.append(lbl,ta,micRow,folderRow,saveBtn,saveStatus);
-        row.after(responseArea);responseOpen=true;
-      },{style:{fontSize:'11px',padding:'6px 12px',marginLeft:'8px'}});
-      row.append(h('span',{style:{fontSize:'14px',color:'var(--text)'},html:pdf.topic+' — '+pdf.filename}),div({style:{display:'flex',gap:'8px'}},[viewBtn,respondBtn]));
-      pdfCard.append(row);
-    });
-    container.append(pdfCard);
-  }
-})();
-
 async function loadNotes(){
   const{data:notes}=await sb.from('notes').select('*').eq('user_id',S.user.id).order('created_at',{ascending:false});
   if(!notes||notes.length===0)return;
