@@ -1889,25 +1889,27 @@ const detI=h('textarea',{cls:'input',placeholder:'e.g. Focus on gram positive ba
 detI.value=cfg.recallDetails;detI.oninput=e=>cfg.recallDetails=e.target.value;
 ro.append(h('label',{cls:'label',html:'Be Specific (optional)'}),detI);
 const attachLabel=h('label',{cls:'label',html:'Attach Study Material (optional)'});
-const attachI=h('input',{type:'file',accept:'.pdf,.pptx,.txt,.png,.jpg,.jpeg',style:{color:'var(--muted)',fontSize:'12px',marginBottom:'20px',display:'block'}});
+const attachNote=div({style:{fontSize:'11px',color:'var(--dim)',marginBottom:'8px',lineHeight:'1.6'}},['Upload only the specific pages or topic you need help with. Avoid uploading entire textbooks. If it is a small amount of text, paste it into a .txt or Word doc instead.']);
+const attachI=h('input',{type:'file',accept:'.pdf,.pptx,.txt,.png,.jpg,.jpeg',style:{color:'var(--muted)',fontSize:'12px',marginBottom:'8px',display:'block'}});
 const attachStatus=div({style:{fontSize:'11px',color:'var(--teal)',marginBottom:'8px',display:'none'}},[]);
-ro.append(attachLabel,attachI,attachStatus);
+ro.append(attachLabel,attachNote,attachI,attachStatus);
 const sentMsg=div({cls:'ok',style:{display:reqSent?'block':'none',marginBottom:'20px'},html:'✓ Request sent! You will be notified when your content is ready.'});
 const sendBtn=btn('Send Recall Request →','btn-teal',async()=>{
+const sendBtn=btn('Send Recall Request →','btn-teal',async()=>{
 if(!cfg.recallStyle)return;
-let attachmentUrl=null;
+let attachmentData=null;let attachmentName=null;
 if(attachI.files[0]){
-if(attachI.files[0].size>10*1024*1024){attachStatus.style.display='block';attachStatus.textContent='File too large. Maximum size is 10MB.';attachStatus.style.color='var(--gold)';return;}
-attachStatus.style.display='block';attachStatus.textContent='Uploading...';
-const fileName=S.user.id+'-'+Date.now()+'-'+attachI.files[0].name;
-const{error:uploadError}=await sb.storage.from('question-images').upload(fileName,attachI.files[0],{upsert:true});
-if(uploadError){attachStatus.textContent='Upload failed: '+uploadError.message;return;}
-const{data:{publicUrl}}=sb.storage.from('question-images').getPublicUrl(fileName);
-attachmentUrl=publicUrl;attachStatus.style.display='none';
+const file=attachI.files[0];
+if(file.size>10*1024*1024){attachStatus.style.display='block';attachStatus.textContent='File too large. Maximum size is 10MB.';attachStatus.style.color='var(--gold)';return;}
+attachStatus.style.display='block';attachStatus.textContent='Reading file...';
+attachmentData=await new Promise((res,rej)=>{const reader=new FileReader();reader.onload=()=>res(reader.result.split(',')[1]);reader.onerror=()=>rej(new Error('Read failed'));reader.readAsDataURL(file);});
+attachmentName=file.name;
+attachStatus.style.display='none';
 }
-await sb.from('recall_requests').insert({user_id:S.user.id,user_name:S.profile?.full_name,user_email:S.profile?.email,topic:cfg.topic,style:cfg.recallStyle,details:cfg.recallDetails,quantity:parseInt(qtyI.value)||0,status:'pending',attachment_url:attachmentUrl});
-sendAdminEmail('🧠 New Recall Request — Deo Fortis','<h2>New Active Recall Request</h2><p><b>Student:</b> '+S.profile?.full_name+'</p><p><b>Email:</b> '+S.profile?.email+'</p><p><b>Topic:</b> '+cfg.topic+'</p><p><b>Style:</b> '+cfg.recallStyle+'</p><p><b>Quantity:</b> '+(qtyI.value||'Not specified')+'</p><p><b>Details:</b> '+(cfg.recallDetails||'None')+'</p><p><b>Attachment:</b> '+(attachmentUrl?'<a href=+attachmentUrl+>View File</a>':'None')+'</p>');
+await sb.from('recall_requests').insert({user_id:S.user.id,user_name:S.profile?.full_name,user_email:S.profile?.email,topic:cfg.topic,style:cfg.recallStyle,details:cfg.recallDetails,quantity:parseInt(qtyI.value)||0,status:'pending',attachment_data:attachmentData,attachment_name:attachmentName});
+sendAdminEmail('🧠 New Recall Request — Deo Fortis','<h2>New Active Recall Request</h2><p><b>Student:</b> '+S.profile?.full_name+'</p><p><b>Email:</b> '+S.profile?.email+'</p><p><b>Topic:</b> '+cfg.topic+'</p><p><b>Style:</b> '+cfg.recallStyle+'</p><p><b>Quantity:</b> '+(qtyI.value||'Not specified')+'</p><p><b>Details:</b> '+(cfg.recallDetails||'None')+'</p><p><b>Attachment:</b> '+(attachmentName||'None')+'</p>');
 reqSent=true;sentMsg.style.display='block';sendBtn.style.display='none';
+},{style:{width:'100%',marginBottom:'20px',display:reqSent?'none':'block'}});
 },{style:{width:'100%',marginBottom:'20px',display:reqSent?'none':'block'}});
 ro.append(sentMsg,sendBtn);
 card.append(ro);
@@ -3565,7 +3567,7 @@ const dg=div({style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'12px',mar
 [[r.topic,'Topic'],[r.style,'Style']].forEach(([v,l])=>{const d=div({});d.append(div({cls:'mono',style:{marginBottom:'4px'},html:l}),div({style:{fontSize:'14px',color:l==='Style'?'var(--gold)':'var(--text)'},html:v||'—'}));dg.append(d);});
 card.append(dg);
 if(r.details)card.append(div({style:{background:'var(--bg)',border:'1px solid var(--border)',borderRadius:'2px',padding:'12px',marginBottom:'12px'}},[div({cls:'mono',style:{marginBottom:'4px'},html:'Notes'}),h('p',{style:{fontSize:'13px',color:'var(--muted)'},html:r.details})]));
-if(r.attachment_url){const attachLink=h('a',{style:{fontSize:'12px',color:'var(--teal)',display:'block',marginBottom:'8px'}},['View Attachment']);attachLink.href=r.attachment_url;attachLink.target='_blank';card.append(attachLink);}
+if(r.attachment_data){const bytes=atob(r.attachment_data);const arr=new Uint8Array(bytes.length);for(let i=0;i<bytes.length;i++)arr[i]=bytes.charCodeAt(i);const mime=r.attachment_name&&r.attachment_name.endsWith('.pdf')?'application/pdf':r.attachment_name&&(r.attachment_name.endsWith('.png')||r.attachment_name.endsWith('.jpg')||r.attachment_name.endsWith('.jpeg'))?'image/'+r.attachment_name.split('.').pop():'application/octet-stream';const blob=new Blob([arr],{type:mime});const blobUrl=URL.createObjectURL(blob);const attachLink=h('a',{style:{fontSize:'12px',color:'var(--teal)',display:'block',marginBottom:'8px'}},['View Attachment: '+(r.attachment_name||'file')]);attachLink.href=blobUrl;attachLink.target='_blank';card.append(attachLink);}
 const br2=div({style:{display:'flex',gap:'12px'}});
 async function handleUpload(file,isCsv){
 upSt.style.display='block';upSt.textContent='Uploading...';
