@@ -2519,7 +2519,8 @@ function renderQuestionText(text, container){
   var labStr=match[1];
   var labItems=[];var m2;LAB_ITEM_RE.lastIndex=0;
   while((m2=LAB_ITEM_RE.exec(labStr))!==null){
-    labItems.push({name:m2[1].trim(),value:m2[2].trim(),normal:m2[3].trim()});
+    var n=m2[1].replace(/^[;\s,]+/,'').trim();n=n.charAt(0).toUpperCase()+n.slice(1);
+    labItems.push({name:n,value:m2[2].trim(),normal:m2[3].trim()});
   }
   if(!labItems.length){container.append(h('p',{style:{fontSize:'15px',color:'var(--text)',lineHeight:'1.8'}},[]));container.lastElementChild.textContent=text;return;}
   if(before.trim()){var pBefore=h('p',{style:{fontSize:'15px',color:'var(--text)',lineHeight:'1.8',marginBottom:'14px'}},[]);pBefore.textContent=before.trim();container.append(pBefore);}
