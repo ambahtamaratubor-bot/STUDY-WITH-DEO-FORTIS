@@ -2368,10 +2368,10 @@ row.append(
 hCard.append(row);
 });
 // Average grade
-const gradeMap={A:4,B:3,C:2};
+const gradeMap={A:4,B:3,C:2,D:1};
 const avg=history.reduce((sum,r)=>sum+(gradeMap[r.grade]||0),0)/history.length;
-const avgGrade=avg>=3.5?'A':avg>=2.5?'B':'C';
-const avgColor=avgGrade==='A'?'var(--teal)':avgGrade==='B'?'var(--gold)':'#ff8888';
+const avgGrade=avg>=3.5?'A':avg>=2.5?'B':avg>=1.5?'C':'D';
+const avgColor=avgGrade==='A'?'var(--teal)':avgGrade==='B'?'var(--gold)':avgGrade==='C'?'#C9A84C':'#ff8888';
 hCard.append(div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginTop:'12px',paddingTop:'12px',borderTop:'1px solid var(--border)'}},[
   div({cls:'mono',html:'Average Grade'}),
   h('span',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'24px',color:avgColor,fontWeight:'700'},html:avgGrade})
@@ -2529,9 +2529,10 @@ function showRoundComplete(remainingCards){
 async function showDone(){
 inner.innerHTML='';
 const total=prog.easy+prog.iffy+prog.hard;
-const grade=prog.easy>=prog.iffy&&prog.easy>=prog.hard?'A':prog.iffy>=prog.hard?'B':'C';
-const gradeColor=grade==='A'?'var(--teal)':grade==='B'?'var(--gold)':'#ff8888';
-const gradeMsg=grade==='A'?'Excellent mastery!':grade==='B'?'Good effort, keep reviewing.':'Needs more practice.';
+const easyPct=total>0?Math.round((prog.easy/total)*100):0;
+const grade=easyPct>=90?'A':easyPct>=75?'B':easyPct>=60?'C':'D';
+const gradeColor=grade==='A'?'var(--teal)':grade==='B'?'var(--gold)':grade==='C'?'#C9A84C':'#ff8888';
+const gradeMsg=grade==='A'?'Excellent mastery — 90%+ of cards easy.':grade==='B'?'Good effort — 75%+ of cards easy.':grade==='C'?'Decent progress — keep reviewing hard cards.':'Needs more practice — under 60% of cards easy.';
 // Save result and award points
 // Save result and award points — paid only
 if(!S.profile?.is_free_tier){
@@ -2546,6 +2547,7 @@ card.append(
   h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'28px',marginBottom:'8px'},html:selDeck?.topic||''}),
   div({style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'80px',color:gradeColor,lineHeight:'1',marginBottom:'8px'},html:grade}),
   div({cls:'mono',style:{marginBottom:'4px'},html:gradeMsg}),
+  div({style:{fontFamily:"Inter,sans-serif",fontSize:'13px',color:gradeColor,marginBottom:'4px'},html:easyPct+'% of cards marked Easy'}),
   div({style:{fontFamily:"Inter,sans-serif",fontSize:'11px',color:'var(--gold)',marginBottom:'24px'},html:'+20 points earned'})
 );
 const sg=div({style:{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:'12px',marginBottom:'24px'}});
@@ -3145,64 +3147,10 @@ async function loadWallOfFame(){
     submissionsList.append(card);
   });
 }
-// RIDDLE DECKS TAB
-async function loadRiddleDecksPage(){
-  riddleSection.innerHTML='';
-  const{data:decks}=await sb.from('flashcard_decks').select('*').eq('type','riddle').order('unlock_order',{ascending:true});
-  const{data:progress}=await sb.from('flashcard_progress').select('deck_id,completed').eq('user_id',S.user.id);
-  const completedMap=new Map();progress?.forEach(p=>completedMap.set(p.deck_id,p.completed));
-  if(!decks||!decks.length){riddleSection.append(h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'12px',color:'var(--dim)',textAlign:'center',padding:'40px'},html:'No riddle decks available yet.'}));return;}
-  const grid=div({style:{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(300px,1fr))',gap:'16px'}});
-  for(let i=0;i<decks.length;i++){
-    const deck=decks[i];
-    const isCompleted=completedMap.get(deck.id)===true;
-    const isUnlocked=deck.unlock_order===1||completedMap.get(decks[i-1]?.id)===true;
-    const card=div({style:{background:'var(--card2)',borderRadius:'4px',padding:'20px',border:isCompleted?'1px solid var(--teal)':(isUnlocked?'1px solid var(--gold)':'1px solid var(--border)'),opacity:isUnlocked?1:0.5}});
-    card.append(div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'12px'}},[
-      h('div',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'20px',color:'var(--gold)'},html:deck.name}),
-      h('span',{style:{fontFamily:"Inter,sans-serif",fontSize:'10px',color:'var(--dim)',background:'var(--card)',padding:'4px 8px',borderRadius:'4px'},html:`Level ${deck.unlock_order}`})
-    ]));
-    if(isCompleted){
-      card.append(div({style:{display:'flex',alignItems:'center',gap:'8px',marginBottom:'16px'}},[h('span',{style:{fontSize:'16px'},html:'✓'}),h('span',{style:{fontFamily:"Inter,sans-serif",fontSize:'11px',color:'var(--teal)'},html:'Completed'})]),
-      btn('Play Again →','btn-outline',()=>showDeckPlayer(deck,'riddle'),{style:{width:'100%'}}));
-    }else if(isUnlocked){
-      card.append(btn('Start →','btn-gold',()=>showDeckPlayer(deck,'riddle'),{style:{width:'100%'}}));
-    }else{
-      card.append(h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'11px',color:'var(--dim)',textAlign:'center',padding:'8px'},html:`Complete Level ${deck.unlock_order-1} first`}));
-    }
-    grid.append(card);
-  }
-  riddleSection.append(grid);
-}
-// EMOJI BITZ TAB
-async function loadEmojiDecksPage(){
-  emojiSection.innerHTML='';
-  const{data:decks}=await sb.from('flashcard_decks').select('*').eq('type','emoji').order('unlock_order',{ascending:true});
-  const{data:progress}=await sb.from('flashcard_progress').select('deck_id,completed').eq('user_id',S.user.id);
-  const completedMap=new Map();progress?.forEach(p=>completedMap.set(p.deck_id,p.completed));
-  if(!decks||!decks.length){emojiSection.append(h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'12px',color:'var(--dim)',textAlign:'center',padding:'40px'},html:'No emoji bitz decks available yet.'}));return;}
-  const grid=div({style:{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(300px,1fr))',gap:'16px'}});
-  for(let i=0;i<decks.length;i++){
-    const deck=decks[i];
-    const isCompleted=completedMap.get(deck.id)===true;
-    const isUnlocked=deck.unlock_order===1||completedMap.get(decks[i-1]?.id)===true;
-    const card=div({style:{background:'var(--card2)',borderRadius:'4px',padding:'20px',border:isCompleted?'1px solid var(--teal)':(isUnlocked?'1px solid var(--gold)':'1px solid var(--border)'),opacity:isUnlocked?1:0.5}});
-    card.append(div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'12px'}},[
-      h('div',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'20px',color:'var(--gold)'},html:deck.name}),
-      h('span',{style:{fontFamily:"Inter,sans-serif",fontSize:'10px',color:'var(--dim)',background:'var(--card)',padding:'4px 8px',borderRadius:'4px'},html:`Level ${deck.unlock_order}`})
-    ]));
-    if(isCompleted){
-      card.append(div({style:{display:'flex',alignItems:'center',gap:'8px',marginBottom:'16px'}},[h('span',{style:{fontSize:'16px'},html:'✓'}),h('span',{style:{fontFamily:"Inter,sans-serif",fontSize:'11px',color:'var(--teal)'},html:'Completed'})]),
-      btn('Play Again →','btn-outline',()=>showDeckPlayer(deck,'emoji'),{style:{width:'100%'}}));
-    }else if(isUnlocked){
-      card.append(btn('Start →','btn-gold',()=>showDeckPlayer(deck,'emoji'),{style:{width:'100%'}}));
-    }else{
-      card.append(h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'11px',color:'var(--dim)',textAlign:'center',padding:'8px'},html:`Complete Level ${deck.unlock_order-1} first`}));
-    }
-    grid.append(card);
-  }
-  emojiSection.append(grid);
-}
+// RIDDLE DECKS TAB — moved to Flashcards page
+async function loadRiddleDecksPage(){}
+// EMOJI BITZ TAB — moved to Flashcards page
+async function loadEmojiDecksPage(){}
 // DECK PLAYER
 async function showDeckPlayer(deck,type){
   const{data:cards}=await sb.from('flashcards').select('*').eq('deck_id',deck.id);
