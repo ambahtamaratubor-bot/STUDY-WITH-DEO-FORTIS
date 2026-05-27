@@ -2303,12 +2303,44 @@ const nav=div({cls:'dash-nav'});
 nav.append(div({cls:'logo',html:'Deo Fortis'}),div({style:{display:'flex',gap:'8px'}},[btn('← Dashboard','btn-outline',()=>{sessionStorage.removeItem('vignette_resume');go('dashboard');},{style:{padding:'8px 16px'}}),makeThemeBtn()]));
 page.append(nav);
 let decks=[],selDeck=null,cards=[],queue=[],curIdx=0,flipped=false,prog={easy:0,iffy:0,hard:0};
+const tabBar=div({style:{display:'flex',gap:'8px',padding:'0 24px',borderBottom:'1px solid var(--border)',background:'var(--nav-bg)'}});
+const decksTabBtn=btn('Flashcard Decks','btn',()=>{decksTabBtn.style.background='var(--gold)';decksTabBtn.style.color='var(--bg)';decksTabBtn.style.border='1px solid var(--gold)';bitzTabBtn.style.background='transparent';bitzTabBtn.style.color='var(--text)';bitzTabBtn.style.border='1px solid var(--border)';showDecks();},{style:{padding:'10px 20px',background:'var(--gold)',color:'var(--bg)',border:'1px solid var(--gold)',borderRadius:'0',fontSize:'12px'}});
+const bitzTabBtn=btn('Riddle & Emoji Bitz','btn',()=>{bitzTabBtn.style.background='var(--gold)';bitzTabBtn.style.color='var(--bg)';bitzTabBtn.style.border='1px solid var(--gold)';decksTabBtn.style.background='transparent';decksTabBtn.style.color='var(--text)';decksTabBtn.style.border='1px solid var(--border)';showBitz();},{style:{padding:'10px 20px',background:'transparent',color:'var(--text)',border:'1px solid var(--border)',borderRadius:'0',fontSize:'12px'}});
+tabBar.append(decksTabBtn,bitzTabBtn);
+page.append(tabBar);
 const inner=div({cls:'inner-sm'});page.append(inner);
+async function showBitz(){
+inner.innerHTML='';
+inner.append(h('span',{cls:'chapter',html:'Riddle & Emoji Bitz'}),h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'32px',marginBottom:'8px'},html:'Brain Teasers & Emoji Challenges'}),h('p',{cls:'muted',style:{fontSize:'14px',marginBottom:'32px'},html:'Brain teasers and emoji challenges to keep your mind sharp.'}));
+(async()=>{
+var bitzQuery=isFree?sb.from('flashcard_decks').select('*').or('type.eq.riddle,type.eq.emoji').eq('is_global',true).order('created_at',{ascending:false}):sb.from('flashcard_decks').select('*').or('type.eq.riddle,type.eq.emoji').or('user_id.eq.'+S.user.id+',user_id.is.null').order('created_at',{ascending:false});
+var{data:bdecks}=await bitzQuery;
+if(!bdecks||!bdecks.length){inner.append(div({cls:'card',style:{textAlign:'center',padding:'48px'}},[h('p',{style:{fontSize:'14px',color:'var(--dim)'},html:'No riddle or emoji decks available yet.'},[])]));}
+else{var grid=div({style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(240px,1fr))',gap:'16px',marginBottom:'32px'}});bdecks.forEach(function(deck){var card=div({cls:'card',style:{cursor:'pointer'}});card.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'18px',color:'var(--text)',marginBottom:'8px'},html:deck.name||deck.topic},[]),btn('Start Deck →','btn-gold',function(){loadDeck(deck);},{style:{width:'100%',marginTop:'16px'}}));grid.append(card);});inner.append(grid);}
+var submitCard=div({cls:'card',style:{marginTop:'24px'}});
+submitCard.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'18px',marginBottom:'16px'},html:'Submit Your Own Riddle'}));
+var topicInp=inp('Topic (e.g. Cardiology)','text','');
+var riddleArea=h('textarea',{cls:'input',placeholder:'Write your riddle here...',style:{minHeight:'80px',resize:'vertical',marginBottom:'12px'}});
+var answerInp=inp('Answer','text','');
+var subStatus=div({style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'11px',color:'var(--teal)',marginTop:'12px',display:'none'}},[]);
+var subBtn=btn('Submit Riddle','btn-gold',async function(){
+var topic=topicInp.value.trim();var riddle=riddleArea.value.trim();var answer=answerInp.value.trim();
+if(!topic||!riddle||!answer){subStatus.style.display='block';subStatus.style.color='#ff4444';subStatus.innerHTML='Please fill in all fields.';return;}
+subStatus.style.display='block';subStatus.innerHTML='Submitting...';subStatus.style.color='var(--dim)';subBtn.disabled=true;
+var{error}=await sb.from('riddle_submissions').insert({user_id:S.user.id,user_name:S.profile?.full_name||S.user.email,topic:topic,riddle:riddle,answer:answer,status:'pending'});
+if(error){subStatus.innerHTML='Error: '+error.message;subStatus.style.color='#ff4444';subBtn.disabled=false;return;}
+topicInp.value='';riddleArea.value='';answerInp.value='';
+subStatus.innerHTML='Your riddle has been submitted for review.';subStatus.style.color='var(--teal)';subBtn.disabled=false;
+},{style:{width:'100%',marginTop:'8px'}});
+submitCard.append(h('label',{cls:'label',html:'Topic'}),topicInp,h('label',{cls:'label',html:'Your Riddle'}),riddleArea,h('label',{cls:'label',html:'Answer'}),answerInp,subBtn,subStatus);
+inner.append(submitCard);
+})();
+}
 async function showDecks(){
 inner.innerHTML='';
 inner.append(h('span',{cls:'chapter',html:'Flashcard Decks'}),h('h1',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'40px',fontWeight:'700',marginBottom:'8px'},html:'Study <em class="gold-em">Flashcards</em>'}),h('p',{cls:'muted',style:{fontSize:'14px',marginBottom:'40px'},html:'Select a deck. Mark cards Easy, Iffy, or Hard as you go.'}));
 var mapletF=showMaplet('flashcards','Flip through your deck and rate each card. Hard cards come back sooner — that is spaced repetition working for you.');if(mapletF)inner.append(mapletF);
-const{data}=await (isFree?sb.from('flashcard_decks').select('*').eq('type','flashcard').eq('is_global',true).order('created_at',{ascending:false}):sb.from('flashcard_decks').select('*').or('user_id.eq.'+S.user.id+',user_id.is.null').order('created_at',{ascending:false}));
+const{data}=await (isFree?sb.from('flashcard_decks').select('*').eq('type','flashcard').eq('is_global',true).order('created_at',{ascending:false}):sb.from('flashcard_decks').select('*').or('user_id.eq.'+S.user.id+',user_id.is.null').neq('type','riddle').neq('type','emoji').order('created_at',{ascending:false}));
 decks=data||[];
 if(!decks.length){inner.append(div({cls:'card',style:{textAlign:'center',padding:'48px'}},[div({style:{fontSize:'40px',marginBottom:'16px'},html:' '}),h('p',{style:{fontSize:'14px',color:'var(--dim)'},html:'No flashcard decks yet.'})]));return;}
 const grid=div({style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(240px,1fr))',gap:'16px'}});
@@ -2977,25 +3009,14 @@ container.append(div({style:{marginBottom:'32px'}},[
 // TAB SYSTEM
 let activeTab='submit';
 const tabContainer=div({style:{display:'flex',gap:'12px',marginBottom:'24px',borderBottom:'1px solid var(--border)',paddingBottom:'12px'}});
-const submitTabBtn=btn('Submit','btn',()=>{activeTab='submit';renderTabs();},{style:{padding:'8px 20px',background:'transparent',color:'var(--text)',border:'1px solid var(--border)',borderRadius:'4px'}});
-const riddleTabBtn=btn('Riddle Decks','btn',()=>{activeTab='riddle';renderTabs();},{style:{padding:'8px 20px',background:'transparent',color:'var(--text)',border:'1px solid var(--border)',borderRadius:'4px'}});
-const emojiTabBtn=btn('Emoji Bitz','btn',()=>{activeTab='emoji';renderTabs();},{style:{padding:'8px 20px',background:'transparent',color:'var(--text)',border:'1px solid var(--border)',borderRadius:'4px'}});
-tabContainer.append(submitTabBtn,riddleTabBtn,emojiTabBtn);
+const submitTabBtn=btn('Submit','btn',()=>{activeTab='submit';renderTabs();},{style:{padding:'8px 20px',background:'var(--gold)',color:'var(--bg)',border:'1px solid var(--gold)',borderRadius:'4px'}});
+tabContainer.append(submitTabBtn);
 container.append(tabContainer);
 const submitSection=div({id:'submit-section'});
-const riddleSection=div({id:'riddle-section',style:{display:'none'}});
-const emojiSection=div({id:'emoji-section',style:{display:'none'}});
-container.append(submitSection,riddleSection,emojiSection);
+container.append(submitSection);
 function renderTabs(){
-  submitSection.style.display=activeTab==='submit'?'block':'none';
-  riddleSection.style.display=activeTab==='riddle'?'block':'none';
-  emojiSection.style.display=activeTab==='emoji'?'block':'none';
-  const isSubmit=activeTab==='submit';const isRiddle=activeTab==='riddle';const isEmoji=activeTab==='emoji';
-  submitTabBtn.style.background=isSubmit?'var(--gold)':'transparent';submitTabBtn.style.color=isSubmit?'var(--bg)':'var(--text)';submitTabBtn.style.border=isSubmit?'1px solid var(--gold)':'1px solid var(--border)';
-  riddleTabBtn.style.background=isRiddle?'var(--gold)':'transparent';riddleTabBtn.style.color=isRiddle?'var(--bg)':'var(--text)';riddleTabBtn.style.border=isRiddle?'1px solid var(--gold)':'1px solid var(--border)';
-  emojiTabBtn.style.background=isEmoji?'var(--gold)':'transparent';emojiTabBtn.style.color=isEmoji?'var(--bg)':'var(--text)';emojiTabBtn.style.border=isEmoji?'1px solid var(--gold)':'1px solid var(--border)';
-  if(activeTab==='riddle')loadRiddleDecksPage();
-  if(activeTab==='emoji')loadEmojiDecksPage();
+  submitSection.style.display='block';
+  submitTabBtn.style.background='var(--gold)';submitTabBtn.style.color='var(--bg)';submitTabBtn.style.border='1px solid var(--gold)';
 }
 // SUBMIT TAB
 let selectedType=null,submitSuccessDiv=null;
@@ -3381,7 +3402,7 @@ page.append(aN);
 const tabs=div({style:{display:'none'}});
 const content=div({cls:'inner-md',style:{padding:'24px'}});
 let curTab='settings';
-const tabDefs=[['settings','⚙ Settings'],['users','Users'],['recalls','Recalls'],['flashcards','Flashcards'],['questions','Q-Bank'],['testimonials','Reviews'],['packages','Packages'],['bookings','Bookings'],['feynman','👑 Feynman']];
+const tabDefs=[['settings','⚙ Settings'],['users','Users'],['recalls','Recalls'],['flashcards','Flashcards'],['questions','Q-Bank'],['testimonials','Reviews'],['packages','Packages'],['bookings','Bookings'],['feynman','👑 Feynman'],['riddles','Riddles']];
 tabDefs.forEach(([id,label])=>{
 const tb=h('button',{cls:'tab-btn'+(id===curTab?' active':''),html:label});
 tb.onclick=()=>{curTab=id;loadTab(id);};
@@ -4248,6 +4269,38 @@ emojiSection.append(emojiList);
 content.append(emojiSection);
 await loadEmojiDecks();
 }
+}
+if(tab==='riddles'){
+content.innerHTML='';
+var rCard=div({cls:'card fade'});
+rCard.append(h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'22px',marginBottom:'8px'},html:'Riddle Submissions'}),h('p',{cls:'muted',style:{fontSize:'14px',marginBottom:'24px'},html:'Review and approve student riddles.'}));
+(async()=>{
+var{data:subs}=await sb.from('riddle_submissions').select('*').eq('status','pending').order('created_at',{ascending:false});
+if(!subs||!subs.length){rCard.append(h('p',{style:{fontSize:'14px',color:'var(--dim)',textAlign:'center',padding:'40px'},html:'No pending riddle submissions.'}));content.append(rCard);return;}
+subs.forEach(function(sub){
+var subCard=div({style:{marginBottom:'24px',padding:'16px',border:'1px solid var(--border)',borderRadius:'4px'}});
+subCard.append(
+div({style:{fontSize:'14px',color:'var(--text)',fontWeight:'600',marginBottom:'8px'}},['From: '+(sub.user_name||'Anonymous')]),
+div({style:{fontSize:'12px',color:'var(--muted)',marginBottom:'12px'}},['Topic: '+sub.topic]),
+div({style:{background:'var(--card2)',padding:'12px',borderRadius:'4px',marginBottom:'8px'}},[div({style:{fontSize:'11px',color:'var(--dim)',marginBottom:'4px'}},['Riddle:']),h('p',{style:{fontSize:'13px',color:'var(--text)',marginBottom:'8px'}},[sub.riddle])]),
+div({style:{background:'var(--card2)',padding:'12px',borderRadius:'4px',marginBottom:'16px'}},[div({style:{fontSize:'11px',color:'var(--dim)',marginBottom:'4px'}},['Answer:']),h('p',{style:{fontSize:'13px',color:'var(--teal)'}},[sub.answer])])
+);
+var actions=div({style:{display:'flex',gap:'12px'}});
+actions.append(
+btn('Approve','btn-teal',async function(){
+var{data:newDeck,error:deckError}=await sb.from('flashcard_decks').insert({name:sub.topic+' Riddles',topic:sub.topic,type:'riddle',is_global:true,user_id:null}).select().single();
+if(deckError){alert('Error creating deck: '+deckError.message);return;}
+var{error:cardError}=await sb.from('flashcards').insert({deck_id:newDeck.id,question:sub.riddle,answer:sub.answer});
+if(cardError){alert('Error adding card: '+cardError.message);return;}
+await sb.from('riddle_submissions').update({status:'approved'}).eq('id',sub.id);
+loadTab('riddles');
+},{style:{padding:'6px 14px',fontSize:'11px'}}),
+btn('Reject','btn-outline',async function(){await sb.from('riddle_submissions').update({status:'rejected'}).eq('id',sub.id);loadTab('riddles');},{style:{padding:'6px 14px',fontSize:'11px',color:'#ff4444',borderColor:'#ff4444'}})
+);
+subCard.append(actions);rCard.append(subCard);
+});
+content.append(rCard);
+})();
 }
 loadTab('settings');
 }
