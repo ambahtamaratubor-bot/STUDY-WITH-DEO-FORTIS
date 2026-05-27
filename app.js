@@ -173,6 +173,7 @@ const dashboardBtn=btn('← Dashboard','btn-outline',()=>go('dashboard'),{style:
 nav.append(logo,div({style:{display:'flex',gap:'12px',alignItems:'center'}},[dashboardBtn,makeThemeBtn()]));
 const inner=div({cls:'inner'});
 inner.append(h('span',{cls:'chapter',html:'Theory Hub'}),h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'26px',marginBottom:'8px'},html:'Your Theory Content'}),h('p',{cls:'muted',style:{fontSize:'14px',marginBottom:'32px'},html:'Review your theory materials and record your recall responses.'}));
+var mapletT=showMaplet('theory','Your personalised theory PDFs live here. Read, respond, and save your notes directly from this page.');if(mapletT)inner.append(mapletT);
 (async()=>{
 const{data:pdfs}=await sb.from('theory_pdfs').select('*').eq('user_id',S.user.id).order('created_at',{ascending:false});
 if(!pdfs||pdfs.length===0){const emptyCard=div({cls:'card',style:{textAlign:'center',padding:'40px'}});emptyCard.append(h('p',{style:{color:'var(--muted)',fontSize:'14px'},html:'No theory content yet. Request an active recall session to get started.'}));inner.append(emptyCard);}
@@ -228,6 +229,7 @@ return toolbar;}
 
 function renderMarkdown(text){let html=text;html=html.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>');html=html.replace(/__(.+?)__/g,'<span style="text-decoration:underline">$1</span>');html=html.replace(/_(.+?)_/g,'<em>$1</em>');html=html.replace(/==(.+?)==/g,'<span style="background:rgba(126,184,164,0.3);padding:0 2px;border-radius:2px">$1</span>');html=html.replace(/\n/g,'<br>');return html;}
 
+function showMaplet(pageKey,message){var storageKey="maplet_"+pageKey;if(localStorage.getItem(storageKey)==="dismissed")return null;var maplet=div({style:{background:"rgba(200,169,110,0.08)",border:"1px solid var(--gold)",borderRadius:"4px",padding:"12px 20px",marginBottom:"24px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:"16px",fontSize:"13px",fontFamily:"Plus Jakarta Sans,sans-serif",color:"var(--text)",lineHeight:"1.5"}},[h("span",{style:{flex:"1"}},[message]),btn("u2715","",function(){localStorage.setItem(storageKey,"dismissed");maplet.style.display="none";},{style:{background:"none",border:"none",color:"var(--dim)",cursor:"pointer",fontSize:"16px",padding:"4px 8px",flexShrink:"0"}})]);return maplet;}
 function notes(){
 const page=div({});
 const nav=div({cls:'dash-nav'});
@@ -238,6 +240,7 @@ rightNav.append(dashboardBtn,makeThemeBtn());
 nav.append(logo,rightNav);
 const inner=div({cls:'inner'});
 inner.append(h('span',{cls:'chapter',html:'My Notes'},[]),h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'26px',marginBottom:'8px'},html:'My Notes'},[]),h('p',{cls:'muted',style:{fontSize:'14px',marginBottom:'32px'},html:'Your saved recall responses, organised by topic.'},[]));
+var mapletN=showMaplet('notes','All your saved recall responses live here. Organise by folder, edit anytime, and export as a branded PDF.');if(mapletN)inner.append(mapletN);
 async function loadNotes(){
 const{data:nlist}=await sb.from('notes').select('*').eq('user_id',S.user.id).order('created_at',{ascending:false});
 Array.from(inner.children).forEach(function(c){if(c.id==='notes-content')c.remove();});
@@ -1970,6 +1973,7 @@ page.innerHTML='';
 const card=div({cls:'card fade',style:{width:'100%',maxWidth:'540px'}});
 card.append(btn('← Back','',()=>go('dashboard'),{style:{background:'none',border:'none',color:'var(--dim)',cursor:'pointer',fontSize:'12px',fontFamily:"Inter,sans-serif",letterSpacing:'1px',marginBottom:'16px'}}));
 card.append(h('span',{cls:'chapter',html:'Study Setup'}),h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'26px',marginBottom:'24px'},html:'Configure Your Session'}));
+var mapletS=showMaplet('study','Choose your topic, pick a recall style, and set your session. The timer starts when you clock in.');if(mapletS)card.append(mapletS);
 const topI=inp('e.g. Bacteriology, Cardiology','text',cfg.topic);topI.id='st-topic';topI.oninput=e=>cfg.topic=e.target.value;
 card.append(field('What topic are you studying?',topI));
 card.append(h('label',{cls:'label',html:'Pomodoro Configuration'}));
@@ -2303,6 +2307,7 @@ const inner=div({cls:'inner-sm'});page.append(inner);
 async function showDecks(){
 inner.innerHTML='';
 inner.append(h('span',{cls:'chapter',html:'Flashcard Decks'}),h('h1',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'40px',fontWeight:'700',marginBottom:'8px'},html:'Study <em class="gold-em">Flashcards</em>'}),h('p',{cls:'muted',style:{fontSize:'14px',marginBottom:'40px'},html:'Select a deck. Mark cards Easy, Iffy, or Hard as you go.'}));
+var mapletF=showMaplet('flashcards','Flip through your deck and rate each card. Hard cards come back sooner — that is spaced repetition working for you.');if(mapletF)inner.append(mapletF);
 const{data}=await (isFree?sb.from('flashcard_decks').select('*').eq('type','flashcard').eq('is_global',true).order('created_at',{ascending:false}):sb.from('flashcard_decks').select('*').or('user_id.eq.'+S.user.id+',user_id.is.null').order('created_at',{ascending:false}));
 decks=data||[];
 if(!decks.length){inner.append(div({cls:'card',style:{textAlign:'center',padding:'48px'}},[div({style:{fontSize:'40px',marginBottom:'16px'},html:' '}),h('p',{style:{fontSize:'14px',color:'var(--dim)'},html:'No flashcard decks yet.'})]));return;}
@@ -2537,6 +2542,7 @@ inner.innerHTML='';
 const savedQuiz=sessionStorage.getItem('vignette_resume');
 if(savedQuiz){(()=>{const state=JSON.parse(savedQuiz);if(mode==='timed'&&state.timeLeft<=0){sessionStorage.removeItem('vignette_resume');}else{const banner=div({cls:'card',style:{marginBottom:'24px',padding:'16px',border:'1px solid var(--gold)',background:'rgba(200,169,110,0.08)'}},[ h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'11px',color:'var(--gold)',marginBottom:'12px'}},['⏸ Quiz in progress — '+state.selTopic+' · '+Object.keys(state.answers).length+' of '+state.questions.length+' answered']), div({style:{display:'flex',gap:'10px'}},[ btn('Resume','btn-gold',()=>{questions=state.questions;current=state.current;answers=state.answers;selTopic=state.selTopic;mode=state.mode;timeLimit=state.timeLimit;timeLeft=state.timeLeft||0;submitted=false;revealed={};showQuiz();},{style:{padding:'6px 16px',fontSize:'11px'}}), btn('Discard','btn-outline',()=>{sessionStorage.removeItem('vignette_resume');showSetup();},{style:{padding:'6px 16px',fontSize:'11px'}}) ]) ]);inner.append(banner);}})();}
 inner.append(h('span',{cls:'chapter',html:'Question Bank'}),h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'26px',marginBottom:'24px'},html:'Configure Your Quiz'}));
+var mapletQ=showMaplet('qbank','Attempt vignette questions one at a time. Use the highlighter, rule out options, and review your explanation after each answer.');if(mapletQ)inner.append(mapletQ);
 const{data}=await (isFree?sb.from('vignette_questions').select('topic').eq('is_global',true):sb.from('vignette_questions').select('topic').or('user_id.eq.'+S.user.id+',user_id.is.null'));
 const topics=data?[...new Set(data.map(d=>d.topic))]:[];
 if(!topics.length){inner.append(div({cls:'card',style:{textAlign:'center',padding:'48px'}},[h('p',{style:{fontSize:'14px',color:'var(--dim)'},html:'No questions available yet.'})]));return;}
@@ -2962,6 +2968,7 @@ const nav=div({cls:'dash-nav'},[
 page.append(nav);
 const container=div({cls:'inner'});
 page.append(container);
+var mapletFey=showMaplet('feynman','Explain a concept in your own words. Submit it, earn points, and compete for Feynman King of the week.');if(mapletFey)container.append(mapletFey);
 container.append(div({style:{marginBottom:'32px'}},[
   h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'11px',color:'var(--teal)',textTransform:'uppercase',letterSpacing:'1px',marginBottom:'8px'},html:'Feynman Arena'}),
   h('h1',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'32px',color:'var(--gold)',marginBottom:'8px'},html:'Teach It. Own It.'}),
