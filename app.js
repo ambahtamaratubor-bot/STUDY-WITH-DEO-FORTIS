@@ -1599,9 +1599,6 @@ const nav=div({cls:'dash-nav'});
 nav.append(
   div({cls:'logo',html:'Deo Fortis'}),
   div({style:{display:'flex',gap:'8px'}},[
-    btn('Study','btn-outline',()=>go('study'),{style:{padding:'8px 16px'}}),
-    btn('Cards','btn-outline',()=>go('flashcards'),{style:{padding:'8px 16px'}}),
-    btn('Q-Bank','btn-outline',()=>go('vignette'),{style:{padding:'8px 16px'}}),
     btn('Leaderboard','btn-outline',()=>go('leaderboard'),{style:{padding:'8px 16px'}}),
     makeThemeBtn(),
     isFree?btn('⬆ Upgrade','btn-gold',()=>showUpgradeModal(),{style:{padding:'8px 16px'}}):null,
