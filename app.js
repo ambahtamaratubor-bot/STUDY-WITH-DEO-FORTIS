@@ -2024,7 +2024,9 @@ attachmentData=await new Promise((res,rej)=>{const reader=new FileReader();reade
 attachmentName=file.name;
 attachStatus.style.display='none';
 }
-await sb.from('recall_requests').insert({user_id:S.user.id,user_name:S.profile?.full_name,user_email:S.profile?.email,topic:cfg.topic,style:cfg.recallStyle,details:cfg.recallDetails,quantity:parseInt(qtyI.value)||0,status:'pending',attachment_data:attachmentData,attachment_name:attachmentName});
+const isFreeTier=S.profile?.is_free_tier===true;
+await sb.from('recall_requests').insert({user_id:S.user.id,user_name:S.profile?.full_name,user_email:S.profile?.email,topic:cfg.topic,style:cfg.recallStyle,details:cfg.recallDetails,quantity:parseInt(qtyI.value)||0,status:'pending',attachment_data:attachmentData,attachment_name:attachmentName,is_free_tier:isFreeTier});
+if(isFreeTier){const warningDiv=div({style:{background:'rgba(200,169,110,0.1)',border:'1px solid var(--gold)',borderRadius:'4px',padding:'12px 16px',marginTop:'16px',fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'12px',color:'var(--gold)',textAlign:'center'}},[h('span',{style:{display:'block'}},['⚠️ Your request was received.']),h('span',{style:{display:'block',marginTop:'4px'}},['However, as a free tier member it will not be fulfilled. Upgrade to unlock active recall.'])]);ro.append(warningDiv);}
 sendAdminEmail('🧠 New Recall Request — Deo Fortis','<h2>New Active Recall Request</h2><p><b>Student:</b> '+S.profile?.full_name+'</p><p><b>Email:</b> '+S.profile?.email+'</p><p><b>Topic:</b> '+cfg.topic+'</p><p><b>Style:</b> '+cfg.recallStyle+'</p><p><b>Quantity:</b> '+(qtyI.value||'Not specified')+'</p><p><b>Details:</b> '+(cfg.recallDetails||'None')+'</p><p><b>Attachment:</b> '+(attachmentName||'None')+'</p>');
 reqSent=true;sentMsg.style.display='block';sendBtn.style.display='none';
 },{style:{width:'100%',marginBottom:'20px',display:reqSent?'none':'block'}});
@@ -3678,7 +3680,10 @@ const upSt=div({cls:'ok',style:{display:'none',marginTop:'16px'}});
 recs.forEach(r=>{
 const card=div({cls:'card',style:{marginBottom:'16px'}});
 const hdr2=div({style:{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:'12px'}});
-hdr2.append(div({},[div({style:{fontSize:'15px',color:'var(--text)',marginBottom:'4px'},html:r.user_name||'—'}),div({style:{fontSize:'12px',color:'var(--muted)'},html:r.user_email||''})]),h('span',{style:{fontFamily:"Inter,sans-serif",fontSize:'10px',letterSpacing:'1px',textTransform:'uppercase',color:r.status==='pending'?'var(--gold)':'var(--teal)'},html:r.status}));
+const nameDiv=div({style:{fontSize:'15px',color:'var(--text)',marginBottom:'4px'}});
+nameDiv.innerHTML=(r.user_name||'—');
+if(r.is_free_tier===true){const badge=h('span',{style:{background:'#8B0000',color:'white',fontSize:'9px',fontWeight:'600',letterSpacing:'0.5px',textTransform:'uppercase',padding:'2px 8px',borderRadius:'2px',marginLeft:'8px',display:'inline-block'}},['DO NOT FULFIL']);nameDiv.append(badge);}
+hdr2.append(div({},[nameDiv,div({style:{fontSize:'12px',color:'var(--muted)'},html:r.user_email||''})]),h('span',{style:{fontFamily:"Inter,sans-serif",fontSize:'10px',letterSpacing:'1px',textTransform:'uppercase',color:r.status==='pending'?'var(--gold)':'var(--teal)'},html:r.status}));
 card.append(hdr2);
 const dg=div({style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'12px',marginBottom:'12px'}});
 [[r.topic,'Topic'],[r.style,'Style']].forEach(([v,l])=>{const d=div({});d.append(div({cls:'mono',style:{marginBottom:'4px'},html:l}),div({style:{fontSize:'14px',color:l==='Style'?'var(--gold)':'var(--text)'},html:v||'—'}));dg.append(d);});
