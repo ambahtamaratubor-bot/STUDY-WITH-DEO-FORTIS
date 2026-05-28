@@ -2048,6 +2048,10 @@ ro.append(h('label',{cls:'label',html:'How many questions / cards do you want?'}
 const detI=h('textarea',{cls:'input',placeholder:'e.g. Focus on gram positive bacteria, NBME style...',style:{minHeight:'80px',resize:'vertical',marginBottom:'20px'}});
 detI.value=cfg.recallDetails;detI.oninput=e=>cfg.recallDetails=e.target.value;
 ro.append(h('label',{cls:'label',html:'Be Specific (optional)'}),detI);
+const attachLabel=h('label',{cls:'label',html:'Attach Study Material (optional)'});
+const attachNote=div({style:{fontSize:'11px',color:'var(--dim)',marginBottom:'8px',lineHeight:'1.6'}},['Upload only the specific pages or topic you need help with. Avoid uploading entire textbooks. If it is a small amount of text, paste it into a .txt or Word doc instead.']);
+const attachI=h('input',{type:'file',accept:'.pdf,.pptx,.txt,.png,.jpg,.jpeg',style:{color:'var(--muted)',fontSize:'12px',marginBottom:'8px',display:'block'}});
+const attachStatus=div({style:{fontSize:'11px',color:'var(--teal)',marginBottom:'8px',display:'none'}},[]);
 ro.append(attachLabel,attachNote,attachI,attachStatus);
 let requestCount=0;
 const requestCountDiv=div({style:{fontFamily:"Inter,sans-serif",fontSize:'11px',color:'var(--teal)',marginBottom:'12px',display:'none'}});
