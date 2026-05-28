@@ -1959,7 +1959,7 @@ return page;
 // ═══════════════════════════════
 function study(){
 const page=div({cls:'center',style:{minHeight:'100vh',padding:'24px',flexDirection:'column'}});
-let cfg={topic:'',workMins:25,breakMins:5,sessions:4,useRecall:false,recallStyle:'',recallDetails:''};
+let cfg={topic:'',workMins:25,breakMins:5,sessions:4,useRecall:false,recallStyles:[],recallDetails:''};
 let timer=0,running=false,curSess=1,isBreak=false,interval=null,reqSent=false;
 // Restore timer state from localStorage if exists
 const _saved=localStorage.getItem('pomodoroState');
@@ -2003,32 +2003,57 @@ rb.append(b);
 card.append(rb);
 const ro=div({style:{display:cfg.useRecall?'block':'none'}});
 ro.append(h('label',{cls:'label',html:'Recall Style'}));
-const sg=div({style:{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:'10px',marginBottom:'20px'}});
-[['flashcard',' Flashcard'],['vignette',' Vignette'],['theory',' Theory']].forEach(([v,l])=>{
-const b=btn(l,'btn-outline',()=>{cfg.recallStyle=v;sg.querySelectorAll('button').forEach(b2=>{b2.style.background='transparent';b2.style.color='var(--muted)';b2.style.border='1px solid var(--border)';});b.style.background='var(--gold)';b.style.color='#0F0E0A';b.style.border='1px solid var(--gold)';});
-b.style.fontSize='11px';if(cfg.recallStyle===v){b.style.background='var(--gold)';b.style.color='#0F0E0A';b.style.border='1px solid var(--gold)';}
-sg.append(b);
-});
-ro.append(sg);
+var styleGrid=div({style:{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:'10px',marginBottom:'20px'}},[]);
+var recallPriority='';
+var priorityDiv=div({style:{display:'none',marginBottom:'16px'}},[]);
+var priorityLabel=h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'12px',color:'var(--muted)',marginBottom:'8px'}},['Which would you like first?']);
+var priorityBtnsRow=div({style:{display:'flex',gap:'12px',marginBottom:'16px'}},[]);
+priorityDiv.append(priorityLabel,priorityBtnsRow);
+var flashcardBtn=btn('Flashcard','btn-outline',function(){
+  var idx=cfg.recallStyles.indexOf('flashcard');
+  if(idx!==-1){cfg.recallStyles.splice(idx,1);flashcardBtn.style.background='transparent';flashcardBtn.style.color='var(--muted)';flashcardBtn.style.border='1px solid var(--border)';if(recallPriority==='flashcard')recallPriority='';}
+  else{if(cfg.recallStyles.length<2){cfg.recallStyles.push('flashcard');flashcardBtn.style.background='var(--gold)';flashcardBtn.style.color='#0F0E0A';flashcardBtn.style.border='1px solid var(--gold)';}}
+  updatePriorityDiv();
+},{style:{width:'100%',fontSize:'11px'}});
+var vignetteBtn=btn('Vignette','btn-outline',function(){
+  var idx=cfg.recallStyles.indexOf('vignette');
+  if(idx!==-1){cfg.recallStyles.splice(idx,1);vignetteBtn.style.background='transparent';vignetteBtn.style.color='var(--muted)';vignetteBtn.style.border='1px solid var(--border)';if(recallPriority==='vignette')recallPriority='';}
+  else{if(cfg.recallStyles.length<2){cfg.recallStyles.push('vignette');vignetteBtn.style.background='var(--gold)';vignetteBtn.style.color='#0F0E0A';vignetteBtn.style.border='1px solid var(--gold)';}}
+  updatePriorityDiv();
+},{style:{width:'100%',fontSize:'11px'}});
+var theoryBtn=btn('Theory','btn-outline',function(){
+  var idx=cfg.recallStyles.indexOf('theory');
+  if(idx!==-1){cfg.recallStyles.splice(idx,1);theoryBtn.style.background='transparent';theoryBtn.style.color='var(--muted)';theoryBtn.style.border='1px solid var(--border)';if(recallPriority==='theory')recallPriority='';}
+  else{if(cfg.recallStyles.length<2){cfg.recallStyles.push('theory');theoryBtn.style.background='var(--gold)';theoryBtn.style.color='#0F0E0A';theoryBtn.style.border='1px solid var(--gold)';}}
+  updatePriorityDiv();
+},{style:{width:'100%',fontSize:'11px'}});
+styleGrid.append(flashcardBtn,vignetteBtn,theoryBtn);
+function updatePriorityDiv(){
+  if(cfg.recallStyles.length===2){
+    priorityDiv.style.display='block';
+    priorityBtnsRow.innerHTML='';
+    cfg.recallStyles.forEach(function(style){
+      var label=style.charAt(0).toUpperCase()+style.slice(1);
+      var isActive=recallPriority===style;
+      var pb=btn(label,isActive?'btn-gold':'btn-outline',function(s){return function(){recallPriority=s;updatePriorityDiv();};}(style),{style:{flex:'1'}});
+      if(isActive){pb.style.background='var(--gold)';pb.style.color='#0F0E0A';pb.style.border='1px solid var(--gold)';}
+      else{pb.style.background='transparent';pb.style.color='var(--muted)';pb.style.border='1px solid var(--border)';}
+      priorityBtnsRow.append(pb);
+    });
+  }else{priorityDiv.style.display='none';recallPriority='';}
+}
+ro.append(styleGrid,priorityDiv);
 const qtyI=inp('e.g. 20','number','');qtyI.min='1';qtyI.max='200';
 ro.append(h('label',{cls:'label',html:'How many questions / cards do you want?'}),qtyI);
 const detI=h('textarea',{cls:'input',placeholder:'e.g. Focus on gram positive bacteria, NBME style...',style:{minHeight:'80px',resize:'vertical',marginBottom:'20px'}});
 detI.value=cfg.recallDetails;detI.oninput=e=>cfg.recallDetails=e.target.value;
 ro.append(h('label',{cls:'label',html:'Be Specific (optional)'}),detI);
-const priorityI=inp('e.g. Cardiology first, then Nephrology','text','');
-priorityI.style.marginBottom='20px';
-const multiNote=div({style:{background:'rgba(200,169,110,0.08)',border:'1px solid var(--gold-border)',borderRadius:'4px',padding:'12px 16px',marginBottom:'16px',fontFamily:"Inter,sans-serif",fontSize:'12px',color:'var(--muted)',lineHeight:'1.6'}},['If you are requesting more than one topic, each request is submitted separately. Requesting multiple topics will take longer to fulfil. Use the priority field below to tell us which you would like completed first.']);
-ro.append(multiNote,h('label',{cls:'label',html:'Priority — which topic would you like fulfilled first?'}),priorityI);
-const attachLabel=h('label',{cls:'label',html:'Attach Study Material (optional)'});
-const attachNote=div({style:{fontSize:'11px',color:'var(--dim)',marginBottom:'8px',lineHeight:'1.6'}},['Upload only the specific pages or topic you need help with. Avoid uploading entire textbooks. If it is a small amount of text, paste it into a .txt or Word doc instead.']);
-const attachI=h('input',{type:'file',accept:'.pdf,.pptx,.txt,.png,.jpg,.jpeg',style:{color:'var(--muted)',fontSize:'12px',marginBottom:'8px',display:'block'}});
-const attachStatus=div({style:{fontSize:'11px',color:'var(--teal)',marginBottom:'8px',display:'none'}},[]);
 ro.append(attachLabel,attachNote,attachI,attachStatus);
 let requestCount=0;
 const requestCountDiv=div({style:{fontFamily:"Inter,sans-serif",fontSize:'11px',color:'var(--teal)',marginBottom:'12px',display:'none'}});
 const sentMsg=div({cls:'ok',style:{display:'none',marginBottom:'12px'}});
 const sendBtn=btn('Send Recall Request →','btn-teal',async()=>{
-if(!cfg.recallStyle)return;
+if(!cfg.recallStyles.length)return;
 let attachmentData=null;let attachmentName=null;
 if(attachI.files[0]){
 const file=attachI.files[0];
@@ -2039,19 +2064,20 @@ attachmentName=file.name;
 attachStatus.style.display='none';
 }
 const isFreeTier=S.profile?.is_free_tier===true;
-const priorityNote=priorityI.value.trim();
-const fullDetails=(cfg.recallDetails+(priorityNote?'\nPriority: '+priorityNote:'')).trim();
-await sb.from('recall_requests').insert({user_id:S.user.id,user_name:S.profile?.full_name,user_email:S.profile?.email,topic:cfg.topic,style:cfg.recallStyle,details:fullDetails,quantity:parseInt(qtyI.value)||0,status:'pending',attachment_data:attachmentData,attachment_name:attachmentName,is_free_tier:isFreeTier});
+const styleStr=cfg.recallStyles.join(', ');
+const fullDetails=(cfg.recallDetails+(recallPriority?'\nPriority: '+recallPriority+' first':'')).trim();
+await sb.from('recall_requests').insert({user_id:S.user.id,user_name:S.profile?.full_name,user_email:S.profile?.email,topic:cfg.topic,style:styleStr,details:fullDetails,quantity:parseInt(qtyI.value)||0,status:'pending',attachment_data:attachmentData,attachment_name:attachmentName,is_free_tier:isFreeTier});
 if(isFreeTier){const warningDiv=div({style:{background:'rgba(200,169,110,0.1)',border:'1px solid var(--gold)',borderRadius:'4px',padding:'12px 16px',marginTop:'16px',fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'12px',color:'var(--gold)',textAlign:'center'}},[h('span',{style:{display:'block'}},['⚠️ Your request was received.']),h('span',{style:{display:'block',marginTop:'4px'}},['However, as a free tier member it will not be fulfilled. Upgrade to unlock active recall.'])]);ro.append(warningDiv);}
-sendAdminEmail('🧠 New Recall Request — Deo Fortis','<h2>New Active Recall Request</h2><p><b>Student:</b> '+S.profile?.full_name+'</p><p><b>Email:</b> '+S.profile?.email+'</p><p><b>Topic:</b> '+cfg.topic+'</p><p><b>Style:</b> '+cfg.recallStyle+'</p><p><b>Quantity:</b> '+(qtyI.value||'Not specified')+'</p><p><b>Details:</b> '+(fullDetails||'None')+'</p><p><b>Attachment:</b> '+(attachmentName||'None')+'</p>');
+sendAdminEmail('🧠 New Recall Request — Deo Fortis','<h2>New Active Recall Request</h2><p><b>Student:</b> '+S.profile?.full_name+'</p><p><b>Email:</b> '+S.profile?.email+'</p><p><b>Topic:</b> '+cfg.topic+'</p><p><b>Style:</b> '+styleStr+'</p><p><b>Quantity:</b> '+(qtyI.value||'Not specified')+'</p><p><b>Details:</b> '+(fullDetails||'None')+'</p><p><b>Attachment:</b> '+(attachmentName||'None')+'</p>');
 requestCount++;
 requestCountDiv.style.display='block';
 requestCountDiv.textContent='✓ '+requestCount+(requestCount===1?' request':' requests')+' sent this session.';
 sentMsg.style.display='block';
 sentMsg.innerHTML='Request sent! Submit another topic below, or start your session.';
-cfg.recallStyle='';cfg.recallDetails='';
-sg.querySelectorAll('button').forEach(b2=>{b2.style.background='transparent';b2.style.color='var(--muted)';b2.style.border='1px solid var(--border)';});
+cfg.recallStyles=[];cfg.recallDetails='';recallPriority='';
+[flashcardBtn,vignetteBtn,theoryBtn].forEach(function(b){b.style.background='transparent';b.style.color='var(--muted)';b.style.border='1px solid var(--border)';});
 qtyI.value='';detI.value='';attachI.value='';
+updatePriorityDiv();
 setTimeout(()=>{sentMsg.style.display='none';},4000);
 },{style:{width:'100%',marginBottom:'12px'}});
 ro.append(requestCountDiv,sentMsg,sendBtn);
@@ -4133,6 +4159,14 @@ if(!filteredSubs.length){
         loadTab('feynman');
       },{style:{padding:'6px 16px',fontSize:'11px'}}));
       card.append(actions);
+    }else if(sub.status==='approved'&&!sub.is_king){
+      const crownBtn=btn('Crown King','btn-gold',async()=>{
+        await sb.from('feynman_submissions').update({is_king:false}).eq('week_of',currentMonday).eq('is_king',true);
+        if(!sub.points_awarded){const{data:up}=await sb.from('profiles').select('total_points').eq('id',sub.user_id).single();if(up){await sb.from('profiles').update({total_points:(up.total_points||0)+50}).eq('id',sub.user_id);}}
+        await sb.from('feynman_submissions').update({is_king:true,student_notified:false,notification_type:'king'}).eq('id',sub.id);
+        loadTab('feynman');
+      },{style:{padding:'6px 16px',fontSize:'11px',marginTop:'12px'}});
+      card.append(crownBtn);
     }else if(sub.is_king){
       card.append(div({style:{marginTop:'12px',display:'flex',alignItems:'center',gap:'8px',background:'rgba(200,169,110,0.1)',padding:'8px 12px',borderRadius:'4px'}},[
         h('span',{style:{display:'flex'},html:'<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="var(--gold)"><path d="M3 18h18v2H3v-2zm0-2l3-8 4 4 2-6 2 6 4-4 3 8H3z"/></svg>'}),
