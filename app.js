@@ -2015,12 +2015,18 @@ ro.append(h('label',{cls:'label',html:'How many questions / cards do you want?'}
 const detI=h('textarea',{cls:'input',placeholder:'e.g. Focus on gram positive bacteria, NBME style...',style:{minHeight:'80px',resize:'vertical',marginBottom:'20px'}});
 detI.value=cfg.recallDetails;detI.oninput=e=>cfg.recallDetails=e.target.value;
 ro.append(h('label',{cls:'label',html:'Be Specific (optional)'}),detI);
+const priorityI=inp('e.g. Cardiology first, then Nephrology','text','');
+priorityI.style.marginBottom='20px';
+const multiNote=div({style:{background:'rgba(200,169,110,0.08)',border:'1px solid var(--gold-border)',borderRadius:'4px',padding:'12px 16px',marginBottom:'16px',fontFamily:"Inter,sans-serif",fontSize:'12px',color:'var(--muted)',lineHeight:'1.6'}},['If you are requesting more than one topic, each request is submitted separately. Requesting multiple topics will take longer to fulfil. Use the priority field below to tell us which you would like completed first.']);
+ro.append(multiNote,h('label',{cls:'label',html:'Priority — which topic would you like fulfilled first?'}),priorityI);
 const attachLabel=h('label',{cls:'label',html:'Attach Study Material (optional)'});
 const attachNote=div({style:{fontSize:'11px',color:'var(--dim)',marginBottom:'8px',lineHeight:'1.6'}},['Upload only the specific pages or topic you need help with. Avoid uploading entire textbooks. If it is a small amount of text, paste it into a .txt or Word doc instead.']);
 const attachI=h('input',{type:'file',accept:'.pdf,.pptx,.txt,.png,.jpg,.jpeg',style:{color:'var(--muted)',fontSize:'12px',marginBottom:'8px',display:'block'}});
 const attachStatus=div({style:{fontSize:'11px',color:'var(--teal)',marginBottom:'8px',display:'none'}},[]);
 ro.append(attachLabel,attachNote,attachI,attachStatus);
-const sentMsg=div({cls:'ok',style:{display:reqSent?'block':'none',marginBottom:'20px'},html:'✓ Request sent! You will be notified when your content is ready.'});
+let requestCount=0;
+const requestCountDiv=div({style:{fontFamily:"Inter,sans-serif",fontSize:'11px',color:'var(--teal)',marginBottom:'12px',display:'none'}});
+const sentMsg=div({cls:'ok',style:{display:'none',marginBottom:'12px'}});
 const sendBtn=btn('Send Recall Request →','btn-teal',async()=>{
 if(!cfg.recallStyle)return;
 let attachmentData=null;let attachmentName=null;
@@ -2033,12 +2039,22 @@ attachmentName=file.name;
 attachStatus.style.display='none';
 }
 const isFreeTier=S.profile?.is_free_tier===true;
-await sb.from('recall_requests').insert({user_id:S.user.id,user_name:S.profile?.full_name,user_email:S.profile?.email,topic:cfg.topic,style:cfg.recallStyle,details:cfg.recallDetails,quantity:parseInt(qtyI.value)||0,status:'pending',attachment_data:attachmentData,attachment_name:attachmentName,is_free_tier:isFreeTier});
+const priorityNote=priorityI.value.trim();
+const fullDetails=(cfg.recallDetails+(priorityNote?'\nPriority: '+priorityNote:'')).trim();
+await sb.from('recall_requests').insert({user_id:S.user.id,user_name:S.profile?.full_name,user_email:S.profile?.email,topic:cfg.topic,style:cfg.recallStyle,details:fullDetails,quantity:parseInt(qtyI.value)||0,status:'pending',attachment_data:attachmentData,attachment_name:attachmentName,is_free_tier:isFreeTier});
 if(isFreeTier){const warningDiv=div({style:{background:'rgba(200,169,110,0.1)',border:'1px solid var(--gold)',borderRadius:'4px',padding:'12px 16px',marginTop:'16px',fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'12px',color:'var(--gold)',textAlign:'center'}},[h('span',{style:{display:'block'}},['⚠️ Your request was received.']),h('span',{style:{display:'block',marginTop:'4px'}},['However, as a free tier member it will not be fulfilled. Upgrade to unlock active recall.'])]);ro.append(warningDiv);}
-sendAdminEmail('🧠 New Recall Request — Deo Fortis','<h2>New Active Recall Request</h2><p><b>Student:</b> '+S.profile?.full_name+'</p><p><b>Email:</b> '+S.profile?.email+'</p><p><b>Topic:</b> '+cfg.topic+'</p><p><b>Style:</b> '+cfg.recallStyle+'</p><p><b>Quantity:</b> '+(qtyI.value||'Not specified')+'</p><p><b>Details:</b> '+(cfg.recallDetails||'None')+'</p><p><b>Attachment:</b> '+(attachmentName||'None')+'</p>');
-reqSent=true;sentMsg.style.display='block';sendBtn.style.display='none';
-},{style:{width:'100%',marginBottom:'20px',display:reqSent?'none':'block'}});
-ro.append(sentMsg,sendBtn);
+sendAdminEmail('🧠 New Recall Request — Deo Fortis','<h2>New Active Recall Request</h2><p><b>Student:</b> '+S.profile?.full_name+'</p><p><b>Email:</b> '+S.profile?.email+'</p><p><b>Topic:</b> '+cfg.topic+'</p><p><b>Style:</b> '+cfg.recallStyle+'</p><p><b>Quantity:</b> '+(qtyI.value||'Not specified')+'</p><p><b>Details:</b> '+(fullDetails||'None')+'</p><p><b>Attachment:</b> '+(attachmentName||'None')+'</p>');
+requestCount++;
+requestCountDiv.style.display='block';
+requestCountDiv.textContent='✓ '+requestCount+(requestCount===1?' request':' requests')+' sent this session.';
+sentMsg.style.display='block';
+sentMsg.innerHTML='Request sent! Submit another topic below, or start your session.';
+cfg.recallStyle='';cfg.recallDetails='';
+sg.querySelectorAll('button').forEach(b2=>{b2.style.background='transparent';b2.style.color='var(--muted)';b2.style.border='1px solid var(--border)';});
+qtyI.value='';detI.value='';attachI.value='';
+setTimeout(()=>{sentMsg.style.display='none';},4000);
+},{style:{width:'100%',marginBottom:'12px'}});
+ro.append(requestCountDiv,sentMsg,sendBtn);
 card.append(ro);
 }
 let noiseLinks2={rain:'',ocean:'',cafe:'',white:''};
@@ -2398,6 +2414,12 @@ if(S.profile?.is_free_tier){
 selDeck=deck;
 const{data:allCards}=await sb.from('flashcards').select('*').eq('deck_id',deck.id);
 if(!allCards||!allCards.length){alert('No cards in this deck yet.');return;}
+const{data:progressData}=await sb.from('flashcard_progress').select('*').eq('user_id',S.user.id);
+const progressMap={};
+(progressData||[]).forEach(p=>{progressMap[p.flashcard_id]=p.difficulty;});
+const hardCount=allCards.filter(c=>progressMap[c.id]==='Hard').length;
+const iffy2Count=allCards.filter(c=>progressMap[c.id]==='Iffy').length;
+const unseenCount=allCards.filter(c=>!progressMap[c.id]).length;
 function shuffle(arr){for(let i=arr.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[arr[i],arr[j]]=[arr[j],arr[i]];}return arr;}
 const total=allCards.length;
 const defaultCount=Math.min(20,total);
@@ -2409,6 +2431,14 @@ card.append(backBtn);
 card.append(h('span',{cls:'chapter',html:'Configure Session'}));
 card.append(h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'28px',marginBottom:'8px'},html:deck.topic||deck.name}));
 card.append(h('p',{cls:'muted',style:{fontSize:'14px',marginBottom:'24px'},html:total+' cards available'}));
+if(hardCount||iffy2Count||unseenCount){
+  const srsRow=div({style:{display:'flex',gap:'12px',marginBottom:'20px',padding:'12px',background:'var(--card2)',borderRadius:'4px',flexWrap:'wrap'}});
+  if(hardCount)srsRow.append(h('span',{style:{fontFamily:"Inter,sans-serif",fontSize:'11px',color:'#ff8888'}},['✗ '+hardCount+' hard']));
+  if(iffy2Count)srsRow.append(h('span',{style:{fontFamily:"Inter,sans-serif",fontSize:'11px',color:'var(--gold)'}},['~ '+iffy2Count+' iffy']));
+  if(unseenCount)srsRow.append(h('span',{style:{fontFamily:"Inter,sans-serif",fontSize:'11px',color:'var(--dim)'}},['○ '+unseenCount+' new']));
+  srsRow.append(h('span',{style:{fontFamily:"Inter,sans-serif",fontSize:'10px',color:'var(--dim)',marginLeft:'auto'}},['Hard & Iffy cards load first']));
+  card.append(srsRow);
+}
 card.append(h('label',{cls:'label',html:'How many cards do you want to study?'}));
 const countInput=h('input',{type:'number',value:String(selectedCount),min:'1',max:String(total),style:{width:'100%',padding:'10px',margin:'12px 0',background:'var(--bg)',border:'1px solid var(--border)',borderRadius:'2px',color:'var(--text)',fontSize:'14px',textAlign:'center'}});
 countInput.oninput=(e)=>{let val=parseInt(e.target.value);if(isNaN(val))val=defaultCount;if(val<1)val=1;if(val>total)val=total;selectedCount=val;countInput.value=String(selectedCount);updateButtons();};
@@ -2430,8 +2460,12 @@ function updateButtons(){
 }
 updateButtons();
 const startBtn=btn('Start Session →','btn-gold',()=>{
-  const shuffled=shuffle([...allCards]);
-  cards=shuffled.slice(0,selectedCount);
+  const hardCards=shuffle(allCards.filter(c=>progressMap[c.id]==='Hard'));
+  const iffyCards=shuffle(allCards.filter(c=>progressMap[c.id]==='Iffy'));
+  const unseenCards=shuffle(allCards.filter(c=>!progressMap[c.id]));
+  const easyCards=shuffle(allCards.filter(c=>progressMap[c.id]==='Easy'));
+  const ordered=[...hardCards,...iffyCards,...unseenCards,...easyCards];
+  cards=ordered.slice(0,selectedCount);
   queue=[...cards];
   curIdx=0;
   flipped=false;
@@ -3070,7 +3104,6 @@ if(S.profile?.is_free_tier===true){
   page.append(preview);
   return page;
 }
-function getCurrentMonday(){var now=new Date();var day=now.getDay();var diff=day===0?6:day-1;var mon=new Date(now);mon.setDate(now.getDate()-diff);mon.setHours(0,0,0,0);return mon.toISOString().split('T')[0];}
 var nav=div({cls:'dash-nav'});
 nav.append(div({cls:'logo',html:'Deo Fortis'}),div({style:{display:'flex',gap:'8px'}},[btn('Study','btn-outline',function(){go('study');},{style:{padding:'8px 16px'}}),btn('Dashboard','btn-outline',function(){go('dashboard');},{style:{padding:'8px 16px'}}),makeThemeBtn(),btn('Log Out','btn-outline',function(){sb.auth.signOut();},{style:{padding:'8px 16px'}})]));
 page.append(nav);
@@ -3129,8 +3162,8 @@ var submitBtn=btn('Submit →','btn-gold',async function(){
   if(!content){submitStatus.style.display='block';submitStatus.style.color='#ff4444';submitStatus.innerHTML='Please enter your explanation.';setTimeout(function(){submitStatus.style.display='none';},3000);return;}
   if(!selectedType){submitStatus.style.display='block';submitStatus.style.color='#ff4444';submitStatus.innerHTML='Please select a type.';setTimeout(function(){submitStatus.style.display='none';},3000);return;}
   submitStatus.style.display='block';submitStatus.innerHTML='Submitting...';submitStatus.style.color='var(--dim)';submitBtn.disabled=true;
-  var{error}=await sb.from('feynman_submissions').insert({user_id:S.user.id,user_name:S.profile?.full_name||S.user.email,topic:topic,type:selectedType,content:content,status:'pending',week_of:getCurrentMonday(),is_king:false,points_awarded:false});
-  if(error){submitStatus.innerHTML='Failed to submit. Please try again.';submitStatus.style.color='#ff4444';submitBtn.disabled=false;return;}
+  var{error}=await sb.from('feynman_submissions').insert({user_id:S.user.id,user_name:S.profile?.full_name||S.user.email,topic:topic,type:selectedType,content:content,status:'pending',week_of:getCurrentMonday(),is_king:false,points_awarded:false,student_notified:false});
+  if(error){submitStatus.innerHTML='Failed to submit: '+error.message;submitStatus.style.color='#ff4444';submitBtn.disabled=false;return;}
   topicInput.value='';contentTextarea.value='';selectedType=null;
   explainBtn.style.background='transparent';explainBtn.style.color='var(--text)';explainBtn.style.border='1px solid var(--border)';
   riddleBtn.style.background='transparent';riddleBtn.style.color='var(--text)';riddleBtn.style.border='1px solid var(--border)';
@@ -4118,6 +4151,10 @@ riddleSection.append(
 );
 const riddleDeckName=inp('Deck name e.g. Microbiology Riddles','text','');
 riddleDeckName.style.marginBottom='12px';
+const riddleFreeToggleWrap=div({style:{display:'flex',alignItems:'center',gap:'10px',marginBottom:'12px',padding:'12px',background:'var(--card2)',border:'1px solid var(--border)',borderRadius:'4px'}});
+const riddleFreeToggle=h('input',{type:'checkbox'});
+riddleFreeToggle.style.width='16px';riddleFreeToggle.style.height='16px';riddleFreeToggle.style.accentColor='var(--gold)';
+riddleFreeToggleWrap.append(riddleFreeToggle,h('span',{style:{fontFamily:"Inter,sans-serif",fontSize:'13px',color:'var(--text)'},html:'Make available to free tier users'}));
 const riddleFileInput=h('input',{type:'file',accept:'.csv',style:{marginBottom:'12px'}});
 const riddleUploadBtn=btn('Upload Riddle Deck','btn-gold',()=>{
   const deckName=riddleDeckName.value.trim();
@@ -4132,15 +4169,15 @@ const riddleUploadBtn=btn('Upload Riddle Deck','btn-gold',()=>{
     if(!cards.length){alert('No valid cards found');return;}
     const{data:existing}=await sb.from('flashcard_decks').select('unlock_order').eq('type','riddle').order('unlock_order',{ascending:false}).limit(1);
     const nextLevel=(existing&&existing[0]?.unlock_order||0)+1;
-    const{data:newDeck,error:deckError}=await sb.from('flashcard_decks').insert({name:deckName,topic:deckName,type:'riddle',unlock_order:nextLevel,user_id:null}).select().single();
+    const{data:newDeck,error:deckError}=await sb.from('flashcard_decks').insert({name:deckName,topic:deckName,type:'riddle',unlock_order:nextLevel,user_id:null,is_global:riddleFreeToggle.checked}).select().single();
     if(deckError){alert('Failed to create deck: '+deckError.message);return;}
     for(let card of cards){await sb.from('flashcards').insert({deck_id:newDeck.id,question:card.question,answer:card.answer});}
-    alert(`✓ Riddle Deck uploaded — Level ${nextLevel} with ${cards.length} cards`);
-    riddleDeckName.value='';riddleFileInput.value='';loadTab('feynman');
+    alert('✓ Riddle Deck uploaded — Level '+nextLevel+' with '+cards.length+' cards');
+    riddleDeckName.value='';riddleFileInput.value='';riddleFreeToggle.checked=false;loadTab('feynman');
   })();};
   reader.readAsText(file);
 },{style:{marginBottom:'16px'}});
-riddleSection.append(riddleDeckName,riddleFileInput,riddleUploadBtn);
+riddleSection.append(riddleDeckName,riddleFreeToggleWrap,riddleFileInput,riddleUploadBtn);
 const riddleList=div({style:{marginTop:'16px'}});
 async function loadRiddleDecks(){
   riddleList.innerHTML='';
@@ -4316,5 +4353,6 @@ function initAIChat(){
 
 function setAITopic(topic){window._currentTopic=topic;}
 
+function getCurrentMonday(){var now=new Date();var day=now.getDay();var diff=day===0?6:day-1;var mon=new Date(now);mon.setDate(now.getDate()-diff);mon.setHours(0,0,0,0);return mon.toISOString().split('T')[0];}
 
 render();
