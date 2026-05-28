@@ -2646,12 +2646,21 @@ async function updateCount(){
     else if(qFilter==='correct'){progressIds=pfRows.filter(function(r){return r.answered_correctly===true;}).map(function(r){return r.question_id;});}
     else if(qFilter==='incorrect'){progressIds=pfRows.filter(function(r){return r.answered_correctly===false;}).map(function(r){return r.question_id;});}
   }
-  let q=isFree?sb.from('vignette_questions').select('*',{count:'exact',head:true}).in('topic',selectedTopics).eq('is_global',true):sb.from('vignette_questions').select('*',{count:'exact',head:true}).in('topic',selectedTopics).or('user_id.eq.'+S.user.id+',user_id.is.null');
+  let q=isFree?sb.from('vignette_questions').select('id').in('topic',selectedTopics).eq('is_global',true):sb.from('vignette_questions').select('id').in('topic',selectedTopics).or('user_id.eq.'+S.user.id+',user_id.is.null');
   if(selectedSubsections.length)q=q.in('subsection',selectedSubsections);
-  if(qFilter==='unused'&&progressIds.length)q=q.not('id','in',`(${progressIds.join(',')}`);
-  else if((qFilter==='correct'||qFilter==='incorrect')&&progressIds.length)q=q.in('id',progressIds);
+  if(qFilter==='unused'){
+    var{data:allQs}=await q;
+    var allIds=(allQs||[]).map(function(r){return r.id;});
+    var unseenIds=allIds.filter(function(id){return progressIds.indexOf(id)===-1;});
+    countDisplay.textContent=unseenIds.length+' questions available';
+    qCountI.value=unseenIds.length;qCountI.max=unseenIds.length;
+    return;
+  }
+  var qCount=isFree?sb.from('vignette_questions').select('*',{count:'exact',head:true}).in('topic',selectedTopics).eq('is_global',true):sb.from('vignette_questions').select('*',{count:'exact',head:true}).in('topic',selectedTopics).or('user_id.eq.'+S.user.id+',user_id.is.null');
+  if(selectedSubsections.length)qCount=qCount.in('subsection',selectedSubsections);
+  if((qFilter==='correct'||qFilter==='incorrect')&&progressIds.length)qCount=qCount.in('id',progressIds);
   else if((qFilter==='correct'||qFilter==='incorrect')&&!progressIds.length){countDisplay.textContent='0 questions available';qCountI.value=0;qCountI.max=0;return;}
-  const{count}=await q;
+  var{count}=await qCount;
   countDisplay.textContent=(count||0)+' questions available';
   qCountI.value=count||0;qCountI.max=count||0;
 }
@@ -2698,7 +2707,7 @@ if(S.profile?.is_free_tier){
   if(!qs||!qs.length){alert('No questions for this topic yet.');return;}
   questions=qs;current=0;answers={};submitted=false;revealed={};
   if(mode==='timed')timeLeft=timeLimit*60;
-  selTopic=selectedTopics.join(', ');
+  selTopic=selectedTopics.join(', ')+(selectedSubsections.length?(' — '+selectedSubsections.join(', ')):'');
   showQuiz();
   return;
 }
@@ -2709,17 +2718,20 @@ if(qFilter!=='all'){
   var{data:pfRows2}=await sb.from('question_progress').select('question_id,answered_correctly').eq('user_id',S.user.id);
   pfRows2=pfRows2||[];
   var filterIds=[];
-  if(qFilter==='unused'){filterIds=pfRows2.map(function(r){return r.question_id;});if(filterIds.length)qQuery=qQuery.not('id','in',`(${filterIds.join(',')})`);}
+  if(qFilter==='unused'){filterIds=pfRows2.map(function(r){return r.question_id;});}
   else if(qFilter==='correct'){filterIds=pfRows2.filter(function(r){return r.answered_correctly===true;}).map(function(r){return r.question_id;});if(!filterIds.length){alert('No correctly answered questions yet.');return;}qQuery=qQuery.in('id',filterIds);}
   else if(qFilter==='incorrect'){filterIds=pfRows2.filter(function(r){return r.answered_correctly===false;}).map(function(r){return r.question_id;});if(!filterIds.length){alert('No incorrectly answered questions yet.');return;}qQuery=qQuery.in('id',filterIds);}
 }
 const{data:qs}=await qQuery.limit(desiredCount);
 if(!qs||!qs.length){alert('No questions for this topic yet.');return;}
-var qsArr=qs.slice();for(var si=qsArr.length-1;si>0;si--){var sj=Math.floor(Math.random()*(si+1));var stmp=qsArr[si];qsArr[si]=qsArr[sj];qsArr[sj]=stmp;}
+var finalQs=qs.slice();
+if(qFilter==='unused'&&filterIds&&filterIds.length){finalQs=finalQs.filter(function(q){return filterIds.indexOf(q.id)===-1;});}
+if(!finalQs.length){alert('No unused questions for this topic yet.');return;}
+var qsArr=finalQs.slice();for(var si=qsArr.length-1;si>0;si--){var sj=Math.floor(Math.random()*(si+1));var stmp=qsArr[si];qsArr[si]=qsArr[sj];qsArr[sj]=stmp;}
 questions=qsArr;current=0;answers={};submitted=false;revealed={};
 if(mode==='timed')timeLeft=timeLimit*60;
 sessionStorage.setItem('vignette_resume',JSON.stringify({questions,current:0,answers:{},revealed:{},ruledOut:{},highlights:{},selectedTopics,selectedSubsections,mode,timeLimit,timeLeft:mode==='timed'?timeLimit*60:null}));
-selTopic=selectedTopics.join(', ');
+selTopic=selectedTopics.join(', ')+(selectedSubsections.length?(' — '+selectedSubsections.join(', ')):'');
 showQuiz();
 },{style:{width:'100%'}});
 inner.append(startBtn);
