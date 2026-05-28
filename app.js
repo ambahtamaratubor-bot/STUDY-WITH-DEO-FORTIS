@@ -161,6 +161,10 @@ x:`<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 2
 bookOpen:`<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>`,
 mic:`<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="2" width="6" height="11" rx="3"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="8" y1="22" x2="16" y2="22"/></svg>`,
 };
+var SVG_FIRE='<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="var(--gold)"><path d="M12 2c0 0-5 5-5 10a5 5 0 0010 0c0-3-2-6-2-8-1 2-1 4-3 5 0-3 0-7 0-7z"/></svg>';
+var SVG_CROWN='<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="var(--gold)"><path d="M3 18h18v2H3v-2zm0-2l3-8 4 4 2-6 2 6 4-4 3 8H3z"/></svg>';
+var SVG_CHEVRON_DOWN='<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>';
+var SVG_CHEVRON_RIGHT='<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 6 15 12 9 18"/></svg>';
 
 function showMaplet(pageKey,message){var storageKey="maplet_"+pageKey;if(localStorage.getItem(storageKey)==="dismissed")return null;var maplet=div({style:{background:"rgba(200,169,110,0.08)",border:"1px solid var(--gold)",borderRadius:"4px",padding:"12px 20px",marginBottom:"24px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:"16px",fontSize:"13px",fontFamily:"Plus Jakarta Sans,sans-serif",color:"var(--text)",lineHeight:"1.5"}},[h("span",{style:{flex:"1"}},[message]),btn("\u2715","",function(){localStorage.setItem(storageKey,"dismissed");maplet.style.display="none";},{style:{background:"none",border:"none",color:"var(--dim)",cursor:"pointer",fontSize:"16px",padding:"4px 8px",flexShrink:"0"}})]);return maplet;}
 function render(){
@@ -1237,7 +1241,7 @@ if(error.message.toLowerCase().includes('already registered')||error.message.toL
   wrap.innerHTML='';
   const dc=div({cls:'card',style:{textAlign:'center'}});
   dc.append(
-    h('div',{style:{fontSize:'48px',marginBottom:'16px'},html:'👑'}),
+    h('div',{style:{display:'flex',justifyContent:'center',marginBottom:'16px'},html:'<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="var(--gold)"><path d="M3 18h18v2H3v-2zm0-2l3-8 4 4 2-6 2 6 4-4 3 8H3z"/></svg>'}),
     h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'24px',marginBottom:'12px'},html:'Complete Your Upgrade'}),
     h('p',{cls:'muted',style:{fontSize:'14px',lineHeight:'1.8',marginBottom:'24px'},html:'Your payment link has opened. Once payment is confirmed your account will be upgraded to full access.'}),
     h('p',{style:{fontFamily:"Inter,sans-serif",fontSize:'10px',color:'var(--dim)',letterSpacing:'1px',textTransform:'uppercase',marginTop:'16px'},html:"You'll be upgraded as soon as your payment is verified"}),
@@ -1505,7 +1509,7 @@ function showUpgradeModal(){
   const overlay=div({style:{position:'fixed',top:'0',left:'0',right:'0',bottom:'0',background:'rgba(0,0,0,0.85)',zIndex:'9999',display:'flex',alignItems:'center',justifyContent:'center',padding:'20px'}});
   const modal=div({style:{maxWidth:'480px',width:'100%',background:'var(--card)',border:'1px solid var(--border)',borderRadius:'4px',padding:'32px'}});
   modal.append(
-    h('div',{style:{fontSize:'48px',textAlign:'center',marginBottom:'16px'},html:'👑'}),
+    h('div',{style:{display:'flex',justifyContent:'center',marginBottom:'16px'},html:'<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="var(--gold)"><path d="M3 18h18v2H3v-2zm0-2l3-8 4 4 2-6 2 6 4-4 3 8H3z"/></svg>'}),
     h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'24px',color:'var(--gold)',textAlign:'center',marginBottom:'8px'},html:'Upgrade to Full Access'}),
     h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'11px',color:'var(--dim)',textAlign:'center',marginBottom:'24px'},html:'Unlock everything from $10/month'})
   );
@@ -1574,14 +1578,14 @@ function showExpiryBanner(daysLeft){
 function collapsibleSection(title,contentBuilder){
   const card=div({cls:'card',style:{marginBottom:'16px'}});
   let loaded=false;
-  const chevron=h('span',{style:{fontSize:'14px',color:'var(--dim)'},html:'▶'});
+  const chevron=h('span',{style:{fontSize:'14px',color:'var(--dim)'},html:SVG_CHEVRON_RIGHT});
   const header=div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',cursor:'pointer',paddingBottom:'12px',borderBottom:'1px solid var(--border)'}});
   header.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'18px',margin:'0'},html:title}),chevron);
   const contentDiv=div({style:{display:'none',paddingTop:'16px'}});
   header.onclick=()=>{
     const open=contentDiv.style.display==='block';
     contentDiv.style.display=open?'none':'block';
-    chevron.innerHTML=open?'▶':'▼';
+    chevron.innerHTML=open?SVG_CHEVRON_RIGHT:SVG_CHEVRON_DOWN;
     if(!loaded&&!open){contentBuilder(contentDiv);loaded=true;}
   };
   card.append(header,contentDiv);
@@ -1650,7 +1654,7 @@ greetingRow.append(
     h('p',{cls:'muted',style:{fontSize:'12px'},html:'Plan: <span style="color:var(--gold)">'+(p.plan||'Active')+'</span> · Expires: <span style="color:var(--text)">'+(p.access_expires_at?new Date(p.access_expires_at).toLocaleDateString():'Active')+'</span>'})
   ]),
   div({style:{background:'var(--card-alt)',border:'1px solid var(--gold-border)',padding:'8px 14px',borderRadius:'4px',display:'flex',alignItems:'center',gap:'8px',flexShrink:'0'}},[
-    h('span',{style:{fontSize:'20px'},html:'🔥'}),
+    h('span',{style:{display:'flex',alignItems:'center'},html:SVG_FIRE}),
     div({},[
       h('div',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'22px',color:'var(--gold)',fontWeight:'700',lineHeight:'1'},html:String(isFree?Math.min(1,p.streak_count||0):(p.streak_count||0))}),
       h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'12px',color:'var(--muted)'},html:isFree?'locked':'day streak'})
@@ -1693,7 +1697,7 @@ container.append(statsGrid);
 const goalsSection=div({cls:'card',style:{marginBottom:'28px'}});
 let goalsOpen=true;
 const goalsHeader=div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'16px',cursor:'pointer'}});
-const goalsToggle=h('span',{style:{color:'var(--dim)',fontSize:'12px',transition:'transform 0.2s'},html:'▼'});
+const goalsToggle=h('span',{style:{color:'var(--dim)',transition:'transform 0.2s'},html:SVG_CHEVRON_DOWN});
 goalsHeader.append(
   div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',flex:'1'}},[
     div({},[
@@ -3056,7 +3060,7 @@ if(S.profile?.is_free_tier===true){
     ]),
     div({style:{position:'absolute',top:'180px',left:'0',right:'0',display:'flex',justifyContent:'center'}},[
       div({style:{background:'var(--card)',border:'1px solid var(--gold)',borderRadius:'8px',padding:'32px',textAlign:'center',maxWidth:'360px',boxShadow:'0 8px 32px rgba(0,0,0,0.4)'}},[
-        h('div',{style:{fontSize:'40px',marginBottom:'12px'},html:'👑'}),
+        h('div',{style:{display:'flex',justifyContent:'center',marginBottom:'12px'},html:'<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="var(--gold)"><path d="M3 18h18v2H3v-2zm0-2l3-8 4 4 2-6 2 6 4-4 3 8H3z"/></svg>'}),
         h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'20px',color:'var(--gold)',marginBottom:'8px'},html:'Unlock the Feynman Arena'}),
         h('p',{style:{fontFamily:"Inter,sans-serif",fontSize:'13px',color:'var(--dim)',lineHeight:'1.6',marginBottom:'20px'},html:'Submit explanations, earn points, and compete to be crowned King of the Week.'}),
         btn('Upgrade to Unlock →','btn-gold',function(){showUpgradeModal();},{style:{width:'100%'}})
@@ -3159,7 +3163,7 @@ async function loadWallOfFame(){
     var sub=subs[i];
     var tc='var(--teal)';if(sub.type==='riddle')tc='var(--gold)';if(sub.type==='emoji')tc='#8B5CF6';
     var card=div({style:{background:'var(--card2)',borderRadius:'4px',padding:'16px',border:sub.is_king?'1px solid var(--gold)':'1px solid var(--border)'}});
-    if(sub.is_king){card.append(div({style:{float:'right',display:'flex',alignItems:'center',gap:'4px',background:'rgba(200,169,110,0.1)',padding:'4px 8px',borderRadius:'4px'}},[h('span',{style:{fontSize:'14px'},html:'👑'}),h('span',{style:{fontFamily:"Inter,sans-serif",fontSize:'9px',color:'var(--gold)'},html:'Feynman King'})]));}
+    if(sub.is_king){card.append(div({style:{float:'right',display:'flex',alignItems:'center',gap:'4px',background:'rgba(200,169,110,0.1)',padding:'4px 8px',borderRadius:'4px'}},[h('span',{style:{display:'flex'},html:'<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="var(--gold)"><path d="M3 18h18v2H3v-2zm0-2l3-8 4 4 2-6 2 6 4-4 3 8H3z"/></svg>'}),h('span',{style:{fontFamily:"Inter,sans-serif",fontSize:'9px',color:'var(--gold)'},html:'Feynman King'})]));}
     var preview=sub.content.length>120?sub.content.substring(0,120)+'...':sub.content;
     card.append(div({},[div({style:{display:'flex',alignItems:'center',gap:'12px',flexWrap:'wrap',marginBottom:'12px'}},[h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'13px',fontWeight:'bold',color:'var(--text)'},html:sub.user_name||'Anonymous'}),h('span',{style:{fontFamily:"Inter,sans-serif",fontSize:'10px',padding:'2px 8px',borderRadius:'2px',background:tc,color:'var(--bg)'},html:sub.type.toUpperCase()}),h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'10px',color:'var(--dim)'},html:sub.topic}),h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'9px',color:'var(--muted)'},html:'Week of '+sub.week_of})]),h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'11px',color:'var(--muted)',lineHeight:'1.5',marginBottom:'12px'},html:preview}),(function(s){return btn('See Feynman →','btn-outline',function(){showFullSubmission(s);},{style:{fontSize:'10px',padding:'4px 12px'}});})(sub)]));
     submissionsList.append(card);
@@ -3179,7 +3183,7 @@ async function showDeckPlayer(deck,type){
     modal.append(h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'11px',color:'var(--dim)',marginBottom:'8px',textAlign:'right'},html:(currentIndex+1)+' / '+deckCards.length}));
     modal.append(h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'9px',color:'var(--teal)',marginBottom:'16px',textAlign:'right'},html:'✓ '+gotIt+' correct so far'}));
     modal.append(div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'24px'}},[h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'24px',color:'var(--gold)'},html:deck.name}),btn('✕','',function(){overlay.style.display='none';},{style:{background:'none',border:'none',color:'var(--dim)',fontSize:'24px',cursor:'pointer'}})]));
-    modal.append(div({style:{textAlign:'center',padding:'40px 20px',background:'var(--card2)',borderRadius:'8px',marginBottom:'24px'}},[h('div',{style:{fontFamily:type==='riddle'?"'Plus Jakarta Sans',sans-serif":'monospace',fontSize:type==='riddle'?'28px':'48px',color:'var(--text)',lineHeight:'1.3',whiteSpace:'pre-wrap'},html:card.question})]));
+    modal.append(div({style:{textAlign:'center',padding:'40px 20px',background:'var(--card2)',borderRadius:'8px',marginBottom:'24px'}},[h('div',{cls:type==='emoji'?'twemoji-scope':'',style:{fontFamily:type==='riddle'?"'Plus Jakarta Sans',sans-serif":'monospace',fontSize:type==='riddle'?'28px':'48px',color:'var(--text)',lineHeight:'1.3',whiteSpace:'pre-wrap'},html:card.question})]));
     if(!revealed){
       modal.append(btn('Reveal Answer →','btn-outline',function(){revealed=true;renderCard();},{style:{width:'100%',marginBottom:'16px'}}));
     }else{
@@ -3218,7 +3222,7 @@ if(S.profile?.is_free_tier===true){
     h('p',{cls:'muted',style:{fontSize:'14px',marginBottom:'32px'},html:'Rankings based on total study points. Updated in real time.'}),
     div({style:{filter:'blur(5px)',pointerEvents:'none',userSelect:'none',opacity:'0.55'}},[
       div({cls:'card',style:{marginBottom:'16px',padding:'0 16px'}},[
-        ...[['1st','🥇','Alexander O.','2,840 pts','142h','🔥 21'],['2nd','🥈','Priya M.','2,210 pts','118h','🔥 14'],['3rd','🥉','Marcus T.','1,980 pts','99h','🔥 9'],['4.','','Sarah K.','1,640 pts','82h','🔥 6'],['5.','','James R.','1,290 pts','64h','🔥 4']].map(([rank,medal,name,pts,hrs,streak])=>
+        ...[['1st','🥇','Alexander O.','2,840 pts','142h',SVG_FIRE+' 21'],['2nd','🥈','Priya M.','2,210 pts','118h',SVG_FIRE+' 14'],['3rd','🥉','Marcus T.','1,980 pts','99h',SVG_FIRE+' 9'],['4.','','Sarah K.','1,640 pts','82h',SVG_FIRE+' 6'],['5.','','James R.','1,290 pts','64h',SVG_FIRE+' 4']].map(([rank,medal,name,pts,hrs,streak])=>
           div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'14px 0',borderBottom:'1px solid var(--border)'}},[
             div({style:{display:'flex',alignItems:'center',gap:'12px'}},[
               h('span',{style:{fontSize:'13px',color:'var(--gold)',fontWeight:'700',width:'36px'},html:medal||rank},[]),
@@ -3280,7 +3284,7 @@ leaderUsers.forEach((u,i)=>{
   const left=div({style:{display:'flex',alignItems:'center',gap:'12px'}});
   const rankEl=h('span',{style:{fontSize:'13px',color:'var(--gold)',fontWeight:'700',width:'36px',flexShrink:'0'}});rankEl.textContent=medals[i]||(i+1)+'.';
   const nameEl=h('span',{style:{fontSize:'15px',color:'var(--text)',fontWeight:'500'}});nameEl.textContent=u.full_name||'—';
-  const streakEl=h('span',{style:{fontSize:'12px',color:'var(--muted)'}});streakEl.textContent='🔥 '+(u.streak_count||0);
+  const streakEl=h('span',{style:{fontSize:'12px',color:'var(--muted)'}});streakEl.innerHTML=SVG_FIRE+' '+(u.streak_count||0);
   left.append(rankEl,nameEl,streakEl);
   const right2=div({style:{display:'flex',alignItems:'center',gap:'12px'}});
   const ptsEl=h('span',{style:{fontSize:'13px',color:'var(--gold)',fontWeight:'600'}});ptsEl.textContent=(u.total_points||0)+' pts';
@@ -3337,7 +3341,7 @@ page.append(aN);
 const tabs=div({style:{display:'none'}});
 const content=div({cls:'inner-md',style:{padding:'24px'}});
 let curTab='settings';
-const tabDefs=[['settings','⚙ Settings'],['users','Users'],['recalls','Recalls'],['flashcards','Flashcards'],['questions','Q-Bank'],['testimonials','Reviews'],['packages','Packages'],['bookings','Bookings'],['feynman','👑 Feynman'],['riddles','Riddles']];
+const tabDefs=[['settings','⚙ Settings'],['users','Users'],['recalls','Recalls'],['flashcards','Flashcards'],['questions','Q-Bank'],['testimonials','Reviews'],['packages','Packages'],['bookings','Bookings'],['feynman','Feynman'],['riddles','Riddles']];
 tabDefs.forEach(([id,label])=>{
 const tb=h('button',{cls:'tab-btn'+(id===curTab?' active':''),html:label});
 tb.onclick=()=>{curTab=id;loadTab(id);};
@@ -3606,7 +3610,7 @@ function switchSubTab(key){
       const statsRow=div({style:{display:'flex',gap:'16px',fontSize:'12px',color:'var(--muted)',marginBottom:'8px',flexWrap:'wrap'}});
       const planLabel2=u.plan==='6 Months'?'6 Months':u.plan==='Yearly'?'1 Year':u.plan==='Monthly'?'1 Month':(u.plan||'No plan');
       const emailPlanEl=h('span',{},[]);emailPlanEl.textContent=(u.email||'—')+' · '+planLabel2;
-      const streakEl=h('span',{style:{color:'var(--text)'}},[]);streakEl.textContent='🔥 '+(u.streak_count||0)+' streak';
+      const streakEl=h('span',{style:{color:'var(--text)'}},[]);streakEl.innerHTML=SVG_FIRE+' '+(u.streak_count||0)+' streak';
       const hoursEl=h('span',{style:{color:'var(--text)'}},[]);hoursEl.textContent=Math.floor((u.total_study_minutes||0)/60)+'h studied';
       const ptsEl=h('span',{style:{color:'var(--gold)'}},[]);ptsEl.textContent=(u.total_points||0)+' pts';
       statsRow.append(emailPlanEl,streakEl,hoursEl,ptsEl);
@@ -4089,7 +4093,7 @@ if(!filteredSubs.length){
         await sb.from('feynman_submissions').update({status:'rejected'}).eq('id',sub.id);
         loadTab('feynman');
       },{style:{padding:'6px 16px',fontSize:'11px'}}));
-      actions.append(btn('👑 King','btn-gold',async()=>{
+      actions.append(btn('King','btn-gold',async()=>{
         await sb.from('feynman_submissions').update({is_king:false}).eq('week_of',currentMonday).eq('is_king',true);
         if(!sub.points_awarded){const{data:up}=await sb.from('profiles').select('total_points').eq('id',sub.user_id).single();if(up){await sb.from('profiles').update({total_points:(up.total_points||0)+50}).eq('id',sub.user_id);}}
         await sb.from('feynman_submissions').update({is_king:true,status:'approved',points_awarded:true,week_of:currentMonday,student_notified:false,notification_type:'king'}).eq('id',sub.id);
@@ -4098,7 +4102,7 @@ if(!filteredSubs.length){
       card.append(actions);
     }else if(sub.is_king){
       card.append(div({style:{marginTop:'12px',display:'flex',alignItems:'center',gap:'8px',background:'rgba(200,169,110,0.1)',padding:'8px 12px',borderRadius:'4px'}},[
-        h('span',{style:{fontSize:'16px'},html:'👑'}),
+        h('span',{style:{display:'flex'},html:'<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="var(--gold)"><path d="M3 18h18v2H3v-2zm0-2l3-8 4 4 2-6 2 6 4-4 3 8H3z"/></svg>'}),
         h('span',{style:{fontFamily:"Inter,sans-serif",fontSize:'11px',color:'var(--gold)'},html:'Feynman King — Week of '+(sub.week_of||'—')})
       ]));
     }
