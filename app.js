@@ -3737,9 +3737,9 @@ if(qs.length){await sb.from('vignette_questions').insert(qs);upSt.textContent='â
 }
 setTimeout(()=>upSt.style.display='none',3000);
 }
-if(r.style==='flashcard'){const fi=h('input',{type:'file',accept:'.csv',style:{color:'var(--muted)',fontSize:'12px',fontFamily:"Inter,sans-serif"}});fi.onchange=e=>{if(e.target.files[0])handleUpload(e.target.files[0],true);};br2.append(div({},[h('label',{cls:'label',html:'Upload CSV'}),fi]));}
-if(r.style==='vignette'){const fi=h('input',{type:'file',accept:'.txt',style:{color:'var(--muted)',fontSize:'12px',fontFamily:"Inter,sans-serif"}});fi.onchange=e=>{if(e.target.files[0])handleUpload(e.target.files[0],false);};br2.append(div({},[h('label',{cls:'label',html:'Upload TXT'}),fi]));}
-if(r.style==='theory'){
+if(r.style&&r.style.includes('flashcard')){const fi=h('input',{type:'file',accept:'.csv',style:{color:'var(--muted)',fontSize:'12px',fontFamily:"Inter,sans-serif"}});fi.onchange=e=>{if(e.target.files[0])handleUpload(e.target.files[0],true);};br2.append(div({},[h('label',{cls:'label',html:'Upload Flashcard CSV'}),fi]));}
+if(r.style&&r.style.includes('vignette')){const fi=h('input',{type:'file',accept:'.txt',style:{color:'var(--muted)',fontSize:'12px',fontFamily:"Inter,sans-serif"}});fi.onchange=e=>{if(e.target.files[0])handleUpload(e.target.files[0],false);};br2.append(div({},[h('label',{cls:'label',html:'Upload Vignette TXT'}),fi]));}
+if(r.style&&r.style.includes('theory')){
 const fi=h('input',{type:'file',accept:'.pdf',style:{color:'var(--muted)',fontSize:'12px',fontFamily:"Inter,sans-serif"}});
 fi.onchange=async e=>{
 const file=e.target.files[0];if(!file)return;
@@ -3762,7 +3762,7 @@ card.append(br2);
 (async()=>{
   const delSection=div({style:{marginTop:'16px',borderTop:'1px solid var(--border)',paddingTop:'12px'}});
   let found=false;
-  if(r.style==='flashcard'){
+  if(r.style&&r.style.includes('flashcard')){
     const{data:decks}=await sb.from('flashcard_decks').select('*').eq('user_id',r.user_id).eq('topic',r.topic).eq('type','flashcard');
     if(decks&&decks.length){
       found=true;
@@ -3772,14 +3772,16 @@ card.append(br2);
         delSection.append(btn('Delete Deck','btn-outline',async()=>{if(!confirm('Delete this deck and all its cards?'))return;await sb.from('flashcards').delete().eq('deck_id',deck.id);await sb.from('flashcard_decks').delete().eq('id',deck.id);loadTab('recalls');},{style:{padding:'4px 12px',fontSize:'10px',color:'#ff4444',borderColor:'#ff4444',marginBottom:'8px'}}));
       }
     }
-  } else if(r.style==='vignette'){
+  }
+  if(r.style&&r.style.includes('vignette')){
     const{count}=await sb.from('vignette_questions').select('*',{count:'exact',head:true}).eq('user_id',r.user_id).eq('topic',r.topic);
     if(count&&count>0){
       found=true;
       delSection.append(h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'11px',color:'var(--dim)',marginBottom:'8px'}},[''+count+' questions for '+r.topic]));
       delSection.append(btn('Delete All Questions','btn-outline',async()=>{if(!confirm('Delete all '+count+' questions for "'+r.topic+'"? Cannot be undone.'))return;await sb.from('vignette_questions').delete().eq('user_id',r.user_id).eq('topic',r.topic);loadTab('recalls');},{style:{padding:'4px 12px',fontSize:'10px',color:'#ff4444',borderColor:'#ff4444'}}));
     }
-  } else if(r.style==='theory'){
+  }
+  if(r.style&&r.style.includes('theory')){
     const{data:pdfs}=await sb.from('theory_pdfs').select('id,filename').eq('recall_request_id',r.id);
     if(pdfs&&pdfs.length){
       found=true;
@@ -4165,9 +4167,12 @@ if(!filteredSubs.length){
       card.append(actions);
     }else if(sub.status==='approved'&&!sub.is_king){
       const crownBtn=btn('Crown King','btn-gold',async()=>{
-        await sb.from('feynman_submissions').update({is_king:false}).eq('week_of',currentMonday).eq('is_king',true);
+        crownBtn.disabled=true;crownBtn.textContent='Crowning...';
+        const{error:e1}=await sb.from('feynman_submissions').update({is_king:false}).eq('week_of',currentMonday).eq('is_king',true);
+        if(e1){alert('Error removing old king: '+e1.message);crownBtn.disabled=false;crownBtn.textContent='Crown King';return;}
         if(!sub.points_awarded){const{data:up}=await sb.from('profiles').select('total_points').eq('id',sub.user_id).single();if(up){await sb.from('profiles').update({total_points:(up.total_points||0)+50}).eq('id',sub.user_id);}}
-        await sb.from('feynman_submissions').update({is_king:true,student_notified:false,notification_type:'king'}).eq('id',sub.id);
+        const{error:e2}=await sb.from('feynman_submissions').update({is_king:true,student_notified:false,notification_type:'king'}).eq('id',sub.id);
+        if(e2){alert('Error crowning: '+e2.message);crownBtn.disabled=false;crownBtn.textContent='Crown King';return;}
         loadTab('feynman');
       },{style:{padding:'6px 16px',fontSize:'11px',marginTop:'12px'}});
       card.append(crownBtn);
