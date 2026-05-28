@@ -4245,9 +4245,11 @@ if(!filteredSubs.length){
         crownBtn.disabled=true;crownBtn.textContent='Crowning...';
         const{error:e1}=await sb.from('feynman_submissions').update({is_king:false}).eq('week_of',currentMonday).eq('is_king',true);
         if(e1){alert('Error removing old king: '+e1.message);crownBtn.disabled=false;crownBtn.textContent='Crown King';return;}
-        if(!sub.points_awarded){const{data:up}=await sb.from('profiles').select('total_points').eq('id',sub.user_id).single();if(up){await sb.from('profiles').update({total_points:(up.total_points||0)+50}).eq('id',sub.user_id);}}
         const{error:e2}=await sb.from('feynman_submissions').update({is_king:true,student_notified:false,notification_type:'king'}).eq('id',sub.id);
         if(e2){alert('Error crowning: '+e2.message);crownBtn.disabled=false;crownBtn.textContent='Crown King';return;}
+        const{data:up}=await sb.from('profiles').select('total_points').eq('id',sub.user_id).single();
+        if(up){await sb.from('profiles').update({total_points:(up.total_points||0)+50}).eq('id',sub.user_id);}
+        alert('Crowned! +50 pts awarded to '+sub.user_name);
         currentFilter='all';loadTab('feynman');
       },{style:{padding:'6px 16px',fontSize:'11px',marginTop:'12px'}});
       card.append(crownBtn);
