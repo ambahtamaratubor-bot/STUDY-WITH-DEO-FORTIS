@@ -3011,15 +3011,14 @@ container.append(div({style:{marginBottom:'32px'}},[
 // TAB SYSTEM
 let activeTab='submit';
 const tabContainer=div({style:{display:'flex',gap:'12px',marginBottom:'24px',borderBottom:'1px solid var(--border)',paddingBottom:'12px'}});
-const submitTabBtn=btn('Submit','btn',()=>{activeTab='submit';renderTabs();},{style:{padding:'8px 20px',background:'var(--gold)',color:'var(--bg)',border:'1px solid var(--gold)',borderRadius:'4px'}});
-tabContainer.append(submitTabBtn);
+const submitTabBtn=btn('Submit','btn',function(){activeTab='submit';submitTabBtn.style.background='var(--gold)';submitTabBtn.style.color='var(--bg)';submitTabBtn.style.border='1px solid var(--gold)';wallTabBtn.style.background='transparent';wallTabBtn.style.color='var(--text)';wallTabBtn.style.border='1px solid var(--border)';submitSection.style.display='block';wallSection.style.display='none';},{style:{padding:'8px 20px',background:'var(--gold)',color:'var(--bg)',border:'1px solid var(--gold)',borderRadius:'4px'}});
+const wallTabBtn=btn('Wall of Fame','btn',function(){activeTab='wall';wallTabBtn.style.background='var(--gold)';wallTabBtn.style.color='var(--bg)';wallTabBtn.style.border='1px solid var(--gold)';submitTabBtn.style.background='transparent';submitTabBtn.style.color='var(--text)';submitTabBtn.style.border='1px solid var(--border)';submitSection.style.display='none';wallSection.style.display='block';},{style:{padding:'8px 20px',background:'transparent',color:'var(--text)',border:'1px solid var(--border)',borderRadius:'4px'}});
+tabContainer.append(submitTabBtn,wallTabBtn);
 container.append(tabContainer);
 const submitSection=div({id:'submit-section'});
-container.append(submitSection);
-function renderTabs(){
-  submitSection.style.display='block';
-  submitTabBtn.style.background='var(--gold)';submitTabBtn.style.color='var(--bg)';submitTabBtn.style.border='1px solid var(--gold)';
-}
+const wallSection=div({id:'wall-section',style:{display:'none'}});
+container.append(submitSection,wallSection);
+function renderTabs(){}
 // SUBMIT TAB
 let selectedType=null,submitSuccessDiv=null;
 const topicInput=inp('Topic e.g. Gram Positive Bacteria','text','');
@@ -3104,7 +3103,8 @@ wallCard.append(
 );
 const submissionsList=div({style:{display:'flex',flexDirection:'column',gap:'16px'}});
 wallCard.append(submissionsList);
-submitSection.append(submitCard,wallCard);
+submitSection.append(submitCard);
+wallSection.append(wallCard);
 function showFullSubmission(sub){
   const overlay=div({style:{position:'fixed',top:'0',left:'0',right:'0',bottom:'0',background:'rgba(0,0,0,0.85)',zIndex:'9999',display:'flex',alignItems:'center',justifyContent:'center',padding:'20px'}});
   let tc='var(--teal)';if(sub.type==='riddle')tc='var(--gold)';if(sub.type==='emoji')tc='#8B5CF6';
