@@ -204,7 +204,7 @@ folderInput.placeholder='e.g. Cardiology, Week 1';
 const folderRow=div({style:{display:'flex',gap:'8px',alignItems:'center',marginBottom:'12px'}});
 folderRow.append(h('span',{style:{fontSize:'12px',color:'var(--muted)'}},['Folder (optional):']),folderInput);
 const saveStatus=div({style:{fontSize:'11px',color:'var(--teal)',marginTop:'8px',display:'none'}},[]);
-const saveHandler=async()=>{if(!ta.value.trim())return;const{error}=await sb.from('notes').insert({user_id:S.user.id,topic:pdf.topic,recall_request_id:pdf.recall_request_id,title:pdf.topic+' — '+pdf.filename,content:ta.value.trim(),folder:folderInput.value.trim()||null});if(error){saveStatus.textContent=error.message;saveStatus.style.color='var(--gold)';saveStatus.style.display='block';return;}saveStatus.textContent='Note saved!';saveStatus.style.color='var(--teal)';saveStatus.style.display='block';setTimeout(()=>{saveStatus.style.display='none';responseArea.remove();responseOpen=false;},2000);};
+const saveHandler=async()=>{if(!ta.value.trim())return;const{error}=await sb.from('notes').insert({user_id:S.user.id,topic:pdf.topic,recall_request_id:pdf.recall_request_id,title:pdf.topic+' — '+pdf.filename,content:ta.value.trim(),folder:folderInput.value.trim()||null});if(error){saveStatus.textContent=error.message;saveStatus.style.color='var(--gold)';saveStatus.style.display='block';return;}if(S.profile?.is_free_tier!==true){await sb.from('profiles').update({total_points:(S.profile?.total_points||0)+20}).eq('id',S.user.id);if(S.profile)S.profile.total_points=(S.profile.total_points||0)+20;}saveStatus.textContent='Note saved! +20 pts';saveStatus.style.color='var(--teal)';saveStatus.style.display='block';setTimeout(()=>{saveStatus.style.display='none';responseArea.remove();responseOpen=false;},2000);};
 const saveBtn=btn('Save Note','btn-teal',saveHandler,{style:{fontSize:'11px',padding:'8px 16px'}});
 const lbl=h('label',{cls:'label'},[]);lbl.textContent='Your Response';
 responseArea=div({style:{padding:'16px 0',borderBottom:'1px solid var(--border)'}});
@@ -615,9 +615,10 @@ function renderGoalsProgress(){
       const updates={};
       if(dailyGoalMins>0&&todayMins>=dailyGoalMins){
         if(S.profile.daily_goal_email_sent_date!==todayStr){
-          updates.daily_goal_email_sent_date=null;// clear so Apps Script sees it needs sending
+          updates.daily_goal_email_sent_date=null;
           updates.daily_goal_achieved_date=todayStr;
           updates.daily_goal_achieved_mins=todayMins;
+          if(!localStorage.getItem('pts_gdaily_'+todayStr)){updates.total_points=(S.profile.total_points||0)+50;localStorage.setItem('pts_gdaily_'+todayStr,'1');}
         }
       }
       if(weeklyGoalMins>0&&weekMins>=weeklyGoalMins){
@@ -625,6 +626,7 @@ function renderGoalsProgress(){
           updates.weekly_goal_email_sent_week=null;
           updates.weekly_goal_achieved_week=weekStartStr;
           updates.weekly_goal_achieved_mins=weekMins;
+          if(!localStorage.getItem('pts_gweekly_'+weekStartStr)){updates.total_points=(updates.total_points||S.profile.total_points||0)+50;localStorage.setItem('pts_gweekly_'+weekStartStr,'1');}
         }
       }
       if(Object.keys(updates).length){
@@ -642,16 +644,36 @@ function renderGoalsProgress(){
         });
       });
       let topicFlagsChanged=false;
+      let topicPtsToAdd=0;
       Object.entries(goals).forEach(([topic,targetHours])=>{
         const actualHours=Math.round((actual2[topic]||0)/60*10)/10;
         if(actualHours>=targetHours&&!topicEmailsSent[topic]){
           topicEmailsSent[topic]={sent:false,actualHours,targetHours,achievedAt:new Date().toISOString()};
           topicFlagsChanged=true;
+          if(!localStorage.getItem('pts_gtopic_'+topic)){topicPtsToAdd+=50;localStorage.setItem('pts_gtopic_'+topic,'1');}
         }
       });
       if(topicFlagsChanged){
         await sb.from('profiles').update({topic_goal_emails_sent:topicEmailsSent}).eq('id',uid);
         S.profile.topic_goal_emails_sent=topicEmailsSent;
+      }
+      if(topicPtsToAdd>0){
+        await sb.from('profiles').update({total_points:(S.profile.total_points||0)+topicPtsToAdd}).eq('id',uid);
+        if(S.profile)S.profile.total_points=(S.profile.total_points||0)+topicPtsToAdd;
+      }
+      // -5 for missed daily goal
+      const yd=yesterdayStr();
+      if(dailyGoalMins>0&&S.profile.daily_goal_achieved_date!==yd&&!localStorage.getItem('pts_mdaily_'+yd)){
+        await sb.from('profiles').update({total_points:Math.max(0,(S.profile.total_points||0)-5)}).eq('id',uid);
+        if(S.profile)S.profile.total_points=Math.max(0,(S.profile.total_points||0)-5);
+        localStorage.setItem('pts_mdaily_'+yd,'1');
+      }
+      // -5 for missed weekly goal
+      const pw=prevWeekStartStr();
+      if(weeklyGoalMins>0&&S.profile.weekly_goal_achieved_week!==pw&&!localStorage.getItem('pts_mweekly_'+pw)){
+        await sb.from('profiles').update({total_points:Math.max(0,(S.profile.total_points||0)-5)}).eq('id',uid);
+        if(S.profile)S.profile.total_points=Math.max(0,(S.profile.total_points||0)-5);
+        localStorage.setItem('pts_mweekly_'+pw,'1');
       }
     }
     // --- "Set new goal" prompt ---
@@ -3259,7 +3281,7 @@ async function showDeckPlayer(deck,type){
     modal.innerHTML='';
     if(passed){
       await sb.from('flashcard_progress').upsert({user_id:S.user.id,deck_id:deck.id,completed:true,completed_at:new Date().toISOString()});
-      if(S.profile?.is_free_tier!==true){await sb.from('profiles').update({total_points:(S.profile?.total_points||0)+10}).eq('id',S.user.id);if(S.profile)S.profile.total_points=(S.profile.total_points||0)+10;}
+      if(S.profile?.is_free_tier!==true){await sb.from('profiles').update({total_points:(S.profile?.total_points||0)+20}).eq('id',S.user.id);if(S.profile)S.profile.total_points=(S.profile.total_points||0)+20;}
       var{data:nextDeck}=await sb.from('flashcard_decks').select('id').eq('type',type).eq('unlock_order',deck.unlock_order+1).maybeSingle();
       modal.append(h('div',{style:{fontSize:'48px',textAlign:'center',marginBottom:'16px'},html:ICONS.sparkles}),h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'24px',color:'var(--gold)',textAlign:'center',marginBottom:'8px'},html:'Level '+deck.unlock_order+' Complete!'}),h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'16px',color:'var(--teal)',textAlign:'center',marginBottom:'8px'},html:'You scored '+score+'%'}),nextDeck?h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'13px',color:'var(--teal)',textAlign:'center',marginBottom:'24px'},html:'Next Level Unlocked!'}):h('div',{style:{marginBottom:'24px'}},[]),btn('Close','btn-gold',function(){overlay.style.display='none';},{style:{width:'100%'}}));
     }else{
@@ -3313,7 +3335,60 @@ if(S.profile?.is_free_tier===true){
   return page;
 }
 const inner=div({cls:'inner-sm'});
-inner.append(h('span',{cls:'chapter',html:'Rankings'}),h('h1',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'48px',fontWeight:'700',marginBottom:'8px'},html:'The <em class="gold-em">Leaderboard</em>'}),h('p',{cls:'muted',style:{fontSize:'14px',marginBottom:'40px'},html:'Rankings based on total study hours. Updated in real time.'}));
+function showPointsRules(){
+  const overlay=div({style:{position:'fixed',top:'0',left:'0',right:'0',bottom:'0',background:'rgba(0,0,0,0.85)',zIndex:'9999',display:'flex',alignItems:'center',justifyContent:'center',padding:'20px'}});
+  overlay.onclick=function(e){if(e.target===overlay)overlay.remove();};
+  const modal=div({cls:'card',style:{maxWidth:'560px',width:'100%',maxHeight:'85vh',overflowY:'auto'}});
+  const rows=[
+    ['Clock in to a study session','+5'],
+    ['Clock out of a study session','+5'],
+    ['Complete a vignette quiz','+30'],
+    ['Complete a flashcard deck','+20'],
+    ['Complete a Riddle or Emoji Bitz deck','+20'],
+    ['Save a theory note','+20'],
+    ['Feynman submission approved','+20'],
+    ['Crowned Feynman King of the Week','+50'],
+    ['Hit your daily study goal','+50'],
+    ['Hit your weekly study goal','+50'],
+    ['Complete a subject goal','+50'],
+    ['Miss your daily study goal','-5'],
+    ['Miss your weekly study goal','-5'],
+  ];
+  modal.append(
+    div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'24px'}},[
+      div({},[
+        h('div',{cls:'chapter',html:'Deo Fortis'}),
+        h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'22px',color:'var(--gold)'},html:'How Points Work'})
+      ]),
+      btn('✕','',function(){overlay.remove();},{style:{background:'none',border:'none',color:'var(--dim)',fontSize:'20px',cursor:'pointer',padding:'4px'}})
+    ]),
+    h('p',{style:{fontFamily:"Inter,sans-serif",fontSize:'13px',color:'var(--muted)',lineHeight:'1.7',marginBottom:'24px'},html:'Every action on Deo Fortis earns you points. Points determine your rank on the leaderboard and reflect how consistently you are showing up to study.'}),
+    div({style:{border:'1px solid var(--border)',borderRadius:'4px',overflow:'hidden'}})
+  );
+  const table=modal.lastChild;
+  rows.forEach(function(row,i){
+    const isNeg=row[1].startsWith('-');
+    const r=div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'12px 16px',borderBottom:i<rows.length-1?'1px solid var(--border)':'none',background:i%2===0?'var(--card)':'var(--card2)'}});
+    r.append(
+      h('span',{style:{fontFamily:"Inter,sans-serif",fontSize:'13px',color:'var(--text)'},html:row[0]}),
+      h('span',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'13px',fontWeight:'700',color:isNeg?'#ff8888':'var(--teal)',flexShrink:'0',marginLeft:'16px'},html:row[1]+' pts'})
+    );
+    table.append(r);
+  });
+  modal.append(
+    h('p',{style:{fontFamily:"Inter,sans-serif",fontSize:'11px',color:'var(--dim)',lineHeight:'1.6',marginTop:'20px',padding:'12px',background:'var(--card2)',borderRadius:'4px'},html:'Points for goals are awarded once per period. Missed goal deductions apply from the day after your goal period ends. Points can never go below zero.'})
+  );
+  overlay.append(modal);
+  document.body.append(overlay);
+}
+inner.append(
+  h('span',{cls:'chapter',html:'Rankings'}),
+  div({style:{display:'flex',alignItems:'baseline',justifyContent:'space-between',marginBottom:'8px'}},[
+    h('h1',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'48px',fontWeight:'700'},html:'The <em class="gold-em">Leaderboard</em>'}),
+    btn('How points work →','btn-outline',function(){showPointsRules();},{style:{fontSize:'11px',padding:'6px 14px',flexShrink:'0'}})
+  ]),
+  h('p',{cls:'muted',style:{fontSize:'14px',marginBottom:'40px'},html:'Rankings based on total points. Updated in real time.'})
+);
 const board=div({cls:'card',style:{marginBottom:'32px'},id:'board',html:'<p style="font-size:14px;color:var(--dim);text-align:center;padding:20px">Loading...</p>'});
 inner.append(board);
 const bc=div({cls:'card',style:{textAlign:'center',borderColor:'var(--gold-border)',borderTopWidth:'3px',borderTopColor:'var(--gold)'}});
@@ -4150,7 +4225,7 @@ if(!filteredSubs.length){
     if(sub.status==='pending'){
       const actions=div({style:{display:'flex',gap:'10px',marginTop:'12px'}});
       actions.append(btn('✓ Approve','btn-teal',async()=>{
-        if(!sub.points_awarded){const{data:up}=await sb.from('profiles').select('total_points').eq('id',sub.user_id).single();if(up){await sb.from('profiles').update({total_points:(up.total_points||0)+50}).eq('id',sub.user_id);}}
+        if(!sub.points_awarded){const{data:up}=await sb.from('profiles').select('total_points').eq('id',sub.user_id).single();if(up){await sb.from('profiles').update({total_points:(up.total_points||0)+20}).eq('id',sub.user_id);}}
         await sb.from('feynman_submissions').update({status:'approved',points_awarded:true,student_notified:false,notification_type:'accepted'}).eq('id',sub.id);
         loadTab('feynman');
       },{style:{padding:'6px 16px',fontSize:'11px'}}));
