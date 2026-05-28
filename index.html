@@ -95,12 +95,17 @@ h2.big{font-family:'Playfair Display',serif;font-size:clamp(32px,5vw,56px);font-
 <script src="https://cdn.jsdelivr.net/npm/twemoji@14.0.2/dist/twemoji.min.js" crossorigin="anonymous"></script>
 <script src="app.js"></script>
 <script>
+// Twemoji scoped to emoji-bitz deck content only
+function parseTwemoji(el){if(el&&typeof twemoji!=='undefined')twemoji.parse(el);}
 document.addEventListener('DOMContentLoaded',function(){
-  twemoji.parse(document.body);
   var observer=new MutationObserver(function(mutations){
     mutations.forEach(function(mutation){
       mutation.addedNodes.forEach(function(node){
-        if(node.nodeType===1)twemoji.parse(node);
+        if(node.nodeType===1){
+          var scoped=node.querySelectorAll?node.querySelectorAll('.twemoji-scope'):[];
+          for(var i=0;i<scoped.length;i++)twemoji.parse(scoped[i]);
+          if(node.classList&&node.classList.contains('twemoji-scope'))twemoji.parse(node);
+        }
       });
     });
   });
