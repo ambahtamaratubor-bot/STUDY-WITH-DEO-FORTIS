@@ -2607,22 +2607,33 @@ const subsFilterWrap=div({style:{marginBottom:'16px',display:'none'}},[h('label'
 inner.append(subsFilterWrap);
 async function updateSubsectionUI(){
   if(!selectedTopics.length){subsFilterWrap.style.display='none';selectedSubsections=[];return;}
-  const{data:subs}=await (isFree?sb.from('vignette_questions').select('subsection').in('topic',selectedTopics).eq('is_global',true).not('subsection','is',null):sb.from('vignette_questions').select('subsection').in('topic',selectedTopics).or('user_id.eq.'+S.user.id+',user_id.is.null').not('subsection','is',null));
-  const uniqueSubs=[...new Set((subs||[]).map(s=>s.subsection).filter(Boolean))];
-  if(!uniqueSubs.length){subsFilterWrap.style.display='none';selectedSubsections=[];return;}
+  const{data:subs}=await (isFree?sb.from('vignette_questions').select('topic,subsection').in('topic',selectedTopics).eq('is_global',true).not('subsection','is',null):sb.from('vignette_questions').select('topic,subsection').in('topic',selectedTopics).or('user_id.eq.'+S.user.id+',user_id.is.null').not('subsection','is',null));
+  var rows=subs||[];
+  // Build topic→subsections map preserving topic order
+  var groupOrder=[];var groups={};
+  rows.forEach(function(r){if(!r.subsection)return;if(!groups[r.topic]){groups[r.topic]=[];groupOrder.push(r.topic);}if(groups[r.topic].indexOf(r.subsection)===-1)groups[r.topic].push(r.subsection);});
+  var allSubs=[];groupOrder.forEach(function(t){allSubs=allSubs.concat(groups[t]);});
+  if(!allSubs.length){subsFilterWrap.style.display='none';selectedSubsections=[];return;}
   subsFilterWrap.style.display='block';
   subBtnContainer.innerHTML='';
-  if(!selectedSubsections.length)selectedSubsections=[...uniqueSubs];
-  uniqueSubs.forEach(sub=>{
-    const isSelected=selectedSubsections.includes(sub);
-    const sb2=btn(sub,isSelected?'btn-teal':'btn-outline',()=>{
-      if(selectedSubsections.includes(sub)){selectedSubsections=selectedSubsections.filter(s=>s!==sub);}
-      else{selectedSubsections.push(sub);}
-      updateSubsectionUI();updateCount();
-    },{style:{padding:'6px 12px',fontSize:'11px'}});
-    subBtnContainer.append(sb2);
+  if(!selectedSubsections.length)selectedSubsections=allSubs.slice();
+  groupOrder.forEach(function(topic){
+    if(groupOrder.length>1){
+      subBtnContainer.append(h('div',{style:{fontSize:'10px',fontWeight:'700',letterSpacing:'2px',textTransform:'uppercase',color:'var(--gold)',marginTop:'12px',marginBottom:'6px',width:'100%'}},[topic]));
+    }
+    var rowDiv=div({style:{display:'flex',flexWrap:'wrap',gap:'8px',marginBottom:'8px'}});
+    groups[topic].forEach(function(sub){
+      var isSelected=selectedSubsections.indexOf(sub)!==-1;
+      var sb2=btn(sub,isSelected?'btn-teal':'btn-outline',function(){
+        var idx=selectedSubsections.indexOf(sub);
+        if(idx===-1){selectedSubsections.push(sub);}else{selectedSubsections.splice(idx,1);}
+        updateSubsectionUI();updateCount();
+      },{style:{padding:'6px 12px',fontSize:'11px'}});
+      rowDiv.append(sb2);
+    });
+    subBtnContainer.append(rowDiv);
   });
-  subBtnContainer.append(btn('All','btn-outline',()=>{selectedSubsections=[...uniqueSubs];updateSubsectionUI();updateCount();},{style:{padding:'6px 12px',fontSize:'11px'}}));
+  subBtnContainer.append(btn('Select All','btn-outline',function(){selectedSubsections=allSubs.slice();updateSubsectionUI();updateCount();},{style:{padding:'6px 12px',fontSize:'11px',marginTop:'4px'}}));
 }
 async function updateCount(){
   if(!selectedTopics.length){countDisplay.textContent='Select at least one topic';qCountI.value=0;qCountI.max=0;return;}
@@ -2703,7 +2714,8 @@ if(qFilter!=='all'){
 }
 const{data:qs}=await qQuery.limit(desiredCount);
 if(!qs||!qs.length){alert('No questions for this topic yet.');return;}
-questions=qs;current=0;answers={};submitted=false;revealed={};
+var qsArr=qs.slice();for(var si=qsArr.length-1;si>0;si--){var sj=Math.floor(Math.random()*(si+1));var stmp=qsArr[si];qsArr[si]=qsArr[sj];qsArr[sj]=stmp;}
+questions=qsArr;current=0;answers={};submitted=false;revealed={};
 if(mode==='timed')timeLeft=timeLimit*60;
 sessionStorage.setItem('vignette_resume',JSON.stringify({questions,current:0,answers:{},revealed:{},ruledOut:{},highlights:{},selectedTopics,selectedSubsections,mode,timeLimit,timeLeft:mode==='timed'?timeLimit*60:null}));
 showQuiz();
@@ -2755,7 +2767,7 @@ const mainArea=div({id:'quiz-main'});
 qi.append(sidebar,mainArea);page.append(qi);
 updateQ();
 function renderQuestionText(text,container){
-var LAB_INLINE_RE=/(?:(?:Laboratory|Lab) (?:studies|results|findings|data|values)[^:]*:|studies show:|results show:|values show:)\s*((?:[^;]+(?:\/[^\s;]+)?\s*\([^)]+\);?\s*)+)/i;
+var LAB_INLINE_RE=/(?:(?:Laboratory|Lab) (?:studies|results|findings|data|values)[^:]*:|studies show:|results show:|values show:)\s*((?:[^;]+(?:\/[^\s;]+)?\s*\([^)]+\);\s*)+)/i;
 var LAB_ITEM_RE=/([^;:()\\/\d]+?)\s+([\d,\.]+(?:[-\u2013][\d,\.]+)?\s*(?:\/[\w\u00b5]+)?)\s+(?:U\/L|g\/dL|mg\/dL|mEq\/L|mmol\/L|\u00b5mol\/L|umol\/L|IU\/L|ng\/mL|pg\/mL|\u00b5g\/dL|ug\/dL|%|\/\u00b5L|\/uL|mm\/hr|mm Hg|cm|x10\^?\d+\/?\\w*)?\s*\((?:normal\s+)?([^)]+)\)/gi;
 var match=LAB_INLINE_RE.exec(text);
 if(!match){var p=h('p',{style:{fontSize:'15px',color:'var(--text)',lineHeight:'1.8'}},[]);p.textContent=text;container.append(p);return;}
@@ -2935,12 +2947,14 @@ const userAns=answers[q.id];
 const correct=q.correct_answer;
 const isCorrect=userAns===correct;
 const qCard=div({style:{background:'var(--card)',border:'1px solid '+(isCorrect?'var(--teal)':'#8B000066'),borderRadius:'4px',padding:'20px',marginBottom:'16px'}});
+var qTextDiv=div({style:{marginBottom:'16px'}},[]);
+renderQuestionText(q.question,qTextDiv);
 qCard.append(
   div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'12px'}},[
     div({cls:'mono',style:{fontSize:'9px'},html:'Question '+(i+1)}),
     h('span',{style:{fontFamily:"Inter,sans-serif",fontSize:'11px',color:isCorrect?'var(--teal)':'#ff8888',fontWeight:'700'},html:isCorrect?'✓ Correct':'✗ Incorrect'})
   ]),
-  h('p',{style:{fontSize:'14px',color:'var(--text)',lineHeight:'1.8',marginBottom:'16px'},html:q.question})
+  qTextDiv
 );
 ['a','b','c','d','e'].forEach(opt=>{
   const val=q['option_'+opt];if(!val)return;
@@ -2956,10 +2970,24 @@ qCard.append(
   qCard.append(row);
 });
 if(q.explanation){
-  qCard.append(div({style:{background:'var(--bg)',border:'1px solid var(--teal-border)',borderRadius:'2px',padding:'14px',marginTop:'12px'}},[
-    div({style:{fontFamily:"Inter,sans-serif",fontSize:'9px',color:'var(--teal)',letterSpacing:'2px',textTransform:'uppercase',marginBottom:'6px'},html:'Explanation'}),
-    h('p',{style:{fontSize:'13px',color:'var(--muted)',lineHeight:'1.7'},html:q.explanation})
-  ]));
+  var expWrap=div({style:{background:'var(--correct-bg)',border:'1px solid var(--teal-border)',borderRadius:'2px',padding:'14px',marginTop:'12px'}});
+  expWrap.append(div({style:{fontFamily:"Inter,sans-serif",fontSize:'9px',color:'var(--teal)',letterSpacing:'2px',textTransform:'uppercase',marginBottom:'6px'},html:'Explanation'}));
+  var chunks=q.explanation.split(/(?=\b[A-E]\s*[\(\-])/);
+  for(var ci=0;ci<chunks.length;ci++){
+    var chunk=chunks[ci].trim();if(!chunk)continue;
+    var optMatch=chunk.match(/^([A-E])\s*[\(\-]/);
+    if(optMatch){
+      var letter=optMatch[1];
+      var isCorrectOpt=(letter===q.correct_answer);
+      var optBox=div({style:{border:isCorrectOpt?'1px solid var(--teal)':'1px solid var(--border)',borderRadius:'2px',padding:'10px 12px',marginBottom:'8px',background:isCorrectOpt?'rgba(126,184,164,0.08)':'transparent'}});
+      optBox.append(h('span',{style:{fontWeight:'700',color:isCorrectOpt?'var(--teal)':'var(--muted)',marginRight:'8px',fontSize:'12px'}},[(isCorrectOpt?letter+' ✓':letter+' -')]));
+      optBox.append(h('span',{style:{color:'var(--muted)',fontSize:'13px',lineHeight:'1.7'}},[chunk.replace(/^[A-E]\s*[\(\-]\s*/,'')]));
+      expWrap.append(optBox);
+    }else{
+      expWrap.append(h('p',{style:{fontSize:'13px',color:'var(--muted)',lineHeight:'1.7',marginBottom:'8px'}},[chunk]));
+    }
+  }
+  qCard.append(expWrap);
 }
 inner.append(qCard);
 });
