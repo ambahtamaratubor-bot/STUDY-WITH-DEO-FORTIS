@@ -2648,7 +2648,7 @@ async function updateCount(){
   }
   let q=isFree?sb.from('vignette_questions').select('*',{count:'exact',head:true}).in('topic',selectedTopics).eq('is_global',true):sb.from('vignette_questions').select('*',{count:'exact',head:true}).in('topic',selectedTopics).or('user_id.eq.'+S.user.id+',user_id.is.null');
   if(selectedSubsections.length)q=q.in('subsection',selectedSubsections);
-  if(qFilter==='unused'&&progressIds.length)q=q.not('id','in','('+progressIds.join(',')+')');
+  if(qFilter==='unused'&&progressIds.length)q=q.not('id','in',`(${progressIds.join(',')}`);
   else if((qFilter==='correct'||qFilter==='incorrect')&&progressIds.length)q=q.in('id',progressIds);
   else if((qFilter==='correct'||qFilter==='incorrect')&&!progressIds.length){countDisplay.textContent='0 questions available';qCountI.value=0;qCountI.max=0;return;}
   const{count}=await q;
@@ -2698,6 +2698,7 @@ if(S.profile?.is_free_tier){
   if(!qs||!qs.length){alert('No questions for this topic yet.');return;}
   questions=qs;current=0;answers={};submitted=false;revealed={};
   if(mode==='timed')timeLeft=timeLimit*60;
+  selTopic=selectedTopics.join(', ');
   showQuiz();
   return;
 }
@@ -2708,7 +2709,7 @@ if(qFilter!=='all'){
   var{data:pfRows2}=await sb.from('question_progress').select('question_id,answered_correctly').eq('user_id',S.user.id);
   pfRows2=pfRows2||[];
   var filterIds=[];
-  if(qFilter==='unused'){filterIds=pfRows2.map(function(r){return r.question_id;});if(filterIds.length)qQuery=qQuery.not('id','in','('+filterIds.join(',')+')');}
+  if(qFilter==='unused'){filterIds=pfRows2.map(function(r){return r.question_id;});if(filterIds.length)qQuery=qQuery.not('id','in',`(${filterIds.join(',')})`);}
   else if(qFilter==='correct'){filterIds=pfRows2.filter(function(r){return r.answered_correctly===true;}).map(function(r){return r.question_id;});if(!filterIds.length){alert('No correctly answered questions yet.');return;}qQuery=qQuery.in('id',filterIds);}
   else if(qFilter==='incorrect'){filterIds=pfRows2.filter(function(r){return r.answered_correctly===false;}).map(function(r){return r.question_id;});if(!filterIds.length){alert('No incorrectly answered questions yet.');return;}qQuery=qQuery.in('id',filterIds);}
 }
@@ -2718,6 +2719,7 @@ var qsArr=qs.slice();for(var si=qsArr.length-1;si>0;si--){var sj=Math.floor(Math
 questions=qsArr;current=0;answers={};submitted=false;revealed={};
 if(mode==='timed')timeLeft=timeLimit*60;
 sessionStorage.setItem('vignette_resume',JSON.stringify({questions,current:0,answers:{},revealed:{},ruledOut:{},highlights:{},selectedTopics,selectedSubsections,mode,timeLimit,timeLeft:mode==='timed'?timeLimit*60:null}));
+selTopic=selectedTopics.join(', ');
 showQuiz();
 },{style:{width:'100%'}});
 inner.append(startBtn);
@@ -2745,6 +2747,25 @@ hCard.append(div({style:{display:'flex',justifyContent:'space-between',alignItem
 inner.append(hCard);
 });
 }
+function renderQuestionText(text,container){
+var LAB_INLINE_RE=/(?:(?:Laboratory|Lab) (?:studies|results|findings|data|values)[^:]*:|studies show:|results show:|values show:)\s*((?:[^;]+(?:\/[^\s;]+)?\s*\([^)]+\);\s*)+)/i;
+var LAB_ITEM_RE=/([^;:()\\/\d]+?)\s+([\d,\.]+(?:[-\u2013][\d,\.]+)?\s*(?:\/[\w\u00b5]+)?)\s+(?:U\/L|g\/dL|mg\/dL|mEq\/L|mmol\/L|\u00b5mol\/L|umol\/L|IU\/L|ng\/mL|pg\/mL|\u00b5g\/dL|ug\/dL|%|\/\u00b5L|\/uL|mm\/hr|mm Hg|cm|x10\^?\d+\/?\\w*)?\s*\((?:normal\s+)?([^)]+)\)/gi;
+var match=LAB_INLINE_RE.exec(text);
+if(!match){var p=h('p',{style:{fontSize:'15px',color:'var(--text)',lineHeight:'1.8'}},[]);p.textContent=text;container.append(p);return;}
+var matchStart=text.indexOf(match[0]);
+var before=text.slice(0,matchStart);var after=text.slice(matchStart+match[0].length);
+var labStr=match[1];var labItems=[];var m2;LAB_ITEM_RE.lastIndex=0;
+while((m2=LAB_ITEM_RE.exec(labStr))!==null){var n=m2[1].replace(/^[;\s,]+/,'').trim();n=n.charAt(0).toUpperCase()+n.slice(1);labItems.push({name:n,value:m2[2].trim(),normal:m2[3].trim()});}
+if(!labItems.length){var p2=h('p',{style:{fontSize:'15px',color:'var(--text)',lineHeight:'1.8'}},[]);p2.textContent=text;container.append(p2);return;}
+if(before.trim()){var pBefore=h('p',{style:{fontSize:'15px',color:'var(--text)',lineHeight:'1.8',marginBottom:'14px'}},[]);pBefore.textContent=before.trim();container.append(pBefore);}
+var tableWrap=div({style:{margin:'16px 0',borderRadius:'3px',border:'1px solid var(--teal-border)',overflow:'hidden'}});
+var tableHead=div({style:{background:'rgba(126,184,164,0.1)',padding:'8px 16px',borderBottom:'1px solid var(--teal-border)',display:'flex',alignItems:'center'}});
+tableHead.append(h('span',{style:{fontSize:'10px',fontWeight:'700',letterSpacing:'1.5px',textTransform:'uppercase',color:'var(--teal)'}},['Laboratory Studies']));
+tableWrap.append(tableHead);
+labItems.forEach(function(item){var row=div({style:{display:'flex',alignItems:'baseline',padding:'9px 16px',borderBottom:'1px solid var(--border)'}});var nameEl=h('span',{style:{flex:'1',fontSize:'13px',color:'var(--text)',lineHeight:'1.5'}},[]);nameEl.textContent=item.name;var valEl=h('span',{style:{fontSize:'13px',fontWeight:'400',color:'var(--text)',minWidth:'90px',textAlign:'right'}},[]);valEl.textContent=item.value;var normEl=h('span',{style:{fontSize:'11px',color:'var(--muted)',minWidth:'120px',textAlign:'right',marginLeft:'16px'}},[]);normEl.textContent='('+item.normal+')';row.append(nameEl,valEl,normEl);tableWrap.append(row);});
+container.append(tableWrap);
+if(after.trim()){var pAfter=h('p',{style:{fontSize:'15px',color:'var(--text)',lineHeight:'1.8',marginTop:'14px'}},[]);pAfter.textContent=after.replace(/^[\s.,;]+/,'');container.append(pAfter);}
+}
 function showQuiz(){
 page.innerHTML='';page.append(nav);
 const qNav=div({style:{background:'var(--nav-bg)',borderBottom:'1px solid var(--border)',padding:'12px 24px',display:'flex',alignItems:'center',justifyContent:'space-between',position:'sticky',top:'0',zIndex:'100'}});
@@ -2766,27 +2787,7 @@ if(mode==='timed'&&!submitted)sidebar.append(btn('Submit All →','btn-gold',()=
 const mainArea=div({id:'quiz-main'});
 qi.append(sidebar,mainArea);page.append(qi);
 updateQ();
-function renderQuestionText(text,container){
-var LAB_INLINE_RE=/(?:(?:Laboratory|Lab) (?:studies|results|findings|data|values)[^:]*:|studies show:|results show:|values show:)\s*((?:[^;]+(?:\/[^\s;]+)?\s*\([^)]+\);\s*)+)/i;
-var LAB_ITEM_RE=/([^;:()\\/\d]+?)\s+([\d,\.]+(?:[-\u2013][\d,\.]+)?\s*(?:\/[\w\u00b5]+)?)\s+(?:U\/L|g\/dL|mg\/dL|mEq\/L|mmol\/L|\u00b5mol\/L|umol\/L|IU\/L|ng\/mL|pg\/mL|\u00b5g\/dL|ug\/dL|%|\/\u00b5L|\/uL|mm\/hr|mm Hg|cm|x10\^?\d+\/?\\w*)?\s*\((?:normal\s+)?([^)]+)\)/gi;
-var match=LAB_INLINE_RE.exec(text);
-if(!match){var p=h('p',{style:{fontSize:'15px',color:'var(--text)',lineHeight:'1.8'}},[]);p.textContent=text;container.append(p);return;}
-var matchStart=text.indexOf(match[0]);
-var before=text.slice(0,matchStart);var after=text.slice(matchStart+match[0].length);
-var labStr=match[1];var labItems=[];var m2;LAB_ITEM_RE.lastIndex=0;
-while((m2=LAB_ITEM_RE.exec(labStr))!==null){var n=m2[1].replace(/^[;\s,]+/,'').trim();n=n.charAt(0).toUpperCase()+n.slice(1);labItems.push({name:n,value:m2[2].trim(),normal:m2[3].trim()});}
-if(!labItems.length){var p2=h('p',{style:{fontSize:'15px',color:'var(--text)',lineHeight:'1.8'}},[]);p2.textContent=text;container.append(p2);return;}
-if(before.trim()){var pBefore=h('p',{style:{fontSize:'15px',color:'var(--text)',lineHeight:'1.8',marginBottom:'14px'}},[]);pBefore.textContent=before.trim();container.append(pBefore);}
-var tableWrap=div({style:{margin:'16px 0',borderRadius:'3px',border:'1px solid var(--teal-border)',overflow:'hidden'}});
-var tableHead=div({style:{background:'rgba(126,184,164,0.1)',padding:'8px 16px',borderBottom:'1px solid var(--teal-border)',display:'flex',alignItems:'center'}});
-tableHead.append(h('span',{style:{fontSize:'10px',fontWeight:'700',letterSpacing:'1.5px',textTransform:'uppercase',color:'var(--teal)'}},['Laboratory Studies']));
-tableWrap.append(tableHead);
-labItems.forEach(function(item){var row=div({style:{display:'flex',alignItems:'baseline',padding:'9px 16px',borderBottom:'1px solid var(--border)'}});var nameEl=h('span',{style:{flex:'1',fontSize:'13px',color:'var(--text)',lineHeight:'1.5'}},[]);nameEl.textContent=item.name;var valEl=h('span',{style:{fontSize:'13px',fontWeight:'400',color:'var(--text)',minWidth:'90px',textAlign:'right'}},[]);valEl.textContent=item.value;var normEl=h('span',{style:{fontSize:'11px',color:'var(--muted)',minWidth:'120px',textAlign:'right',marginLeft:'16px'}},[]);normEl.textContent='('+item.normal+')';row.append(nameEl,valEl,normEl);tableWrap.append(row);});
-container.append(tableWrap);
-if(after.trim()){var pAfter=h('p',{style:{fontSize:'15px',color:'var(--text)',lineHeight:'1.8',marginTop:'14px'}},[]);pAfter.textContent=after.replace(/^[\s.,;]+/,'');container.append(pAfter);}
-}
 function updateQ(){
-if(activeHighlightBtn){activeHighlightBtn.remove();activeHighlightBtn=null;}
 const q=questions[current];mainArea.innerHTML='';pEl.textContent=(current+1)+' / '+questions.length;
 questions.forEach((qq,i)=>{
 const nb=document.getElementById('nb-'+i);if(!nb)return;
