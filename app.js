@@ -2940,16 +2940,17 @@ showSetup();return page;
 // LEADERBOARD
 // ═══════════════════════════════
 function feynman(){
-const page=div({cls:'dash-page'});
+var page=div({cls:'dash-page'});
 if(S.profile?.is_free_tier===true){
-  const nav2=div({cls:'dash-nav'},[div({cls:'logo',html:'Deo Fortis'}),div({style:{display:'flex',gap:'8px'}},[btn('Back to Dashboard','btn-outline',()=>go('dashboard'),{style:{padding:'8px 16px'}}),makeThemeBtn()])]);
-  page.append(nav2);
-  const preview=div({cls:'inner',style:{position:'relative'}});
+  var navFree=div({cls:'dash-nav'});
+  navFree.append(div({cls:'logo',html:'Deo Fortis'}),div({style:{display:'flex',gap:'8px'}},[btn('Back to Dashboard','btn-outline',function(){go('dashboard');},{style:{padding:'8px 16px'}}),makeThemeBtn()]));
+  page.append(navFree);
+  var preview=div({cls:'inner',style:{position:'relative'}});
   preview.append(
     div({style:{marginBottom:'32px'}},[
       h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'11px',color:'var(--teal)',textTransform:'uppercase',letterSpacing:'1px',marginBottom:'8px'},html:'Feynman Arena'}),
       h('h1',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'32px',color:'var(--gold)',marginBottom:'8px'},html:'Teach It. Own It.'}),
-      h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'13px',color:'var(--dim)',lineHeight:'1.8',maxWidth:'520px'},html:"Can you explain Gram-positive bacteria to a 6-year-old — no jargon, no textbook language? That's the challenge. Pick any topic, speak directly into your mic or type it out, and our tutors review every submission. The clearest, simplest explanations get crowned 👑 King of the Week and published on the Wall of Fame. You earn points. Your peers learn from you. Everyone wins."})
+      h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'13px',color:'var(--dim)',lineHeight:'1.8',maxWidth:'520px'},html:"Can you explain Gram-positive bacteria to a 6-year-old — no jargon, no textbook language? That's the challenge. Pick any topic, speak directly into your mic or type it out, and our tutors review every submission. The clearest, simplest explanations get crowned King of the Week and published on the Wall of Fame. You earn points. Your peers learn from you. Everyone wins."})
     ]),
     div({style:{filter:'blur(4px)',pointerEvents:'none',userSelect:'none',opacity:'0.6'}},[
       div({cls:'card',style:{marginBottom:'16px',padding:'24px'}},[
@@ -2982,239 +2983,149 @@ if(S.profile?.is_free_tier===true){
         h('div',{style:{fontSize:'40px',marginBottom:'12px'},html:'👑'}),
         h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'20px',color:'var(--gold)',marginBottom:'8px'},html:'Unlock the Feynman Arena'}),
         h('p',{style:{fontFamily:"Inter,sans-serif",fontSize:'13px',color:'var(--dim)',lineHeight:'1.6',marginBottom:'20px'},html:'Submit explanations, earn points, and compete to be crowned King of the Week.'}),
-        btn('Upgrade to Unlock →','btn-gold',()=>showUpgradeModal(),{style:{width:'100%'}})
+        btn('Upgrade to Unlock →','btn-gold',function(){showUpgradeModal();},{style:{width:'100%'}})
       ])
     ])
   );
   page.append(preview);
   return page;
 }
-function getCurrentMonday(){const now=new Date();const day=now.getDay();const diff=day===0?6:day-1;const mon=new Date(now);mon.setDate(now.getDate()-diff);mon.setHours(0,0,0,0);return mon.toISOString().split('T')[0];}
-const nav=div({cls:'dash-nav'},[
-  div({cls:'logo',html:'Deo Fortis'}),
-  div({style:{display:'flex',gap:'8px'}},[
-    btn('Study','btn-outline',()=>go('study'),{style:{padding:'8px 16px'}}),
-    btn('Dashboard','btn-outline',()=>go('dashboard'),{style:{padding:'8px 16px'}}),
-    makeThemeBtn(),
-    btn('Log Out','btn-outline',()=>sb.auth.signOut(),{style:{padding:'8px 16px'}})
-  ])
-]);
+function getCurrentMonday(){var now=new Date();var day=now.getDay();var diff=day===0?6:day-1;var mon=new Date(now);mon.setDate(now.getDate()-diff);mon.setHours(0,0,0,0);return mon.toISOString().split('T')[0];}
+var nav=div({cls:'dash-nav'});
+nav.append(div({cls:'logo',html:'Deo Fortis'}),div({style:{display:'flex',gap:'8px'}},[btn('Study','btn-outline',function(){go('study');},{style:{padding:'8px 16px'}}),btn('Dashboard','btn-outline',function(){go('dashboard');},{style:{padding:'8px 16px'}}),makeThemeBtn(),btn('Log Out','btn-outline',function(){sb.auth.signOut();},{style:{padding:'8px 16px'}})]));
 page.append(nav);
-const container=div({cls:'inner'});
+var container=div({cls:'inner'});
 page.append(container);
-var mapletFey=showMaplet('feynman','Explain a concept in your own words. Submit it, earn points, and compete for Feynman King of the week.');if(mapletFey)container.append(mapletFey);
+var mapletFey=showMaplet('feynman','Explain a concept in your own words. Submit it, earn points, and compete for Feynman King of the week.');
+if(mapletFey)container.append(mapletFey);
 container.append(div({style:{marginBottom:'32px'}},[
   h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'11px',color:'var(--teal)',textTransform:'uppercase',letterSpacing:'1px',marginBottom:'8px'},html:'Feynman Arena'}),
   h('h1',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'32px',color:'var(--gold)',marginBottom:'8px'},html:'Teach It. Own It.'}),
-  h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'12px',color:'var(--dim)'},html:"Explain like you're teaching a 6 year old. The best explanations get crowned 👑"})
+  h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'12px',color:'var(--dim)'},html:"Explain like you're teaching a 6 year old. The best explanations get crowned King."})
 ]));
-// TAB SYSTEM
-let activeTab='submit';
-const tabContainer=div({style:{display:'flex',gap:'12px',marginBottom:'24px',borderBottom:'1px solid var(--border)',paddingBottom:'12px'}});
-const submitTabBtn=btn('Submit','btn',function(){activeTab='submit';submitTabBtn.style.background='var(--gold)';submitTabBtn.style.color='var(--bg)';submitTabBtn.style.border='1px solid var(--gold)';wallTabBtn.style.background='transparent';wallTabBtn.style.color='var(--text)';wallTabBtn.style.border='1px solid var(--border)';submitSection.style.display='block';wallSection.style.display='none';},{style:{padding:'8px 20px',background:'var(--gold)',color:'var(--bg)',border:'1px solid var(--gold)',borderRadius:'4px'}});
-const wallTabBtn=btn('Wall of Fame','btn',function(){activeTab='wall';wallTabBtn.style.background='var(--gold)';wallTabBtn.style.color='var(--bg)';wallTabBtn.style.border='1px solid var(--gold)';submitTabBtn.style.background='transparent';submitTabBtn.style.color='var(--text)';submitTabBtn.style.border='1px solid var(--border)';submitSection.style.display='none';wallSection.style.display='block';},{style:{padding:'8px 20px',background:'transparent',color:'var(--text)',border:'1px solid var(--border)',borderRadius:'4px'}});
+var activeTab='submit';
+var tabContainer=div({style:{display:'flex',gap:'12px',marginBottom:'24px',borderBottom:'1px solid var(--border)',paddingBottom:'12px'}});
+var submitTabBtn=btn('Submit','btn',function(){activeTab='submit';submitTabBtn.style.background='var(--gold)';submitTabBtn.style.color='var(--bg)';submitTabBtn.style.border='1px solid var(--gold)';wallTabBtn.style.background='transparent';wallTabBtn.style.color='var(--text)';wallTabBtn.style.border='1px solid var(--border)';submitSection.style.display='block';wallSection.style.display='none';},{style:{padding:'8px 20px',background:'var(--gold)',color:'var(--bg)',border:'1px solid var(--gold)',borderRadius:'4px'}});
+var wallTabBtn=btn('Wall of Fame','btn',function(){activeTab='wall';wallTabBtn.style.background='var(--gold)';wallTabBtn.style.color='var(--bg)';wallTabBtn.style.border='1px solid var(--gold)';submitTabBtn.style.background='transparent';submitTabBtn.style.color='var(--text)';submitTabBtn.style.border='1px solid var(--border)';submitSection.style.display='none';wallSection.style.display='block';},{style:{padding:'8px 20px',background:'transparent',color:'var(--text)',border:'1px solid var(--border)',borderRadius:'4px'}});
 tabContainer.append(submitTabBtn,wallTabBtn);
 container.append(tabContainer);
-const submitSection=div({id:'submit-section'});
-const wallSection=div({id:'wall-section',style:{display:'none'}});
+var submitSection=div({style:{display:'block'}});
+var wallSection=div({style:{display:'none'}});
 container.append(submitSection,wallSection);
-function renderTabs(){}
-// SUBMIT TAB
-let selectedType=null,submitSuccessDiv=null;
-const topicInput=inp('Topic e.g. Gram Positive Bacteria','text','');
+var selectedType=null;
+var submitSuccessDiv=null;
+var topicInput=inp('Topic e.g. Gram Positive Bacteria','text','');
 topicInput.style.marginBottom='16px';
-const contentTextarea=h('textarea',{cls:'input',placeholder:'Write your explanation here...',style:{minHeight:'120px',resize:'vertical',width:'100%',marginBottom:'16px'}});
-const typeContainer=div({style:{display:'flex',gap:'8px',marginBottom:'16px'}});
-const typeButtons=[{label:'Explain',value:'explain'},{label:'Riddle',value:'riddle'},{label:'Emoji Bitz',value:'emoji'}];
-function updateTypeSelection(value){
-  selectedType=value;
-  typeButtons.forEach(bd=>{const el=document.getElementById('type-btn-'+bd.value);if(el){if(bd.value===value){el.style.background='var(--gold)';el.style.color='var(--bg)';el.style.border='1px solid var(--gold)';}else{el.style.background='transparent';el.style.color='var(--text)';el.style.border='1px solid var(--border)';}}});
-}
-typeButtons.forEach(bd=>{const tb=btn(bd.label,'btn-outline',()=>updateTypeSelection(bd.value),{style:{padding:'6px 14px',fontSize:'11px'}});tb.id='type-btn-'+bd.value;typeContainer.append(tb);});
-const submitBtn=btn('Submit →','btn-gold',async()=>{
-  const topic=topicInput.value.trim();const content=contentTextarea.value.trim();
-  if(!topic){const e=div({style:{fontFamily:"Inter,sans-serif",fontSize:'11px',color:'#8B3A3A',textAlign:'center',marginTop:'12px'},html:'Please enter a topic.'});submitCard.append(e);setTimeout(()=>e.remove(),2000);return;}
-  if(!content){const e=div({style:{fontFamily:"Inter,sans-serif",fontSize:'11px',color:'#8B3A3A',textAlign:'center',marginTop:'12px'},html:'Please enter your explanation.'});submitCard.append(e);setTimeout(()=>e.remove(),2000);return;}
-  if(!selectedType){const e=div({style:{fontFamily:"Inter,sans-serif",fontSize:'11px',color:'#8B3A3A',textAlign:'center',marginTop:'12px'},html:'Please select a type.'});submitCard.append(e);setTimeout(()=>e.remove(),2000);return;}
-  const{error}=await sb.from('feynman_submissions').insert({user_id:S.user.id,user_name:S.profile?.full_name||S.user.email,topic,type:selectedType,content,status:'pending',week_of:getCurrentMonday(),is_king:false,points_awarded:false});
-  if(!error){
-    topicInput.value='';contentTextarea.value='';selectedType=null;updateTypeSelection(null);
-    if(submitSuccessDiv)submitSuccessDiv.remove();
-    submitSuccessDiv=div({style:{fontFamily:"Inter,sans-serif",fontSize:'11px',color:'var(--teal)',textAlign:'center',marginTop:'12px'},html:"✓ Submitted! We'll review it soon."});
-    submitCard.append(submitSuccessDiv);
-    setTimeout(()=>{if(submitSuccessDiv)submitSuccessDiv.remove();submitSuccessDiv=null;},1500);
-    (async()=>{await loadWallOfFame();})();
-  }else{const e=div({style:{fontFamily:"Inter,sans-serif",fontSize:'11px',color:'#8B3A3A',textAlign:'center',marginTop:'12px'},html:'Failed to submit. Please try again.'});submitCard.append(e);setTimeout(()=>e.remove(),2000);}
-},{style:{width:'100%'}});
-const submitCard=div({cls:'card',style:{marginBottom:'32px'}});
-// Voice recognition setup
-let recognition=null;let isRecording=false;
-const SpeechRecognitionAPI=window.SpeechRecognition||window.webkitSpeechRecognition;
-const micWrapper=div({style:{display:'none',marginBottom:'12px'}});
+var contentTextarea=h('textarea',{cls:'input',placeholder:'Write your explanation here...',style:{minHeight:'120px',resize:'vertical',width:'100%',marginBottom:'16px'}});
+var typeContainer=div({style:{display:'flex',gap:'8px',marginBottom:'16px'}});
+var explainBtn=btn('Explain','btn-outline',function(){selectedType='explain';explainBtn.style.background='var(--gold)';explainBtn.style.color='var(--bg)';explainBtn.style.border='1px solid var(--gold)';riddleBtn.style.background='transparent';riddleBtn.style.color='var(--text)';riddleBtn.style.border='1px solid var(--border)';emojiBtn.style.background='transparent';emojiBtn.style.color='var(--text)';emojiBtn.style.border='1px solid var(--border)';if(micWrapper)micWrapper.style.display='block';},{style:{padding:'6px 14px',fontSize:'11px'}});
+explainBtn.id='type-btn-explain';
+var riddleBtn=btn('Riddle','btn-outline',function(){selectedType='riddle';riddleBtn.style.background='var(--gold)';riddleBtn.style.color='var(--bg)';riddleBtn.style.border='1px solid var(--gold)';explainBtn.style.background='transparent';explainBtn.style.color='var(--text)';explainBtn.style.border='1px solid var(--border)';emojiBtn.style.background='transparent';emojiBtn.style.color='var(--text)';emojiBtn.style.border='1px solid var(--border)';if(micWrapper)micWrapper.style.display='none';},{style:{padding:'6px 14px',fontSize:'11px'}});
+riddleBtn.id='type-btn-riddle';
+var emojiBtn=btn('Emoji Bitz','btn-outline',function(){selectedType='emoji';emojiBtn.style.background='var(--gold)';emojiBtn.style.color='var(--bg)';emojiBtn.style.border='1px solid var(--gold)';explainBtn.style.background='transparent';explainBtn.style.color='var(--text)';explainBtn.style.border='1px solid var(--border)';riddleBtn.style.background='transparent';riddleBtn.style.color='var(--text)';riddleBtn.style.border='1px solid var(--border)';if(micWrapper)micWrapper.style.display='none';},{style:{padding:'6px 14px',fontSize:'11px'}});
+emojiBtn.id='type-btn-emoji';
+typeContainer.append(explainBtn,riddleBtn,emojiBtn);
+var micWrapper=div({style:{display:'none',marginBottom:'12px'}});
+var SpeechRecognitionAPI=window.SpeechRecognition||window.webkitSpeechRecognition;
+var recognition=null;var isRecording=false;
 if(SpeechRecognitionAPI){
-  const micBtn=btn('','btn-outline',()=>{
+  var micBtn=btn('','btn-outline',function(){
     if(isRecording&&recognition){recognition.stop();return;}
-    recognition=new SpeechRecognitionAPI();
-    recognition.continuous=true;recognition.interimResults=true;recognition.lang='en-US';
-    let baseText=contentTextarea.value;
-    let finalAdded='';
-    recognition.onstart=()=>{
-      isRecording=true;
-      micBtn.style.borderColor='#ff4444';micBtn.style.color='#ff4444';micBtn.style.background='rgba(255,68,68,0.08)';
-      micBtn.innerHTML=ICONS.mic+'<span style="margin-left:6px;font-size:11px">Stop Recording</span>';
-    };
-    recognition.onresult=(event)=>{
-      let interim='';
-      for(let i=event.resultIndex;i<event.results.length;i++){
-        const t=event.results[i][0].transcript;
-        if(event.results[i].isFinal){finalAdded+=t+' ';}
-        else{interim+=t;}
-      }
-      contentTextarea.value=baseText+(finalAdded?finalAdded:'')+( interim?'['+interim+']':'');
-    };
-    recognition.onerror=(e)=>{console.error('Speech error:',e.error);recognition.stop();};
-    recognition.onend=()=>{
-      isRecording=false;
-      contentTextarea.value=(baseText+finalAdded).trim();
-      micBtn.style.borderColor='';micBtn.style.color='';micBtn.style.background='';
-      micBtn.innerHTML=ICONS.mic+'<span style="margin-left:6px;font-size:11px">Speak to Type</span>';
-    };
+    recognition=new SpeechRecognitionAPI();recognition.continuous=true;recognition.interimResults=true;recognition.lang='en-US';
+    var baseText=contentTextarea.value;var finalAdded='';
+    recognition.onstart=function(){isRecording=true;micBtn.style.borderColor='#ff4444';micBtn.style.color='#ff4444';micBtn.style.background='rgba(255,68,68,0.08)';micBtn.innerHTML=ICONS.mic+'<span style="margin-left:6px;font-size:11px">Stop Recording</span>';};
+    recognition.onresult=function(event){var interim='';for(var i=event.resultIndex;i<event.results.length;i++){var t=event.results[i][0].transcript;if(event.results[i].isFinal){finalAdded+=t+' ';}else{interim+=t;}}contentTextarea.value=baseText+(finalAdded?finalAdded:'')+(interim?'['+interim+']':'');};
+    recognition.onerror=function(e){console.error('Speech error:',e.error);recognition.stop();};
+    recognition.onend=function(){isRecording=false;contentTextarea.value=(baseText+finalAdded).trim();micBtn.style.borderColor='';micBtn.style.color='';micBtn.style.background='';micBtn.innerHTML=ICONS.mic+'<span style="margin-left:6px;font-size:11px">Speak to Type</span>';};
     recognition.start();
   },{style:{display:'inline-flex',alignItems:'center',padding:'6px 14px',fontSize:'11px'}});
   micBtn.innerHTML=ICONS.mic+'<span style="margin-left:6px;font-size:11px">Speak to Type</span>';
   micWrapper.append(micBtn);
-  // Hook into updateTypeSelection to show/hide mic
-  const _origUpdate=updateTypeSelection;
-  updateTypeSelection=(value)=>{
-    _origUpdate(value);
-    micWrapper.style.display=value==='explain'?'block':'none';
-    if(value!=='explain'&&isRecording&&recognition)recognition.stop();
-  };
 }
-submitCard.append(
-  h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'18px',marginBottom:'4px'},html:'Submit Your Feynman'}),
-  h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'9px',color:'var(--dim)',marginBottom:'16px'},html:'explain / riddle / emoji'}),
-  topicInput,typeContainer,contentTextarea,micWrapper,submitBtn
-);
-const wallCard=div({cls:'card',style:{marginBottom:'32px'}});
-wallCard.append(
-  h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'18px',marginBottom:'4px'},html:'Wall of Fame'}),
-  h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'9px',color:'var(--dim)',marginBottom:'16px'},html:'approved feynman submissions'})
-);
-const submissionsList=div({style:{display:'flex',flexDirection:'column',gap:'16px'}});
-wallCard.append(submissionsList);
+var submitStatus=div({style:{fontFamily:"Inter,sans-serif",fontSize:'11px',color:'var(--teal)',marginTop:'12px',display:'none'}},[]);
+var submitBtn=btn('Submit →','btn-gold',async function(){
+  var topic=topicInput.value.trim();var content=contentTextarea.value.trim();
+  if(!topic){submitStatus.style.display='block';submitStatus.style.color='#ff4444';submitStatus.innerHTML='Please enter a topic.';setTimeout(function(){submitStatus.style.display='none';},3000);return;}
+  if(!content){submitStatus.style.display='block';submitStatus.style.color='#ff4444';submitStatus.innerHTML='Please enter your explanation.';setTimeout(function(){submitStatus.style.display='none';},3000);return;}
+  if(!selectedType){submitStatus.style.display='block';submitStatus.style.color='#ff4444';submitStatus.innerHTML='Please select a type.';setTimeout(function(){submitStatus.style.display='none';},3000);return;}
+  submitStatus.style.display='block';submitStatus.innerHTML='Submitting...';submitStatus.style.color='var(--dim)';submitBtn.disabled=true;
+  var{error}=await sb.from('feynman_submissions').insert({user_id:S.user.id,user_name:S.profile?.full_name||S.user.email,topic:topic,type:selectedType,content:content,status:'pending',week_of:getCurrentMonday(),is_king:false,points_awarded:false});
+  if(error){submitStatus.innerHTML='Failed to submit. Please try again.';submitStatus.style.color='#ff4444';submitBtn.disabled=false;return;}
+  topicInput.value='';contentTextarea.value='';selectedType=null;
+  explainBtn.style.background='transparent';explainBtn.style.color='var(--text)';explainBtn.style.border='1px solid var(--border)';
+  riddleBtn.style.background='transparent';riddleBtn.style.color='var(--text)';riddleBtn.style.border='1px solid var(--border)';
+  emojiBtn.style.background='transparent';emojiBtn.style.color='var(--text)';emojiBtn.style.border='1px solid var(--border)';
+  micWrapper.style.display='none';
+  submitStatus.innerHTML='Submitted! We will review it soon.';submitStatus.style.color='var(--teal)';submitBtn.disabled=false;
+  setTimeout(function(){submitStatus.style.display='none';},3000);
+  loadWallOfFame();
+},{style:{width:'100%'}});
+var submitCard=div({cls:'card',style:{marginBottom:'32px'}});
+submitCard.append(h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'18px',marginBottom:'4px'},html:'Submit Your Feynman'}),h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'9px',color:'var(--dim)',marginBottom:'16px'},html:'explain / riddle / emoji'}),topicInput,typeContainer,contentTextarea,micWrapper,submitBtn,submitStatus);
 submitSection.append(submitCard);
+var wallCard=div({cls:'card',style:{marginBottom:'32px'}});
+wallCard.append(h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'18px',marginBottom:'4px'},html:'Wall of Fame'}),h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'9px',color:'var(--dim)',marginBottom:'16px'},html:'approved feynman submissions'}));
+var submissionsList=div({style:{display:'flex',flexDirection:'column',gap:'16px'}});
+wallCard.append(submissionsList);
 wallSection.append(wallCard);
 function showFullSubmission(sub){
-  const overlay=div({style:{position:'fixed',top:'0',left:'0',right:'0',bottom:'0',background:'rgba(0,0,0,0.85)',zIndex:'9999',display:'flex',alignItems:'center',justifyContent:'center',padding:'20px'}});
-  let tc='var(--teal)';if(sub.type==='riddle')tc='var(--gold)';if(sub.type==='emoji')tc='#8B5CF6';
-  const modal=div({style:{maxWidth:'600px',width:'100%',background:'var(--card)',border:'1px solid var(--border)',borderRadius:'4px',padding:'32px',maxHeight:'90vh',overflowY:'auto'}});
-  modal.append(
-    div({style:{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:'20px'}},[
-      div({},[
-        h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'13px',fontWeight:'bold',color:'var(--text)',marginBottom:'8px'},html:sub.user_name||'Anonymous'}),
-        div({style:{display:'flex',alignItems:'center',gap:'12px',flexWrap:'wrap'}},[
-          h('span',{style:{fontFamily:"Inter,sans-serif",fontSize:'10px',padding:'2px 8px',borderRadius:'2px',background:tc,color:'var(--bg)'},html:sub.type.toUpperCase()}),
-          h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'10px',color:'var(--dim)'},html:sub.topic}),
-          h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'9px',color:'var(--muted)'},html:'Week of '+sub.week_of})
-        ])
-      ]),
-      btn('✕','',()=>overlay.remove(),{style:{background:'none',border:'none',color:'var(--dim)',fontSize:'20px',cursor:'pointer',padding:'4px'}})
-    ]),
-    h('div',{style:{background:'var(--card2)',padding:'20px',borderRadius:'4px',fontFamily:"Inter,sans-serif",fontSize:'13px',color:'var(--text)',lineHeight:'1.5',whiteSpace:'pre-wrap'},html:sub.content})
-  );
+  var overlay=div({style:{position:'fixed',top:'0',left:'0',right:'0',bottom:'0',background:'rgba(0,0,0,0.85)',zIndex:'9999',display:'flex',alignItems:'center',justifyContent:'center',padding:'20px'}});
+  var tc='var(--teal)';if(sub.type==='riddle')tc='var(--gold)';if(sub.type==='emoji')tc='#8B5CF6';
+  var modal=div({style:{maxWidth:'600px',width:'100%',background:'var(--card)',border:'1px solid var(--border)',borderRadius:'4px',padding:'32px',maxHeight:'90vh',overflowY:'auto'}});
+  modal.append(div({style:{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:'20px'}},[div({},[h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'13px',fontWeight:'bold',color:'var(--text)',marginBottom:'8px'},html:sub.user_name||'Anonymous'}),div({style:{display:'flex',alignItems:'center',gap:'12px',flexWrap:'wrap'}},[h('span',{style:{fontFamily:"Inter,sans-serif",fontSize:'10px',padding:'2px 8px',borderRadius:'2px',background:tc,color:'var(--bg)'},html:sub.type.toUpperCase()}),h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'10px',color:'var(--dim)'},html:sub.topic}),h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'9px',color:'var(--muted)'},html:'Week of '+sub.week_of})])]),btn('✕','',function(){overlay.style.display='none';},{style:{background:'none',border:'none',color:'var(--dim)',fontSize:'20px',cursor:'pointer',padding:'4px'}})]),h('div',{style:{background:'var(--card2)',padding:'20px',borderRadius:'4px',fontFamily:"Inter,sans-serif",fontSize:'13px',color:'var(--text)',lineHeight:'1.5',whiteSpace:'pre-wrap'},html:sub.content}));
   overlay.append(modal);document.body.append(overlay);
 }
 async function loadWallOfFame(){
   submissionsList.innerHTML='';
-  const{data:subs}=await sb.from('feynman_submissions').select('*').eq('status','approved').order('created_at',{ascending:false}).limit(20);
-  if(!subs||!subs.length){submissionsList.append(h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'11px',color:'var(--dim)',textAlign:'center',padding:'20px'},html:'No approved submissions yet. Be the first! ✨'}));return;}
-  subs.forEach(sub=>{
-    let tc='var(--teal)';if(sub.type==='riddle')tc='var(--gold)';if(sub.type==='emoji')tc='#8B5CF6';
-    const card=div({style:{background:'var(--card2)',borderRadius:'4px',padding:'16px',border:sub.is_king?'1px solid var(--gold)':'1px solid var(--border)'}});
+  var{data:subs}=await sb.from('feynman_submissions').select('*').eq('status','approved').order('created_at',{ascending:false}).limit(20);
+  if(!subs||!subs.length){submissionsList.append(h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'11px',color:'var(--dim)',textAlign:'center',padding:'20px'},html:'No approved submissions yet. Be the first!'}));return;}
+  for(var i=0;i<subs.length;i++){
+    var sub=subs[i];
+    var tc='var(--teal)';if(sub.type==='riddle')tc='var(--gold)';if(sub.type==='emoji')tc='#8B5CF6';
+    var card=div({style:{background:'var(--card2)',borderRadius:'4px',padding:'16px',border:sub.is_king?'1px solid var(--gold)':'1px solid var(--border)'}});
     if(sub.is_king){card.append(div({style:{float:'right',display:'flex',alignItems:'center',gap:'4px',background:'rgba(200,169,110,0.1)',padding:'4px 8px',borderRadius:'4px'}},[h('span',{style:{fontSize:'14px'},html:'👑'}),h('span',{style:{fontFamily:"Inter,sans-serif",fontSize:'9px',color:'var(--gold)'},html:'Feynman King'})]));}
-    const preview=sub.content.length>120?sub.content.substring(0,120)+'...':sub.content;
-    card.append(div({},[
-      div({style:{display:'flex',alignItems:'center',gap:'12px',flexWrap:'wrap',marginBottom:'12px'}},[
-        h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'13px',fontWeight:'bold',color:'var(--text)'},html:sub.user_name||'Anonymous'}),
-        h('span',{style:{fontFamily:"Inter,sans-serif",fontSize:'10px',padding:'2px 8px',borderRadius:'2px',background:tc,color:'var(--bg)'},html:sub.type.toUpperCase()}),
-        h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'10px',color:'var(--dim)'},html:sub.topic}),
-        h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'9px',color:'var(--muted)'},html:'Week of '+sub.week_of})
-      ]),
-      h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'11px',color:'var(--muted)',lineHeight:'1.5',marginBottom:'12px'},html:preview}),
-      btn('See Feynman →','btn-outline',()=>showFullSubmission(sub),{style:{fontSize:'10px',padding:'4px 12px'}})
-    ]));
+    var preview=sub.content.length>120?sub.content.substring(0,120)+'...':sub.content;
+    card.append(div({},[div({style:{display:'flex',alignItems:'center',gap:'12px',flexWrap:'wrap',marginBottom:'12px'}},[h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'13px',fontWeight:'bold',color:'var(--text)'},html:sub.user_name||'Anonymous'}),h('span',{style:{fontFamily:"Inter,sans-serif",fontSize:'10px',padding:'2px 8px',borderRadius:'2px',background:tc,color:'var(--bg)'},html:sub.type.toUpperCase()}),h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'10px',color:'var(--dim)'},html:sub.topic}),h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'9px',color:'var(--muted)'},html:'Week of '+sub.week_of})]),h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'11px',color:'var(--muted)',lineHeight:'1.5',marginBottom:'12px'},html:preview}),(function(s){return btn('See Feynman →','btn-outline',function(){showFullSubmission(s);},{style:{fontSize:'10px',padding:'4px 12px'}});})(sub)]));
     submissionsList.append(card);
-  });
+  }
 }
-// RIDDLE DECKS TAB — moved to Flashcards page
 async function loadRiddleDecksPage(){}
-// EMOJI BITZ TAB — moved to Flashcards page
 async function loadEmojiDecksPage(){}
-// DECK PLAYER
 async function showDeckPlayer(deck,type){
-  const{data:cards}=await sb.from('flashcards').select('*').eq('deck_id',deck.id);
-  if(!cards||!cards.length)return;
-  let currentIndex=0,revealed=false,gotIt=0;
-  const overlay=div({style:{position:'fixed',top:'0',left:'0',right:'0',bottom:'0',background:'rgba(0,0,0,0.95)',zIndex:'10000',display:'flex',alignItems:'center',justifyContent:'center',padding:'20px'}});
-  const modal=div({style:{maxWidth:'600px',width:'100%',background:'var(--card)',border:'1px solid var(--gold)',borderRadius:'8px',padding:'32px',maxHeight:'90vh',overflowY:'auto'}});
+  var{data:deckCards}=await sb.from('flashcards').select('*').eq('deck_id',deck.id);
+  if(!deckCards||!deckCards.length)return;
+  var currentIndex=0,revealed=false,gotIt=0;
+  var overlay=div({style:{position:'fixed',top:'0',left:'0',right:'0',bottom:'0',background:'rgba(0,0,0,0.95)',zIndex:'10000',display:'flex',alignItems:'center',justifyContent:'center',padding:'20px'}});
+  var modal=div({style:{maxWidth:'600px',width:'100%',background:'var(--card)',border:'1px solid var(--gold)',borderRadius:'8px',padding:'32px',maxHeight:'90vh',overflowY:'auto'}});
   function renderCard(){
     modal.innerHTML='';
-    const card=cards[currentIndex];
-    modal.append(h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'11px',color:'var(--dim)',marginBottom:'8px',textAlign:'right'},html:`${currentIndex+1} / ${cards.length}`}));
-    modal.append(h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'9px',color:'var(--teal)',marginBottom:'16px',textAlign:'right'},html:`✓ ${gotIt} correct so far`}));
-    modal.append(div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'24px'}},[
-      h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'24px',color:'var(--gold)'},html:deck.name}),
-      btn('✕','',()=>overlay.remove(),{style:{background:'none',border:'none',color:'var(--dim)',fontSize:'24px',cursor:'pointer'}})
-    ]));
-    modal.append(div({style:{textAlign:'center',padding:'40px 20px',background:'var(--card2)',borderRadius:'8px',marginBottom:'24px'}},[
-      h('div',{style:{fontFamily:type==='riddle'?"'Plus Jakarta Sans',sans-serif":'monospace',fontSize:type==='riddle'?'28px':'48px',color:'var(--text)',lineHeight:'1.3',whiteSpace:'pre-wrap'},html:card.question})
-    ]));
+    var card=deckCards[currentIndex];
+    modal.append(h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'11px',color:'var(--dim)',marginBottom:'8px',textAlign:'right'},html:(currentIndex+1)+' / '+deckCards.length}));
+    modal.append(h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'9px',color:'var(--teal)',marginBottom:'16px',textAlign:'right'},html:'✓ '+gotIt+' correct so far'}));
+    modal.append(div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'24px'}},[h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'24px',color:'var(--gold)'},html:deck.name}),btn('✕','',function(){overlay.style.display='none';},{style:{background:'none',border:'none',color:'var(--dim)',fontSize:'24px',cursor:'pointer'}})]));
+    modal.append(div({style:{textAlign:'center',padding:'40px 20px',background:'var(--card2)',borderRadius:'8px',marginBottom:'24px'}},[h('div',{style:{fontFamily:type==='riddle'?"'Plus Jakarta Sans',sans-serif":'monospace',fontSize:type==='riddle'?'28px':'48px',color:'var(--text)',lineHeight:'1.3',whiteSpace:'pre-wrap'},html:card.question})]));
     if(!revealed){
-      modal.append(btn('Reveal Answer →','btn-outline',()=>{revealed=true;renderCard();},{style:{width:'100%',marginBottom:'16px'}}));
+      modal.append(btn('Reveal Answer →','btn-outline',function(){revealed=true;renderCard();},{style:{width:'100%',marginBottom:'16px'}}));
     }else{
-      modal.append(div({style:{background:'rgba(200,169,110,0.1)',padding:'20px',borderRadius:'8px',marginBottom:'16px'}},[
-        h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'13px',color:'var(--gold)',marginBottom:'8px'},html:'Answer:'}),
-        h('div',{style:{fontFamily:'monospace',fontSize:'14px',color:'var(--text)',lineHeight:'1.4'},html:card.answer})
-      ]));
-      if(card.hint){modal.append(div({style:{background:'var(--card2)',padding:'12px',borderRadius:'8px',marginBottom:'16px'}},[h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'10px',color:'var(--dim)'},html:'Hint: '+card.hint})]));}
-      modal.append(div({style:{display:'flex',gap:'12px'}},[
-        btn('✓ Got It','btn-teal',()=>{gotIt++;if(currentIndex+1<cards.length){currentIndex++;revealed=false;renderCard();}else{completeDeck();}},{style:{flex:'1'}}),
-        btn("✗ Didn't Get It",'btn-outline',()=>{if(currentIndex+1<cards.length){currentIndex++;revealed=false;renderCard();}else{completeDeck();}},{style:{flex:'1'}})
-      ]));
+      modal.append(div({style:{background:'rgba(200,169,110,0.1)',padding:'20px',borderRadius:'8px',marginBottom:'16px'}},[h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'13px',color:'var(--gold)',marginBottom:'8px'},html:'Answer:'}),h('div',{style:{fontFamily:'monospace',fontSize:'14px',color:'var(--text)',lineHeight:'1.4'},html:card.answer})]));
+      modal.append(div({style:{display:'flex',gap:'12px'}},[btn('Got It','btn-teal',function(){gotIt++;if(currentIndex+1<deckCards.length){currentIndex++;revealed=false;renderCard();}else{completeDeck();}},{style:{flex:'1'}}),btn('Did Not Get It','btn-outline',function(){if(currentIndex+1<deckCards.length){currentIndex++;revealed=false;renderCard();}else{completeDeck();}},{style:{flex:'1'}})]));
     }
   }
   async function completeDeck(){
-    const total=cards.length;
-    const score=Math.round((gotIt/total)*100);
-    const passed=score>=65;
+    var total=deckCards.length;var score=Math.round((gotIt/total)*100);var passed=score>=65;
     modal.innerHTML='';
     if(passed){
       await sb.from('flashcard_progress').upsert({user_id:S.user.id,deck_id:deck.id,completed:true,completed_at:new Date().toISOString()});
-    if(S.profile?.is_free_tier!==true){await sb.from('profiles').update({total_points:(S.profile?.total_points||0)+10}).eq('id',S.user.id);if(S.profile)S.profile.total_points=(S.profile.total_points||0)+10;}
-      const{data:nextDeck}=await sb.from('flashcard_decks').select('id').eq('type',type).eq('unlock_order',deck.unlock_order+1).maybeSingle();
-      modal.append(
-        h('div',{style:{fontSize:'48px',textAlign:'center',marginBottom:'16px'},html:ICONS.sparkles}),
-        h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'24px',color:'var(--gold)',textAlign:'center',marginBottom:'8px'},html:`Level ${deck.unlock_order} Complete!`}),
-        h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'16px',color:'var(--teal)',textAlign:'center',marginBottom:'8px'},html:`You scored ${score}%`}),
-        nextDeck?h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'13px',color:'var(--teal)',textAlign:'center',marginBottom:'24px'},html:'Next Level Unlocked!'}):h('div',{style:{marginBottom:'24px'}}),
-        btn('Close','btn-gold',()=>{overlay.remove();if(activeTab==='riddle')loadRiddleDecksPage();if(activeTab==='emoji')loadEmojiDecksPage();},{style:{width:'100%'}})
-      );
+      if(S.profile?.is_free_tier!==true){await sb.from('profiles').update({total_points:(S.profile?.total_points||0)+10}).eq('id',S.user.id);if(S.profile)S.profile.total_points=(S.profile.total_points||0)+10;}
+      var{data:nextDeck}=await sb.from('flashcard_decks').select('id').eq('type',type).eq('unlock_order',deck.unlock_order+1).maybeSingle();
+      modal.append(h('div',{style:{fontSize:'48px',textAlign:'center',marginBottom:'16px'},html:ICONS.sparkles}),h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'24px',color:'var(--gold)',textAlign:'center',marginBottom:'8px'},html:'Level '+deck.unlock_order+' Complete!'}),h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'16px',color:'var(--teal)',textAlign:'center',marginBottom:'8px'},html:'You scored '+score+'%'}),nextDeck?h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'13px',color:'var(--teal)',textAlign:'center',marginBottom:'24px'},html:'Next Level Unlocked!'}):h('div',{style:{marginBottom:'24px'}},[]),btn('Close','btn-gold',function(){overlay.style.display='none';},{style:{width:'100%'}}));
     }else{
-      modal.append(
-        h('div',{style:{fontSize:'48px',textAlign:'center',marginBottom:'16px'},html:ICONS.zap}),
-        h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'24px',color:'var(--gold)',textAlign:'center',marginBottom:'8px'},html:'So Close!'}),
-        h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'16px',color:'var(--dim)',textAlign:'center',marginBottom:'8px'},html:`You scored ${score}% — you need 65% to unlock the next level.`}),
-        h('div',{style:{marginBottom:'24px'}}),
-        btn('Try Again →','btn-gold',()=>{currentIndex=0;gotIt=0;revealed=false;renderCard();},{style:{width:'100%',marginBottom:'12px'}}),
-        btn('Exit','btn-outline',()=>{overlay.remove();if(activeTab==='riddle')loadRiddleDecksPage();if(activeTab==='emoji')loadEmojiDecksPage();},{style:{width:'100%'}})
-      );
+      modal.append(h('div',{style:{fontSize:'48px',textAlign:'center',marginBottom:'16px'},html:ICONS.zap}),h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'24px',color:'var(--gold)',textAlign:'center',marginBottom:'8px'},html:'So Close!'}),h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'16px',color:'var(--dim)',textAlign:'center',marginBottom:'8px'},html:'You scored '+score+'% — you need 65% to unlock the next level.'}),h('div',{style:{marginBottom:'24px'}},[]),btn('Try Again →','btn-gold',function(){currentIndex=0;gotIt=0;revealed=false;renderCard();},{style:{width:'100%',marginBottom:'12px'}}),btn('Exit','btn-outline',function(){overlay.style.display='none';},{style:{width:'100%'}}));
     }
   }
   renderCard();overlay.append(modal);document.body.append(overlay);
 }
-(async()=>{await loadWallOfFame();})();
-renderTabs();
+loadWallOfFame();
 return page;
 }
 
@@ -4048,7 +3959,6 @@ content.innerHTML='';content.append(card);
 if(tab==='feynman'){
 content.innerHTML='';
 function parseCSVRow(row){const result=[];let cur='';let inQuotes=false;for(let ch of row){if(ch==='"'){inQuotes=!inQuotes;}else if(ch===','&&!inQuotes){result.push(cur.trim());cur='';}else{cur+=ch;}}result.push(cur.trim());return result;}
-function getCurrentMonday(){const now=new Date();const day=now.getDay();const diff=day===0?6:day-1;const mon=new Date(now);mon.setDate(now.getDate()-diff);mon.setHours(0,0,0,0);return mon.toISOString().split('T')[0];}
 const{data:allSubs}=await sb.from('feynman_submissions').select('*').order('created_at',{ascending:false});
 const submissions=allSubs||[];
 const totalCount=submissions.length;
