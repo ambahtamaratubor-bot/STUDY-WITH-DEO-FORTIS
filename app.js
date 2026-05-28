@@ -2568,7 +2568,7 @@ const isFree=S.profile?.is_free_tier===true;
 const nav=div({cls:'dash-nav'});
 nav.append(div({cls:'logo',html:'Deo Fortis'}),div({style:{display:'flex',gap:'8px'}},[btn('← Dashboard','btn-outline',()=>go('dashboard'),{style:{padding:'8px 16px'}}),makeThemeBtn()]));
 page.append(nav);
-let questions=[],current=0,answers={},submitted=false,revealed={},ruledOut={},highlights={},timeLeft=0,tInterval=null,selTopic='',mode='',timeLimit=60;
+let questions=[],current=0,answers={},submitted=false,revealed={},ruledOut={},highlights={},timeLeft=0,tInterval=null,selTopic='',mode='',timeLimit=60,qFilter='all';
 let activeHighlightBtn=null;
 const inner=div({cls:'inner-sm'});page.append(inner);
 async function showSetup(){
@@ -2626,8 +2626,20 @@ async function updateSubsectionUI(){
 }
 async function updateCount(){
   if(!selectedTopics.length){countDisplay.textContent='Select at least one topic';qCountI.value=0;qCountI.max=0;return;}
+  var progressIds=[];
+  if(qFilter!=='all'){
+    var pfq=sb.from('question_progress').select('question_id,answered_correctly').eq('user_id',S.user.id);
+    var{data:pfRows}=await pfq;
+    pfRows=pfRows||[];
+    if(qFilter==='unused'){progressIds=pfRows.map(function(r){return r.question_id;});}
+    else if(qFilter==='correct'){progressIds=pfRows.filter(function(r){return r.answered_correctly===true;}).map(function(r){return r.question_id;});}
+    else if(qFilter==='incorrect'){progressIds=pfRows.filter(function(r){return r.answered_correctly===false;}).map(function(r){return r.question_id;});}
+  }
   let q=isFree?sb.from('vignette_questions').select('*',{count:'exact',head:true}).in('topic',selectedTopics).eq('is_global',true):sb.from('vignette_questions').select('*',{count:'exact',head:true}).in('topic',selectedTopics).or('user_id.eq.'+S.user.id+',user_id.is.null');
   if(selectedSubsections.length)q=q.in('subsection',selectedSubsections);
+  if(qFilter==='unused'&&progressIds.length)q=q.not('id','in','('+progressIds.join(',')+')');
+  else if((qFilter==='correct'||qFilter==='incorrect')&&progressIds.length)q=q.in('id',progressIds);
+  else if((qFilter==='correct'||qFilter==='incorrect')&&!progressIds.length){countDisplay.textContent='0 questions available';qCountI.value=0;qCountI.max=0;return;}
   const{count}=await q;
   countDisplay.textContent=(count||0)+' questions available';
   qCountI.value=count||0;qCountI.max=count||0;
@@ -2643,6 +2655,18 @@ inner.append(mb);
 const tlI=inp('60','number',String(timeLimit));tlI.min='1';tlI.max='180';tlI.oninput=e=>timeLimit=parseInt(e.target.value)||60;
 const tlWrap=div({style:{marginBottom:'20px',display:mode==='timed'?'block':'none'}},[h('label',{cls:'label',html:'Time Limit (minutes)'}),tlI]);
 inner.append(tlWrap);
+// Q-Bank filter
+inner.append(h('label',{cls:'label',html:'Question Filter'}));
+const filterBtns=div({style:{display:'grid',gridTemplateColumns:'1fr 1fr 1fr 1fr',gap:'8px',marginBottom:'20px'}});
+function renderFilterBtns(){
+  filterBtns.innerHTML='';
+  [['all','All'],['unused','Unused'],['correct','Correct'],['incorrect','Incorrect']].forEach(([v,l])=>{
+    const fb=btn(l,qFilter===v?'btn-teal':'btn-outline',()=>{qFilter=v;renderFilterBtns();updateCount();},{style:{padding:'6px 10px',fontSize:'11px'}});
+    filterBtns.append(fb);
+  });
+}
+renderFilterBtns();
+inner.append(filterBtns);
 const qCountWrap=div({style:{marginBottom:'20px'}},[h('label',{cls:'label',html:'Number of Questions'}),qCountI]);
 inner.append(qCountWrap);
 const startBtn=btn('Start Quiz →','btn-gold',async()=>{
@@ -2669,6 +2693,14 @@ if(S.profile?.is_free_tier){
 const desiredCount=parseInt(qCountI.value)||40;
 let qQuery=isFree?sb.from('vignette_questions').select('*').eq('is_global',true).in('topic',selectedTopics):sb.from('vignette_questions').select('*').in('topic',selectedTopics).or('user_id.eq.'+S.user.id+',user_id.is.null');
 if(selectedSubsections&&selectedSubsections.length)qQuery=qQuery.in('subsection',selectedSubsections);
+if(qFilter!=='all'){
+  var{data:pfRows2}=await sb.from('question_progress').select('question_id,answered_correctly').eq('user_id',S.user.id);
+  pfRows2=pfRows2||[];
+  var filterIds=[];
+  if(qFilter==='unused'){filterIds=pfRows2.map(function(r){return r.question_id;});if(filterIds.length)qQuery=qQuery.not('id','in','('+filterIds.join(',')+')');}
+  else if(qFilter==='correct'){filterIds=pfRows2.filter(function(r){return r.answered_correctly===true;}).map(function(r){return r.question_id;});if(!filterIds.length){alert('No correctly answered questions yet.');return;}qQuery=qQuery.in('id',filterIds);}
+  else if(qFilter==='incorrect'){filterIds=pfRows2.filter(function(r){return r.answered_correctly===false;}).map(function(r){return r.question_id;});if(!filterIds.length){alert('No incorrectly answered questions yet.');return;}qQuery=qQuery.in('id',filterIds);}
+}
 const{data:qs}=await qQuery.limit(desiredCount);
 if(!qs||!qs.length){alert('No questions for this topic yet.');return;}
 questions=qs;current=0;answers={};submitted=false;revealed={};
@@ -2866,6 +2898,9 @@ clearInterval(tInterval);submitted=true;
 const score=questions.filter(q=>answers[q.id]===q.correct_answer).length;
 await sb.from('vignette_scores').insert({user_id:S.user.id,topic:selTopic,score,total:questions.length,mode,answers:answers,questions:questions});
 if(S.profile?.is_free_tier!==true)await sb.from('profiles').update({total_points:(S.profile?.total_points||0)+30}).eq('id',S.user.id);
+// Upsert question_progress for each answered question
+var progressUpserts=questions.filter(function(q){return answers[q.id]!==undefined;}).map(function(q){return{user_id:S.user.id,question_id:q.id,seen:true,answered_correctly:answers[q.id]===q.correct_answer,last_seen_at:new Date().toISOString()};});
+if(progressUpserts.length)await sb.from('question_progress').upsert(progressUpserts,{onConflict:'user_id,question_id'});
 showResults(score);
 }
 function showResults(score){
