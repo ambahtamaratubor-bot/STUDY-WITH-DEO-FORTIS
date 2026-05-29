@@ -56,6 +56,7 @@ let signingUp=false;
 let payLinks={monthly:'#',sixmonth:'#',yearly:'#'};
 sb.from('admin_settings').select('link_monthly,link_sixmonth,link_yearly').single().then(({data})=>{if(data)payLinks={monthly:data.link_monthly||'#',sixmonth:data.link_sixmonth||'#',yearly:data.link_yearly||'#'};});
 function go(p){S.page=p;render();}
+function isInTrial(){return S.profile?.is_free_tier===true&&S.inTrial===true;}
 sb.auth.onAuthStateChange((_,session)=>{
   if(signingUp)return;
   if(session){S.user=session.user;getProfile(session.user.id);}
@@ -76,6 +77,8 @@ if(data){
     }
   }
   S.profile=data;
+  S.inTrial=false;
+  if(data.is_free_tier===true&&data.access_expires_at){S.inTrial=new Date(data.access_expires_at)>new Date();}
   checkStreakOnLogin();
   if(data.test_access===true&&data.status==='pending'){go('dashboard');return;}
   if(data.is_free_tier===true){
@@ -204,7 +207,7 @@ folderInput.placeholder='e.g. Cardiology, Week 1';
 const folderRow=div({style:{display:'flex',gap:'8px',alignItems:'center',marginBottom:'12px'}});
 folderRow.append(h('span',{style:{fontSize:'12px',color:'var(--muted)'}},['Folder (optional):']),folderInput);
 const saveStatus=div({style:{fontSize:'11px',color:'var(--teal)',marginTop:'8px',display:'none'}},[]);
-const saveHandler=async()=>{if(!ta.value.trim())return;const{error}=await sb.from('notes').insert({user_id:S.user.id,topic:pdf.topic,recall_request_id:pdf.recall_request_id,title:pdf.topic+' — '+pdf.filename,content:ta.value.trim(),folder:folderInput.value.trim()||null});if(error){saveStatus.textContent=error.message;saveStatus.style.color='var(--gold)';saveStatus.style.display='block';return;}if(S.profile?.is_free_tier!==true){await sb.from('profiles').update({total_points:(S.profile?.total_points||0)+20}).eq('id',S.user.id);if(S.profile)S.profile.total_points=(S.profile.total_points||0)+20;}saveStatus.textContent='Note saved! +20 pts';saveStatus.style.color='var(--teal)';saveStatus.style.display='block';setTimeout(()=>{saveStatus.style.display='none';responseArea.remove();responseOpen=false;},2000);};
+const saveHandler=async()=>{if(!ta.value.trim())return;const{error}=await sb.from('notes').insert({user_id:S.user.id,topic:pdf.topic,recall_request_id:pdf.recall_request_id,title:pdf.topic+' — '+pdf.filename,content:ta.value.trim(),folder:folderInput.value.trim()||null});if(error){saveStatus.textContent=error.message;saveStatus.style.color='var(--gold)';saveStatus.style.display='block';return;}if(S.profile?.is_free_tier!==true||isInTrial()){await sb.from('profiles').update({total_points:(S.profile?.total_points||0)+20}).eq('id',S.user.id);if(S.profile)S.profile.total_points=(S.profile.total_points||0)+20;}saveStatus.textContent='Note saved! +20 pts';saveStatus.style.color='var(--teal)';saveStatus.style.display='block';setTimeout(()=>{saveStatus.style.display='none';responseArea.remove();responseOpen=false;},2000);};
 const saveBtn=btn('Save Note','btn-teal',saveHandler,{style:{fontSize:'11px',padding:'8px 16px'}});
 const lbl=h('label',{cls:'label'},[]);lbl.textContent='Your Response';
 responseArea=div({style:{padding:'16px 0',borderBottom:'1px solid var(--border)'}});
@@ -413,7 +416,7 @@ function streakDateHelpers(){
 }
 async function checkStreakOnLogin(){
   if(!S.profile||!S.user)return;
-  if(S.profile.is_free_tier===true)return;
+  if(S.profile.is_free_tier===true&&!isInTrial())return;
   const{todayLocal,gapDaysBetween}=streakDateHelpers();
   const todayStr=todayLocal();
   const lastDateStr=S.profile.last_study_date;
@@ -599,7 +602,7 @@ function renderGoalsProgress(){
   const todayRange=getLocalDateRange();const weekRange=getWeekRange();
   const todayStr=getTodayStr();const weekStartStr=getWeekStartStr();
   const uid=S.user?.id||'';
-  const isPaid=S.profile&&S.profile.is_free_tier!==true;
+  const isPaid=S.profile&&(S.profile.is_free_tier!==true||isInTrial());
   sb.from('study_sessions').select('topic,duration_minutes,started_at').eq('user_id',uid).not('ended_at','is',null).then(async({data:sessions})=>{
     const list=sessions||[];
     let todayMins=0;let weekMins=0;
@@ -1285,8 +1288,10 @@ if(raw===true||raw===1||raw==='true')launchModeOn=true;
 }
 }catch(e){console.warn('Failed to fetch launch_mode',e);}
 var freeTierApproved=isFreeSignup&&launchModeOn;
+var threeDays=null;if(freeTierApproved){threeDays=new Date();threeDays.setDate(threeDays.getDate()+3);}
 var profileData={id:data.user.id,email:emailVal,full_name:nameVal,status:freeTierApproved?'approved':'pending',is_free_tier:freeTierApproved?true:false};
 if(sel)profileData.plan=sel.name;
+if(freeTierApproved)profileData.access_expires_at=threeDays.toISOString();
 await new Promise(function(r){setTimeout(r,1000);});
 await sb.from('profiles').upsert(profileData,{onConflict:'id'});
 localStorage.removeItem('signupType');
@@ -1306,8 +1311,10 @@ S.profile={
   total_anki_sessions:0,
   study_goals:{daily_hours:4,weekly_hours:20},
   topic_goals:{},
-  rest_days:[]
+  rest_days:[],
+  access_expires_at:threeDays?threeDays.toISOString():null
 };
+S.inTrial=true;
 signingUp=false;
 go('dashboard');
 return;
@@ -1678,12 +1685,23 @@ greetingRow.append(
   div({style:{background:'var(--card-alt)',border:'1px solid var(--gold-border)',padding:'8px 14px',borderRadius:'4px',display:'flex',alignItems:'center',gap:'8px',flexShrink:'0'}},[
     h('span',{style:{display:'flex',alignItems:'center'},html:SVG_FIRE}),
     div({},[
-      h('div',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'22px',color:'var(--gold)',fontWeight:'700',lineHeight:'1'},html:String(isFree?Math.min(1,p.streak_count||0):(p.streak_count||0))}),
-      h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'12px',color:'var(--muted)'},html:isFree?'locked':'day streak'})
+      h('div',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'22px',color:'var(--gold)',fontWeight:'700',lineHeight:'1'},html:String((isFree&&!isInTrial())?Math.min(1,p.streak_count||0):(p.streak_count||0))}),
+      h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'12px',color:'var(--muted)'},html:(isFree&&!isInTrial())?'locked':'day streak'})
     ])
   ])
 );
 container.append(greetingRow);
+if(isInTrial()){
+  var daysLeft=Math.ceil((new Date(p.access_expires_at)-new Date())/(1000*60*60*24));
+  var trialBanner=div({style:{background:'rgba(201,168,76,0.12)',borderLeft:'4px solid #C9A84C',padding:'12px 20px',marginBottom:'24px',display:'flex',justifyContent:'space-between',alignItems:'center',gap:'16px',borderRadius:'2px'}},[
+    h('span',{style:{fontSize:'13px',color:'var(--gold)'},html:'You\'re on a 3-day trial \u2014 '+daysLeft+' day(s) remaining. Upgrade to keep full access.'}),
+    div({style:{display:'flex',gap:'8px'}},[
+      btn('Upgrade','btn-gold',function(){showUpgradeModal();},{style:{padding:'6px 14px',fontSize:'12px'}}),
+      btn('Dismiss','btn-outline',function(){trialBanner.remove();},{style:{padding:'6px 14px',fontSize:'12px'}})
+    ])
+  ]);
+  container.append(trialBanner);
+}
 
 // NEW CONTENT BANNER
 if(S.profile?.has_new_content){
@@ -1781,7 +1799,7 @@ const studyConsistencySection=collapsibleSection('Study Consistency',(contentDiv
   })();
 });
 container.append(studyConsistencySection);
-if(isFree){studyConsistencySection.style.opacity='0.3';studyConsistencySection.style.pointerEvents='none';}
+if(isFree&&!isInTrial()){studyConsistencySection.style.opacity='0.3';studyConsistencySection.style.pointerEvents='none';}
 
 // SECTION 2 — Q-Bank Performance
 const qbankSection=collapsibleSection('Q-Bank Performance',(contentDiv)=>{
@@ -1814,7 +1832,7 @@ const qbankSection=collapsibleSection('Q-Bank Performance',(contentDiv)=>{
   })();
 });
 container.append(qbankSection);
-if(isFree){qbankSection.style.opacity='0.3';qbankSection.style.pointerEvents='none';}
+if(isFree&&!isInTrial()){qbankSection.style.opacity='0.3';qbankSection.style.pointerEvents='none';}
 
 // SECTION 3 — Flashcard Progress
 const flashcardSection=collapsibleSection('Flashcard Progress',(contentDiv)=>{
@@ -1840,7 +1858,7 @@ const flashcardSection=collapsibleSection('Flashcard Progress',(contentDiv)=>{
   })();
 });
 container.append(flashcardSection);
-if(isFree){flashcardSection.style.opacity='0.3';flashcardSection.style.pointerEvents='none';}
+if(isFree&&!isInTrial()){flashcardSection.style.opacity='0.3';flashcardSection.style.pointerEvents='none';}
 
 // TWO COLUMN — recent sessions + quick actions
 const twoCol=div({style:{display:'grid',gridTemplateColumns:'2fr 1fr',gap:'16px',marginBottom:'24px'}});
@@ -1907,9 +1925,9 @@ twoCol.append(recentCard);
 
 // LOAD SESSIONS
 async function loadSess(){
-  if(isFree){
+  if(isFree&&!isInTrial()){
     const sl=document.getElementById('slist');
-    if(sl)sl.innerHTML='<div style="text-align:center;padding:20px;font-family:Inter,sans-serif;font-size:13px;color:var(--muted)">Session history not saved on free tier.<br><span style="color:var(--gold);cursor:pointer" onclick="showUpgradeModal()">Upgrade to track your progress →</span></div>';
+    if(sl)sl.innerHTML='<div style="text-align:center;padding:20px;font-family:Inter,sans-serif;font-size:13px;color:var(--muted)">Session history not saved on free tier.<br><span style="color:var(--gold);cursor:pointer" onclick="showUpgradeModal()">Upgrade to track your progress \u2192</span></div>';
     return;
   }
   const{data}=await sb.from('study_sessions').select('*').eq('user_id',S.user.id).order('started_at',{ascending:false}).limit(5);
@@ -1930,7 +1948,7 @@ async function loadSess(){
         h('span',{style:{fontSize:'13px',color:'var(--text)',fontWeight:'500'},html:dateStr}),
         h('span',{style:{fontFamily:'Inter,sans-serif',fontSize:'13px',color:'var(--gold)',fontWeight:'600'},html:mins>0?mins+' mins':'—'})
       ]),
-      div({style:{fontFamily:'Inter,sans-serif',fontSize:'12px',color:'#aaaaaa'},html:startTime+' → '+endTime+(s.topic?' · '+s.topic:'')})
+      div({style:{fontFamily:'Inter,sans-serif',fontSize:'12px',color:'#aaaaaa'},html:startTime+' \u2192 '+endTime+(s.topic?' \u00b7 '+s.topic:'')})
     );
     sl.append(row);
   });
@@ -1958,7 +1976,7 @@ setTimeout(loadSess,1000);
         const mins=Math.max(1,Math.round((Date.now()-startDate)/60000));
         await sb.from('study_sessions').update({ended_at:new Date().toISOString(),duration_minutes:mins}).eq('id',orphan.id);
         const upd1={total_study_minutes:(S.profile?.total_study_minutes||0)+mins};
-        if(S.profile?.is_free_tier!==true)upd1.total_points=(S.profile?.total_points||0)+5;
+        if(S.profile?.is_free_tier!==true||isInTrial())upd1.total_points=(S.profile?.total_points||0)+5;
         await sb.from('profiles').update(upd1).eq('id',S.user.id);
         banner.remove();
         setTimeout(loadSess,500);
@@ -2009,7 +2027,7 @@ const bI=inp('5','number',String(cfg.breakMins));bI.min='1';bI.max='60';bI.oninp
 const sI=inp('4','number',String(cfg.sessions));sI.min='1';sI.max='20';sI.oninput=e=>cfg.sessions=parseInt(e.target.value)||4;
 [[wI,'Work (mins)'],[bI,'Break (mins)'],[sI,'Sessions']].forEach(([i,l])=>{const w=div({});w.append(h('label',{cls:'label',style:{fontSize:'9px'},html:l}),i);pg.append(w);});
 card.append(pg,h('p',{cls:'mono',style:{marginBottom:'20px'},html:'Set your own work time, break time and number of sessions'}));
-if(S.profile?.is_free_tier){
+if(S.profile?.is_free_tier&&!isInTrial()){
   card.append(div({style:{background:'rgba(200,169,110,0.05)',border:'1px solid var(--border)',borderRadius:'4px',padding:'16px',marginBottom:'20px',textAlign:'center'}},[
     h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'12px',color:'var(--dim)',marginBottom:'12px'},html:'Active Recall is a paid feature.'}),
     btn('Upgrade to Unlock','btn-outline',()=>showUpgradeModal(),{style:{fontSize:'11px',padding:'6px 14px'}})
@@ -2079,6 +2097,17 @@ let requestCount=0;
 const requestCountDiv=div({style:{fontFamily:"Inter,sans-serif",fontSize:'11px',color:'var(--teal)',marginBottom:'12px',display:'none'}});
 const sentMsg=div({cls:'ok',style:{display:'none',marginBottom:'12px'}});
 const sendBtn=btn('Send Recall Request →','btn-teal',async()=>{
+if(isInTrial()){
+  const{count}=await sb.from('recall_requests').select('*',{count:'exact',head:true}).eq('user_id',S.user.id);
+  if(count>=1){
+    const lockedMsg=div({style:{background:'rgba(200,169,110,0.1)',border:'1px solid var(--gold)',borderRadius:'4px',padding:'16px',textAlign:'center',marginTop:'16px'}},[
+      h('span',{style:{display:'block',marginBottom:'8px'},html:'Trial allows 1 recall request. Upgrade for unlimited.'}),
+      btn('Upgrade','btn-gold',function(){showUpgradeModal();},{style:{fontSize:'11px',padding:'6px 14px'}})
+    ]);
+    ro.append(lockedMsg);
+    return;
+  }
+}
 if(!cfg.recallStyles.length)return;
 let attachmentData=null;let attachmentName=null;
 if(attachI.files[0]){
@@ -2093,7 +2122,7 @@ const isFreeTier=S.profile?.is_free_tier===true;
 const styleStr=cfg.recallStyles.join(', ');
 const fullDetails=(cfg.recallDetails+(recallPriority?'\nPriority: '+recallPriority+' first':'')).trim();
 await sb.from('recall_requests').insert({user_id:S.user.id,user_name:S.profile?.full_name,user_email:S.profile?.email,topic:cfg.topic,style:styleStr,details:fullDetails,quantity:parseInt(qtyI.value)||0,status:'pending',attachment_data:attachmentData,attachment_name:attachmentName,is_free_tier:isFreeTier});
-if(isFreeTier){const warningDiv=div({style:{background:'rgba(200,169,110,0.1)',border:'1px solid var(--gold)',borderRadius:'4px',padding:'12px 16px',marginTop:'16px',fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'12px',color:'var(--gold)',textAlign:'center'}},[h('span',{style:{display:'block'}},['⚠️ Your request was received.']),h('span',{style:{display:'block',marginTop:'4px'}},['However, as a free tier member it will not be fulfilled. Upgrade to unlock active recall.'])]);ro.append(warningDiv);}
+if(isFreeTier&&!isInTrial()){const warningDiv=div({style:{background:'rgba(200,169,110,0.1)',border:'1px solid var(--gold)',borderRadius:'4px',padding:'12px 16px',marginTop:'16px',fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'12px',color:'var(--gold)',textAlign:'center'}},[h('span',{style:{display:'block'}},['⚠️ Your request was received.']),h('span',{style:{display:'block',marginTop:'4px'}},['However, as a free tier member it will not be fulfilled. Upgrade to unlock active recall.'])]);ro.append(warningDiv);}
 sendAdminEmail('🧠 New Recall Request — Deo Fortis','<h2>New Active Recall Request</h2><p><b>Student:</b> '+S.profile?.full_name+'</p><p><b>Email:</b> '+S.profile?.email+'</p><p><b>Topic:</b> '+cfg.topic+'</p><p><b>Style:</b> '+styleStr+'</p><p><b>Quantity:</b> '+(qtyI.value||'Not specified')+'</p><p><b>Details:</b> '+(fullDetails||'None')+'</p><p><b>Attachment:</b> '+(attachmentName||'None')+'</p>');
 requestCount++;
 requestCountDiv.style.display='block';
@@ -2223,7 +2252,7 @@ const coutBtn=btn('⏹ Clock Out & Save Session','btn-gold',async()=>{
     if(!verified)console.warn('Could not verify session write, proceeding anyway');
     // Update profile
     const upd2={total_study_minutes:(S.profile?.total_study_minutes||0)+actualMins};
-    if(S.profile?.is_free_tier!==true)upd2.total_points=(S.profile?.total_points||0)+5;
+    if(S.profile?.is_free_tier!==true||isInTrial())upd2.total_points=(S.profile?.total_points||0)+5;
     await sb.from('profiles').update(upd2).eq('id',S.user.id);
     await updateStreak();
     // Clear all state
@@ -2625,7 +2654,7 @@ const gradeColor=grade==='A'?'var(--teal)':grade==='B'?'var(--gold)':grade==='C'
 const gradeMsg=grade==='A'?'Excellent mastery — 90%+ of cards easy.':grade==='B'?'Good effort — 75%+ of cards easy.':grade==='C'?'Decent progress — keep reviewing hard cards.':'Needs more practice — under 60% of cards easy.';
 // Save result and award points
 // Save result and award points — paid only
-if(!S.profile?.is_free_tier){
+if(!S.profile?.is_free_tier||isInTrial()){
   await sb.from('anki_results').insert({user_id:S.user.id,deck_id:selDeck?.id,deck_topic:selDeck?.topic,grade,easy_count:prog.easy,iffy_count:prog.iffy,hard_count:prog.hard});
   await sb.from('profiles').update({total_points:(S.profile?.total_points||0)+20,total_anki_sessions:(S.profile?.total_anki_sessions||0)+1}).eq('id',S.user.id);
 
@@ -3012,7 +3041,7 @@ async function submitQuiz(){
 clearInterval(tInterval);submitted=true;
 const score=questions.filter(q=>answers[q.id]===q.correct_answer).length;
 await sb.from('vignette_scores').insert({user_id:S.user.id,topic:selTopic,score,total:questions.length,mode,answers:answers,questions:questions});
-if(S.profile?.is_free_tier!==true)await sb.from('profiles').update({total_points:(S.profile?.total_points||0)+30}).eq('id',S.user.id);
+if(S.profile?.is_free_tier!==true||isInTrial())await sb.from('profiles').update({total_points:(S.profile?.total_points||0)+30}).eq('id',S.user.id);
 // Upsert question_progress for each answered question
 var progressUpserts=questions.filter(function(q){return answers[q.id]!==undefined;}).map(function(q){return{user_id:S.user.id,question_id:q.id,seen:true,answered_correctly:answers[q.id]===q.correct_answer,last_seen_at:new Date().toISOString()};});
 if(progressUpserts.length)await sb.from('question_progress').upsert(progressUpserts,{onConflict:'user_id,question_id'});
@@ -3107,7 +3136,7 @@ showSetup();return page;
 // ═══════════════════════════════
 function feynman(){
 var page=div({cls:'dash-page'});
-if(S.profile?.is_free_tier===true){
+if(S.profile?.is_free_tier===true&&!isInTrial()){
   var navFree=div({cls:'dash-nav'});
   navFree.append(div({cls:'logo',html:'Deo Fortis'}),div({style:{display:'flex',gap:'8px'}},[btn('Back to Dashboard','btn-outline',function(){go('dashboard');},{style:{padding:'8px 16px'}}),makeThemeBtn()]));
   page.append(navFree);
@@ -3281,7 +3310,7 @@ async function showDeckPlayer(deck,type){
     modal.innerHTML='';
     if(passed){
       await sb.from('flashcard_progress').upsert({user_id:S.user.id,deck_id:deck.id,completed:true,completed_at:new Date().toISOString()});
-      if(S.profile?.is_free_tier!==true){await sb.from('profiles').update({total_points:(S.profile?.total_points||0)+20}).eq('id',S.user.id);if(S.profile)S.profile.total_points=(S.profile.total_points||0)+20;}
+      if(S.profile?.is_free_tier!==true||isInTrial()){await sb.from('profiles').update({total_points:(S.profile?.total_points||0)+20}).eq('id',S.user.id);if(S.profile)S.profile.total_points=(S.profile.total_points||0)+20;}
       var{data:nextDeck}=await sb.from('flashcard_decks').select('id').eq('type',type).eq('unlock_order',deck.unlock_order+1).maybeSingle();
       modal.append(h('div',{style:{fontSize:'48px',textAlign:'center',marginBottom:'16px'},html:ICONS.sparkles}),h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'24px',color:'var(--gold)',textAlign:'center',marginBottom:'8px'},html:'Level '+deck.unlock_order+' Complete!'}),h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'16px',color:'var(--teal)',textAlign:'center',marginBottom:'8px'},html:'You scored '+score+'%'}),nextDeck?h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'13px',color:'var(--teal)',textAlign:'center',marginBottom:'24px'},html:'Next Level Unlocked!'}):h('div',{style:{marginBottom:'24px'}},[]),btn('Close','btn-gold',function(){overlay.style.display='none';},{style:{width:'100%'}}));
     }else{
@@ -3299,7 +3328,7 @@ const page=div({});
 const nav=div({cls:'dash-nav'});
 nav.append(div({cls:'logo',html:'Deo Fortis'}),div({style:{display:'flex',gap:'8px'}},[btn('← Dashboard','btn-outline',()=>go('dashboard'),{style:{padding:'8px 16px'}}),makeThemeBtn()]));
 page.append(nav);
-if(S.profile?.is_free_tier===true){
+if(S.profile?.is_free_tier===true&&!isInTrial()){
   const preview=div({cls:'inner-sm',style:{position:'relative'}});
   preview.append(
     h('span',{cls:'chapter',html:'Rankings'}),
