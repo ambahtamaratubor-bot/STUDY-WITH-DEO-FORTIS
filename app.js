@@ -311,8 +311,8 @@ return page;
 }
 
 const pages={landing,signup,login,pending,dashboard,study,flashcards,vignette,leaderboard,admin,feynman,theory,notes};
+if(!window.activeSessionId||!window.pomPlan){var _ps=localStorage.getItem('pomodoroState');if(_ps){try{var _psp=JSON.parse(_ps);if(_psp.activeSessionId){window.activeSessionId=_psp.activeSessionId;window.sessionStartTime=_psp.sessionStartTime||null;if(!window.pomPlan&&_psp.segStart){var _cfg=_psp.cfg||{};window.pomPlan={topic:_cfg.topic||'General Study',totalSessions:_cfg.sessions||4,workSec:(_cfg.workMins||25)*60,breakSec:(_cfg.breakMins||5)*60,currentCycle:_psp.curSess||1,isBreakMode:_psp.isBreak||false,startedAtTimestamp:_psp.segStart};}}  }catch(e){}}}
 root.append((pages[S.page]||landing)());
-if(!window.activeSessionId){var _ps=localStorage.getItem('pomodoroState');if(_ps){try{var _psp=JSON.parse(_ps);if(_psp.activeSessionId){window.activeSessionId=_psp.activeSessionId;window.sessionStartTime=_psp.sessionStartTime||null;}}catch(e){}}}
 if(window.activeSessionId){showNoiseBar();showTimerBar();}else{removeNoiseBar();removeTimerBar();}
 }
 
@@ -2004,7 +2004,9 @@ let cfg={topic:'',workMins:25,breakMins:5,sessions:4,useRecall:false,recallStyle
 let timer=0,running=false,curSess=1,isBreak=false,interval=null,reqSent=false;
 // Restore timer state from localStorage if exists
 const _saved=localStorage.getItem('pomodoroState');
-if(_saved){try{const st=JSON.parse(_saved);timer=st.timer||0;curSess=st.curSess||1;isBreak=st.isBreak||false;cfg=Object.assign(cfg,st.cfg||{});window.activeSessionId=st.activeSessionId||null;window.sessionStartTime=st.sessionStartTime||null;}catch(e){}}
+if(_saved){try{const st=JSON.parse(_saved);timer=st.timer||0;curSess=st.curSess||1;isBreak=st.isBreak||false;cfg=Object.assign(cfg,st.cfg||{});window.activeSessionId=st.activeSessionId||null;window.sessionStartTime=st.sessionStartTime||null;
+if(window.activeSessionId&&!window.pomPlan&&st.segStart){window.pomPlan={topic:cfg.topic||'General Study',totalSessions:cfg.sessions||4,workSec:(cfg.workMins||25)*60,breakSec:(cfg.breakMins||5)*60,currentCycle:st.curSess||1,isBreakMode:st.isBreak||false,startedAtTimestamp:st.segStart};}
+}catch(e){}}
 // If there's an active pomPlan, go straight to timer
 if(window.activeSessionId&&window.pomPlan){
   sb.from('admin_settings').select('noise_rain,noise_ocean,noise_cafe,noise_white').single().then(({data:nd})=>{
