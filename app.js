@@ -55,7 +55,7 @@ let S={page:'landing',user:null,profile:null};
 let signingUp=false;
 let payLinks={monthly:'#',sixmonth:'#',yearly:'#'};
 sb.from('admin_settings').select('link_monthly,link_sixmonth,link_yearly').single().then(({data})=>{if(data)payLinks={monthly:data.link_monthly||'#',sixmonth:data.link_sixmonth||'#',yearly:data.link_yearly||'#'};});
-function go(p){S.page=p;render();}
+function go(p){S.page=p;if(window._goT)clearTimeout(window._goT);window._goT=setTimeout(render,0);}
 function isInTrial(){return S.profile?.is_free_tier===true&&S.inTrial===true;}
 sb.auth.onAuthStateChange((_,session)=>{
   if(signingUp)return;
@@ -1761,7 +1761,8 @@ goalsHeader.onclick=()=>{
 };
 goalsSection.append(goalsHeader,goalProgressEl);
 container.append(goalsSection);
-setTimeout(renderGoalsProgress,1200);
+if(window._goalsPT)clearTimeout(window._goalsPT);
+window._goalsPT=setTimeout(renderGoalsProgress,1200);
 
 // SECTION 1 — Study Consistency
 const studyConsistencySection=collapsibleSection('Study Consistency',(contentDiv)=>{
