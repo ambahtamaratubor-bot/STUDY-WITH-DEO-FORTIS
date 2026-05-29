@@ -211,7 +211,7 @@ const saveHandler=async()=>{if(!ta.value.trim())return;const{error}=await sb.fro
 const saveBtn=btn('Save Note','btn-teal',saveHandler,{style:{fontSize:'11px',padding:'8px 16px'}});
 const lbl=h('label',{cls:'label'},[]);lbl.textContent='Your Response';
 responseArea=div({style:{padding:'16px 0',borderBottom:'1px solid var(--border)'}});
-responseArea.append(lbl,respondToolbar,ta,micRow,folderRow,saveBtn,saveStatus);
+responseArea.append(lbl,ta,micRow,folderRow,saveBtn,saveStatus);
 row.after(responseArea);responseOpen=true;
 },{style:{fontSize:'11px',padding:'6px 12px',marginLeft:'8px'}});
 row.append(h('span',{style:{fontSize:'14px',color:'var(--text)'},html:pdf.topic+' — '+pdf.filename}),div({style:{display:'flex',gap:'8px'}},[viewBtn,respondBtn]));
