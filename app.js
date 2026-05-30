@@ -1978,6 +1978,10 @@ setTimeout(loadSess,1000);
   const orphan=orphans[0];
   const startDate=new Date(orphan.started_at);
   if((Date.now()-startDate)<5*60*1000)return;
+  // Clear stale localStorage so study page doesn't restore this as an active session
+  localStorage.removeItem('activeSession');
+  localStorage.removeItem('pomodoroState');
+  window.activeSessionId=null;window.sessionStartTime=null;window.sessionMaxMins=null;window.pomPlan=null;
   const banner=div({style:{background:'linear-gradient(135deg,#1a1205,#1a0f05)',border:'1px solid var(--gold)',borderRadius:'4px',padding:'16px 20px',marginTop:'16px'}});
   banner.append(
     div({style:{display:'flex',alignItems:'center',gap:'10px',marginBottom:'12px'}},[
