@@ -901,17 +901,21 @@ stats.append(s);
 hc.append(stats);
 hero.append(hc);
 page.append(hero);
-const features=['Full Pomodoro System','Active Recall Engine (Theory, Anki, Vignette)','Request Recall Sessions Anytime','Personalised Study Timetable','Clock In / Clock Out Tracking','Leaderboard Access','Community Access','Accountability System','Admin-Curated Content','Study Analytics'];
+const features=['Full Pomodoro System','Active Recall Engine (Theory, Anki, Vignette)','Request Recall Sessions Anytime','Feynman Arena — Teach What You Know','Leaderboard & Points System','Riddle & Emoji Bitz Decks','Personalised Study Goals','Clock In / Clock Out Tracking','Admin-Curated Q-Bank & Flashcards','Study Analytics & Streak Tracking'];
 // PLANS
 const plansSection=div({cls:'section',id:'plans'});
 plansSection.append(div({cls:'divider'}),h('br'),h('span',{cls:'chapter',html:'Chapter I — Enrolment'}),h('h2',{cls:'big',style:{marginBottom:'12px'},html:'Choose Your<br><em class="gold-em">Duration</em>'}),h('p',{cls:'muted',style:{maxWidth:'500px',fontSize:'15px',marginBottom:'8px'},html:'Every plan includes the full platform. You are simply choosing how long your access lasts.'}),div({cls:'quote',style:{maxWidth:'480px',marginBottom:'40px',marginTop:'24px'},html:'"The longer you commit, the less you pay per month."'}));
 const plansGrid=div({cls:'grid-auto',id:'plans-grid'});
-const planDefs=[{name:'Monthly',price:'$10',period:'/ month',dur:'1 Month',color:'var(--gold)',key:'monthly'},{name:'6 Months',price:'$39',period:'/ 6 months',dur:'6 Months',color:'var(--teal)',popular:true,key:'sixmonth'},{name:'1 Year',price:'$59',period:'/ year',dur:'12 Months',color:'var(--purple)',key:'yearly'}];
+const planDefs=[{name:'Monthly',price:'$10',period:'/ month',dur:'1 Month',color:'var(--gold)',key:'monthly'},{name:'6 Months',price:'$39',oldPrice:'$49',period:'/ 6 months',dur:'6 Months',color:'var(--teal)',popular:true,key:'sixmonth'},{name:'1 Year',price:'$59',oldPrice:'$69',period:'/ year',dur:'12 Months',color:'var(--purple)',key:'yearly'}];
 planDefs.forEach(plan=>{
 const card=div({cls:'plan-card',style:{borderColor:plan.popular?plan.color+'55':'var(--border)',borderTopWidth:plan.popular?'3px':'1px',borderTopColor:plan.popular?plan.color:'var(--border)'}});
 if(plan.popular)card.append(div({cls:'popular-tag',html:'Best Value'}));
 card.append(div({cls:'mono',style:{marginBottom:'8px',marginTop:plan.popular?'16px':'0'},html:plan.name}));
-card.append(div({style:{display:'flex',alignItems:'baseline',gap:'6px',marginBottom:'4px'}},[h('span',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'52px',color:plan.color,lineHeight:'1',fontWeight:'700'},html:plan.price}),h('span',{style:{fontSize:'14px',color:'var(--dim)',fontWeight:'300'},html:plan.period})]));
+const priceRow=div({style:{display:'flex',alignItems:'baseline',gap:'6px',marginBottom:'4px'}});
+priceRow.append(h('span',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'52px',color:plan.color,lineHeight:'1',fontWeight:'700'},html:plan.price}),h('span',{style:{fontSize:'14px',color:'var(--dim)',fontWeight:'300'},html:plan.period}));
+if(plan.oldPrice)priceRow.append(h('span',{style:{fontFamily:"Inter,sans-serif",fontSize:'13px',color:'var(--dim)',textDecoration:'line-through',marginLeft:'4px'},html:plan.oldPrice}));
+card.append(priceRow);
+if(plan.oldPrice)card.append(div({style:{fontFamily:"Inter,sans-serif",fontSize:'10px',color:plan.color,letterSpacing:'1px',marginBottom:'4px',opacity:'.9'},html:'LAUNCH PRICE'}));
 card.append(div({style:{fontFamily:"Inter,sans-serif",fontSize:'11px',color:plan.color,letterSpacing:'1px',marginBottom:'24px',opacity:'.8'},html:plan.dur+' of full access'}));
 card.append(h('hr',{style:{border:'none',borderTop:'1px solid var(--border)',marginBottom:'20px'}}));
 const fl=div({style:{marginBottom:'28px'}});
@@ -930,7 +934,10 @@ const freeSection=div({style:{textAlign:'center',marginTop:'8px',paddingBottom:'
 freeSection.append(
   h('hr',{style:{border:'none',borderTop:'1px solid var(--border)',margin:'32px 0'}}),
   h('div',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'18px',fontStyle:'italic',color:'var(--muted)',marginBottom:'8px'},html:'Or start for free'}),
-  h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'11px',color:'var(--dim)',marginBottom:'20px'},html:'Pomodoro timer + white noise. No credit card needed.'}),
+  div({style:{maxWidth:'420px',margin:'0 auto 20px'}},[
+    h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'13px',color:'var(--text)',marginBottom:'12px',fontWeight:'600'},html:'3-day free trial — no credit card needed.'}),
+    h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'12px',color:'var(--dim)',lineHeight:'1.8'},html:'Get full platform access for 3 days including one active recall request. After 3 days you stay on the free tier with access to our free question bank, flashcard decks, and Feynman Arena — forever.'}),
+  ]),
   btn('Start Free →','btn-outline',()=>{localStorage.setItem('signupType','free');go('signup');},{style:{padding:'12px 32px',fontSize:'13px'}})
 );
 plansSection.append(freeSection);
@@ -944,7 +951,7 @@ page.append(tutSection);
 const whySection=div({cls:'section',id:'why'});
 whySection.append(div({cls:'divider'}),h('br'),h('span',{cls:'chapter',html:'Chapter III — The Method'}),h('h2',{cls:'big',style:{marginBottom:'12px'},html:"What You'll<br><em class='gold-em'>Actually Get</em>"}),h('p',{cls:'muted',style:{maxWidth:'520px',fontSize:'15px',marginBottom:'40px'},html:'This is not a list of features. This is a study system built for results.'}));
 const rg=div({cls:'grid-auto'});
-[{icon:' ',title:'Pomodoro Technique',desc:'Structured sessions built around proven time management. Work hard, rest smart, repeat.'},{icon:' ',title:'Active Recall Sessions',desc:'Request a recall session anytime. Theory, Anki-style, or vignette — you choose the format.'},{icon:' ',title:'Study Timetable',desc:'Get a personalised follow-up timetable built around your goals and weak areas.'},{icon:' ',title:'Leaderboard',desc:'Compete with other students. Rankings based on real study hours logged.'},{icon:' ',title:'Community',desc:'You are not studying alone. Be part of a group that holds each other accountable.'},{icon:' ',title:'Accountability',desc:'Clock in. Clock out. Your real study hours tracked. No lying to yourself.'}].forEach(r=>{
+[{icon:' ',title:'Pomodoro Technique',desc:'Structured sessions built around proven time management. Clock in, work hard, clock out. Your real study hours tracked — no lying to yourself.'},{icon:' ',title:'Active Recall Sessions',desc:'Request a recall session anytime. Theory, flashcard, or vignette — you choose the format and style. We build it for you.'},{icon:' ',title:'Feynman Arena',desc:'Submit an explanation, a riddle, or an emoji clue. The best submission each week gets crowned Feynman King.'},{icon:' ',title:'Q-Bank & Flashcards',desc:'NBME-style clinical vignettes and spaced repetition flashcard decks built and curated by your tutors.'},{icon:' ',title:'Leaderboard & Points',desc:'Every action earns points. Clock in, complete a quiz, hit your study goal, get your Feynman approved. Compete with your peers.'},{icon:' ',title:'Study Goals & Analytics',desc:'Set daily, weekly, and subject goals. Track your streaks, study minutes, and progress over time.'}].forEach(r=>{
 const card=div({cls:'reason-card'});
 card.append(div({style:{fontSize:'28px',marginBottom:'14px'},html:r.icon}),h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontWeight:'600',fontSize:'17px',marginBottom:'8px',color:'var(--text)'},html:r.title}),h('p',{style:{fontSize:'14px',color:'#6A6050',lineHeight:'1.7',fontWeight:'300'},html:r.desc}));
 rg.append(card);
@@ -1348,11 +1355,14 @@ ps.append(h('p',{style:{fontFamily:"Inter,sans-serif",fontSize:'10px',letterSpac
 const pl=div({style:{display:'grid',gap:'12px'}});
 let links2={monthly:'#',sixmonth:'#',yearly:'#'};
 sb.from('admin_settings').select('*').single().then(({data})=>{if(data)links2={monthly:data.link_monthly||'#',sixmonth:data.link_sixmonth||'#',yearly:data.link_yearly||'#'};});
-[{name:'Monthly',price:'$10',period:'/ month',dur:'1 Month',color:'var(--gold)',key:'monthly'},{name:'6 Months',price:'$39',period:'/ 6 months',dur:'6 Months',color:'var(--teal)',popular:true,key:'sixmonth'},{name:'1 Year',price:'$59',period:'/ year',dur:'12 Months',color:'var(--purple)',key:'yearly'}].forEach(plan=>{
+[{name:'Monthly',price:'$10',period:'/ month',dur:'1 Month',color:'var(--gold)',key:'monthly'},{name:'6 Months',price:'$39',oldPrice:'$49',period:'/ 6 months',dur:'6 Months',color:'var(--teal)',popular:true,key:'sixmonth'},{name:'1 Year',price:'$59',oldPrice:'$69',period:'/ year',dur:'12 Months',color:'var(--purple)',key:'yearly'}].forEach(plan=>{
 const card=div({style:{background:'var(--card)',border:'1px solid var(--border)',borderRadius:'4px',padding:'20px 24px',cursor:'pointer',transition:'all .2s',position:'relative'},id:'pc-'+plan.key});
 if(plan.popular)card.append(h('span',{style:{position:'absolute',top:'-1px',right:'16px',background:'var(--teal)',color:'#0F0E0A',fontFamily:"Inter,sans-serif",fontSize:'9px',letterSpacing:'2px',textTransform:'uppercase',padding:'3px 10px',borderRadius:'0 0 4px 4px'},html:'Best Value'}));
 const row=div({style:{display:'flex',alignItems:'center',justifyContent:'space-between'}});
-const left=div({});left.append(h('div',{cls:'mono',style:{marginBottom:'4px'},html:plan.name}),h('div',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'28px',color:plan.color,fontWeight:'700',lineHeight:'1'},html:plan.price+' <span style="font-size:13px;color:var(--dim);font-weight:300">'+plan.period+'</span>'}));
+const left=div({});
+const priceHtml=plan.price+' <span style="font-size:13px;color:var(--dim);font-weight:300">'+plan.period+'</span>'+(plan.oldPrice?' <span style="font-size:12px;color:var(--dim);text-decoration:line-through;margin-left:4px">'+plan.oldPrice+'</span>':'');
+left.append(h('div',{cls:'mono',style:{marginBottom:'4px'},html:plan.name}),h('div',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'28px',color:plan.color,fontWeight:'700',lineHeight:'1'},html:priceHtml}));
+if(plan.oldPrice)left.append(h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'9px',color:plan.color,letterSpacing:'1px',marginTop:'4px',opacity:'.9'},html:'LAUNCH PRICE'}));
 const radio=div({style:{width:'22px',height:'22px',borderRadius:'50%',border:'2px solid var(--border)',flexShrink:'0'}});radio.id='pr-'+plan.key;row.append(left,radio);card.append(row,h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'10px',color:plan.color,letterSpacing:'1px',marginTop:'6px',opacity:'.7'},html:plan.dur+' of full access'}));
 card.onclick=()=>{
 [{name:'Monthly',key:'monthly'},{name:'6 Months',key:'sixmonth'},{name:'1 Year',key:'yearly'}].forEach(p2=>{const c=document.getElementById('pc-'+p2.key);const r=document.getElementById('pr-'+p2.key);if(c){c.style.border='1px solid var(--border)';c.style.background='var(--card)';}if(r){r.innerHTML='';r.style.border='2px solid var(--border)';}});
@@ -1552,12 +1562,14 @@ function showUpgradeModal(){
   });
   modal.append(grid);
   const planRows=div({style:{display:'flex',flexDirection:'column',gap:'10px',marginBottom:'16px'}});
-  const planDefs2=[{label:'Monthly',price:'$10',key:'monthly',cls:'btn-gold'},{label:'6 Months',price:'$39',key:'sixmonth',cls:'btn-teal'},{label:'Yearly',price:'$59',key:'yearly',cls:'btn-outline'}];
+  const planDefs2=[{label:'Monthly',price:'$10',key:'monthly',cls:'btn-gold'},{label:'6 Months',price:'$39',oldPrice:'$49',key:'sixmonth',cls:'btn-teal'},{label:'Yearly',price:'$59',oldPrice:'$69',key:'yearly',cls:'btn-outline'}];
   const buildPlanButtons=(links)=>{
     planRows.innerHTML='';
     planDefs2.forEach(p=>{
       const b=btn('',p.cls,()=>{window.open(links[p.key]||'#','_blank');},{style:{width:'100%',display:'flex',justifyContent:'space-between',alignItems:'center',padding:'12px 16px'}});
-      b.innerHTML='<span>'+p.label+'</span><span>'+p.price+'</span>';
+      const priceDisplay=p.oldPrice?'<span style="text-decoration:line-through;opacity:.5;font-size:11px;margin-right:4px">'+p.oldPrice+'</span>'+p.price:p.price;
+      const launchTag=p.oldPrice?'<span style="font-size:9px;letter-spacing:1px;opacity:.8;margin-left:6px">LAUNCH</span>':'';
+      b.innerHTML='<span>'+p.label+launchTag+'</span><span>'+priceDisplay+'</span>';
       planRows.append(b);
     });
   };
@@ -1589,6 +1601,8 @@ function showExpiryBanner(daysLeft){
     return a;
   };
   const links=div({style:{display:'flex',gap:'10px',alignItems:'center'}},[
+    mkLink('Monthly $10','monthly'),
+    h('span',{html:'|'}),
     mkLink('Monthly $10','monthly'),
     h('span',{html:'|'}),
     mkLink('6 Months $39','sixmonth'),
@@ -1975,7 +1989,10 @@ setTimeout(loadSess,1000);
     ]),
     div({style:{display:'flex',gap:'10px',flexWrap:'wrap'}},[
       btn('Clock Out Now','btn-gold',async()=>{
-        const mins=Math.max(1,Math.round((Date.now()-startDate)/60000));
+        const rawMins=Math.max(1,Math.round((Date.now()-startDate)/60000));
+        const savedSession=localStorage.getItem('activeSession');
+        const maxMins=savedSession?JSON.parse(savedSession).maxMins:null;
+        const mins=maxMins?Math.min(rawMins,maxMins):rawMins;
         await sb.from('study_sessions').update({ended_at:new Date().toISOString(),duration_minutes:mins}).eq('id',orphan.id);
         const upd1={total_study_minutes:(S.profile?.total_study_minutes||0)+mins};
         if(S.profile?.is_free_tier!==true||isInTrial())upd1.total_points=(S.profile?.total_points||0)+5;
@@ -2166,8 +2183,9 @@ const cinBtn=btn('⏵ Clock In & Start Timer','btn-gold',async()=>{
   if(error){cinBtn.textContent='⏵ Clock In & Start Timer';cinBtn.disabled=false;alert('Failed to clock in. Try again.');return;}
   window.activeSessionId=sess.id;
   window.sessionStartTime=Date.now();
+  window.sessionMaxMins=(cfg.workMins||25)*(cfg.sessions||4);
   // Save to localStorage for recovery
-  localStorage.setItem('activeSession',JSON.stringify({id:sess.id,startTime:Date.now(),topic:cfg.topic||'General Study'}));
+  localStorage.setItem('activeSession',JSON.stringify({id:sess.id,startTime:Date.now(),topic:cfg.topic||'General Study',maxMins:(cfg.workMins||25)*(cfg.sessions||4)}));
   // Initialize fresh pomPlan
   window.pomPlan={
     topic:cfg.topic||'General Study',
@@ -2242,7 +2260,10 @@ const coutBtn=btn('⏹ Clock Out & Save Session','btn-gold',async()=>{
     }
     if(!window.activeSessionId){alert('No active session found.');go('dashboard');return;}
     const endTimeISO=new Date().toISOString();
-    const actualMins=Math.max(1,Math.round((Date.now()-window.sessionStartTime)/60000));
+    const rawMins=Math.max(1,Math.round((Date.now()-window.sessionStartTime)/60000));
+    const savedSession=localStorage.getItem('activeSession');
+    const maxMins=window.sessionMaxMins||(savedSession?JSON.parse(savedSession).maxMins:null)||rawMins;
+    const actualMins=Math.min(rawMins,maxMins);
     // Update study session
     const{error:se}=await sb.from('study_sessions').update({ended_at:endTimeISO,duration_minutes:actualMins}).eq('id',window.activeSessionId).eq('user_id',S.user.id);
     if(se){console.error('Session update error:',se);throw se;}
@@ -2455,6 +2476,7 @@ card.append(div({style:{fontSize:'32px',marginBottom:'12px'},html:' '}),h('h3',{
 grid.append(card);
 });
 inner.append(grid);
+if(isFree){inner.append(div({style:{background:'rgba(200,169,110,0.06)',border:'1px solid var(--gold-border)',borderRadius:'4px',padding:'12px 16px',marginTop:'8px',display:'flex',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap',gap:'12px'}},[h('span',{style:{fontFamily:"Inter,sans-serif",fontSize:'12px',color:'var(--muted)'},html:'More flashcard decks available on paid plans.'}),btn('Upgrade →','btn-gold',()=>go('pending'),{style:{padding:'6px 16px',fontSize:'11px',flexShrink:'0'}})]));}
 // Show past performance
 const{data:history}=await sb.from('anki_results').select('*').eq('user_id',S.user.id).order('created_at',{ascending:false}).limit(10);
 if(history&&history.length){
@@ -2726,6 +2748,8 @@ function renderTopicButtons(){
 }
 renderTopicButtons();
 const subBtnContainer=div({style:{display:'flex',flexWrap:'wrap',gap:'8px',marginTop:'8px'}});
+if(isFree){inner.append(div({style:{background:'rgba(200,169,110,0.06)',border:'1px solid var(--gold-border)',borderRadius:'4px',padding:'12px 16px',marginTop:'8px',display:'flex',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap',gap:'12px'}},[h('span',{style:{fontFamily:"Inter,sans-serif",fontSize:'12px',color:'var(--muted)'},html:'More topics and questions available on paid plans.'}),btn('Upgrade →','btn-gold',()=>go('pending'),{style:{padding:'6px 16px',fontSize:'11px',flexShrink:'0'}})]));}
+
 const subsFilterWrap=div({style:{marginBottom:'16px',display:'none'}},[h('label',{cls:'label',html:'Filter by Subsection'}),subBtnContainer]);
 inner.append(subsFilterWrap);
 async function updateSubsectionUI(){
@@ -3590,7 +3614,7 @@ card.append(field('Demo Video URL',vI),h('p',{cls:'mono',style:{marginBottom:'20
 // Payment links
 card.append(h('hr',{style:{border:'none',borderTop:'1px solid var(--border)',margin:'24px 0'}}),h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'18px',marginBottom:'16px'},html:'Study Portal Payment Links'}));
 const lIs={};
-[['link_monthly','Monthly ($10)'],['link_sixmonth','6 Months ($39)'],['link_yearly','1 Year ($59)'],['link_custom','Custom Session ($15)']].forEach(([k,l])=>{const i=inp('https://selar.co/...','text',set[k]||'');lIs[k]=i;card.append(field(l,i));});
+[['link_monthly','Monthly ($10)'],['link_sixmonth','6 Months ($39, was $49)'],['link_yearly','1 Year ($59, was $69)'],['link_custom','Custom Session ($15)']].forEach(([k,l])=>{const i=inp('https://selar.co/...','text',set[k]||'');lIs[k]=i;card.append(field(l,i));});
 // Community & support
 card.append(h('hr',{style:{border:'none',borderTop:'1px solid var(--border)',margin:'24px 0'}}));
 card.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'18px',marginBottom:'16px'},html:'Platform Links'}));
