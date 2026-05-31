@@ -1557,7 +1557,8 @@ const txBtn=btn('Verify & Activate →','btn-gold',async()=>{
   else if(sub.plan_type==='yearly')expiry.setDate(now.getDate()+365);
   else expiry.setDate(now.getDate()+30);
   await sb.from('profiles').update({status:'approved',is_free_tier:false,plan:sub.selar_product_name||sub.plan_type,access_expires_at:expiry.toISOString()}).eq('id',S.user.id);
-  await sb.from('subscriptions').update({status:'approved',approved_at:new Date().toISOString(),approved_by:'self-verified'}).eq('id',sub.id);
+  const{error:updateErr}=await sb.from('subscriptions').update({status:'approved'}).eq('id',sub.id);
+  if(updateErr){txStatus.style.display='block';txStatus.style.color='#ff4444';txStatus.textContent='Error marking transaction used: '+updateErr.message;txBtn.disabled=false;txBtn.textContent='Verify & Activate →';return;}
   txStatus.style.display='block';txStatus.style.color='var(--teal)';txStatus.textContent='✓ Payment verified! Taking you to your dashboard...';
   setTimeout(()=>{window.location.reload();},1800);
 },{style:{width:'100%',marginBottom:'8px'}});
@@ -1626,7 +1627,8 @@ function showUpgradeModal(){
     else if(sub.plan_type==='yearly')expiry.setDate(now.getDate()+365);
     else expiry.setDate(now.getDate()+30);
     await sb.from('profiles').update({status:'approved',is_free_tier:false,plan:sub.selar_product_name||sub.plan_type,access_expires_at:expiry.toISOString()}).eq('id',S.user.id);
-    await sb.from('subscriptions').update({status:'approved',approved_at:new Date().toISOString(),approved_by:'self-verified'}).eq('id',sub.id);
+    const{error:updateErr3}=await sb.from('subscriptions').update({status:'approved'}).eq('id',sub.id);
+    if(updateErr3){txStatus3.style.display='block';txStatus3.style.color='#ff4444';txStatus3.textContent='Error marking transaction used: '+updateErr3.message;txBtn3.disabled=false;txBtn3.textContent='Verify Payment →';return;}
     txStatus3.style.display='block';txStatus3.style.color='var(--teal)';txStatus3.textContent='✓ Payment verified! Refreshing your access...';
     setTimeout(()=>{overlay.remove();window.location.reload();},1800);
   },{style:{width:'100%',marginBottom:'12px'}});
