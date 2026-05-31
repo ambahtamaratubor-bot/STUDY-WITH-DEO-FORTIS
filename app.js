@@ -1637,7 +1637,7 @@ function showUpgradeModal(){
   );
   modal.append(txDiv);
   modal.append(
-    btn('Maybe later','',()=>overlay.remove(),{style:{background:'none',border:'none',fontFamily:"Inter,sans-serif",fontSize:'11px',color:'var(--dim)',cursor:'pointer',width:'100%',textAlign:'center'}})
+    btn('Not now','',()=>overlay.remove(),{style:{background:'none',border:'none',fontFamily:"Inter,sans-serif",fontSize:'11px',color:'var(--dim)',cursor:'pointer',width:'100%',textAlign:'center'}})
   );
   overlay.append(modal);
   document.body.append(overlay);
@@ -2530,12 +2530,44 @@ decks=data||[];
 if(!decks.length){inner.append(div({cls:'card',style:{textAlign:'center',padding:'48px'}},[div({style:{fontSize:'40px',marginBottom:'16px'},html:' '}),h('p',{style:{fontSize:'14px',color:'var(--dim)'},html:'No flashcard decks yet.'})]));return;}
 const grid=div({style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(240px,1fr))',gap:'16px'}});
 decks.forEach(deck=>{
+const isPersonal=deck.user_id!==null;
 const card=div({cls:'card',style:{cursor:'pointer'}});
-card.append(div({style:{fontSize:'32px',marginBottom:'12px'},html:' '}),h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'18px',color:'var(--text)',marginBottom:'8px'},html:deck.topic}),btn('Start Deck →','btn-gold',async()=>loadDeck(deck),{style:{width:'100%',marginTop:'16px'}}));
+const nameRow=div({style:{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'8px'}});
+nameRow.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'18px',color:'var(--text)',marginBottom:'0'},html:deck.topic}));
+if(isPersonal){nameRow.append(h('span',{style:{fontFamily:"Inter,sans-serif",fontSize:'9px',fontWeight:'700',letterSpacing:'1px',color:'var(--gold)',border:'1px solid var(--gold-border)',borderRadius:'2px',padding:'2px 6px',marginLeft:'8px',flexShrink:'0'},html:'PERSONAL'}));}
+card.append(nameRow);
+card.append(btn('Start Deck →','btn-gold',async()=>loadDeck(deck),{style:{width:'100%',marginTop:'12px'}}));
+if(isPersonal){
+  const actionRow=div({style:{display:'flex',gap:'8px',marginTop:'8px'}});
+  const renameBtn=btn('Rename','btn-outline',()=>{
+    const nameInp=inp('New deck name','text',deck.topic);
+    nameInp.style.marginBottom='8px';
+    const saveBtn=btn('Save','btn-gold',async()=>{
+      const newName=nameInp.value.trim();
+      if(newName&&newName!==deck.topic){await sb.from('flashcard_decks').update({name:newName,topic:newName}).eq('id',deck.id);showDecks();}
+    },{style:{marginRight:'8px',fontSize:'11px',padding:'6px 14px'}});
+    const cancelBtn=btn('Cancel','btn-outline',()=>showDecks(),{style:{fontSize:'11px',padding:'6px 14px'}});
+    const renameDiv=div({style:{marginTop:'8px'}});
+    renameDiv.append(nameInp,saveBtn,cancelBtn);
+    card.innerHTML='';
+    card.append(renameDiv);
+  },{style:{flex:'1',fontSize:'11px',padding:'6px 12px'}});
+  const deleteBtn=btn('Delete','btn-red',()=>{
+    if(confirm('Delete this deck and all its cards? This cannot be undone.')){
+      (async()=>{
+        await sb.from('flashcards').delete().eq('deck_id',deck.id);
+        await sb.from('flashcard_decks').delete().eq('id',deck.id);
+        showDecks();
+      })();
+    }
+  },{style:{flex:'1',fontSize:'11px',padding:'6px 12px'}});
+  actionRow.append(renameBtn,deleteBtn);
+  card.append(actionRow);
+}
 grid.append(card);
 });
 inner.append(grid);
-if(isFree){inner.append(div({style:{background:'rgba(200,169,110,0.06)',border:'1px solid var(--gold-border)',borderRadius:'4px',padding:'12px 16px',marginTop:'8px',display:'flex',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap',gap:'12px'}},[h('span',{style:{fontFamily:"Inter,sans-serif",fontSize:'12px',color:'var(--muted)'},html:'More flashcard decks available on paid plans.'}),btn('Upgrade →','btn-gold',()=>go('pending'),{style:{padding:'6px 16px',fontSize:'11px',flexShrink:'0'}})]));}
+if(isFree){inner.append(div({style:{background:'rgba(200,169,110,0.06)',border:'1px solid var(--gold-border)',borderRadius:'4px',padding:'12px 16px',marginTop:'8px',display:'flex',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap',gap:'12px'}},[h('span',{style:{fontFamily:"Inter,sans-serif",fontSize:'12px',color:'var(--muted)'},html:'More flashcard decks available on paid plans.'}),btn('Upgrade →','btn-gold',()=>showUpgradeModal(),{style:{padding:'6px 16px',fontSize:'11px',flexShrink:'0'}})]));}
 // Show past performance
 const{data:history}=await sb.from('anki_results').select('*').eq('user_id',S.user.id).order('created_at',{ascending:false}).limit(10);
 if(history&&history.length){
@@ -2784,6 +2816,8 @@ var mapletQ=showMaplet('qbank','Attempt vignette questions one at a time. Use th
 const{data}=await (isFree?sb.from('vignette_questions').select('topic').eq('is_global',true):sb.from('vignette_questions').select('topic').or('user_id.eq.'+S.user.id+',user_id.is.null'));
 const topics=data?[...new Set(data.map(d=>d.topic))]:[];
 if(!topics.length){inner.append(div({cls:'card',style:{textAlign:'center',padding:'48px'}},[h('p',{style:{fontSize:'14px',color:'var(--dim)'},html:'No questions available yet.'})]));return;}
+const{data:personalQ}=await sb.from('vignette_questions').select('topic').eq('user_id',S.user.id).eq('is_global',false);
+const personalTopics=new Set((personalQ||[]).map(q=>q.topic));
 const qCountI=inp('e.g. 40','number','');qCountI.min='1';qCountI.max='9999';
 let selectedTopics=[];
 let selectedSubsections=[];
@@ -2791,23 +2825,63 @@ const topicBtnContainer=div({style:{display:'flex',flexWrap:'wrap',gap:'8px',mar
 inner.append(h('label',{cls:'label',html:'Select Topics (choose at least one)'}),topicBtnContainer);
 const countDisplay=div({style:{fontFamily:"Inter,sans-serif",fontSize:'11px',color:'var(--dim)',marginBottom:'12px'}},['Select at least one topic']);
 inner.append(countDisplay);
+const personalControlsContainer=div({style:{marginTop:'4px',marginBottom:'8px'}});
+inner.append(personalControlsContainer);
+function renderPersonalControls(){
+  personalControlsContainer.innerHTML='';
+  const personalSelected=selectedTopics.filter(function(t){return personalTopics.has(t);});
+  if(!personalSelected.length)return;
+  const topicName=personalSelected[0];
+  const controlsDiv=div({style:{display:'flex',gap:'10px',alignItems:'center',padding:'10px 14px',background:'rgba(200,169,110,0.06)',border:'1px solid var(--gold-border)',borderRadius:'4px'}});
+  const renameBtn=btn('Rename Topic','btn-outline',function(){
+    personalControlsContainer.innerHTML='';
+    const renameDiv=div({style:{display:'flex',gap:'8px',alignItems:'center',padding:'10px 14px',background:'rgba(200,169,110,0.06)',border:'1px solid var(--gold-border)',borderRadius:'4px'}});
+    const nameInp=inp('New topic name','text',topicName);
+    nameInp.style.flex='1';nameInp.style.marginBottom='0';
+    const saveBtn=btn('Save','btn-gold',async function(){
+      const newName=nameInp.value.trim();
+      if(newName&&newName!==topicName){
+        await sb.from('vignette_questions').update({topic:newName}).eq('user_id',S.user.id).eq('topic',topicName);
+        showSetup();
+      }
+    },{style:{padding:'6px 16px',fontSize:'11px'}});
+    const cancelBtn=btn('Cancel','btn-outline',function(){renderPersonalControls();},{style:{padding:'6px 16px',fontSize:'11px'}});
+    renameDiv.append(nameInp,saveBtn,cancelBtn);
+    personalControlsContainer.append(renameDiv);
+  },{style:{padding:'6px 14px',fontSize:'11px'}});
+  const deleteBtn=btn('Delete Topic','btn-red',function(){
+    if(confirm('Delete all questions for "'+topicName+'"? This cannot be undone.')){
+      (async function(){
+        const{data:qids}=await sb.from('vignette_questions').select('id').eq('user_id',S.user.id).eq('topic',topicName);
+        await sb.from('vignette_questions').delete().eq('user_id',S.user.id).eq('topic',topicName);
+        const ids=(qids||[]).map(function(q){return q.id.toString();});
+        if(ids.length){await sb.from('question_progress').delete().in('question_id',ids).eq('user_id',S.user.id);}
+        showSetup();
+      })();
+    }
+  },{style:{padding:'6px 14px',fontSize:'11px'}});
+  controlsDiv.append(renameBtn,deleteBtn);
+  personalControlsContainer.append(controlsDiv);
+}
 function renderTopicButtons(){
   topicBtnContainer.innerHTML='';
-  topics.forEach(topic=>{
+  topics.forEach(function(topic){
     const isSelected=selectedTopics.includes(topic);
-    const tb=btn(topic,isSelected?'btn-teal':'btn-outline',()=>{
-      if(selectedTopics.includes(topic)){selectedTopics=selectedTopics.filter(t=>t!==topic);}
+    const tb=btn(topic,isSelected?'btn-teal':'btn-outline',function(){
+      if(selectedTopics.includes(topic)){selectedTopics=selectedTopics.filter(function(t){return t!==topic;});}
       else{selectedTopics.push(topic);}
       renderTopicButtons();
-      (async()=>{selectedSubsections=[];await updateSubsectionUI();await updateCount();})();
+      (async function(){selectedSubsections=[];await updateSubsectionUI();await updateCount();})();
     },{style:{padding:'6px 12px',fontSize:'12px'}});
+    if(personalTopics.has(topic)){tb.append(h('span',{style:{fontFamily:"Inter,sans-serif",fontSize:'9px',fontWeight:'700',letterSpacing:'1px',color:'var(--gold)',border:'1px solid var(--gold-border)',borderRadius:'2px',padding:'2px 6px',marginLeft:'4px'},html:'PERSONAL'}));}
     topicBtnContainer.append(tb);
   });
-  topicBtnContainer.append(btn('Clear All','btn-outline',()=>{selectedTopics=[];selectedSubsections=[];renderTopicButtons();updateSubsectionUI();updateCount();},{style:{padding:'6px 12px',fontSize:'12px'}}));
+  topicBtnContainer.append(btn('Clear All','btn-outline',function(){selectedTopics=[];selectedSubsections=[];renderTopicButtons();updateSubsectionUI();updateCount();},{style:{padding:'6px 12px',fontSize:'12px'}}));
+  renderPersonalControls();
 }
 renderTopicButtons();
 const subBtnContainer=div({style:{display:'flex',flexWrap:'wrap',gap:'8px',marginTop:'8px'}});
-if(isFree){inner.append(div({style:{background:'rgba(200,169,110,0.06)',border:'1px solid var(--gold-border)',borderRadius:'4px',padding:'12px 16px',marginTop:'8px',display:'flex',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap',gap:'12px'}},[h('span',{style:{fontFamily:"Inter,sans-serif",fontSize:'12px',color:'var(--muted)'},html:'More topics and questions available on paid plans.'}),btn('Upgrade →','btn-gold',()=>go('pending'),{style:{padding:'6px 16px',fontSize:'11px',flexShrink:'0'}})]));}
+if(isFree){inner.append(div({style:{background:'rgba(200,169,110,0.06)',border:'1px solid var(--gold-border)',borderRadius:'4px',padding:'12px 16px',marginTop:'8px',display:'flex',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap',gap:'12px'}},[h('span',{style:{fontFamily:"Inter,sans-serif",fontSize:'12px',color:'var(--muted)'},html:'More topics and questions available on paid plans.'}),btn('Upgrade →','btn-gold',()=>showUpgradeModal(),{style:{padding:'6px 16px',fontSize:'11px',flexShrink:'0'}})]));}
 
 const subsFilterWrap=div({style:{marginBottom:'16px',display:'none'}},[h('label',{cls:'label',html:'Filter by Subsection'}),subBtnContainer]);
 inner.append(subsFilterWrap);
