@@ -906,7 +906,7 @@ const features=['Full Pomodoro System','Active Recall Engine (Theory, Anki, Vign
 const plansSection=div({cls:'section',id:'plans'});
 plansSection.append(div({cls:'divider'}),h('br'),h('span',{cls:'chapter',html:'Chapter I — Enrolment'}),h('h2',{cls:'big',style:{marginBottom:'12px'},html:'Choose Your<br><em class="gold-em">Duration</em>'}),h('p',{cls:'muted',style:{maxWidth:'500px',fontSize:'15px',marginBottom:'8px'},html:'Every plan includes the full platform. You are simply choosing how long your access lasts.'}),div({cls:'quote',style:{maxWidth:'480px',marginBottom:'40px',marginTop:'24px'},html:'"The longer you commit, the less you pay per month."'}));
 const plansGrid=div({cls:'grid-auto',id:'plans-grid'});
-const planDefs=[{name:'Monthly',price:'$10',period:'/ month',dur:'1 Month',color:'var(--gold)',key:'monthly'},{name:'6 Months',price:'$39',oldPrice:'$49',period:'/ 6 months',dur:'6 Months',color:'var(--teal)',popular:true,key:'sixmonth'},{name:'1 Year',price:'$59',oldPrice:'$69',period:'/ year',dur:'12 Months',color:'var(--purple)',key:'yearly'}];
+const planDefs=[{name:'Monthly',price:'$10',period:'/ month',dur:'1 Month',color:'var(--gold)',key:'monthly'},{name:'6 Months',price:'$39',oldPrice:'$49',period:'/ 6 months',dur:'6 Months',color:'var(--teal)',popular:true,key:'sixmonth'},{name:'1 Year',price:'$59',oldPrice:'$79',period:'/ year',dur:'12 Months',color:'var(--purple)',key:'yearly'}];
 planDefs.forEach(plan=>{
 const card=div({cls:'plan-card',style:{borderColor:plan.popular?plan.color+'55':'var(--border)',borderTopWidth:plan.popular?'3px':'1px',borderTopColor:plan.popular?plan.color:'var(--border)'}});
 if(plan.popular)card.append(div({cls:'popular-tag',html:'Best Value'}));
@@ -1355,7 +1355,7 @@ ps.append(h('p',{style:{fontFamily:"Inter,sans-serif",fontSize:'10px',letterSpac
 const pl=div({style:{display:'grid',gap:'12px'}});
 let links2={monthly:'#',sixmonth:'#',yearly:'#'};
 sb.from('admin_settings').select('*').single().then(({data})=>{if(data)links2={monthly:data.link_monthly||'#',sixmonth:data.link_sixmonth||'#',yearly:data.link_yearly||'#'};});
-[{name:'Monthly',price:'$10',period:'/ month',dur:'1 Month',color:'var(--gold)',key:'monthly'},{name:'6 Months',price:'$39',oldPrice:'$49',period:'/ 6 months',dur:'6 Months',color:'var(--teal)',popular:true,key:'sixmonth'},{name:'1 Year',price:'$59',oldPrice:'$69',period:'/ year',dur:'12 Months',color:'var(--purple)',key:'yearly'}].forEach(plan=>{
+[{name:'Monthly',price:'$10',period:'/ month',dur:'1 Month',color:'var(--gold)',key:'monthly'},{name:'6 Months',price:'$39',oldPrice:'$49',period:'/ 6 months',dur:'6 Months',color:'var(--teal)',popular:true,key:'sixmonth'},{name:'1 Year',price:'$59',oldPrice:'$79',period:'/ year',dur:'12 Months',color:'var(--purple)',key:'yearly'}].forEach(plan=>{
 const card=div({style:{background:'var(--card)',border:'1px solid var(--border)',borderRadius:'4px',padding:'20px 24px',cursor:'pointer',transition:'all .2s',position:'relative'},id:'pc-'+plan.key});
 if(plan.popular)card.append(h('span',{style:{position:'absolute',top:'-1px',right:'16px',background:'var(--teal)',color:'#0F0E0A',fontFamily:"Inter,sans-serif",fontSize:'9px',letterSpacing:'2px',textTransform:'uppercase',padding:'3px 10px',borderRadius:'0 0 4px 4px'},html:'Best Value'}));
 const row=div({style:{display:'flex',alignItems:'center',justifyContent:'space-between'}});
@@ -1538,8 +1538,35 @@ div({style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontStyle:'italic',fontS
 h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'24px',marginBottom:'12px'},html:"You're on the list."}),
 h('p',{cls:'muted',style:{fontSize:'15px',lineHeight:'1.7',marginBottom:'24px'},html:'The platform launches <strong style="color:var(--gold)">June 7</strong>. You will get access on launch day. Join the live event below.'}),
 div({cls:'quote',style:{marginBottom:'24px',textAlign:'left'},html:'"Everyone is gifted."'}),
-btn('RSVP — Join the Launch Event','btn-rsvp',()=>showRsvpModal(),{style:{width:'100%',marginBottom:'12px',padding:'14px'}}),
-btn('Log Out','btn-outline',()=>sb.auth.signOut(),{style:{width:'100%'}}));
+btn('RSVP — Join the Launch Event','btn-rsvp',()=>showRsvpModal(),{style:{width:'100%',marginBottom:'12px',padding:'14px'}}));
+const txSection=div({style:{textAlign:'left',borderTop:'1px solid var(--border)',paddingTop:'20px',marginTop:'4px',marginBottom:'12px'}});
+const txInput=inp('e.g. SC5ZY7WO3583N','text','');
+txInput.style.marginBottom='10px';
+const txStatus=div({style:{fontFamily:"Inter,sans-serif",fontSize:'12px',marginBottom:'10px',display:'none'}});
+const txBtn=btn('Verify & Activate →','btn-gold',async()=>{
+  const txId=txInput.value.trim().toUpperCase();
+  if(!txId){txStatus.style.display='block';txStatus.style.color='#ff4444';txStatus.textContent='Please enter your Payment Reference.';return;}
+  txBtn.disabled=true;txBtn.textContent='Verifying...';txStatus.style.display='none';
+  const{data:subs,error}=await sb.from('subscriptions').select('*').ilike('selar_transaction_id',txId).limit(1);
+  if(error||!subs||!subs.length){txStatus.style.display='block';txStatus.style.color='#ff4444';txStatus.textContent='Transaction not found. Wait a few minutes and try again — it can take up to 5 minutes to process.';txBtn.disabled=false;txBtn.textContent='Verify & Activate →';return;}
+  const sub=subs[0];
+  if(sub.status==='approved'){txStatus.style.display='block';txStatus.style.color='#ff4444';txStatus.textContent='This transaction has already been used.';txBtn.disabled=false;txBtn.textContent='Verify & Activate →';return;}
+  const now=new Date();const expiry=new Date(now);
+  if(sub.plan_type==='monthly')expiry.setDate(now.getDate()+30);
+  else if(sub.plan_type==='sixmonth')expiry.setDate(now.getDate()+183);
+  else if(sub.plan_type==='yearly')expiry.setDate(now.getDate()+365);
+  else expiry.setDate(now.getDate()+30);
+  await sb.from('profiles').update({status:'approved',is_free_tier:false,plan:sub.selar_product_name||sub.plan_type,access_expires_at:expiry.toISOString()}).eq('id',S.user.id);
+  await sb.from('subscriptions').update({status:'approved',approved_at:new Date().toISOString(),approved_by:'self-verified'}).eq('id',sub.id);
+  txStatus.style.display='block';txStatus.style.color='var(--teal)';txStatus.textContent='✓ Payment verified! Taking you to your dashboard...';
+  setTimeout(()=>{window.location.reload();},1800);
+},{style:{width:'100%',marginBottom:'8px'}});
+txSection.append(
+  h('label',{cls:'label',html:'Selar Payment Reference'}),
+  h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'11px',color:'var(--dim)',marginBottom:'10px',lineHeight:'1.6'},html:'Enter the Payment Reference from your Selar receipt to activate your account immediately.'}),
+  txInput,txStatus,txBtn
+);
+card.append(txSection,btn('Log Out','btn-outline',()=>sb.auth.signOut(),{style:{width:'100%'}}));
 page.append(card);return page;
 }
 // ═══════════════════════════════
@@ -1562,7 +1589,7 @@ function showUpgradeModal(){
   });
   modal.append(grid);
   const planRows=div({style:{display:'flex',flexDirection:'column',gap:'10px',marginBottom:'16px'}});
-  const planDefs2=[{label:'Monthly',price:'$10',key:'monthly',cls:'btn-gold'},{label:'6 Months',price:'$39',oldPrice:'$49',key:'sixmonth',cls:'btn-teal'},{label:'Yearly',price:'$59',oldPrice:'$69',key:'yearly',cls:'btn-outline'}];
+  const planDefs2=[{label:'Monthly',price:'$10',key:'monthly',cls:'btn-gold'},{label:'6 Months',price:'$39',oldPrice:'$49',key:'sixmonth',cls:'btn-teal'},{label:'Yearly',price:'$59',oldPrice:'$79',key:'yearly',cls:'btn-outline'}];
   const buildPlanButtons=(links)=>{
     planRows.innerHTML='';
     planDefs2.forEach(p=>{
@@ -1581,6 +1608,34 @@ function showUpgradeModal(){
     }
   });
   modal.append(planRows);
+  const txDiv=div({style:{borderTop:'1px solid var(--border)',paddingTop:'16px',marginTop:'4px'}});
+  const txInput3=inp('e.g. SC5ZY7WO3583N','text','');
+  txInput3.style.marginBottom='8px';
+  const txStatus3=div({style:{fontFamily:"Inter,sans-serif",fontSize:'12px',marginBottom:'8px',display:'none'}});
+  const txBtn3=btn('Verify Payment →','btn-teal',async()=>{
+    const txId=txInput3.value.trim().toUpperCase();
+    if(!txId){txStatus3.style.display='block';txStatus3.style.color='#ff4444';txStatus3.textContent='Please enter your Payment Reference.';return;}
+    txBtn3.disabled=true;txBtn3.textContent='Verifying...';txStatus3.style.display='none';
+    const{data:subs,error}=await sb.from('subscriptions').select('*').ilike('selar_transaction_id',txId).limit(1);
+    if(error||!subs||!subs.length){txStatus3.style.display='block';txStatus3.style.color='#ff4444';txStatus3.textContent='Transaction not found. It can take up to 5 minutes to process.';txBtn3.disabled=false;txBtn3.textContent='Verify Payment →';return;}
+    const sub=subs[0];
+    if(sub.status==='approved'){txStatus3.style.display='block';txStatus3.style.color='#ff4444';txStatus3.textContent='This transaction has already been used.';txBtn3.disabled=false;txBtn3.textContent='Verify Payment →';return;}
+    const now=new Date();const expiry=new Date(now);
+    if(sub.plan_type==='monthly')expiry.setDate(now.getDate()+30);
+    else if(sub.plan_type==='sixmonth')expiry.setDate(now.getDate()+183);
+    else if(sub.plan_type==='yearly')expiry.setDate(now.getDate()+365);
+    else expiry.setDate(now.getDate()+30);
+    await sb.from('profiles').update({status:'approved',is_free_tier:false,plan:sub.selar_product_name||sub.plan_type,access_expires_at:expiry.toISOString()}).eq('id',S.user.id);
+    await sb.from('subscriptions').update({status:'approved',approved_at:new Date().toISOString(),approved_by:'self-verified'}).eq('id',sub.id);
+    txStatus3.style.display='block';txStatus3.style.color='var(--teal)';txStatus3.textContent='✓ Payment verified! Refreshing your access...';
+    setTimeout(()=>{overlay.remove();window.location.reload();},1800);
+  },{style:{width:'100%',marginBottom:'12px'}});
+  txDiv.append(
+    h('label',{cls:'label',html:'Selar Payment Reference'}),
+    h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'11px',color:'var(--dim)',marginBottom:'10px',lineHeight:'1.6'},html:'Enter the Payment Reference from your Selar receipt to activate your plan immediately.'}),
+    txInput3,txStatus3,txBtn3
+  );
+  modal.append(txDiv);
   modal.append(
     btn('Maybe later','',()=>overlay.remove(),{style:{background:'none',border:'none',fontFamily:"Inter,sans-serif",fontSize:'11px',color:'var(--dim)',cursor:'pointer',width:'100%',textAlign:'center'}})
   );
@@ -3618,7 +3673,7 @@ card.append(field('Demo Video URL',vI),h('p',{cls:'mono',style:{marginBottom:'20
 // Payment links
 card.append(h('hr',{style:{border:'none',borderTop:'1px solid var(--border)',margin:'24px 0'}}),h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'18px',marginBottom:'16px'},html:'Study Portal Payment Links'}));
 const lIs={};
-[['link_monthly','Monthly ($10)'],['link_sixmonth','6 Months ($39, was $49)'],['link_yearly','1 Year ($59, was $69)'],['link_custom','Custom Session ($15)']].forEach(([k,l])=>{const i=inp('https://selar.co/...','text',set[k]||'');lIs[k]=i;card.append(field(l,i));});
+[['link_monthly','Monthly ($10)'],['link_sixmonth','6 Months ($39, was $49)'],['link_yearly','1 Year ($59, was $79)'],['link_custom','Custom Session ($15)']].forEach(([k,l])=>{const i=inp('https://selar.co/...','text',set[k]||'');lIs[k]=i;card.append(field(l,i));});
 // Community & support
 card.append(h('hr',{style:{border:'none',borderTop:'1px solid var(--border)',margin:'24px 0'}}));
 card.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'18px',marginBottom:'16px'},html:'Platform Links'}));
