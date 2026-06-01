@@ -1782,12 +1782,11 @@ if(S.profile?.has_new_content){
     div({style:{display:'flex',alignItems:'center',gap:'12px'}},[
       div({style:{lineHeight:'1'},html:ICONS.brain}),
       div({},[
-        div({style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'16px',color:'var(--teal)',fontWeight:'600',marginBottom:'2px'},html:'Your recall content is ready!'}),
-        div({style:{fontSize:'13px',color:'var(--muted)'},html:'Your active recall request has been fulfilled. Go to Theory Hub, Flashcards or Q-Bank to access your content.'})
+        div({style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'16px',color:'var(--teal)',fontWeight:'600',marginBottom:'6px'},html:'Your recall content is ready!'}),
+        div({style:{fontSize:'13px',color:'var(--muted)',lineHeight:'1.7'},html:'&bull; <b>Vignette questions</b> &rarr; go to Q-Bank, look for your topic with a <b>PERSONAL</b> badge.<br>&bull; <b>Flashcards</b> &rarr; go to Flashcards, look for your deck with a <b>PERSONAL</b> badge.<br>&bull; <b>Theory notes</b> &rarr; go to Theory Hub to read and respond.<br>You can rename your personal topics and decks anytime &mdash; they will always keep the PERSONAL badge.'})
       ])
     ]),
-    div({style:{display:'flex',gap:'8px',flexShrink:'0'}},[
-      btn('View Content','btn-teal',()=>go('theory'),{style:{fontSize:'11px',padding:'6px 12px'}}),
+    div({style:{flexShrink:'0'}},[
       btn('Dismiss','',async()=>{
         await sb.from('profiles').update({has_new_content:false}).eq('id',S.user.id);
         banner.remove();
@@ -3893,31 +3892,50 @@ function switchSubTab(key){
           await sb.from('profiles').update({access_expires_at:newExp.toISOString(),plan:planMap[extendSelect.value]||u.plan}).eq('id',u.id);
           loadTab('users');
         },{style:{padding:'4px 12px',fontSize:'11px'}}),
-        btn('Trial (3 days)','btn-outline',async()=>{const exp=new Date();exp.setDate(exp.getDate()+3);await sb.from('profiles').update({is_free_tier:true,status:'approved',access_expires_at:exp.toISOString()}).eq('id',u.id);loadTab('users');},{style:{padding:'4px 12px',fontSize:'11px'}}),
-        btn('Permanent Free','btn-outline',async()=>{await sb.from('profiles').update({is_free_tier:true,status:'approved',access_expires_at:'2020-01-01T00:00:00.000Z'}).eq('id',u.id);loadTab('users');},{style:{padding:'4px 12px',fontSize:'11px'}})
+        btn('Set Free','btn-outline',async()=>{
+          await sb.from('profiles').update({is_free_tier:true,status:'approved'}).eq('id',u.id);
+          loadTab('users');
+        },{style:{padding:'4px 12px',fontSize:'11px'}})
       );
       topRow.append(nameDiv);
       row.append(topRow,infoDiv,planBadge,actionsDiv);
     }else if(key==='free'){
-      const isOnTrial=u.access_expires_at&&new Date(u.access_expires_at)>new Date();
-      const tierLabel=h('span',{style:{fontSize:'9px',fontWeight:'700',letterSpacing:'1px',textTransform:'uppercase',color:isOnTrial?'var(--teal)':'var(--dim)',border:'1px solid '+(isOnTrial?'var(--teal)':'var(--border)'),borderRadius:'2px',padding:'2px 6px',flexShrink:'0'}},[]);
-      tierLabel.textContent=isOnTrial?'TRIAL':'PERMANENT FREE';
       const infoDiv=div({style:{fontSize:'12px',color:'var(--muted)',marginTop:'4px'}});
-      infoDiv.textContent=(u.email||'—')+' · Joined: '+new Date(u.created_at).toLocaleDateString()+(isOnTrial?' · Trial expires: '+new Date(u.access_expires_at).toLocaleDateString():'');
-      const actionsDiv=div({style:{display:'flex',gap:'8px',alignItems:'center',flexWrap:'wrap'}});
-      actionsDiv.append(
-        tierLabel,
-        btn('Set Paid','btn-teal',async()=>{const exp=new Date();exp.setDate(exp.getDate()+30);await sb.from('profiles').update({is_free_tier:false,status:'approved',access_expires_at:exp.toISOString()}).eq('id',u.id);loadTab('users');},{style:{padding:'4px 12px',fontSize:'11px'}}),
-        btn('Trial (3 days)','btn-outline',async()=>{const exp=new Date();exp.setDate(exp.getDate()+3);await sb.from('profiles').update({is_free_tier:true,status:'approved',access_expires_at:exp.toISOString()}).eq('id',u.id);loadTab('users');},{style:{padding:'4px 12px',fontSize:'11px'}}),
-        btn('Permanent Free','btn-outline',async()=>{await sb.from('profiles').update({is_free_tier:true,status:'approved',access_expires_at:'2020-01-01T00:00:00.000Z'}).eq('id',u.id);loadTab('users');},{style:{padding:'4px 12px',fontSize:'11px'}})
-      );
+      infoDiv.textContent=(u.email||'—')+' · Joined: '+new Date(u.created_at).toLocaleDateString();
+      const actionsDiv=div({style:{display:'flex',gap:'8px',alignItems:'center'}});
+      actionsDiv.append(btn('Set Paid','btn-teal',async()=>{
+        const exp=new Date();exp.setDate(exp.getDate()+30);
+        await sb.from('profiles').update({is_free_tier:false,status:'approved',access_expires_at:exp.toISOString()}).eq('id',u.id);
+        loadTab('users');
+      },{style:{padding:'4px 12px',fontSize:'11px'}}));
       topRow.append(nameDiv,actionsDiv);
       row.append(topRow,infoDiv);
     }else{
       const isFree=u.is_free_tier===true;
+      const statusBadge=h('span',{style:{fontSize:'10px',textTransform:'uppercase',letterSpacing:'1px',color:u.status==='approved'?'var(--teal)':'var(--gold)',marginRight:'8px'}},[]);
+      statusBadge.textContent=u.status||'pending';
       const tierBadge=h('span',{style:{fontSize:'10px',textTransform:'uppercase',letterSpacing:'1px',color:isFree?'var(--dim)':'var(--gold)'}},[]);
       tierBadge.textContent=isFree?'FREE':'PAID';
-      topRow.append(nameDiv,tierBadge);
+      const actionsDiv=div({style:{display:'flex',gap:'8px',alignItems:'center',flexWrap:'wrap'}});
+      actionsDiv.append(statusBadge,tierBadge);
+      if(u.status!=='approved'){
+        actionsDiv.append(btn('Approve','btn-teal',async()=>{
+          const exp=new Date();exp.setDate(exp.getDate()+30);
+          await sb.from('profiles').update({status:'approved',is_free_tier:false,access_expires_at:exp.toISOString()}).eq('id',u.id);
+          loadTab('users');
+        },{style:{padding:'4px 12px',fontSize:'11px'}}));
+        actionsDiv.append(btn('Decline','btn-outline',async()=>{
+          if(!confirm('Delete this user permanently?'))return;
+          await sb.from('profiles').delete().eq('id',u.id);
+          loadTab('users');
+        },{style:{padding:'4px 12px',fontSize:'11px',color:'#ff4444',borderColor:'#ff4444'}}));
+      }
+      actionsDiv.append(btn(isFree?'Set Paid':'Set Free',isFree?'btn-teal':'btn-outline',async()=>{
+        if(isFree){const exp=new Date();exp.setDate(exp.getDate()+30);await sb.from('profiles').update({is_free_tier:false,status:'approved',access_expires_at:exp.toISOString()}).eq('id',u.id);}
+        else{await sb.from('profiles').update({is_free_tier:true,status:'approved'}).eq('id',u.id);}
+        loadTab('users');
+      },{style:{padding:'4px 12px',fontSize:'11px'}}));
+      topRow.append(nameDiv,actionsDiv);
       const statsRow=div({style:{display:'flex',gap:'16px',fontSize:'12px',color:'var(--muted)',marginBottom:'8px',flexWrap:'wrap'}});
       const planLabel2=u.plan==='6 Months'?'6 Months':u.plan==='Yearly'?'1 Year':u.plan==='Monthly'?'1 Month':(u.plan||'No plan');
       const emailPlanEl=h('span',{},[]);emailPlanEl.textContent=(u.email||'—')+' · '+planLabel2;
