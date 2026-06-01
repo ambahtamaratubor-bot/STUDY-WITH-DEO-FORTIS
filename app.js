@@ -3899,10 +3899,14 @@ function switchSubTab(key){
       topRow.append(nameDiv);
       row.append(topRow,infoDiv,planBadge,actionsDiv);
     }else if(key==='free'){
+      const isOnTrial=u.access_expires_at&&new Date(u.access_expires_at)>new Date();
+      const tierLabel=h('span',{style:{fontSize:'9px',fontWeight:'700',letterSpacing:'1px',textTransform:'uppercase',color:isOnTrial?'var(--teal)':'var(--dim)',border:'1px solid '+(isOnTrial?'var(--teal)':'var(--border)'),borderRadius:'2px',padding:'2px 6px',flexShrink:'0'}},[]);
+      tierLabel.textContent=isOnTrial?'TRIAL':'PERMANENT FREE';
       const infoDiv=div({style:{fontSize:'12px',color:'var(--muted)',marginTop:'4px'}});
-      infoDiv.textContent=(u.email||'—')+' · Joined: '+new Date(u.created_at).toLocaleDateString();
-      const actionsDiv=div({style:{display:'flex',gap:'8px',alignItems:'center'}});
+      infoDiv.textContent=(u.email||'—')+' · Joined: '+new Date(u.created_at).toLocaleDateString()+(isOnTrial?' · Trial expires: '+new Date(u.access_expires_at).toLocaleDateString():'');
+      const actionsDiv=div({style:{display:'flex',gap:'8px',alignItems:'center',flexWrap:'wrap'}});
       actionsDiv.append(
+        tierLabel,
         btn('Set Paid','btn-teal',async()=>{const exp=new Date();exp.setDate(exp.getDate()+30);await sb.from('profiles').update({is_free_tier:false,status:'approved',access_expires_at:exp.toISOString()}).eq('id',u.id);loadTab('users');},{style:{padding:'4px 12px',fontSize:'11px'}}),
         btn('Trial (3 days)','btn-outline',async()=>{const exp=new Date();exp.setDate(exp.getDate()+3);await sb.from('profiles').update({is_free_tier:true,status:'approved',access_expires_at:exp.toISOString()}).eq('id',u.id);loadTab('users');},{style:{padding:'4px 12px',fontSize:'11px'}}),
         btn('Permanent Free','btn-outline',async()=>{await sb.from('profiles').update({is_free_tier:true,status:'approved',access_expires_at:'2020-01-01T00:00:00.000Z'}).eq('id',u.id);loadTab('users');},{style:{padding:'4px 12px',fontSize:'11px'}})
