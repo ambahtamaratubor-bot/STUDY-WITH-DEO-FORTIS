@@ -3931,11 +3931,14 @@ function switchSubTab(key){
           loadTab('users');
         },{style:{padding:'4px 12px',fontSize:'11px',color:'#ff4444',borderColor:'#ff4444'}}));
       }
-      actionsDiv.append(btn(isFree?'Set Paid':'Set Free',isFree?'btn-teal':'btn-outline',async()=>{
-        if(isFree){const exp=new Date();exp.setDate(exp.getDate()+30);await sb.from('profiles').update({is_free_tier:false,status:'approved',access_expires_at:exp.toISOString()}).eq('id',u.id);}
-        else{await sb.from('profiles').update({is_free_tier:true,status:'approved'}).eq('id',u.id);}
-        loadTab('users');
-      },{style:{padding:'4px 12px',fontSize:'11px'}}));
+      if(!isFree){
+        const trialBtn=btn('Trial (3 days)','btn-outline',async()=>{const exp=new Date();exp.setDate(exp.getDate()+3);await sb.from('profiles').update({is_free_tier:true,status:'approved',access_expires_at:exp.toISOString()}).eq('id',u.id);loadTab('users');},{style:{padding:'4px 12px',fontSize:'11px'}});
+        const permanentBtn=btn('Permanent Free','btn-outline',async()=>{await sb.from('profiles').update({is_free_tier:true,status:'approved',access_expires_at:'2020-01-01T00:00:00.000Z'}).eq('id',u.id);loadTab('users');},{style:{padding:'4px 12px',fontSize:'11px'}});
+        const convertRow=div({style:{display:'flex',gap:'8px'}},[trialBtn,permanentBtn]);
+        actionsDiv.append(convertRow);
+      }else{
+        actionsDiv.append(btn('Set Paid','btn-teal',async()=>{const exp=new Date();exp.setDate(exp.getDate()+30);await sb.from('profiles').update({is_free_tier:false,status:'approved',access_expires_at:exp.toISOString()}).eq('id',u.id);loadTab('users');},{style:{padding:'4px 12px',fontSize:'11px'}}));
+      }
       topRow.append(nameDiv,actionsDiv);
       const statsRow=div({style:{display:'flex',gap:'16px',fontSize:'12px',color:'var(--muted)',marginBottom:'8px',flexWrap:'wrap'}});
       const planLabel2=u.plan==='6 Months'?'6 Months':u.plan==='Yearly'?'1 Year':u.plan==='Monthly'?'1 Month':(u.plan||'No plan');
