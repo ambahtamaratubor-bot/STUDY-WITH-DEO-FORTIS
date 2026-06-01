@@ -3893,10 +3893,8 @@ function switchSubTab(key){
           await sb.from('profiles').update({access_expires_at:newExp.toISOString(),plan:planMap[extendSelect.value]||u.plan}).eq('id',u.id);
           loadTab('users');
         },{style:{padding:'4px 12px',fontSize:'11px'}}),
-        btn('Set Free','btn-outline',async()=>{
-          await sb.from('profiles').update({is_free_tier:true,status:'approved'}).eq('id',u.id);
-          loadTab('users');
-        },{style:{padding:'4px 12px',fontSize:'11px'}})
+        btn('Trial (3 days)','btn-outline',async()=>{const exp=new Date();exp.setDate(exp.getDate()+3);await sb.from('profiles').update({is_free_tier:true,status:'approved',access_expires_at:exp.toISOString()}).eq('id',u.id);loadTab('users');},{style:{padding:'4px 12px',fontSize:'11px'}}),
+        btn('Permanent Free','btn-outline',async()=>{await sb.from('profiles').update({is_free_tier:true,status:'approved',access_expires_at:'2020-01-01T00:00:00.000Z'}).eq('id',u.id);loadTab('users');},{style:{padding:'4px 12px',fontSize:'11px'}})
       );
       topRow.append(nameDiv);
       row.append(topRow,infoDiv,planBadge,actionsDiv);
@@ -3904,42 +3902,18 @@ function switchSubTab(key){
       const infoDiv=div({style:{fontSize:'12px',color:'var(--muted)',marginTop:'4px'}});
       infoDiv.textContent=(u.email||'—')+' · Joined: '+new Date(u.created_at).toLocaleDateString();
       const actionsDiv=div({style:{display:'flex',gap:'8px',alignItems:'center'}});
-      actionsDiv.append(btn('Set Paid','btn-teal',async()=>{
-        const exp=new Date();exp.setDate(exp.getDate()+30);
-        await sb.from('profiles').update({is_free_tier:false,status:'approved',access_expires_at:exp.toISOString()}).eq('id',u.id);
-        loadTab('users');
-      },{style:{padding:'4px 12px',fontSize:'11px'}}));
+      actionsDiv.append(
+        btn('Set Paid','btn-teal',async()=>{const exp=new Date();exp.setDate(exp.getDate()+30);await sb.from('profiles').update({is_free_tier:false,status:'approved',access_expires_at:exp.toISOString()}).eq('id',u.id);loadTab('users');},{style:{padding:'4px 12px',fontSize:'11px'}}),
+        btn('Trial (3 days)','btn-outline',async()=>{const exp=new Date();exp.setDate(exp.getDate()+3);await sb.from('profiles').update({is_free_tier:true,status:'approved',access_expires_at:exp.toISOString()}).eq('id',u.id);loadTab('users');},{style:{padding:'4px 12px',fontSize:'11px'}}),
+        btn('Permanent Free','btn-outline',async()=>{await sb.from('profiles').update({is_free_tier:true,status:'approved',access_expires_at:'2020-01-01T00:00:00.000Z'}).eq('id',u.id);loadTab('users');},{style:{padding:'4px 12px',fontSize:'11px'}})
+      );
       topRow.append(nameDiv,actionsDiv);
       row.append(topRow,infoDiv);
     }else{
       const isFree=u.is_free_tier===true;
-      const statusBadge=h('span',{style:{fontSize:'10px',textTransform:'uppercase',letterSpacing:'1px',color:u.status==='approved'?'var(--teal)':'var(--gold)',marginRight:'8px'}},[]);
-      statusBadge.textContent=u.status||'pending';
       const tierBadge=h('span',{style:{fontSize:'10px',textTransform:'uppercase',letterSpacing:'1px',color:isFree?'var(--dim)':'var(--gold)'}},[]);
       tierBadge.textContent=isFree?'FREE':'PAID';
-      const actionsDiv=div({style:{display:'flex',gap:'8px',alignItems:'center',flexWrap:'wrap'}});
-      actionsDiv.append(statusBadge,tierBadge);
-      if(u.status!=='approved'){
-        actionsDiv.append(btn('Approve','btn-teal',async()=>{
-          const exp=new Date();exp.setDate(exp.getDate()+30);
-          await sb.from('profiles').update({status:'approved',is_free_tier:false,access_expires_at:exp.toISOString()}).eq('id',u.id);
-          loadTab('users');
-        },{style:{padding:'4px 12px',fontSize:'11px'}}));
-        actionsDiv.append(btn('Decline','btn-outline',async()=>{
-          if(!confirm('Delete this user permanently?'))return;
-          await sb.from('profiles').delete().eq('id',u.id);
-          loadTab('users');
-        },{style:{padding:'4px 12px',fontSize:'11px',color:'#ff4444',borderColor:'#ff4444'}}));
-      }
-      if(!isFree){
-        const trialBtn=btn('Trial (3 days)','btn-outline',async()=>{const exp=new Date();exp.setDate(exp.getDate()+3);await sb.from('profiles').update({is_free_tier:true,status:'approved',access_expires_at:exp.toISOString()}).eq('id',u.id);loadTab('users');},{style:{padding:'4px 12px',fontSize:'11px'}});
-        const permanentBtn=btn('Permanent Free','btn-outline',async()=>{await sb.from('profiles').update({is_free_tier:true,status:'approved',access_expires_at:'2020-01-01T00:00:00.000Z'}).eq('id',u.id);loadTab('users');},{style:{padding:'4px 12px',fontSize:'11px'}});
-        const convertRow=div({style:{display:'flex',gap:'8px'}},[trialBtn,permanentBtn]);
-        actionsDiv.append(convertRow);
-      }else{
-        actionsDiv.append(btn('Set Paid','btn-teal',async()=>{const exp=new Date();exp.setDate(exp.getDate()+30);await sb.from('profiles').update({is_free_tier:false,status:'approved',access_expires_at:exp.toISOString()}).eq('id',u.id);loadTab('users');},{style:{padding:'4px 12px',fontSize:'11px'}}));
-      }
-      topRow.append(nameDiv,actionsDiv);
+      topRow.append(nameDiv,tierBadge);
       const statsRow=div({style:{display:'flex',gap:'16px',fontSize:'12px',color:'var(--muted)',marginBottom:'8px',flexWrap:'wrap'}});
       const planLabel2=u.plan==='6 Months'?'6 Months':u.plan==='Yearly'?'1 Year':u.plan==='Monthly'?'1 Month':(u.plan||'No plan');
       const emailPlanEl=h('span',{},[]);emailPlanEl.textContent=(u.email||'—')+' · '+planLabel2;
