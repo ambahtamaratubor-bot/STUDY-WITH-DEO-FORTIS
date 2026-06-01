@@ -2928,7 +2928,7 @@ async function updateCount(){
     else if(qFilter==='correct'){progressIds=pfRows.filter(function(r){return r.answered_correctly===true;}).map(function(r){return r.question_id;});}
     else if(qFilter==='incorrect'){progressIds=pfRows.filter(function(r){return r.answered_correctly===false;}).map(function(r){return r.question_id;});}
   }
-  let q=isFree?sb.from('vignette_questions').select('id').in('topic',selectedTopics).eq('is_global',true):sb.from('vignette_questions').select('id').in('topic',selectedTopics).or('user_id.eq.'+S.user.id+',user_id.is.null');
+  let q=isFree?sb.from('vignette_questions').select('id').in('topic',selectedTopics).or('is_global.eq.true,user_id.eq.'+S.user.id):sb.from('vignette_questions').select('id').in('topic',selectedTopics).or('user_id.eq.'+S.user.id+',user_id.is.null');
   if(selectedSubsections.length)q=q.in('subsection',selectedSubsections);
   if(qFilter==='unused'){
     var{data:allQs}=await q;
@@ -2938,7 +2938,7 @@ async function updateCount(){
     qCountI.value=unseenIds.length;qCountI.max=unseenIds.length;
     return;
   }
-  var qCount=isFree?sb.from('vignette_questions').select('*',{count:'exact',head:true}).in('topic',selectedTopics).eq('is_global',true):sb.from('vignette_questions').select('*',{count:'exact',head:true}).in('topic',selectedTopics).or('user_id.eq.'+S.user.id+',user_id.is.null');
+  var qCount=isFree?sb.from('vignette_questions').select('*',{count:'exact',head:true}).in('topic',selectedTopics).or('is_global.eq.true,user_id.eq.'+S.user.id):sb.from('vignette_questions').select('*',{count:'exact',head:true}).in('topic',selectedTopics).or('user_id.eq.'+S.user.id+',user_id.is.null');
   if(selectedSubsections.length)qCount=qCount.in('subsection',selectedSubsections);
   if((qFilter==='correct'||qFilter==='incorrect')&&progressIds.length)qCount=qCount.in('id',progressIds);
   else if((qFilter==='correct'||qFilter==='incorrect')&&!progressIds.length){countDisplay.textContent='0 questions available';qCountI.value=0;qCountI.max=0;return;}
@@ -2994,7 +2994,7 @@ if(S.profile?.is_free_tier){
   return;
 }
 const desiredCount=parseInt(qCountI.value)||40;
-let qQuery=isFree?sb.from('vignette_questions').select('*').eq('is_global',true).in('topic',selectedTopics):sb.from('vignette_questions').select('*').in('topic',selectedTopics).or('user_id.eq.'+S.user.id+',user_id.is.null');
+let qQuery=isFree?sb.from('vignette_questions').select('*').or('is_global.eq.true,user_id.eq.'+S.user.id).in('topic',selectedTopics):sb.from('vignette_questions').select('*').in('topic',selectedTopics).or('user_id.eq.'+S.user.id+',user_id.is.null');
 if(selectedSubsections&&selectedSubsections.length)qQuery=qQuery.in('subsection',selectedSubsections);
 if(qFilter!=='all'){
   var{data:pfRows2}=await sb.from('question_progress').select('question_id,answered_correctly').eq('user_id',S.user.id);
