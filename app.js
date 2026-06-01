@@ -3988,7 +3988,7 @@ card.append(dg);
 if(r.details)card.append(div({style:{background:'var(--bg)',border:'1px solid var(--border)',borderRadius:'2px',padding:'12px',marginBottom:'12px'}},[div({cls:'mono',style:{marginBottom:'4px'},html:'Notes'}),h('p',{style:{fontSize:'13px',color:'var(--muted)'},html:r.details})]));
 if(r.attachment_data){const bytes=atob(r.attachment_data);const arr=new Uint8Array(bytes.length);for(let i=0;i<bytes.length;i++)arr[i]=bytes.charCodeAt(i);const mime=r.attachment_name&&r.attachment_name.endsWith('.pdf')?'application/pdf':r.attachment_name&&(r.attachment_name.endsWith('.png')||r.attachment_name.endsWith('.jpg')||r.attachment_name.endsWith('.jpeg'))?'image/'+r.attachment_name.split('.').pop():'application/octet-stream';const blob=new Blob([arr],{type:mime});const blobUrl=URL.createObjectURL(blob);const attachLink=h('a',{style:{fontSize:'12px',color:'var(--teal)',display:'block',marginBottom:'8px'}},['View Attachment: '+(r.attachment_name||'file')]);attachLink.href=blobUrl;attachLink.target='_blank';card.append(attachLink);}
 const br2=div({style:{display:'flex',gap:'12px'}});
-async function handleUpload(file,isCsv){
+const handleUpload=async function(file,isCsv){
 upSt.style.display='block';upSt.textContent='Uploading...';
 const text=await file.text();
 if(isCsv){
