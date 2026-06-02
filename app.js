@@ -2809,12 +2809,13 @@ let questions=[],current=0,answers={},submitted=false,revealed={},ruledOut={},hi
 let activeHighlightBtn=null;
 const inner=div({cls:'inner-sm'});page.append(inner);
 async function showSetup(){
+if(isFree&&!isInTrial()){inner.innerHTML='';inner.append(div({cls:'card',style:{textAlign:'center',padding:'48px 32px'}},[ h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'20px',color:'var(--gold)',marginBottom:'12px'}},['Q-Bank Locked']), h('p',{style:{fontFamily:'Inter,sans-serif',fontSize:'13px',color:'var(--dim)',marginBottom:'24px',lineHeight:'1.6'}},['Your free trial has ended. Upgrade to unlock the full question bank.']), btn('⬆ Upgrade Now','btn-gold',()=>showUpgradeModal(),{style:{padding:'10px 28px'}}) ]));return;}
 inner.innerHTML='';
 const savedQuiz=sessionStorage.getItem('vignette_resume');
 if(savedQuiz){(()=>{const state=JSON.parse(savedQuiz);if(mode==='timed'&&state.timeLeft<=0){sessionStorage.removeItem('vignette_resume');}else{const banner=div({cls:'card',style:{marginBottom:'24px',padding:'16px',border:'1px solid var(--gold)',background:'rgba(200,169,110,0.08)'}},[ h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'11px',color:'var(--gold)',marginBottom:'12px'}},['⏸ Quiz in progress — '+state.selTopic+' · '+Object.keys(state.answers).length+' of '+state.questions.length+' answered']), div({style:{display:'flex',gap:'10px'}},[ btn('Resume','btn-gold',()=>{questions=state.questions;current=state.current;answers=state.answers;selTopic=state.selTopic;mode=state.mode;timeLimit=state.timeLimit;timeLeft=state.timeLeft||0;submitted=false;revealed={};showQuiz();},{style:{padding:'6px 16px',fontSize:'11px'}}), btn('Discard','btn-outline',()=>{sessionStorage.removeItem('vignette_resume');showSetup();},{style:{padding:'6px 16px',fontSize:'11px'}}) ]) ]);inner.append(banner);}})();}
 inner.append(h('span',{cls:'chapter',html:'Question Bank'}),h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'26px',marginBottom:'24px'},html:'Configure Your Quiz'}));
 var mapletQ=showMaplet('qbank','Attempt vignette questions one at a time. Use the highlighter, rule out options, and review your explanation after each answer.');if(mapletQ)inner.append(mapletQ);
-const{data}=await (isFree?sb.from('vignette_questions').select('topic').or('is_global.eq.true,user_id.eq.'+S.user.id):sb.from('vignette_questions').select('topic').or('is_global.eq.true,user_id.is.null,user_id.eq.'+S.user.id));
+const{data}=await sb.from('vignette_questions').select('topic').or('user_id.is.null,user_id.eq.'+S.user.id);
 const topics=data?[...new Set(data.map(d=>d.topic))]:[];
 if(!topics.length){inner.append(div({cls:'card',style:{textAlign:'center',padding:'48px'}},[h('p',{style:{fontSize:'14px',color:'var(--dim)'},html:'No questions available yet.'})]));return;}
 const{data:personalQ}=await sb.from('vignette_questions').select('topic').eq('user_id',S.user.id).eq('is_global',false);
@@ -2888,7 +2889,7 @@ const subsFilterWrap=div({style:{marginBottom:'16px',display:'none'}},[h('label'
 inner.append(subsFilterWrap);
 async function updateSubsectionUI(){
   if(!selectedTopics.length){subsFilterWrap.style.display='none';selectedSubsections=[];return;}
-  const{data:subs}=await (isFree?sb.from('vignette_questions').select('topic,subsection').in('topic',selectedTopics).or('is_global.eq.true,user_id.eq.'+S.user.id).not('subsection','is',null):sb.from('vignette_questions').select('topic,subsection').in('topic',selectedTopics).or('is_global.eq.true,user_id.is.null,user_id.eq.'+S.user.id).not('subsection','is',null));
+  const{data:subs}=await sb.from('vignette_questions').select('topic,subsection').in('topic',selectedTopics).or('user_id.is.null,user_id.eq.'+S.user.id).not('subsection','is',null);
   var rows=subs||[];
   // Build topic→subsections map preserving topic order
   var groupOrder=[];var groups={};
@@ -2927,7 +2928,7 @@ async function updateCount(){
     else if(qFilter==='correct'){progressIds=pfRows.filter(function(r){return r.answered_correctly===true;}).map(function(r){return r.question_id;});}
     else if(qFilter==='incorrect'){progressIds=pfRows.filter(function(r){return r.answered_correctly===false;}).map(function(r){return r.question_id;});}
   }
-  let q=isFree?sb.from('vignette_questions').select('id').in('topic',selectedTopics).or('is_global.eq.true,user_id.eq.'+S.user.id):sb.from('vignette_questions').select('id').in('topic',selectedTopics).or('is_global.eq.true,user_id.is.null,user_id.eq.'+S.user.id);
+  let q=sb.from('vignette_questions').select('id').in('topic',selectedTopics).or('user_id.is.null,user_id.eq.'+S.user.id);
   if(selectedSubsections.length)q=q.in('subsection',selectedSubsections);
   if(qFilter==='unused'){
     var{data:allQs}=await q;
@@ -2937,7 +2938,7 @@ async function updateCount(){
     qCountI.value=unseenIds.length;qCountI.max=unseenIds.length;
     return;
   }
-  var qCount=isFree?sb.from('vignette_questions').select('*',{count:'exact',head:true}).in('topic',selectedTopics).or('is_global.eq.true,user_id.eq.'+S.user.id):sb.from('vignette_questions').select('*',{count:'exact',head:true}).in('topic',selectedTopics).or('is_global.eq.true,user_id.is.null,user_id.eq.'+S.user.id);
+  var qCount=sb.from('vignette_questions').select('*',{count:'exact',head:true}).in('topic',selectedTopics).or('user_id.is.null,user_id.eq.'+S.user.id);
   if(selectedSubsections.length)qCount=qCount.in('subsection',selectedSubsections);
   if((qFilter==='correct'||qFilter==='incorrect')&&progressIds.length)qCount=qCount.in('id',progressIds);
   else if((qFilter==='correct'||qFilter==='incorrect')&&!progressIds.length){countDisplay.textContent='0 questions available';qCountI.value=0;qCountI.max=0;return;}
@@ -2993,7 +2994,7 @@ if(S.profile?.is_free_tier){
   return;
 }
 const desiredCount=parseInt(qCountI.value)||40;
-let qQuery=isFree?sb.from('vignette_questions').select('*').or('is_global.eq.true,user_id.eq.'+S.user.id).in('topic',selectedTopics):sb.from('vignette_questions').select('*').in('topic',selectedTopics).or('is_global.eq.true,user_id.is.null,user_id.eq.'+S.user.id);
+let qQuery=sb.from('vignette_questions').select('*').in('topic',selectedTopics).or('user_id.is.null,user_id.eq.'+S.user.id);
 if(selectedSubsections&&selectedSubsections.length)qQuery=qQuery.in('subsection',selectedSubsections);
 if(qFilter!=='all'){
   var{data:pfRows2}=await sb.from('question_progress').select('question_id,answered_correctly').eq('user_id',S.user.id);
