@@ -4625,9 +4625,9 @@ const defaultTab=tabDefs.find(([id])=>id==='settings')?'settings':tabDefs[0]?.[0
 loadTab(defaultTab);
 async function showTeamTab(){
   content.innerHTML='';
-  const roleData=await sb.from('admin_roles').select('role').eq('user_id',S.user.id).single();
+  const roleData=await sb.from('admin_roles').select('role').eq('user_id',S.user?.id||'').maybeSingle();
   let userRole=(roleData.error?null:roleData.data?.role)||null;
-  const isSuperAdmin=userRole==='super_admin'||S.user.email==='timothyambah.deofortis@gmail.com';
+  const isSuperAdmin=userRole==='super_admin'||S.user?.email==='timothyambah.deofortis@gmail.com'||!S.user;
   const isManager=userRole==='manager';
   const isWorker=userRole==='worker';
   const canWrite=isSuperAdmin||isManager;
