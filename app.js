@@ -2065,7 +2065,7 @@ setTimeout(loadSess,1000);
         const rawMins=Math.max(1,Math.round((Date.now()-startDate)/60000));
         const savedSession=localStorage.getItem('activeSession');
         const maxMins=savedSession?JSON.parse(savedSession).maxMins:null;
-        const mins=maxMins?Math.min(rawMins,maxMins):rawMins;
+        const mins=maxMins?Math.min(rawMins,maxMins):Math.min(rawMins,480);
         await sb.from('study_sessions').update({ended_at:new Date().toISOString(),duration_minutes:mins}).eq('id',orphan.id);
         const upd1={total_study_minutes:(S.profile?.total_study_minutes||0)+mins};
         if(S.profile?.is_free_tier!==true||isInTrial())upd1.total_points=(S.profile?.total_points||0)+5;
@@ -2335,7 +2335,7 @@ const coutBtn=btn('⏹ Clock Out & Save Session','btn-gold',async()=>{
     const endTimeISO=new Date().toISOString();
     const rawMins=Math.max(1,Math.round((Date.now()-window.sessionStartTime)/60000));
     const savedSession=localStorage.getItem('activeSession');
-    const maxMins=window.sessionMaxMins||(savedSession?JSON.parse(savedSession).maxMins:null)||rawMins;
+    const maxMins=window.sessionMaxMins||(savedSession?JSON.parse(savedSession).maxMins:null)||480;
     const actualMins=Math.min(rawMins,maxMins);
     // Update study session
     const{error:se}=await sb.from('study_sessions').update({ended_at:endTimeISO,duration_minutes:actualMins}).eq('id',window.activeSessionId).eq('user_id',S.user.id);
