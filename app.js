@@ -4848,14 +4848,38 @@ async function showTeamTab(){
             if(!name||!email||!password||password.length<6){errMsg.classList.remove('hidden');errMsg.textContent='All fields required, password min 6 chars.';return;}
             statusMsg.style.display='block';statusMsg.textContent='Creating account...';statusMsg.style.color='var(--dim)';
             try{
+              let userId=null;
+              // Try to create new auth user
               const createRes=await fetch(SUPABASE_URL+'/auth/v1/admin/users',{method:'POST',headers:{'Content-Type':'application/json','apikey':SERVICE_KEY,'Authorization':'Bearer '+SERVICE_KEY},body:JSON.stringify({email,password,email_confirm:true})});
               const newUser=await createRes.json();
-              if(!createRes.ok)throw new Error(newUser.message||'Auth user creation failed');
-              const{error:profError}=await sb.from('profiles').insert({id:newUser.id,full_name:name,email,status:'approved',is_free_tier:false});
-              if(profError)throw new Error('Profile: '+profError.message);
-              const{error:roleError}=await sb.from('admin_roles').insert({user_id:newUser.id,role});
-              if(roleError)throw new Error('Role: '+roleError.message);
-              statusMsg.textContent='✓ Created! Email: '+email+' | Password: '+password;statusMsg.style.color='var(--teal)';
+              if(createRes.ok){
+                // New user created
+                userId=newUser.id;
+                // Insert profile if not exists
+                const{data:existingProf}=await sb.from('profiles').select('id').eq('id',userId).single();
+                if(!existingProf){
+                  const{error:profError}=await sb.from('profiles').insert({id:userId,full_name:name,email,status:'approved',is_free_tier:false});
+                  if(profError)throw new Error('Profile: '+profError.message);
+                }
+              }else if(createRes.status===422){
+                // User already exists in auth — look them up by email in profiles
+                statusMsg.textContent='Account exists, adding team role...';
+                const{data:existingProf}=await sb.from('profiles').select('id').eq('email',email).single();
+                if(!existingProf)throw new Error('User exists in auth but not in profiles. Ask them to sign up on the platform first.');
+                userId=existingProf.id;
+              }else{
+                throw new Error(newUser.message||'Auth user creation failed');
+              }
+              // Check not already in admin_roles
+              const{data:existingRole}=await sb.from('admin_roles').select('id').eq('user_id',userId).single();
+              if(existingRole){
+                // Just update their role
+                await sb.from('admin_roles').update({role}).eq('user_id',userId);
+              }else{
+                const{error:roleError}=await sb.from('admin_roles').insert({user_id:userId,role});
+                if(roleError)throw new Error('Role: '+roleError.message);
+              }
+              statusMsg.textContent='✓ Done! Email: '+email+(createRes.ok?' | Password: '+password:' (existing account)');statusMsg.style.color='var(--teal)';
               setTimeout(()=>{closeOverlay();loadSubTab('teamAdmin');},2500);
             }catch(err){statusMsg.textContent='Error: '+err.message;statusMsg.style.color='#ff4444';}
           };
