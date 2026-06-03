@@ -4536,7 +4536,6 @@ emojiSection.append(emojiList);
 content.append(emojiSection);
 await loadEmojiDecks();
 }
-}
 if(tab==='riddles'){
 content.innerHTML='';
 var rCard=div({cls:'card fade'});
@@ -4568,6 +4567,7 @@ subCard.append(actions);rCard.append(subCard);
 });
 content.append(rCard);
 })();
+}
 }
 if(tab==='team'){
 await showTeamTab();
