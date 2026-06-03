@@ -3659,8 +3659,37 @@ const pI=inp('Enter admin password','password');
 const eEl=div({cls:'err hidden'});
 const entBtn=btn('Enter','btn-gold',()=>{if(pI.value===PASS){authed=true;showAdminPanel();}else{eEl.classList.remove('hidden');eEl.textContent='Incorrect password.';}},{style:{width:'100%',marginBottom:'16px'}});
 pI.onkeydown=e=>{if(e.key==='Enter')entBtn.click();};
+const tmCard=div({cls:'card fade',style:{maxWidth:'360px',width:'100%',marginTop:'16px'}});
+const tmEmail=inp('Team member email','text');
+const tmPass=inp('Password','password');
+const tmErr=div({cls:'err hidden'});
+const tmBtn=btn('Team Login','btn-teal',async()=>{
+  const email=tmEmail.value.trim().toLowerCase();
+  const password=tmPass.value;
+  if(!email||!password){tmErr.classList.remove('hidden');tmErr.textContent='Enter email and password.';return;}
+  tmBtn.disabled=true;tmBtn.textContent='Signing in...';
+  const{data,error}=await sb.auth.signInWithPassword({email,password});
+  if(error){tmErr.classList.remove('hidden');tmErr.textContent='Invalid email or password.';tmBtn.disabled=false;tmBtn.textContent='Team Login';return;}
+  const{data:roleData}=await sb.from('admin_roles').select('role').eq('user_id',data.user.id).single();
+  if(!roleData){tmErr.classList.remove('hidden');tmErr.textContent='You do not have team access.';tmBtn.disabled=false;tmBtn.textContent='Team Login';await sb.auth.signOut();return;}
+  S.user=data.user;
+  const{data:teamProfile}=await sb.from('profiles').select('*').eq('id',data.user.id).single();
+  S.profile=teamProfile||{};
+  authed=true;
+  showAdminPanel();
+},{style:{width:'100%',marginTop:'8px'}});
+tmPass.onkeydown=e=>{if(e.key==='Enter')tmBtn.click();};
+tmCard.append(
+  h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'18px',marginBottom:'16px',color:'var(--text)'},html:'Team Member Login'}),
+  tmErr,
+  h('label',{cls:'label',html:'Email'}),tmEmail,
+  h('br'),
+  h('label',{cls:'label',html:'Password'}),tmPass,
+  h('br'),
+  tmBtn
+);
 card.append(div({style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontStyle:'italic',fontSize:'22px',color:'var(--gold)',marginBottom:'4px'},html:'Deo Fortis'}),h('hr',{style:{border:'none',borderTop:'1px solid var(--border)',margin:'16px 0'}}),h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'22px',marginBottom:'16px'},html:'Admin Access'}),eEl,h('label',{cls:'label',html:'Password'}),pI,h('br'),entBtn,h('p',{style:{fontSize:'12px',color:'var(--dim)',textAlign:'center'},html:'<button onclick="go(\'landing\')" style="background:none;border:none;color:var(--dim);cursor:pointer;font-size:12px">← Back to site</button>'}));
-wrap.append(card);page.append(wrap);
+wrap.append(card,tmCard);page.append(wrap);
 }
 async function showAdminPanel(){
 page.innerHTML='';
@@ -3671,6 +3700,24 @@ const tabs=div({style:{display:'none'}});
 const content=div({cls:'inner-md',style:{padding:'24px'}});
 let curTab='settings';
 const tabDefs=[['settings','⚙ Settings'],['users','Users'],['recalls','Recalls'],['flashcards','Flashcards'],['questions','Q-Bank'],['testimonials','Reviews'],['packages','Packages'],['bookings','Bookings'],['feynman','Feynman'],['riddles','Riddles'],['team','Team']];
+// role-based tab filtering for team members
+let panelTeamRole=null;
+let panelIsSuperAdmin=false;
+try{
+  const{data:panelRoleRow}=await sb.from('admin_roles').select('role').eq('user_id',S.user?.id||'').maybeSingle();
+  panelTeamRole=panelRoleRow?.role||null;
+  panelIsSuperAdmin=S.user?.email==='timothyambah.deofortis@gmail.com'||panelTeamRole==='super_admin';
+}catch(e){
+  panelTeamRole=null;
+  panelIsSuperAdmin=S.user?.email==='timothyambah.deofortis@gmail.com';
+}
+if(!panelIsSuperAdmin&&!panelTeamRole){panelIsSuperAdmin=true;}// password login fallback
+if(panelTeamRole&&!panelIsSuperAdmin){
+  const workerTabs=['recalls','feynman','riddles','team'];
+  const managerTabs=['settings','recalls','flashcards','questions','testimonials','packages','bookings','feynman','riddles','team'];
+  const allowed=panelTeamRole==='manager'?managerTabs:workerTabs;
+  tabDefs.splice(0,tabDefs.length,...tabDefs.filter(([id])=>allowed.includes(id)));
+}
 tabDefs.forEach(([id,label])=>{
 const tb=h('button',{cls:'tab-btn'+(id===curTab?' active':''),html:label});
 tb.onclick=()=>{curTab=id;loadTab(id);};
@@ -4294,6 +4341,7 @@ else{const pendingCard=div({cls:'card',style:{marginBottom:'24px'}});pendingCard
 content.append(pendingSection);
 content.innerHTML='';
 content.append(pendingSection);
+const addCard=div({cls:'card',style:{marginBottom:'24px'}});
 addCard.append(h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'22px',marginBottom:'20px'},html:'Add Testimonial'}));
 const nI=inp('e.g. Sarah K.');const tI=inp('e.g. USMLE Step 1 Student');
 const cI=h('textarea',{cls:'input',placeholder:"What did they say?",style:{minHeight:'100px',resize:'vertical',marginBottom:'20px'}});
@@ -4568,12 +4616,13 @@ subCard.append(actions);rCard.append(subCard);
 content.append(rCard);
 })();
 }
-}
 if(tab==='team'){
 await showTeamTab();
 return;
 }
-loadTab('settings');
+}
+const defaultTab=tabDefs.find(([id])=>id==='settings')?'settings':tabDefs[0]?.[0]||'recalls';
+loadTab(defaultTab);
 async function showTeamTab(){
   content.innerHTML='';
   const roleData=await sb.from('admin_roles').select('role').eq('user_id',S.user.id).single();
@@ -4725,6 +4774,8 @@ async function showTeamTab(){
       if(!canWrite&&onDutyWorkers.size===0)subContent.append(h('p',{style:{fontSize:'12px',color:'var(--dim)',marginTop:'16px',textAlign:'center'}},[document.createTextNode('No schedule set for your current shift. Contact a manager.')]));
     }
     else if(sub==='teamAdmin'){
+      const SUPABASE_URL='https://yygjkqkzbdjnyyrrhdku.supabase.co';
+      const SERVICE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl5Z2prcWt6YmRqbnl5cnJoZGt1Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3ODAyODI1NywiZXhwIjoyMDkzNjA0MjU3fQ.h5cvqyOJiDgL500Lsj-3V7Bj5zQ749m8sR94dlxowe8';
       if(!isSuperAdmin&&!isManager){subContent.append(div({cls:'card',style:{textAlign:'center',padding:'40px'}},[h('p',{style:{fontSize:'14px',color:'var(--dim)'}},[document.createTextNode('Access restricted to Super Admins and Managers.')])]));return;}
       const{data:admins}=await sb.from('admin_roles').select('*,profiles(full_name,email)').order('created_at');
       const listDiv=div({style:{display:'flex',flexDirection:'column',gap:'12px',marginBottom:'24px'}});
@@ -4732,53 +4783,98 @@ async function showTeamTab(){
         const row=div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'12px',background:'var(--card2)',border:'1px solid var(--border)',borderRadius:'4px'}});
         const info=div({});
         info.append(h('div',{style:{fontWeight:'bold'}},[document.createTextNode(admin.profiles?.full_name||admin.profiles?.email||'Unknown')]));
-        info.append(h('div',{style:{fontSize:'11px',color:'var(--dim)'}},[document.createTextNode('Role: '+admin.role)]));
+        info.append(h('div',{style:{fontSize:'11px',color:'var(--dim)'}},[document.createTextNode('Role: '+admin.role+' · '+(admin.profiles?.email||''))]));
         row.append(info);
-        const actions=div({style:{display:'flex',gap:'8px'}});
+        const actions=div({style:{display:'flex',gap:'8px',flexWrap:'wrap'}});
         if(isSuperAdmin){
           const roleSel=h('select',{style:{padding:'4px',fontSize:'11px',background:'var(--bg)',border:'1px solid var(--border)',borderRadius:'2px'}});
           ['worker','manager','super_admin'].forEach(r=>{const opt=h('option',{value:r},[document.createTextNode(r)]);roleSel.append(opt);});
           roleSel.value=admin.role;
           const updateBtn=btn('Update','btn-outline',async()=>{await sb.from('admin_roles').update({role:roleSel.value}).eq('id',admin.id);loadSubTab('teamAdmin');},{style:{fontSize:'10px',padding:'4px 10px'}});
           actions.append(roleSel,updateBtn);
-          const removeBtn=btn('Remove','btn-outline',async()=>{
-            if(admin.user_id===S.user.id){
-              const errMsg=div({style:{fontSize:'11px',color:'#ff4444',marginTop:'8px'}},[document.createTextNode('Cannot remove yourself.')]);
-              row.append(errMsg);
-              setTimeout(()=>errMsg.style.display='none',2000);
-              return;
-            }
+          // Reset password inline
+          const resetRow=div({style:{display:'none',marginTop:'8px',gap:'8px',alignItems:'center'}});
+          const resetInp=inp('New password (min 6 chars)','password','');
+          resetInp.style.fontSize='11px';resetInp.style.padding='4px 8px';resetInp.style.marginBottom='0';
+          const resetMsg=div({style:{fontSize:'10px',display:'none'}});
+          const confirmReset=btn('Set','btn-teal',async()=>{
+            if(resetInp.value.length<6){resetMsg.style.display='block';resetMsg.style.color='#ff4444';resetMsg.textContent='Min 6 chars.';return;}
+            confirmReset.disabled=true;confirmReset.textContent='Saving...';
+            const res=await fetch(SUPABASE_URL+'/auth/v1/admin/users/'+admin.user_id,{method:'PATCH',headers:{'Content-Type':'application/json','apikey':SERVICE_KEY,'Authorization':'Bearer '+SERVICE_KEY},body:JSON.stringify({password:resetInp.value})});
+            if(res.ok){resetMsg.style.display='block';resetMsg.style.color='var(--teal)';resetMsg.textContent='✓ Password updated.';resetInp.value='';setTimeout(()=>{resetRow.style.display='none';resetMsg.style.display='none';},2000);}
+            else{resetMsg.style.display='block';resetMsg.style.color='#ff4444';resetMsg.textContent='Reset failed.';}
+            confirmReset.disabled=false;confirmReset.textContent='Set';
+          },{style:{fontSize:'10px',padding:'4px 10px'}});
+          const cancelReset=btn('Cancel','btn-outline',()=>{resetRow.style.display='none';},{style:{fontSize:'10px',padding:'4px 10px'}});
+          resetRow.append(resetInp,confirmReset,cancelReset,resetMsg);
+          const resetBtn=btn('Reset Pass','btn-outline',()=>{resetRow.style.display=resetRow.style.display==='none'?'flex':'none';},{style:{fontSize:'10px',padding:'4px 10px'}});
+          actions.append(resetBtn);
+          // Delete inline
+          const delConfirmRow=div({style:{display:'none',marginTop:'8px',gap:'8px',alignItems:'center'}});
+          const delMsg=div({style:{fontSize:'11px',color:'#ff4444'}},[document.createTextNode('Delete this account permanently?')]);
+          const delMsg2=div({style:{fontSize:'10px',display:'none'}});
+          const confirmDel=btn('Yes, Delete','btn-outline',async()=>{
+            if(admin.user_id===S.user.id){delMsg2.style.display='block';delMsg2.style.color='#ff4444';delMsg2.textContent='Cannot delete yourself.';return;}
+            confirmDel.disabled=true;confirmDel.textContent='Deleting...';
             await sb.from('admin_roles').delete().eq('id',admin.id);
-            loadSubTab('teamAdmin');
+            const res=await fetch(SUPABASE_URL+'/auth/v1/admin/users/'+admin.user_id,{method:'DELETE',headers:{'apikey':SERVICE_KEY,'Authorization':'Bearer '+SERVICE_KEY}});
+            if(res.ok){loadSubTab('teamAdmin');}
+            else{delMsg2.style.display='block';delMsg2.style.color='#ff4444';delMsg2.textContent='Delete failed.';confirmDel.disabled=false;confirmDel.textContent='Yes, Delete';}
           },{style:{fontSize:'10px',padding:'4px 10px',color:'#ff4444',borderColor:'#ff4444'}});
-          actions.append(removeBtn);
-        }
-        row.append(actions);
+          const cancelDel=btn('Cancel','btn-outline',()=>{delConfirmRow.style.display='none';},{style:{fontSize:'10px',padding:'4px 10px'}});
+          delConfirmRow.append(delMsg,confirmDel,cancelDel,delMsg2);
+          const delBtn=btn('Delete','btn-outline',()=>{delConfirmRow.style.display=delConfirmRow.style.display==='none'?'flex':'none';},{style:{fontSize:'10px',padding:'4px 10px',color:'#ff4444',borderColor:'#ff4444'}});
+          actions.append(delBtn);
+          row.append(div({style:{width:'100%'}},[actions,resetRow,delConfirmRow]));
+        }else{row.append(actions);}
         listDiv.append(row);
       }
       subContent.append(listDiv);
       if(isSuperAdmin){
-        const addCard=div({cls:'card',style:{marginTop:'16px'}});
-        addCard.append(h('h3',{style:{fontSize:'16px',marginBottom:'12px'}},[document.createTextNode('Add Team Member')]));
-        const emailInput=h('input',{type:'text',placeholder:'Email address',cls:'input',style:{width:'100%',marginBottom:'12px'}});
-        const roleSel=h('select',{style:{padding:'8px',marginBottom:'12px',width:'100%',background:'var(--bg)',border:'1px solid var(--border)',borderRadius:'2px'}});
-        ['worker','manager'].forEach(r=>{const opt=h('option',{value:r},[document.createTextNode(r)]);roleSel.append(opt);});
-        const addMsg=div({style:{fontSize:'11px',display:'none'}});
-        const addBtn=btn('Add User','btn-gold',async()=>{
-          const email=emailInput.value.trim().toLowerCase();
-          if(!email){addMsg.style.display='block';addMsg.style.color='#ff4444';addMsg.innerHTML='Enter email address.';return;}
-          addMsg.style.display='block';addMsg.innerHTML='Checking...';addMsg.style.color='var(--dim)';
-          const{data:profile}=await sb.from('profiles').select('id').eq('email',email).single();
-          if(!profile){addMsg.innerHTML='User not found in profiles.';addMsg.style.color='#ff4444';return;}
-          const{data:existing}=await sb.from('admin_roles').select('id').eq('user_id',profile.id).single();
-          if(existing){addMsg.innerHTML='User already has an admin role.';addMsg.style.color='#ff4444';return;}
-          await sb.from('admin_roles').insert({user_id:profile.id,role:roleSel.value});
-          addMsg.innerHTML='✓ Added!';addMsg.style.color='var(--teal)';
-          emailInput.value='';
-          setTimeout(()=>loadSubTab('teamAdmin'),1000);
-        },{style:{marginTop:'8px',width:'100%'}});
-        addCard.append(emailInput,roleSel,addBtn,addMsg);
-        subContent.append(addCard);
+        const createBtn=btn('+ Create Admin','btn-gold',()=>{
+          const overlay=div({style:{position:'fixed',top:'0',left:'0',right:'0',bottom:'0',background:'rgba(0,0,0,0.85)',zIndex:'10001',display:'flex',alignItems:'center',justifyContent:'center',padding:'20px'}});
+          const modal=div({cls:'card',style:{maxWidth:'480px',width:'100%'}});
+          const nameInp=inp('Full Name','text','');
+          const emailInp=inp('Email','email','');
+          const roleSelect=h('select',{cls:'input',style:{marginBottom:'16px'}});
+          ['worker','manager'].forEach(r=>{const opt=h('option',{value:r},[document.createTextNode(r)]);roleSelect.append(opt);});
+          const passInp=inp('Password (min 6 chars)','password','');
+          const errMsg=div({cls:'err hidden',style:{marginBottom:'12px'}});
+          const statusMsg=div({style:{fontSize:'11px',display:'none',marginTop:'8px'}});
+          const closeOverlay=()=>{overlay.style.display='none';};
+          const createAccount=async()=>{
+            errMsg.classList.add('hidden');statusMsg.style.display='none';
+            const name=nameInp.value.trim();const email=emailInp.value.trim();const role=roleSelect.value;const password=passInp.value;
+            if(!name||!email||!password||password.length<6){errMsg.classList.remove('hidden');errMsg.textContent='All fields required, password min 6 chars.';return;}
+            statusMsg.style.display='block';statusMsg.textContent='Creating account...';statusMsg.style.color='var(--dim)';
+            try{
+              const createRes=await fetch(SUPABASE_URL+'/auth/v1/admin/users',{method:'POST',headers:{'Content-Type':'application/json','apikey':SERVICE_KEY,'Authorization':'Bearer '+SERVICE_KEY},body:JSON.stringify({email,password,email_confirm:true})});
+              const newUser=await createRes.json();
+              if(!createRes.ok)throw new Error(newUser.message||'Auth user creation failed');
+              const{error:profError}=await sb.from('profiles').insert({id:newUser.id,full_name:name,email,status:'approved',is_free_tier:false});
+              if(profError)throw new Error('Profile: '+profError.message);
+              const{error:roleError}=await sb.from('admin_roles').insert({user_id:newUser.id,role});
+              if(roleError)throw new Error('Role: '+roleError.message);
+              statusMsg.textContent='✓ Created! Email: '+email+' | Password: '+password;statusMsg.style.color='var(--teal)';
+              setTimeout(()=>{closeOverlay();loadSubTab('teamAdmin');},2500);
+            }catch(err){statusMsg.textContent='Error: '+err.message;statusMsg.style.color='#ff4444';}
+          };
+          modal.append(
+            h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'22px',marginBottom:'16px'},html:'Create Admin Account'}),
+            field('Full Name',nameInp),field('Email',emailInp),
+            h('label',{cls:'label',html:'Role'}),roleSelect,
+            field('Password',passInp),
+            errMsg,statusMsg,
+            div({style:{display:'flex',gap:'12px',marginTop:'16px'}},[
+              btn('Create Account','btn-gold',createAccount,{style:{flex:'1'}}),
+              btn('Cancel','btn-outline',closeOverlay,{style:{flex:'1'}})
+            ])
+          );
+          overlay.append(modal);
+          overlay.onclick=e=>{if(e.target===overlay)closeOverlay();};
+          document.body.append(overlay);
+        },{style:{marginBottom:'16px'}});
+        subContent.append(createBtn);
       }
     }
     else if(sub==='history'){
