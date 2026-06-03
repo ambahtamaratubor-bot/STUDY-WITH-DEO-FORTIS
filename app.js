@@ -4664,7 +4664,7 @@ async function showTeamTab(){
       const days=['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
       const slots=['7am-11am','11am-3pm','3pm-7pm','7pm-11pm'];
       const slotKeys=['7am','11am','3pm','7pm'];
-      const{data:workers}=await sb.from('admin_roles').select('user_id,profiles(full_name,email)').eq('role','worker');
+      const{data:workers}=await sb.from('admin_roles').select('user_id,profiles(full_name,email)').in('role',['worker','manager']);
       const workerMap={};
       (workers||[]).forEach(w=>{if(w.profiles)workerMap[w.user_id]=w.profiles.full_name||w.profiles.email;});
       if(Object.keys(workerMap).length===0){subContent.append(div({cls:'card',style:{textAlign:'center',padding:'40px'}},[h('p',{style:{fontSize:'14px',color:'var(--dim)'}},[document.createTextNode('No workers found. Add workers in the Team Admin tab first.')])]));return;}
@@ -4718,7 +4718,7 @@ async function showTeamTab(){
     }
     else if(sub==='routing'){
       const{data:recalls}=await sb.from('recall_requests').select('*').in('status',['pending','assigned']).order('created_at',{ascending:true});
-      const{data:workers}=await sb.from('admin_roles').select('user_id,profiles(full_name,email)').eq('role','worker');
+      const{data:workers}=await sb.from('admin_roles').select('user_id,profiles(full_name,email)').in('role',['worker','manager']);
       const workerMap={};
       (workers||[]).forEach(w=>{if(w.profiles)workerMap[w.user_id]=w.profiles.full_name||w.profiles.email;});
       const{data:assignments}=await sb.from('recall_assignments').select('recall_id,assigned_to');
