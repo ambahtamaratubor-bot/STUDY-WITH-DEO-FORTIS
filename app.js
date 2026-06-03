@@ -4674,23 +4674,55 @@ async function showTeamTab(){
       const table=div({style:{overflowX:'auto'}});
       const grid=div({style:{display:'grid',gridTemplateColumns:'100px repeat(7,1fr)',gap:'8px',minWidth:'700px'}});
       grid.append(div({style:{padding:'8px',fontWeight:'bold'}},[]));
-      days.forEach(d=>grid.append(div({style:{padding:'8px',fontWeight:'bold',textAlign:'center'}},[document.createTextNode(d)])));
-      const selects={};
+      days.forEach(d=>grid.append(div({style:{padding:'8px',fontWeight:'bold',textAlign:'center',fontSize:'11px'}},[document.createTextNode(d)])));
+      // scheduleMap now stores arrays: {day_slot: [worker_id, ...]}
+      const scheduleMapMulti={};
+      (existing||[]).forEach(s=>{
+        const key=`${s.day_of_week}_${s.slot}`;
+        if(!scheduleMapMulti[key])scheduleMapMulti[key]=[];
+        scheduleMapMulti[key].push(s.worker_id);
+      });
+      // cellAssignments tracks current state per cell
+      const cellAssignments={};
       slots.forEach((slot,i)=>{
         const slotKey=slotKeys[i];
-        grid.append(div({style:{padding:'8px',fontWeight:'bold'}},[document.createTextNode(slot)]));
+        grid.append(div({style:{padding:'8px',fontWeight:'bold',fontSize:'11px'}},[document.createTextNode(slot)]));
         days.forEach((_,d)=>{
           const cellKey=`${d}_${slotKey}`;
-          const sel=h('select',{style:{width:'100%',padding:'4px',fontSize:'11px',background:'var(--bg)',border:'1px solid var(--border)',borderRadius:'2px',color:'var(--text)'}});
-          const noneOpt=h('option',{value:''},[document.createTextNode('—')]);
-          sel.append(noneOpt);
+          cellAssignments[cellKey]=new Set(scheduleMapMulti[cellKey]||[]);
+          const cell=div({style:{padding:'4px',minHeight:'48px'}});
+          const pillsDiv=div({style:{display:'flex',flexDirection:'column',gap:'3px',marginBottom:'4px'}});
+          const addSel=h('select',{style:{width:'100%',padding:'3px',fontSize:'10px',background:'var(--bg)',border:'1px solid var(--border)',borderRadius:'2px',color:'var(--text)'}});
+          const renderPills=()=>{
+            pillsDiv.innerHTML='';
+            cellAssignments[cellKey].forEach(uid=>{
+              const name=workerMap[uid]||uid;
+              const pill=div({style:{display:'flex',alignItems:'center',justifyContent:'space-between',background:'rgba(201,150,58,0.1)',border:'1px solid rgba(201,150,58,0.3)',borderRadius:'3px',padding:'2px 5px',fontSize:'9px',color:'var(--gold)'}},[]);
+              pill.append(document.createTextNode(name.split(' ')[0]));
+              if(canWrite){
+                const x=h('span',{style:{cursor:'pointer',marginLeft:'4px',color:'var(--dim)',fontWeight:'bold'}},[document.createTextNode('×')]);
+                x.onclick=()=>{cellAssignments[cellKey].delete(uid);renderPills();};
+                pill.append(x);
+              }
+              pillsDiv.append(pill);
+            });
+          };
+          const noneOpt=h('option',{value:''},[document.createTextNode('+ Add')]);
+          addSel.append(noneOpt);
           Object.entries(workerMap).forEach(([uid,name])=>{
-            const opt=h('option',{value:uid},[document.createTextNode(name)]);
-            sel.append(opt);
+            const opt=h('option',{value:uid},[document.createTextNode(name.split(' ')[0])]);
+            addSel.append(opt);
           });
-          if(scheduleMap[cellKey])sel.value=scheduleMap[cellKey];
-          selects[cellKey]=sel;
-          grid.append(sel);
+          addSel.onchange=()=>{
+            if(!addSel.value)return;
+            cellAssignments[cellKey].add(addSel.value);
+            addSel.value='';
+            renderPills();
+          };
+          if(!canWrite)addSel.style.display='none';
+          renderPills();
+          cell.append(pillsDiv,addSel);
+          grid.append(cell);
         });
       });
       table.append(grid);
@@ -4698,18 +4730,28 @@ async function showTeamTab(){
       const saveMsg=div({style:{fontSize:'11px',color:'var(--teal)',marginTop:'12px',display:'none'}});
       const saveBtn=btn('Save Schedule','btn-gold',async()=>{
         let allFilled=true;
-        for(const cellKey in selects){if(!selects[cellKey].value){allFilled=false;break;}}
-        if(!allFilled){saveMsg.style.display='block';saveMsg.style.color='#ff4444';saveMsg.innerHTML='All 28 slots must have a worker assigned.';return;}
+        for(const cellKey in cellAssignments){if(cellAssignments[cellKey].size===0){allFilled=false;break;}}
+        if(!allFilled){saveMsg.style.display='block';saveMsg.style.color='#ff4444';saveMsg.innerHTML='All 28 slots must have at least one worker.';return;}
         saveMsg.style.display='block';saveMsg.innerHTML='Saving...';saveMsg.style.color='var(--dim)';
-        for(const cellKey in selects){
-          const [dayStr,slot]=cellKey.split('_');
+        // Delete all existing rows and reinsert
+        await sb.from('shift_schedule').delete().neq('id','00000000-0000-0000-0000-000000000000');
+        const rows=[];
+        for(const cellKey in cellAssignments){
+          const[dayStr,slot]=cellKey.split('_');
           const day=parseInt(dayStr,10);
-          const workerId=selects[cellKey].value;
-          if(scheduleMap[cellKey]){await sb.from('shift_schedule').update({worker_id:workerId,assigned_by:S.user.id}).eq('day_of_week',day).eq('slot',slot);}
-          else{await sb.from('shift_schedule').insert({day_of_week:day,slot,worker_id:workerId,assigned_by:S.user.id});}
+          cellAssignments[cellKey].forEach(workerId=>{
+            rows.push({day_of_week:day,slot,worker_id:workerId,assigned_by:S.user?.id||null});
+          });
         }
+        if(rows.length)await sb.from('shift_schedule').insert(rows);
+        // Refresh scheduleMapMulti
         const{data:fresh}=await sb.from('shift_schedule').select('*');
-        (fresh||[]).forEach(s=>{scheduleMap[`${s.day_of_week}_${s.slot}`]=s.worker_id;});
+        Object.keys(scheduleMapMulti).forEach(k=>delete scheduleMapMulti[k]);
+        (fresh||[]).forEach(s=>{
+          const key=`${s.day_of_week}_${s.slot}`;
+          if(!scheduleMapMulti[key])scheduleMapMulti[key]=[];
+          scheduleMapMulti[key].push(s.worker_id);
+        });
         saveMsg.innerHTML='✓ Schedule saved!';saveMsg.style.color='var(--teal)';
         setTimeout(()=>saveMsg.style.display='none',2000);
       },{style:{marginTop:'16px'}});
