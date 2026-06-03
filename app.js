@@ -1716,7 +1716,19 @@ nav.append(
 );
 page.append(nav);
 
-// INNER CONTAINER
+// ANNOUNCEMENT BANNER
+(async()=>{
+  const{data:ann}=await sb.from('announcements').select('id,body').order('created_at',{ascending:false}).limit(1);
+  if(!ann||!ann.length)return;
+  const dismissed=localStorage.getItem('ann_dismissed_'+ann[0].id);
+  if(dismissed)return;
+  const banner=div({style:{background:'rgba(201,150,58,0.12)',borderBottom:'1px solid rgba(201,150,58,0.3)',padding:'10px 24px',display:'flex',alignItems:'center',justifyContent:'space-between',gap:'16px',fontFamily:'Inter,sans-serif',fontSize:'13px',color:'var(--gold)'}});
+  banner.append(
+    div({style:{flex:'1',lineHeight:'1.5'}},[document.createTextNode(ann[0].body)]),
+    btn('×','btn-outline',()=>{localStorage.setItem('ann_dismissed_'+ann[0].id,'1');banner.style.display='none';},{style:{padding:'2px 8px',fontSize:'14px',flexShrink:'0',lineHeight:'1'}})
+  );
+  page.append(banner);
+})();
 const container=div({cls:'inner'});
 page.append(container);
 
@@ -4976,8 +4988,18 @@ async function showTeamTab(){
       const announceList=div({style:{display:'flex',flexDirection:'column',gap:'12px',marginBottom:'24px'}});
       for(const a of announcements||[]){
         const card=div({cls:'card',style:{padding:'16px'}});
-        card.append(h('div',{style:{fontSize:'13px',color:'var(--text)',lineHeight:'1.6',marginBottom:'8px'}},[document.createTextNode(a.body)]));
-        card.append(h('div',{style:{fontSize:'10px',color:'var(--dim)'}},[document.createTextNode('— '+(a.profiles?.full_name||a.profiles?.email||'Admin')+' · '+new Date(a.created_at).toLocaleString())]));
+        const bodyEl=h('div',{style:{fontSize:'13px',color:'var(--text)',lineHeight:'1.6',marginBottom:'8px'}},[document.createTextNode(a.body)]);
+        const metaRow=div({style:{display:'flex',justifyContent:'space-between',alignItems:'center'}});
+        metaRow.append(h('div',{style:{fontSize:'10px',color:'var(--dim)'}},[document.createTextNode('— '+(a.profiles?.full_name||a.profiles?.email||'Admin')+' · '+new Date(a.created_at).toLocaleString())]));
+        const canDelete=isSuperAdmin||isManager||(a.posted_by===S.user?.id);
+        if(canDelete){
+          const delBtn=btn('Remove','btn-outline',async()=>{
+            await sb.from('announcements').delete().eq('id',a.id);
+            loadSubTab('announce');
+          },{style:{fontSize:'10px',padding:'3px 8px',color:'#ff4444',borderColor:'#ff4444'}});
+          metaRow.append(delBtn);
+        }
+        card.append(bodyEl,metaRow);
         announceList.append(card);
       }
       subContent.append(announceList);
