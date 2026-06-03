@@ -4577,8 +4577,8 @@ loadTab('settings');
 async function showTeamTab(){
   content.innerHTML='';
   const roleData=await sb.from('admin_roles').select('role').eq('user_id',S.user.id).single();
-  let userRole=roleData.data?.role||null;
-  const isSuperAdmin=userRole==='super_admin'||S.user.email==='atamaratubor@gmail.com';
+  let userRole=(roleData.error?null:roleData.data?.role)||null;
+  const isSuperAdmin=userRole==='super_admin'||S.user.email==='timothyambah.deofortis@gmail.com';
   const isManager=userRole==='manager';
   const isWorker=userRole==='worker';
   const canWrite=isSuperAdmin||isManager;
