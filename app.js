@@ -2809,13 +2809,12 @@ let questions=[],current=0,answers={},submitted=false,revealed={},ruledOut={},hi
 let activeHighlightBtn=null;
 const inner=div({cls:'inner-sm'});page.append(inner);
 async function showSetup(){
-if(isFree&&!isInTrial()){inner.innerHTML='';inner.append(div({cls:'card',style:{textAlign:'center',padding:'48px 32px'}},[ h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'20px',color:'var(--gold)',marginBottom:'12px'}},['Q-Bank Locked']), h('p',{style:{fontFamily:'Inter,sans-serif',fontSize:'13px',color:'var(--dim)',marginBottom:'24px',lineHeight:'1.6'}},['Your free trial has ended. Upgrade to unlock the full question bank.']), btn('⬆ Upgrade Now','btn-gold',()=>showUpgradeModal(),{style:{padding:'10px 28px'}}) ]));return;}
 inner.innerHTML='';
 const savedQuiz=sessionStorage.getItem('vignette_resume');
 if(savedQuiz){(()=>{const state=JSON.parse(savedQuiz);if(mode==='timed'&&state.timeLeft<=0){sessionStorage.removeItem('vignette_resume');}else{const banner=div({cls:'card',style:{marginBottom:'24px',padding:'16px',border:'1px solid var(--gold)',background:'rgba(200,169,110,0.08)'}},[ h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'11px',color:'var(--gold)',marginBottom:'12px'}},['⏸ Quiz in progress — '+state.selTopic+' · '+Object.keys(state.answers).length+' of '+state.questions.length+' answered']), div({style:{display:'flex',gap:'10px'}},[ btn('Resume','btn-gold',()=>{questions=state.questions;current=state.current;answers=state.answers;selTopic=state.selTopic;mode=state.mode;timeLimit=state.timeLimit;timeLeft=state.timeLeft||0;submitted=false;revealed={};showQuiz();},{style:{padding:'6px 16px',fontSize:'11px'}}), btn('Discard','btn-outline',()=>{sessionStorage.removeItem('vignette_resume');showSetup();},{style:{padding:'6px 16px',fontSize:'11px'}}) ]) ]);inner.append(banner);}})();}
 inner.append(h('span',{cls:'chapter',html:'Question Bank'}),h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'26px',marginBottom:'24px'},html:'Configure Your Quiz'}));
 var mapletQ=showMaplet('qbank','Attempt vignette questions one at a time. Use the highlighter, rule out options, and review your explanation after each answer.');if(mapletQ)inner.append(mapletQ);
-const{data}=await sb.from('vignette_questions').select('topic').or('user_id.is.null,user_id.eq.'+S.user.id);
+const{data}=await (isFree?sb.from('vignette_questions').select('topic').or('is_global.eq.true,user_id.eq.'+S.user.id):sb.from('vignette_questions').select('topic').or('is_global.eq.true,user_id.is.null,user_id.eq.'+S.user.id));
 const topics=data?[...new Set(data.map(d=>d.topic))]:[];
 if(!topics.length){inner.append(div({cls:'card',style:{textAlign:'center',padding:'48px'}},[h('p',{style:{fontSize:'14px',color:'var(--dim)'},html:'No questions available yet.'})]));return;}
 const{data:personalQ}=await sb.from('vignette_questions').select('topic').eq('user_id',S.user.id).eq('is_global',false);
@@ -2889,7 +2888,7 @@ const subsFilterWrap=div({style:{marginBottom:'16px',display:'none'}},[h('label'
 inner.append(subsFilterWrap);
 async function updateSubsectionUI(){
   if(!selectedTopics.length){subsFilterWrap.style.display='none';selectedSubsections=[];return;}
-  const{data:subs}=await sb.from('vignette_questions').select('topic,subsection').in('topic',selectedTopics).or('user_id.is.null,user_id.eq.'+S.user.id).not('subsection','is',null);
+  const{data:subs}=await (isFree?sb.from('vignette_questions').select('topic,subsection').in('topic',selectedTopics).or('is_global.eq.true,user_id.eq.'+S.user.id).not('subsection','is',null):sb.from('vignette_questions').select('topic,subsection').in('topic',selectedTopics).or('is_global.eq.true,user_id.is.null,user_id.eq.'+S.user.id).not('subsection','is',null));
   var rows=subs||[];
   // Build topic→subsections map preserving topic order
   var groupOrder=[];var groups={};
@@ -2928,7 +2927,7 @@ async function updateCount(){
     else if(qFilter==='correct'){progressIds=pfRows.filter(function(r){return r.answered_correctly===true;}).map(function(r){return r.question_id;});}
     else if(qFilter==='incorrect'){progressIds=pfRows.filter(function(r){return r.answered_correctly===false;}).map(function(r){return r.question_id;});}
   }
-  let q=sb.from('vignette_questions').select('id').in('topic',selectedTopics).or('user_id.is.null,user_id.eq.'+S.user.id);
+  let q=isFree?sb.from('vignette_questions').select('id').in('topic',selectedTopics).or('is_global.eq.true,user_id.eq.'+S.user.id):sb.from('vignette_questions').select('id').in('topic',selectedTopics).or('is_global.eq.true,user_id.is.null,user_id.eq.'+S.user.id);
   if(selectedSubsections.length)q=q.in('subsection',selectedSubsections);
   if(qFilter==='unused'){
     var{data:allQs}=await q;
@@ -2938,7 +2937,7 @@ async function updateCount(){
     qCountI.value=unseenIds.length;qCountI.max=unseenIds.length;
     return;
   }
-  var qCount=sb.from('vignette_questions').select('*',{count:'exact',head:true}).in('topic',selectedTopics).or('user_id.is.null,user_id.eq.'+S.user.id);
+  var qCount=isFree?sb.from('vignette_questions').select('*',{count:'exact',head:true}).in('topic',selectedTopics).or('is_global.eq.true,user_id.eq.'+S.user.id):sb.from('vignette_questions').select('*',{count:'exact',head:true}).in('topic',selectedTopics).or('is_global.eq.true,user_id.is.null,user_id.eq.'+S.user.id);
   if(selectedSubsections.length)qCount=qCount.in('subsection',selectedSubsections);
   if((qFilter==='correct'||qFilter==='incorrect')&&progressIds.length)qCount=qCount.in('id',progressIds);
   else if((qFilter==='correct'||qFilter==='incorrect')&&!progressIds.length){countDisplay.textContent='0 questions available';qCountI.value=0;qCountI.max=0;return;}
@@ -2994,7 +2993,7 @@ if(S.profile?.is_free_tier){
   return;
 }
 const desiredCount=parseInt(qCountI.value)||40;
-let qQuery=sb.from('vignette_questions').select('*').in('topic',selectedTopics).or('user_id.is.null,user_id.eq.'+S.user.id);
+let qQuery=isFree?sb.from('vignette_questions').select('*').or('is_global.eq.true,user_id.eq.'+S.user.id).in('topic',selectedTopics):sb.from('vignette_questions').select('*').in('topic',selectedTopics).or('is_global.eq.true,user_id.is.null,user_id.eq.'+S.user.id);
 if(selectedSubsections&&selectedSubsections.length)qQuery=qQuery.in('subsection',selectedSubsections);
 if(qFilter!=='all'){
   var{data:pfRows2}=await sb.from('question_progress').select('question_id,answered_correctly').eq('user_id',S.user.id);
@@ -3671,7 +3670,7 @@ page.append(aN);
 const tabs=div({style:{display:'none'}});
 const content=div({cls:'inner-md',style:{padding:'24px'}});
 let curTab='settings';
-const tabDefs=[['settings','⚙ Settings'],['users','Users'],['recalls','Recalls'],['flashcards','Flashcards'],['questions','Q-Bank'],['testimonials','Reviews'],['packages','Packages'],['bookings','Bookings'],['feynman','Feynman'],['riddles','Riddles']];
+const tabDefs=[['settings','⚙ Settings'],['users','Users'],['recalls','Recalls'],['flashcards','Flashcards'],['questions','Q-Bank'],['testimonials','Reviews'],['packages','Packages'],['bookings','Bookings'],['feynman','Feynman'],['riddles','Riddles'],['team','Team']];
 tabDefs.forEach(([id,label])=>{
 const tb=h('button',{cls:'tab-btn'+(id===curTab?' active':''),html:label});
 tb.onclick=()=>{curTab=id;loadTab(id);};
@@ -4570,7 +4569,274 @@ subCard.append(actions);rCard.append(subCard);
 content.append(rCard);
 })();
 }
+if(tab==='team'){
+await showTeamTab();
+return;
+}
 loadTab('settings');
+async function showTeamTab(){
+  content.innerHTML='';
+  const roleData=await sb.from('admin_roles').select('role').eq('user_id',S.user.id).single();
+  let userRole=roleData.data?.role||null;
+  const isSuperAdmin=userRole==='super_admin'||S.user.email==='atamaratubor@gmail.com';
+  const isManager=userRole==='manager';
+  const isWorker=userRole==='worker';
+  const canWrite=isSuperAdmin||isManager;
+  const tabBar=div({style:{display:'flex',gap:'8px',marginBottom:'24px',borderBottom:'1px solid var(--border)',paddingBottom:'12px'}});
+  const subTabs={};
+  let activeSub='schedule';
+  function setActive(sub){
+    activeSub=sub;
+    Object.keys(subTabs).forEach(k=>{
+      const btn2=subTabs[k];
+      if(k===sub){btn2.style.background='var(--gold)';btn2.style.color='var(--bg)';btn2.style.border='1px solid var(--gold)';}
+      else{btn2.style.background='transparent';btn2.style.color='var(--text)';btn2.style.border='1px solid var(--border)';}
+    });
+    loadSubTab(sub);
+  }
+  const scheduleBtn=btn('Schedule','btn-outline',()=>setActive('schedule'),{style:{padding:'8px 20px',fontSize:'12px'}});
+  const routingBtn=btn('Recall Routing','btn-outline',()=>setActive('routing'),{style:{padding:'8px 20px',fontSize:'12px'}});
+  const teamAdminBtn=btn('Team Admin','btn-outline',()=>setActive('teamAdmin'),{style:{padding:'8px 20px',fontSize:'12px'}});
+  const historyBtn=btn('Recall History','btn-outline',()=>setActive('history'),{style:{padding:'8px 20px',fontSize:'12px'}});
+  const announceBtn=btn('Announcements','btn-outline',()=>setActive('announce'),{style:{padding:'8px 20px',fontSize:'12px'}});
+  subTabs.schedule=scheduleBtn;subTabs.routing=routingBtn;subTabs.teamAdmin=teamAdminBtn;subTabs.history=historyBtn;subTabs.announce=announceBtn;
+  tabBar.append(scheduleBtn,routingBtn,teamAdminBtn,historyBtn,announceBtn);
+  if(!isSuperAdmin&&!isManager)teamAdminBtn.style.display='none';
+  if(!isSuperAdmin&&!isManager)historyBtn.style.display='none';
+  content.append(tabBar);
+  const subContent=div({});
+  content.append(subContent);
+  async function loadSubTab(sub){
+    subContent.innerHTML='';
+    if(sub==='schedule'){
+      const days=['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
+      const slots=['7am-11am','11am-3pm','3pm-7pm','7pm-11pm'];
+      const slotKeys=['7am','11am','3pm','7pm'];
+      const{data:workers}=await sb.from('admin_roles').select('user_id,profiles(full_name,email)').eq('role','worker');
+      const workerMap={};
+      (workers||[]).forEach(w=>{if(w.profiles)workerMap[w.user_id]=w.profiles.full_name||w.profiles.email;});
+      if(Object.keys(workerMap).length===0){subContent.append(div({cls:'card',style:{textAlign:'center',padding:'40px'}},[h('p',{style:{fontSize:'14px',color:'var(--dim)'}},[document.createTextNode('No workers found. Add workers in the Team Admin tab first.')])]));return;}
+      const{data:existing}=await sb.from('shift_schedule').select('*');
+      const scheduleMap={};
+      (existing||[]).forEach(s=>{scheduleMap[`${s.day_of_week}_${s.slot}`]=s.worker_id;});
+      const table=div({style:{overflowX:'auto'}});
+      const grid=div({style:{display:'grid',gridTemplateColumns:'100px repeat(7,1fr)',gap:'8px',minWidth:'700px'}});
+      grid.append(div({style:{padding:'8px',fontWeight:'bold'}},[]));
+      days.forEach(d=>grid.append(div({style:{padding:'8px',fontWeight:'bold',textAlign:'center'}},[document.createTextNode(d)])));
+      const selects={};
+      slots.forEach((slot,i)=>{
+        const slotKey=slotKeys[i];
+        grid.append(div({style:{padding:'8px',fontWeight:'bold'}},[document.createTextNode(slot)]));
+        days.forEach((_,d)=>{
+          const cellKey=`${d}_${slotKey}`;
+          const sel=h('select',{style:{width:'100%',padding:'4px',fontSize:'11px',background:'var(--bg)',border:'1px solid var(--border)',borderRadius:'2px',color:'var(--text)'}});
+          const noneOpt=h('option',{value:''},[document.createTextNode('—')]);
+          sel.append(noneOpt);
+          Object.entries(workerMap).forEach(([uid,name])=>{
+            const opt=h('option',{value:uid},[document.createTextNode(name)]);
+            sel.append(opt);
+          });
+          if(scheduleMap[cellKey])sel.value=scheduleMap[cellKey];
+          selects[cellKey]=sel;
+          grid.append(sel);
+        });
+      });
+      table.append(grid);
+      subContent.append(table);
+      const saveMsg=div({style:{fontSize:'11px',color:'var(--teal)',marginTop:'12px',display:'none'}});
+      const saveBtn=btn('Save Schedule','btn-gold',async()=>{
+        let allFilled=true;
+        for(const cellKey in selects){if(!selects[cellKey].value){allFilled=false;break;}}
+        if(!allFilled){saveMsg.style.display='block';saveMsg.style.color='#ff4444';saveMsg.innerHTML='All 28 slots must have a worker assigned.';return;}
+        saveMsg.style.display='block';saveMsg.innerHTML='Saving...';saveMsg.style.color='var(--dim)';
+        for(const cellKey in selects){
+          const [dayStr,slot]=cellKey.split('_');
+          const day=parseInt(dayStr,10);
+          const workerId=selects[cellKey].value;
+          if(scheduleMap[cellKey]){await sb.from('shift_schedule').update({worker_id:workerId,assigned_by:S.user.id}).eq('day_of_week',day).eq('slot',slot);}
+          else{await sb.from('shift_schedule').insert({day_of_week:day,slot,worker_id:workerId,assigned_by:S.user.id});}
+        }
+        const{data:fresh}=await sb.from('shift_schedule').select('*');
+        (fresh||[]).forEach(s=>{scheduleMap[`${s.day_of_week}_${s.slot}`]=s.worker_id;});
+        saveMsg.innerHTML='✓ Schedule saved!';saveMsg.style.color='var(--teal)';
+        setTimeout(()=>saveMsg.style.display='none',2000);
+      },{style:{marginTop:'16px'}});
+      if(!canWrite){saveBtn.disabled=true;saveBtn.style.opacity='0.5';saveBtn.style.cursor='not-allowed';}
+      subContent.append(saveBtn,saveMsg);
+    }
+    else if(sub==='routing'){
+      const{data:recalls}=await sb.from('recall_requests').select('*').in('status',['pending','assigned']).order('created_at',{ascending:true});
+      const{data:workers}=await sb.from('admin_roles').select('user_id,profiles(full_name,email)').eq('role','worker');
+      const workerMap={};
+      (workers||[]).forEach(w=>{if(w.profiles)workerMap[w.user_id]=w.profiles.full_name||w.profiles.email;});
+      const{data:assignments}=await sb.from('recall_assignments').select('recall_id,assigned_to');
+      const assignMap={};
+      (assignments||[]).forEach(a=>{assignMap[a.recall_id]=a.assigned_to;});
+      const today=new Date();
+      const dayOfWeek=today.getDay();
+      const hour=today.getHours();
+      let currentSlot='';
+      if(hour<11)currentSlot='7am';
+      else if(hour<15)currentSlot='11am';
+      else if(hour<19)currentSlot='3pm';
+      else currentSlot='7pm';
+      const{data:slotWorkers}=await sb.from('shift_schedule').select('worker_id').eq('day_of_week',dayOfWeek).eq('slot',currentSlot);
+      const onDutyWorkers=new Set((slotWorkers||[]).map(s=>s.worker_id));
+      if(!recalls||!recalls.length){subContent.append(div({cls:'card',style:{textAlign:'center',padding:'40px'}},[h('p',{style:{fontSize:'14px',color:'var(--dim)'}},[document.createTextNode('No pending recalls.')])]));return;}
+      const listDiv=div({style:{display:'flex',flexDirection:'column',gap:'16px'}});
+      for(const recall of recalls){
+        const assignedTo=assignMap[recall.id];
+        const canAssign=canWrite||(assignedTo===S.user.id)||onDutyWorkers.has(S.user.id);
+        const card=div({cls:'card'});
+        const headerRow=div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'12px'}});
+        const studentInfo=div({});
+        studentInfo.append(h('div',{style:{fontWeight:'bold',fontSize:'14px'}},[document.createTextNode(recall.user_name||'Student')]));
+        studentInfo.append(h('div',{style:{fontSize:'12px',color:'var(--muted)'}},[document.createTextNode(recall.topic+' · '+recall.style)]));
+        headerRow.append(studentInfo,h('div',{style:{fontSize:'11px',color:'var(--dim)'}},[document.createTextNode(new Date(recall.created_at).toLocaleString())]));
+        card.append(headerRow);
+        const assignRow=div({style:{display:'flex',gap:'12px',alignItems:'center',marginTop:'8px'}});
+        const sel=h('select',{style:{padding:'6px',fontSize:'12px',background:'var(--bg)',border:'1px solid var(--border)',borderRadius:'2px',color:'var(--text)'}});
+        const noneOpt=h('option',{value:''},[document.createTextNode('— Unassigned —')]);
+        sel.append(noneOpt);
+        Object.entries(workerMap).forEach(([uid,name])=>{
+          const opt=h('option',{value:uid},[document.createTextNode(name)]);
+          sel.append(opt);
+        });
+        if(assignedTo)sel.value=assignedTo;
+        assignRow.append(sel);
+        const assignBtn=btn('Assign','btn-teal',async()=>{
+          const newWorker=sel.value;
+          if(!newWorker)return;
+          assignBtn.disabled=true;assignBtn.textContent='Saving...';
+          const existingId=assignments?.find(a=>a.recall_id===recall.id)?.id;
+          if(existingId){await sb.from('recall_assignments').update({assigned_to:newWorker,assigned_by:S.user.id}).eq('id',existingId);}
+          else{await sb.from('recall_assignments').insert({recall_id:recall.id,assigned_to:newWorker,assigned_by:S.user.id});}
+          await sb.from('recall_assignment_history').insert({recall_id:recall.id,from_user:assignedTo||null,to_user:newWorker,changed_by:S.user.id,note:'Reassigned'});
+          if(recall.status==='pending')await sb.from('recall_requests').update({status:'assigned'}).eq('id',recall.id);
+          assignBtn.textContent='Assigned ✓';setTimeout(()=>loadSubTab('routing'),1000);
+        },{style:{fontSize:'11px',padding:'6px 14px'}});
+        if(!canAssign){assignBtn.disabled=true;assignBtn.style.opacity='0.5';sel.disabled=true;}
+        assignRow.append(assignBtn);
+        card.append(assignRow);
+        if(assignedTo&&workerMap[assignedTo])card.append(h('div',{style:{fontSize:'11px',color:'var(--teal)',marginTop:'8px'}},[document.createTextNode('Currently assigned to: '+workerMap[assignedTo])]));
+        listDiv.append(card);
+      }
+      subContent.append(listDiv);
+      if(!canWrite&&onDutyWorkers.size===0)subContent.append(h('p',{style:{fontSize:'12px',color:'var(--dim)',marginTop:'16px',textAlign:'center'}},[document.createTextNode('No schedule set for your current shift. Contact a manager.')]));
+    }
+    else if(sub==='teamAdmin'){
+      if(!isSuperAdmin&&!isManager){subContent.append(div({cls:'card',style:{textAlign:'center',padding:'40px'}},[h('p',{style:{fontSize:'14px',color:'var(--dim)'}},[document.createTextNode('Access restricted to Super Admins and Managers.')])]));return;}
+      const{data:admins}=await sb.from('admin_roles').select('*,profiles(full_name,email)').order('created_at');
+      const listDiv=div({style:{display:'flex',flexDirection:'column',gap:'12px',marginBottom:'24px'}});
+      for(const admin of admins||[]){
+        const row=div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'12px',background:'var(--card2)',border:'1px solid var(--border)',borderRadius:'4px'}});
+        const info=div({});
+        info.append(h('div',{style:{fontWeight:'bold'}},[document.createTextNode(admin.profiles?.full_name||admin.profiles?.email||'Unknown')]));
+        info.append(h('div',{style:{fontSize:'11px',color:'var(--dim)'}},[document.createTextNode('Role: '+admin.role)]));
+        row.append(info);
+        const actions=div({style:{display:'flex',gap:'8px'}});
+        if(isSuperAdmin){
+          const roleSel=h('select',{style:{padding:'4px',fontSize:'11px',background:'var(--bg)',border:'1px solid var(--border)',borderRadius:'2px'}});
+          ['worker','manager','super_admin'].forEach(r=>{const opt=h('option',{value:r},[document.createTextNode(r)]);roleSel.append(opt);});
+          roleSel.value=admin.role;
+          const updateBtn=btn('Update','btn-outline',async()=>{await sb.from('admin_roles').update({role:roleSel.value}).eq('id',admin.id);loadSubTab('teamAdmin');},{style:{fontSize:'10px',padding:'4px 10px'}});
+          actions.append(roleSel,updateBtn);
+          const removeBtn=btn('Remove','btn-outline',async()=>{
+            if(admin.user_id===S.user.id){
+              const errMsg=div({style:{fontSize:'11px',color:'#ff4444',marginTop:'8px'}},[document.createTextNode('Cannot remove yourself.')]);
+              row.append(errMsg);
+              setTimeout(()=>errMsg.style.display='none',2000);
+              return;
+            }
+            await sb.from('admin_roles').delete().eq('id',admin.id);
+            loadSubTab('teamAdmin');
+          },{style:{fontSize:'10px',padding:'4px 10px',color:'#ff4444',borderColor:'#ff4444'}});
+          actions.append(removeBtn);
+        }
+        row.append(actions);
+        listDiv.append(row);
+      }
+      subContent.append(listDiv);
+      if(isSuperAdmin){
+        const addCard=div({cls:'card',style:{marginTop:'16px'}});
+        addCard.append(h('h3',{style:{fontSize:'16px',marginBottom:'12px'}},[document.createTextNode('Add Team Member')]));
+        const emailInput=h('input',{type:'text',placeholder:'Email address',cls:'input',style:{width:'100%',marginBottom:'12px'}});
+        const roleSel=h('select',{style:{padding:'8px',marginBottom:'12px',width:'100%',background:'var(--bg)',border:'1px solid var(--border)',borderRadius:'2px'}});
+        ['worker','manager'].forEach(r=>{const opt=h('option',{value:r},[document.createTextNode(r)]);roleSel.append(opt);});
+        const addMsg=div({style:{fontSize:'11px',display:'none'}});
+        const addBtn=btn('Add User','btn-gold',async()=>{
+          const email=emailInput.value.trim().toLowerCase();
+          if(!email){addMsg.style.display='block';addMsg.style.color='#ff4444';addMsg.innerHTML='Enter email address.';return;}
+          addMsg.style.display='block';addMsg.innerHTML='Checking...';addMsg.style.color='var(--dim)';
+          const{data:profile}=await sb.from('profiles').select('id').eq('email',email).single();
+          if(!profile){addMsg.innerHTML='User not found in profiles.';addMsg.style.color='#ff4444';return;}
+          const{data:existing}=await sb.from('admin_roles').select('id').eq('user_id',profile.id).single();
+          if(existing){addMsg.innerHTML='User already has an admin role.';addMsg.style.color='#ff4444';return;}
+          await sb.from('admin_roles').insert({user_id:profile.id,role:roleSel.value});
+          addMsg.innerHTML='✓ Added!';addMsg.style.color='var(--teal)';
+          emailInput.value='';
+          setTimeout(()=>loadSubTab('teamAdmin'),1000);
+        },{style:{marginTop:'8px',width:'100%'}});
+        addCard.append(emailInput,roleSel,addBtn,addMsg);
+        subContent.append(addCard);
+      }
+    }
+    else if(sub==='history'){
+      if(!isSuperAdmin&&!isManager){subContent.append(div({cls:'card',style:{textAlign:'center',padding:'40px'}},[h('p',{style:{fontSize:'14px',color:'var(--dim)'}},[document.createTextNode('Access restricted.')])]));return;}
+      const{data:history}=await sb.from('recall_assignment_history').select('*,changed_by_profile:changed_by(full_name,email),to_profile:to_user(full_name,email),from_profile:from_user(full_name,email)').order('changed_at',{ascending:false}).limit(50);
+      if(!history||!history.length){subContent.append(div({cls:'card',style:{textAlign:'center',padding:'40px'}},[h('p',{style:{fontSize:'14px',color:'var(--dim)'}},[document.createTextNode('No assignment history yet.')])]));return;}
+      const table=div({style:{overflowX:'auto'}});
+      const grid=div({style:{display:'grid',gridTemplateColumns:'80px 1fr 1fr 1fr 1fr 150px',gap:'8px',fontSize:'12px',minWidth:'900px'}});
+      const headers=['Recall','Student','Assigned To','Reassigned To','Changed By','When'];
+      headers.forEach(hdr=>grid.append(div({style:{padding:'8px',fontWeight:'bold',background:'var(--card2)'}},[document.createTextNode(hdr)])));
+      for(const entry of history){
+        const{data:recall}=await sb.from('recall_requests').select('user_name,topic').eq('id',entry.recall_id).single();
+        const toProf=entry.to_profile||null;
+        const fromProf=entry.from_profile||null;
+        const changedProf=entry.changed_by_profile||null;
+        grid.append(
+          div({style:{padding:'8px',borderBottom:'1px solid var(--border)'}},[document.createTextNode(String(entry.recall_id).slice(-6))]),
+          div({style:{padding:'8px',borderBottom:'1px solid var(--border)'}},[document.createTextNode(recall?.user_name||'—')]),
+          div({style:{padding:'8px',borderBottom:'1px solid var(--border)'}},[document.createTextNode(fromProf?.full_name||fromProf?.email||'—')]),
+          div({style:{padding:'8px',borderBottom:'1px solid var(--border)'}},[document.createTextNode(toProf?.full_name||toProf?.email||'—')]),
+          div({style:{padding:'8px',borderBottom:'1px solid var(--border)'}},[document.createTextNode(changedProf?.full_name||changedProf?.email||'—')]),
+          div({style:{padding:'8px',borderBottom:'1px solid var(--border)'}},[document.createTextNode(new Date(entry.changed_at).toLocaleString())])
+        );
+      }
+      table.append(grid);
+      subContent.append(table);
+    }
+    else if(sub==='announce'){
+      const{data:announcements}=await sb.from('announcements').select('*,profiles(full_name,email)').order('created_at',{ascending:false});
+      const announceList=div({style:{display:'flex',flexDirection:'column',gap:'12px',marginBottom:'24px'}});
+      for(const a of announcements||[]){
+        const card=div({cls:'card',style:{padding:'16px'}});
+        card.append(h('div',{style:{fontSize:'13px',color:'var(--text)',lineHeight:'1.6',marginBottom:'8px'}},[document.createTextNode(a.body)]));
+        card.append(h('div',{style:{fontSize:'10px',color:'var(--dim)'}},[document.createTextNode('— '+(a.profiles?.full_name||a.profiles?.email||'Admin')+' · '+new Date(a.created_at).toLocaleString())]));
+        announceList.append(card);
+      }
+      subContent.append(announceList);
+      if(canWrite){
+        const postCard=div({cls:'card',style:{marginTop:'16px'}});
+        postCard.append(h('h3',{style:{fontSize:'16px',marginBottom:'12px'}},[document.createTextNode('Post Announcement')]));
+        const bodyInput=h('textarea',{style:{width:'100%',minHeight:'80px',padding:'8px',background:'var(--bg)',border:'1px solid var(--border)',borderRadius:'2px',color:'var(--text)',fontFamily:'Inter,sans-serif',fontSize:'13px',marginBottom:'12px',resize:'vertical'}});
+        const postMsg=div({style:{fontSize:'11px',display:'none'}});
+        const postBtn=btn('Post','btn-gold',async()=>{
+          const body=bodyInput.value.trim();
+          if(!body){postMsg.style.display='block';postMsg.style.color='#ff4444';postMsg.innerHTML='Announcement cannot be empty.';return;}
+          postMsg.style.display='block';postMsg.innerHTML='Posting...';postMsg.style.color='var(--dim)';
+          await sb.from('announcements').insert({body,posted_by:S.user.id});
+          bodyInput.value='';
+          postMsg.innerHTML='✓ Posted!';postMsg.style.color='var(--teal)';
+          setTimeout(()=>loadSubTab('announce'),1000);
+        },{style:{width:'100%'}});
+        postCard.append(bodyInput,postBtn,postMsg);
+        subContent.append(postCard);
+      }
+    }
+  }
+  setActive('schedule');
+}
 }
 showLogin();return page;
 }
