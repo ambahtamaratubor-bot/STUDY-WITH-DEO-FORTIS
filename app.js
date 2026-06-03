@@ -59,6 +59,7 @@ function go(p){S.page=p;if(window._goT)clearTimeout(window._goT);window._goT=set
 function isInTrial(){return S.profile?.is_free_tier===true&&S.inTrial===true;}
 sb.auth.onAuthStateChange((_,session)=>{
   if(signingUp)return;
+  if(window._teamLogin)return;
   if(session){S.user=session.user;getProfile(session.user.id);}
   else{S.user=null;S.profile=null;go('landing');}
 });
@@ -3668,8 +3669,9 @@ const tmBtn=btn('Team Login','btn-teal',async()=>{
   const password=tmPass.value;
   if(!email||!password){tmErr.classList.remove('hidden');tmErr.textContent='Enter email and password.';return;}
   tmBtn.disabled=true;tmBtn.textContent='Signing in...';
+  window._teamLogin=true;
   const{data,error}=await sb.auth.signInWithPassword({email,password});
-  if(error){tmErr.classList.remove('hidden');tmErr.textContent='Invalid email or password.';tmBtn.disabled=false;tmBtn.textContent='Team Login';return;}
+  if(error){tmErr.classList.remove('hidden');tmErr.textContent='Invalid email or password.';tmBtn.disabled=false;tmBtn.textContent='Team Login';window._teamLogin=false;return;}
   const{data:roleData}=await sb.from('admin_roles').select('role').eq('user_id',data.user.id).single();
   if(!roleData){tmErr.classList.remove('hidden');tmErr.textContent='You do not have team access.';tmBtn.disabled=false;tmBtn.textContent='Team Login';await sb.auth.signOut();return;}
   S.user=data.user;
