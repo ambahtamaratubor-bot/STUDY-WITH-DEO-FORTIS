@@ -4654,6 +4654,7 @@ async function showTeamTab(){
   tabBar.append(scheduleBtn,routingBtn,teamAdminBtn,historyBtn,announceBtn);
   if(!isSuperAdmin&&!isManager)teamAdminBtn.style.display='none';
   if(!isSuperAdmin&&!isManager)historyBtn.style.display='none';
+  if(!isSuperAdmin&&!isManager)routingBtn.style.display='none';
   content.append(tabBar);
   const subContent=div({});
   content.append(subContent);
@@ -4938,7 +4939,7 @@ async function showTeamTab(){
         announceList.append(card);
       }
       subContent.append(announceList);
-      if(canWrite){
+      if(canWrite||isWorker){
         const postCard=div({cls:'card',style:{marginTop:'16px'}});
         postCard.append(h('h3',{style:{fontSize:'16px',marginBottom:'12px'}},[document.createTextNode('Post Announcement')]));
         const bodyInput=h('textarea',{style:{width:'100%',minHeight:'80px',padding:'8px',background:'var(--bg)',border:'1px solid var(--border)',borderRadius:'2px',color:'var(--text)',fontFamily:'Inter,sans-serif',fontSize:'13px',marginBottom:'12px',resize:'vertical'}});
@@ -4947,7 +4948,7 @@ async function showTeamTab(){
           const body=bodyInput.value.trim();
           if(!body){postMsg.style.display='block';postMsg.style.color='#ff4444';postMsg.innerHTML='Announcement cannot be empty.';return;}
           postMsg.style.display='block';postMsg.innerHTML='Posting...';postMsg.style.color='var(--dim)';
-          await sb.from('announcements').insert({body,posted_by:S.user.id});
+          await sb.from('announcements').insert({body,posted_by:S.user?.id||null});
           bodyInput.value='';
           postMsg.innerHTML='✓ Posted!';postMsg.style.color='var(--teal)';
           setTimeout(()=>loadSubTab('announce'),1000);
