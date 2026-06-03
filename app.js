@@ -4815,9 +4815,9 @@ async function showTeamTab(){
           if(!newWorker)return;
           assignBtn.disabled=true;assignBtn.textContent='Saving...';
           const existingId=assignments?.find(a=>a.recall_id===recall.id)?.id;
-          if(existingId){await sb.from('recall_assignments').update({assigned_to:newWorker,assigned_by:S.user.id}).eq('id',existingId);}
-          else{await sb.from('recall_assignments').insert({recall_id:recall.id,assigned_to:newWorker,assigned_by:S.user.id});}
-          await sb.from('recall_assignment_history').insert({recall_id:recall.id,from_user:assignedTo||null,to_user:newWorker,changed_by:S.user.id,note:'Reassigned'});
+          if(existingId){await sb.from('recall_assignments').update({assigned_to:newWorker,assigned_by:S.user?.id||null}).eq('id',existingId);}
+          else{await sb.from('recall_assignments').insert({recall_id:recall.id,assigned_to:newWorker,assigned_by:S.user?.id||null});}
+          await sb.from('recall_assignment_history').insert({recall_id:recall.id,from_user:assignedTo||null,to_user:newWorker,changed_by:S.user?.id||null,note:'Reassigned'});
           if(recall.status==='pending')await sb.from('recall_requests').update({status:'assigned'}).eq('id',recall.id);
           assignBtn.textContent='Assigned ✓';setTimeout(()=>loadSubTab('routing'),1000);
         },{style:{fontSize:'11px',padding:'6px 14px'}});
@@ -4871,7 +4871,7 @@ async function showTeamTab(){
           const delMsg=div({style:{fontSize:'11px',color:'#ff4444'}},[document.createTextNode('Delete this account permanently?')]);
           const delMsg2=div({style:{fontSize:'10px',display:'none'}});
           const confirmDel=btn('Yes, Delete','btn-outline',async()=>{
-            if(admin.user_id===S.user.id){delMsg2.style.display='block';delMsg2.style.color='#ff4444';delMsg2.textContent='Cannot delete yourself.';return;}
+            if(admin.user_id===S.user?.id){delMsg2.style.display='block';delMsg2.style.color='#ff4444';delMsg2.textContent='Cannot delete yourself.';return;}
             confirmDel.disabled=true;confirmDel.textContent='Deleting...';
             await sb.from('admin_roles').delete().eq('id',admin.id);
             const res=await fetch(SUPABASE_URL+'/auth/v1/admin/users/'+admin.user_id,{method:'DELETE',headers:{'apikey':SERVICE_KEY,'Authorization':'Bearer '+SERVICE_KEY}});
