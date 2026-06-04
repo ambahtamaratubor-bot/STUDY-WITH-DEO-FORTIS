@@ -4775,7 +4775,7 @@ async function showTeamTab(){
       const{data:workers}=await sb.from('admin_roles').select('user_id,profiles(full_name,email)').in('role',['worker','manager']);
       const workerMap={};
       (workers||[]).forEach(w=>{if(w.profiles)workerMap[w.user_id]=w.profiles.full_name||w.profiles.email;});
-      const{data:assignments}=await sb.from('recall_assignments').select('recall_id,assigned_to');
+      const{data:assignments}=await sb.from('recall_assignments').select('*');
       const assignMap={};
       (assignments||[]).forEach(a=>{assignMap[a.recall_id]=a.assigned_to;});
       const today=new Date();
@@ -4788,11 +4788,37 @@ async function showTeamTab(){
       else currentSlot='7pm';
       const{data:slotWorkers}=await sb.from('shift_schedule').select('worker_id').eq('day_of_week',dayOfWeek).eq('slot',currentSlot);
       const onDutyWorkers=new Set((slotWorkers||[]).map(s=>s.worker_id));
+      const currentUserId=S.user?.id||null;
+      const isOnShift=currentUserId&&onDutyWorkers.has(currentUserId);
+      // Workers off shift see nothing
+      if(isWorker&&!isOnShift){
+        subContent.append(div({cls:'card',style:{textAlign:'center',padding:'40px'}},[
+          h('p',{style:{fontSize:'16px',color:'var(--gold)',marginBottom:'8px'}},[document.createTextNode('You are not on shift')]),
+          h('p',{style:{fontSize:'13px',color:'var(--dim)'}},[document.createTextNode('Recall requests will appear here during your scheduled hours.')])
+        ]));
+        return;
+      }
       if(!recalls||!recalls.length){subContent.append(div({cls:'card',style:{textAlign:'center',padding:'40px'}},[h('p',{style:{fontSize:'14px',color:'var(--dim)'}},[document.createTextNode('No pending recalls.')])]));return;}
+      // Auto-assign unassigned recalls to on-duty workers
+      if((isSuperAdmin||isManager)&&onDutyWorkers.size>0){
+        const onDutyArr=Array.from(onDutyWorkers);
+        let autoIdx=0;
+        for(const recall of recalls){
+          if(!assignMap[recall.id]){
+            const autoWorker=onDutyArr[autoIdx%onDutyArr.length];
+            autoIdx++;
+            const{data:inserted}=await sb.from('recall_assignments').insert({recall_id:recall.id,assigned_to:autoWorker,assigned_by:currentUserId}).select().single();
+            if(inserted){assignMap[recall.id]=autoWorker;assignments.push(inserted);}
+            await sb.from('recall_requests').update({status:'assigned'}).eq('id',recall.id);
+          }
+        }
+      }
       const listDiv=div({style:{display:'flex',flexDirection:'column',gap:'16px'}});
       for(const recall of recalls){
         const assignedTo=assignMap[recall.id];
-        const canAssign=canWrite||(assignedTo===S.user.id)||onDutyWorkers.has(S.user.id);
+        // Workers only see their own assigned recalls
+        if(isWorker&&assignedTo!==currentUserId)continue;
+        const canAssign=canWrite;
         const card=div({cls:'card'});
         const headerRow=div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'12px'}});
         const studentInfo=div({});
@@ -4800,35 +4826,44 @@ async function showTeamTab(){
         studentInfo.append(h('div',{style:{fontSize:'12px',color:'var(--muted)'}},[document.createTextNode(recall.topic+' · '+recall.style)]));
         headerRow.append(studentInfo,h('div',{style:{fontSize:'11px',color:'var(--dim)'}},[document.createTextNode(new Date(recall.created_at).toLocaleString())]));
         card.append(headerRow);
-        const assignRow=div({style:{display:'flex',gap:'12px',alignItems:'center',marginTop:'8px'}});
-        const sel=h('select',{style:{padding:'6px',fontSize:'12px',background:'var(--bg)',border:'1px solid var(--border)',borderRadius:'2px',color:'var(--text)'}});
-        const noneOpt=h('option',{value:''},[document.createTextNode('— Unassigned —')]);
-        sel.append(noneOpt);
-        Object.entries(workerMap).forEach(([uid,name])=>{
-          const opt=h('option',{value:uid},[document.createTextNode(name)]);
-          sel.append(opt);
-        });
-        if(assignedTo)sel.value=assignedTo;
-        assignRow.append(sel);
-        const assignBtn=btn('Assign','btn-teal',async()=>{
-          const newWorker=sel.value;
-          if(!newWorker)return;
-          assignBtn.disabled=true;assignBtn.textContent='Saving...';
-          const existingId=assignments?.find(a=>a.recall_id===recall.id)?.id;
-          if(existingId){await sb.from('recall_assignments').update({assigned_to:newWorker,assigned_by:S.user?.id||null}).eq('id',existingId);}
-          else{await sb.from('recall_assignments').insert({recall_id:recall.id,assigned_to:newWorker,assigned_by:S.user?.id||null});}
-          await sb.from('recall_assignment_history').insert({recall_id:recall.id,from_user:assignedTo||null,to_user:newWorker,changed_by:S.user?.id||null,note:'Reassigned'});
-          if(recall.status==='pending')await sb.from('recall_requests').update({status:'assigned'}).eq('id',recall.id);
-          assignBtn.textContent='Assigned ✓';setTimeout(()=>loadSubTab('routing'),1000);
-        },{style:{fontSize:'11px',padding:'6px 14px'}});
-        if(!canAssign){assignBtn.disabled=true;assignBtn.style.opacity='0.5';sel.disabled=true;}
-        assignRow.append(assignBtn);
-        card.append(assignRow);
-        if(assignedTo&&workerMap[assignedTo])card.append(h('div',{style:{fontSize:'11px',color:'var(--teal)',marginTop:'8px'}},[document.createTextNode('Currently assigned to: '+workerMap[assignedTo])]));
+        if(assignedTo&&workerMap[assignedTo]){
+          card.append(h('div',{style:{fontSize:'11px',color:'var(--teal)',marginBottom:'8px',fontWeight:'600'}},[document.createTextNode('Assigned to: '+workerMap[assignedTo])]));
+        }
+        if(canAssign){
+          const assignRow=div({style:{display:'flex',gap:'12px',alignItems:'center',marginTop:'8px'}});
+          const sel=h('select',{style:{padding:'6px',fontSize:'12px',background:'var(--bg)',border:'1px solid var(--border)',borderRadius:'2px',color:'var(--text)'}});
+          const noneOpt=h('option',{value:''},[document.createTextNode('— Reassign —')]);
+          sel.append(noneOpt);
+          Object.entries(workerMap).forEach(([uid,name])=>{
+            const opt=h('option',{value:uid},[document.createTextNode(name)]);
+            sel.append(opt);
+          });
+          if(assignedTo)sel.value=assignedTo;
+          assignRow.append(sel);
+          const assignBtn=btn('Save','btn-teal',async()=>{
+            const newWorker=sel.value;
+            if(!newWorker)return;
+            assignBtn.disabled=true;assignBtn.textContent='Saving...';
+            const existingAssignment=assignments?.find(a=>a.recall_id===recall.id);
+            if(existingAssignment){
+              await sb.from('recall_assignments').update({assigned_to:newWorker,assigned_by:currentUserId}).eq('id',existingAssignment.id);
+            }else{
+              await sb.from('recall_assignments').insert({recall_id:recall.id,assigned_to:newWorker,assigned_by:currentUserId});
+            }
+            await sb.from('recall_assignment_history').insert({recall_id:recall.id,from_user:assignedTo||null,to_user:newWorker,changed_by:currentUserId,note:'Reassigned'});
+            if(recall.status==='pending')await sb.from('recall_requests').update({status:'assigned'}).eq('id',recall.id);
+            assignBtn.textContent='Saved ✓';setTimeout(()=>loadSubTab('routing'),1000);
+          },{style:{fontSize:'11px',padding:'6px 14px'}});
+          assignRow.append(assignBtn);
+          card.append(assignRow);
+        }
         listDiv.append(card);
       }
-      subContent.append(listDiv);
-      if(!canWrite&&onDutyWorkers.size===0)subContent.append(h('p',{style:{fontSize:'12px',color:'var(--dim)',marginTop:'16px',textAlign:'center'}},[document.createTextNode('No schedule set for your current shift. Contact a manager.')]));
+      if(!listDiv.children.length){
+        subContent.append(div({cls:'card',style:{textAlign:'center',padding:'40px'}},[h('p',{style:{fontSize:'14px',color:'var(--dim)'}},[document.createTextNode('No recalls assigned to you.')])]));
+      }else{
+        subContent.append(listDiv);
+      }
     }
     else if(sub==='teamAdmin'){
       const SUPABASE_URL='https://yygjkqkzbdjnyyrrhdku.supabase.co';
