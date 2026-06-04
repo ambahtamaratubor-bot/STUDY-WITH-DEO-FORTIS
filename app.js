@@ -4670,7 +4670,6 @@ async function showTeamTab(){
   tabBar.append(scheduleBtn,routingBtn,teamAdminBtn,historyBtn,announceBtn);
   if(!isSuperAdmin&&!isManager)teamAdminBtn.style.display='none';
   if(!isSuperAdmin&&!isManager)historyBtn.style.display='none';
-  if(!isSuperAdmin&&!isManager)routingBtn.style.display='none';
   content.append(tabBar);
   const subContent=div({});
   content.append(subContent);
