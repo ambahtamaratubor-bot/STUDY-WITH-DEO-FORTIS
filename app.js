@@ -4010,7 +4010,7 @@ content.innerHTML='';content.append(wrapper);
 switchSubTab('new');
 }
 if(tab==='recalls'){
-const{data:recs}=await sb.from('recall_requests').select('*').eq('status','pending').order('created_at',{ascending:false});
+const{data:recs}=await sb.from('recall_requests').select('*').in('status',['pending','assigned']).order('created_at',{ascending:false});
 content.innerHTML='';
 content.append(h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'22px',marginBottom:'24px'},html:'Recall Requests'}));
 if(!recs||!recs.length){content.append(div({cls:'card',style:{textAlign:'center',padding:'40px'}},[h('p',{style:{fontSize:'14px',color:'var(--dim)'},html:'No recall requests yet.'})]));return;}
