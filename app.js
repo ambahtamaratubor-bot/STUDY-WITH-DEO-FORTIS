@@ -4639,6 +4639,9 @@ const defaultTab=tabDefs.find(([id])=>id==='settings')?'settings':tabDefs[0]?.[0
 loadTab(defaultTab);
 async function showTeamTab(){
   content.innerHTML='';
+  // Refresh session if needed
+  const{data:sessionData}=await sb.auth.getSession();
+  if(!sessionData?.session&&S.user){await sb.auth.refreshSession();}
   const{data:roleRow,error:roleErr}=await sb.from('admin_roles').select('role').eq('user_id',S.user?.id||'').maybeSingle();
   let userRole=(!roleErr&&roleRow?.role)||null;
   console.log('showTeamTab role:',userRole,'user:',S.user?.email);
