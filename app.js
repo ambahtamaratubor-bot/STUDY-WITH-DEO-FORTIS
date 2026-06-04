@@ -4779,7 +4779,9 @@ async function showTeamTab(){
       const assignMap={};
       (assignments||[]).forEach(a=>{assignMap[a.recall_id]=a.assigned_to;});
       const today=new Date();
-      const dayOfWeek=today.getDay();
+      // JS getDay(): 0=Sun,1=Mon...6=Sat. Our grid: 0=Mon...6=Sun. Convert:
+      const jsDow=today.getDay();
+      const dayOfWeek=jsDow===0?6:jsDow-1;
       const hour=today.getHours();
       let currentSlot='';
       if(hour<11)currentSlot='7am';
@@ -4840,19 +4842,27 @@ async function showTeamTab(){
           });
           if(assignedTo)sel.value=assignedTo;
           assignRow.append(sel);
-          const assignBtn=btn('Save','btn-teal',async()=>{
+            const assignBtn=btn('Save','btn-teal',async()=>{
             const newWorker=sel.value;
             if(!newWorker)return;
             assignBtn.disabled=true;assignBtn.textContent='Saving...';
             const existingAssignment=assignments?.find(a=>a.recall_id===recall.id);
             if(existingAssignment){
-              await sb.from('recall_assignments').update({assigned_to:newWorker,assigned_by:currentUserId}).eq('id',existingAssignment.id);
+              const{error:upErr}=await sb.from('recall_assignments').update({assigned_to:newWorker,assigned_by:currentUserId}).eq('id',existingAssignment.id);
+              if(upErr){assignBtn.disabled=false;assignBtn.textContent='Save';return;}
             }else{
-              await sb.from('recall_assignments').insert({recall_id:recall.id,assigned_to:newWorker,assigned_by:currentUserId});
+              const{error:insErr}=await sb.from('recall_assignments').insert({recall_id:recall.id,assigned_to:newWorker,assigned_by:currentUserId});
+              if(insErr){assignBtn.disabled=false;assignBtn.textContent='Save';return;}
             }
-            await sb.from('recall_assignment_history').insert({recall_id:recall.id,from_user:assignedTo||null,to_user:newWorker,changed_by:currentUserId,note:'Reassigned'});
-            if(recall.status==='pending')await sb.from('recall_requests').update({status:'assigned'}).eq('id',recall.id);
-            assignBtn.textContent='Saved ✓';setTimeout(()=>loadSubTab('routing'),1000);
+            await sb.from('recall_requests').update({status:'assigned'}).eq('id',recall.id);
+            // Update local assignMap to prevent re-auto-assign on reload
+            assignMap[recall.id]=newWorker;
+            assignBtn.textContent='Saved ✓';
+            // Update badge inline without full reload
+            card.querySelectorAll&&null;
+            const badge=card.querySelector('[data-assign-badge]');
+            if(badge)badge.textContent='Assigned to: '+(workerMap[newWorker]||newWorker);
+            setTimeout(()=>loadSubTab('routing'),1000);
           },{style:{fontSize:'11px',padding:'6px 14px'}});
           assignRow.append(assignBtn);
           card.append(assignRow);
