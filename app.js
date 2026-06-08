@@ -2536,7 +2536,7 @@ async function showBitz(){
 inner.innerHTML='';
 inner.append(h('span',{cls:'chapter',html:'Riddle & Emoji Bitz'}),h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'32px',marginBottom:'8px'},html:'Brain Teasers & Emoji Challenges'}),h('p',{cls:'muted',style:{fontSize:'14px',marginBottom:'32px'},html:'Brain teasers and emoji challenges to keep your mind sharp.'}));
 (async()=>{
-var bitzQuery=isFree?sb.from('flashcard_decks').select('*').or('type.eq.riddle,type.eq.emoji').eq('is_global',true).order('created_at',{ascending:false}):sb.from('flashcard_decks').select('*').or('type.eq.riddle,type.eq.emoji').or('user_id.eq.'+S.user.id+',user_id.is.null').order('created_at',{ascending:false});
+var bitzQuery=isFree?sb.from('flashcard_decks').select('*').or('type.eq.riddle,type.eq.emoji').eq('is_global',true).is('user_id',null).order('created_at',{ascending:false}):sb.from('flashcard_decks').select('*').or('type.eq.riddle,type.eq.emoji').or('user_id.eq.'+S.user.id+',user_id.is.null').order('created_at',{ascending:false});
 var{data:bdecks}=await bitzQuery;
 if(!bdecks||!bdecks.length){inner.append(div({cls:'card',style:{textAlign:'center',padding:'48px'}},[h('p',{style:{fontSize:'14px',color:'var(--dim)'},html:'No riddle or emoji decks available yet.'},[])]));}
 else{var grid=div({style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(240px,1fr))',gap:'16px',marginBottom:'32px'}});bdecks.forEach(function(deck){var card=div({cls:'card',style:{cursor:'pointer'}});card.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'18px',color:'var(--text)',marginBottom:'8px'},html:deck.name||deck.topic},[]),btn('Start Deck →','btn-gold',function(){loadDeck(deck);},{style:{width:'100%',marginTop:'16px'}}));grid.append(card);});inner.append(grid);}
@@ -2563,7 +2563,7 @@ async function showDecks(){
 inner.innerHTML='';
 inner.append(h('span',{cls:'chapter',html:'Flashcard Decks'}),h('h1',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'40px',fontWeight:'700',marginBottom:'8px'},html:'Study <em class="gold-em">Flashcards</em>'}),h('p',{cls:'muted',style:{fontSize:'14px',marginBottom:'40px'},html:'Select a deck. Mark cards Easy, Iffy, or Hard as you go.'}));
 var mapletF=showMaplet('flashcards','Flip through your deck and rate each card. Hard cards come back sooner — that is spaced repetition working for you.');if(mapletF)inner.append(mapletF);
-const{data}=await (isFree?sb.from('flashcard_decks').select('*').eq('type','flashcard').eq('is_global',true).order('created_at',{ascending:false}):sb.from('flashcard_decks').select('*').or('user_id.eq.'+S.user.id+',user_id.is.null').neq('type','riddle').neq('type','emoji').order('created_at',{ascending:false}));
+const{data}=await (isFree?sb.from('flashcard_decks').select('*').eq('type','flashcard').eq('is_global',true).is('user_id',null).order('created_at',{ascending:false}):sb.from('flashcard_decks').select('*').or('user_id.eq.'+S.user.id+',user_id.is.null').neq('type','riddle').neq('type','emoji').order('created_at',{ascending:false}));
 decks=data||[];
 if(!decks.length){inner.append(div({cls:'card',style:{textAlign:'center',padding:'48px'}},[div({style:{fontSize:'40px',marginBottom:'16px'},html:' '}),h('p',{style:{fontSize:'14px',color:'var(--dim)'},html:'No flashcard decks yet.'})]));return;}
 const grid=div({style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(240px,1fr))',gap:'16px'}});
