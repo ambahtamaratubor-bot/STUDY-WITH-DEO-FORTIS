@@ -905,7 +905,7 @@ const features=['Full Pomodoro System','Active Recall Engine (Theory, Anki, Vign
 const plansSection=div({cls:'section',id:'plans'});
 plansSection.append(div({cls:'divider'}),h('br'),h('span',{cls:'chapter',html:'Chapter I — Enrolment'}),h('h2',{cls:'big',style:{marginBottom:'12px'},html:'Choose Your<br><em class="gold-em">Duration</em>'}),h('p',{cls:'muted',style:{maxWidth:'500px',fontSize:'15px',marginBottom:'8px'},html:'Every plan includes the full platform. You are simply choosing how long your access lasts.'}),div({cls:'quote',style:{maxWidth:'480px',marginBottom:'40px',marginTop:'24px'},html:'"The longer you commit, the less you pay per month."'}));
 const plansGrid=div({cls:'grid-auto',id:'plans-grid'});
-const planDefs=[{name:'Monthly',price:'$10',period:'/ month',dur:'1 Month',color:'var(--gold)',key:'monthly',ecPrice:'EC $23'},{name:'6 Months',price:'$49',period:'/ 6 months',dur:'6 Months',color:'var(--teal)',popular:true,key:'sixmonth',ecPrice:'EC $112'},{name:'1 Year',price:'$79',period:'/ year',dur:'12 Months',color:'var(--purple)',key:'yearly',ecPrice:'EC $181'}];
+const planDefs=[{name:'Monthly',price:'$10',discPrice:'$8.50',ecPrice:'EC $27',discEcPrice:'EC $23',period:'/ month',dur:'1 Month',color:'var(--gold)',key:'monthly'},{name:'6 Months',price:'$49',discPrice:'$41.65',ecPrice:'EC $132',discEcPrice:'EC $112',period:'/ 6 months',dur:'6 Months',color:'var(--teal)',popular:true,key:'sixmonth'},{name:'1 Year',price:'$79',discPrice:'$67.15',ecPrice:'EC $213',discEcPrice:'EC $181',period:'/ year',dur:'12 Months',color:'var(--purple)',key:'yearly'}];
 planDefs.forEach(plan=>{
 const card=div({cls:'plan-card',style:{borderColor:plan.popular?plan.color+'55':'var(--border)',borderTopWidth:plan.popular?'3px':'1px',borderTopColor:plan.popular?plan.color:'var(--border)'}});
 if(plan.popular)card.append(div({cls:'popular-tag',html:'Best Value'}));
@@ -1096,30 +1096,36 @@ if(allItems.length){tsSection.style.display='block';
 return page;
 }
 function showPaymentNotice(plan,onContinue){
-const ov=div({cls:'modal-bg'});
-ov.onclick=e=>{if(e.target===ov)ov.remove();};
-const box=div({cls:'card',style:{maxWidth:'460px',width:'100%'}});
-box.append(
-  div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'16px'}},[
-    h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'20px'},html:'Before You Pay'}),
-    btn('✕','',()=>ov.remove(),{style:{background:'none',border:'none',color:'var(--muted)',fontSize:'18px',cursor:'pointer'}})
-  ]),
-  div({style:{background:'rgba(201,168,76,0.08)',border:'1px solid var(--gold-border)',borderRadius:'4px',padding:'14px 16px',marginBottom:'16px',fontFamily:"Inter,sans-serif",fontSize:'13px',color:'var(--text)',lineHeight:'1.7'}},
-    [h('strong',{style:{color:'var(--gold)',display:'block',marginBottom:'6px'}},['Payment Notice']),
-    document.createTextNode('We have noticed that students from Dominica are experiencing issues with card payments on Selar. You can pay via NBD bank transfer, or try any other card you have.')]),
-  div({style:{background:'var(--card)',border:'1px solid var(--border)',borderRadius:'4px',padding:'14px 16px',marginBottom:'16px',fontFamily:"'DM Mono',monospace",fontSize:'13px',lineHeight:'1.9'}},
-    [h('div',{style:{fontSize:'10px',letterSpacing:'2px',color:'var(--dim)',marginBottom:'8px',fontFamily:"Inter,sans-serif"}},['NBD BANK DETAILS']),
-    h('div',{},[document.createTextNode('Account Name: '),h('strong',{style:{color:'var(--gold)'}},['Deo Fortis Subscription'])]),
-    h('div',{},[document.createTextNode('Account: '),h('strong',{style:{color:'var(--gold)'}},['725001006'])]),
-    h('div',{},[document.createTextNode('Transit: '),h('strong',{style:{color:'var(--gold)'}},['7672768563'])]),
-    h('div',{style:{marginTop:'8px',fontFamily:"Inter,sans-serif",fontSize:'12px',color:'var(--dim)'}},[document.createTextNode('Amount: '),h('strong',{style:{color:'var(--text)'}},[''+plan.ecPrice+' ('+plan.price+')'])])]),
-  div({style:{fontFamily:"Inter,sans-serif",fontSize:'12px',color:'var(--muted)',marginBottom:'20px',lineHeight:'1.7'}},
-    [document.createTextNode('After paying, email your receipt to '),
-    h('strong',{style:{color:'var(--gold)'}},['deofortistutors@gmail.com']),
-    document.createTextNode('. Also email us there for any payment issues.')]),
-  btn('Continue to Payment →','btn-gold',()=>{ov.remove();onContinue();},{style:{width:'100%',padding:'14px',marginBottom:'8px'}}),
-  btn('Cancel','btn-outline',()=>ov.remove(),{style:{width:'100%',padding:'10px',fontSize:'12px'}})
+var ov=div({cls:'modal-bg'});
+ov.onclick=function(e){if(e.target===ov)ov.remove();};
+var box=div({cls:'card',style:{maxWidth:'460px',width:'100%'}});
+var header=div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'16px'}});
+header.append(h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'20px'},html:'Before You Pay'}),btn('✕','',function(){ov.remove();},{style:{background:'none',border:'none',color:'var(--muted)',fontSize:'18px',cursor:'pointer'}}));
+var notice=div({style:{background:'rgba(201,168,76,0.08)',border:'1px solid var(--gold-border)',borderRadius:'4px',padding:'14px 16px',marginBottom:'16px',fontFamily:"Inter,sans-serif",fontSize:'13px',color:'var(--text)',lineHeight:'1.7'}});
+notice.append(h('strong',{style:{color:'var(--gold)',display:'block',marginBottom:'6px'},html:'Payment Notice'}),document.createTextNode('We have noticed that students from Dominica are experiencing issues with card payments on Selar. You can pay via NBD bank transfer, or try any other card you have.'));
+var nbd=div({style:{background:'var(--card)',border:'1px solid var(--border)',borderRadius:'4px',padding:'14px 16px',marginBottom:'16px',fontFamily:"'DM Mono',monospace",fontSize:'13px',lineHeight:'1.9'}});
+var nbdLabel=h('div',{style:{fontSize:'10px',letterSpacing:'2px',color:'var(--dim)',marginBottom:'8px',fontFamily:"Inter,sans-serif"},html:'NBD BANK DETAILS'});
+var accName=h('div',{},[document.createTextNode('Account Name: '),h('strong',{style:{color:'var(--gold)'}},['Deo Fortis Subscription'])]);
+var acc=h('div',{},[document.createTextNode('Account: '),h('strong',{style:{color:'var(--gold)'}},['725001006'])]);
+var transit=h('div',{},[document.createTextNode('Transit: '),h('strong',{style:{color:'var(--gold)'}},['7672768563'])]);
+var pricing=h('div',{style:{marginTop:'8px',fontFamily:"Inter,sans-serif",fontSize:'12px',color:'var(--dim)'}});
+pricing.append(
+  document.createTextNode('USD: '),
+  h('span',{style:{textDecoration:'line-through',opacity:'.6'}},[''+plan.price]),
+  document.createTextNode(' \u2192 '),
+  h('strong',{style:{color:'var(--gold)'}},[''+plan.discPrice]),
+  h('br',{},[]),
+  document.createTextNode('EC: '),
+  h('span',{style:{textDecoration:'line-through',opacity:'.6'}},[''+plan.ecPrice]),
+  document.createTextNode(' \u2192 '),
+  h('strong',{style:{color:'var(--gold)'}},[''+plan.discEcPrice]),
+  h('br',{},[]),
+  h('span',{style:{fontSize:'10px',letterSpacing:'1px',color:'var(--teal)'}},['15% off with code LAUNCH2026 \u00b7 valid till June 30'])
 );
+nbd.append(nbdLabel,accName,acc,transit,pricing);
+var emailNote=div({style:{fontFamily:"Inter,sans-serif",fontSize:'12px',color:'var(--muted)',marginBottom:'20px',lineHeight:'1.7'}});
+emailNote.append(document.createTextNode('After paying, email your receipt to '),h('strong',{style:{color:'var(--gold)'}},['deofortistutors@gmail.com']),document.createTextNode('. Also email us there for any payment issues.'));
+box.append(header,notice,nbd,emailNote,btn('Continue to Payment \u2192','btn-gold',function(){ov.remove();onContinue();},{style:{width:'100%',padding:'14px',marginBottom:'8px'}}),btn('Cancel','btn-outline',function(){ov.remove();},{style:{width:'100%',padding:'10px',fontSize:'12px'}}));
 ov.append(box);document.body.append(ov);
 }
 function showRsvpModal(){
@@ -1380,7 +1386,7 @@ ps.append(h('p',{style:{fontFamily:"Inter,sans-serif",fontSize:'10px',letterSpac
 const pl=div({style:{display:'grid',gap:'12px'}});
 let links2={monthly:'#',sixmonth:'#',yearly:'#'};
 sb.from('admin_settings').select('*').single().then(({data})=>{if(data)links2={monthly:data.link_monthly||'#',sixmonth:data.link_sixmonth||'#',yearly:data.link_yearly||'#'};});
-[{name:'Monthly',price:'$10',period:'/ month',dur:'1 Month',color:'var(--gold)',key:'monthly',ecPrice:'EC $23'},{name:'6 Months',price:'$49',period:'/ 6 months',dur:'6 Months',color:'var(--teal)',popular:true,key:'sixmonth',ecPrice:'EC $112'},{name:'1 Year',price:'$79',period:'/ year',dur:'12 Months',color:'var(--purple)',key:'yearly',ecPrice:'EC $181'}].forEach(plan=>{
+[{name:'Monthly',price:'$10',discPrice:'$8.50',ecPrice:'EC $27',discEcPrice:'EC $23',period:'/ month',dur:'1 Month',color:'var(--gold)',key:'monthly'},{name:'6 Months',price:'$49',discPrice:'$41.65',ecPrice:'EC $132',discEcPrice:'EC $112',period:'/ 6 months',dur:'6 Months',color:'var(--teal)',popular:true,key:'sixmonth'},{name:'1 Year',price:'$79',discPrice:'$67.15',ecPrice:'EC $213',discEcPrice:'EC $181',period:'/ year',dur:'12 Months',color:'var(--purple)',key:'yearly'}].forEach(plan=>{
 const card=div({style:{background:'var(--card)',border:'1px solid var(--border)',borderRadius:'4px',padding:'20px 24px',cursor:'pointer',transition:'all .2s',position:'relative'},id:'pc-'+plan.key});
 if(plan.popular)card.append(h('span',{style:{position:'absolute',top:'-1px',right:'16px',background:'var(--teal)',color:'#0F0E0A',fontFamily:"Inter,sans-serif",fontSize:'9px',letterSpacing:'2px',textTransform:'uppercase',padding:'3px 10px',borderRadius:'0 0 4px 4px'},html:'Best Value'}));
 const row=div({style:{display:'flex',alignItems:'center',justifyContent:'space-between'}});
@@ -1613,7 +1619,7 @@ function showUpgradeModal(){
   });
   modal.append(grid);
   const planRows=div({style:{display:'flex',flexDirection:'column',gap:'10px',marginBottom:'16px'}});
-  const planDefs2=[{label:'Monthly',price:'$10',key:'monthly',cls:'btn-gold',ecPrice:'EC $23'},{label:'6 Months',price:'$49',key:'sixmonth',cls:'btn-teal',ecPrice:'EC $112'},{label:'Yearly',price:'$79',key:'yearly',cls:'btn-outline',ecPrice:'EC $181'}];
+  const planDefs2=[{label:'Monthly',price:'$10',discPrice:'$8.50',ecPrice:'EC $27',discEcPrice:'EC $23',key:'monthly',cls:'btn-gold'},{label:'6 Months',price:'$49',discPrice:'$41.65',ecPrice:'EC $132',discEcPrice:'EC $112',key:'sixmonth',cls:'btn-teal'},{label:'Yearly',price:'$79',discPrice:'$67.15',ecPrice:'EC $213',discEcPrice:'EC $181',key:'yearly',cls:'btn-outline'}];
   const buildPlanButtons=(links)=>{
     planRows.innerHTML='';
     planDefs2.forEach(p=>{
