@@ -886,8 +886,6 @@ h('p',{cls:'muted',style:{fontSize:'16px',lineHeight:'1.8',maxWidth:'520px'},htm
 );
 const hbtns=div({style:{display:'flex',gap:'16px',marginTop:'32px',flexWrap:'wrap',alignItems:'center'}});
 hbtns.append(h('a',{cls:'btn btn-gold',href:'#plans',html:'View Plans →'}));
-const rsvpBtn=btn('🎉 RSVP — Launch Event','btn-rsvp',()=>showRsvpModal(),{style:{padding:'12px 24px',fontSize:'12px',letterSpacing:'0.5px',borderRadius:'2px'}});
-hbtns.append(rsvpBtn);
 const vbtn=div({style:{display:'inline-flex',alignItems:'center',gap:'10px',padding:'12px 24px',border:'1px solid var(--border)',borderRadius:'2px',fontFamily:"Inter,sans-serif",fontSize:'11px',letterSpacing:'2px',textTransform:'uppercase',color:'var(--muted)',cursor:'pointer'}});
 vbtn.append(div({style:{width:'24px',height:'24px',borderRadius:'50%',border:'1px solid var(--dim)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'10px',color:'var(--gold)',html:'▶'}}),document.createTextNode('Watch Demo (Optional)'));
 vbtn.onclick=()=>showVidModal(cfg.video);
@@ -907,16 +905,14 @@ const features=['Full Pomodoro System','Active Recall Engine (Theory, Anki, Vign
 const plansSection=div({cls:'section',id:'plans'});
 plansSection.append(div({cls:'divider'}),h('br'),h('span',{cls:'chapter',html:'Chapter I — Enrolment'}),h('h2',{cls:'big',style:{marginBottom:'12px'},html:'Choose Your<br><em class="gold-em">Duration</em>'}),h('p',{cls:'muted',style:{maxWidth:'500px',fontSize:'15px',marginBottom:'8px'},html:'Every plan includes the full platform. You are simply choosing how long your access lasts.'}),div({cls:'quote',style:{maxWidth:'480px',marginBottom:'40px',marginTop:'24px'},html:'"The longer you commit, the less you pay per month."'}));
 const plansGrid=div({cls:'grid-auto',id:'plans-grid'});
-const planDefs=[{name:'Monthly',price:'$10',period:'/ month',dur:'1 Month',color:'var(--gold)',key:'monthly'},{name:'6 Months',price:'$39',oldPrice:'$49',period:'/ 6 months',dur:'6 Months',color:'var(--teal)',popular:true,key:'sixmonth'},{name:'1 Year',price:'$59',oldPrice:'$79',period:'/ year',dur:'12 Months',color:'var(--purple)',key:'yearly'}];
+const planDefs=[{name:'Monthly',price:'$10',period:'/ month',dur:'1 Month',color:'var(--gold)',key:'monthly',ecPrice:'EC $23'},{name:'6 Months',price:'$49',period:'/ 6 months',dur:'6 Months',color:'var(--teal)',popular:true,key:'sixmonth',ecPrice:'EC $112'},{name:'1 Year',price:'$79',period:'/ year',dur:'12 Months',color:'var(--purple)',key:'yearly',ecPrice:'EC $181'}];
 planDefs.forEach(plan=>{
 const card=div({cls:'plan-card',style:{borderColor:plan.popular?plan.color+'55':'var(--border)',borderTopWidth:plan.popular?'3px':'1px',borderTopColor:plan.popular?plan.color:'var(--border)'}});
 if(plan.popular)card.append(div({cls:'popular-tag',html:'Best Value'}));
 card.append(div({cls:'mono',style:{marginBottom:'8px',marginTop:plan.popular?'16px':'0'},html:plan.name}));
 const priceRow=div({style:{display:'flex',alignItems:'baseline',gap:'6px',marginBottom:'4px'}});
 priceRow.append(h('span',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'52px',color:plan.color,lineHeight:'1',fontWeight:'700'},html:plan.price}),h('span',{style:{fontSize:'14px',color:'var(--dim)',fontWeight:'300'},html:plan.period}));
-if(plan.oldPrice)priceRow.append(h('span',{style:{fontFamily:"Inter,sans-serif",fontSize:'13px',color:'var(--dim)',textDecoration:'line-through',marginLeft:'4px'},html:plan.oldPrice}));
 card.append(priceRow);
-if(plan.oldPrice)card.append(div({style:{fontFamily:"Inter,sans-serif",fontSize:'10px',color:plan.color,letterSpacing:'1px',marginBottom:'4px',opacity:'.9'},html:'LAUNCH PRICE'}));
 card.append(div({style:{fontFamily:"Inter,sans-serif",fontSize:'11px',color:plan.color,letterSpacing:'1px',marginBottom:'24px',opacity:'.8'},html:plan.dur+' of full access'}));
 card.append(h('hr',{style:{border:'none',borderTop:'1px solid var(--border)',marginBottom:'20px'}}));
 const fl=div({style:{marginBottom:'28px'}});
@@ -924,12 +920,13 @@ features.forEach(f=>{const item=div({cls:'check-item'});item.append(h('span',{st
 card.append(fl);
 const eb=h('a',{cls:'btn btn-gold',style:{background:plan.color,color:'#0F0E0A',width:'100%',textAlign:'center',display:'block'},html:'Enrol — '+plan.price,id:'enrol-'+plan.key});
 eb.href='#';
-eb.onclick=e=>{e.preventDefault();showEnrolModal(plan,cfg.links[plan.key]||'#');};
+eb.onclick=e=>{e.preventDefault();showPaymentNotice(plan,()=>showEnrolModal(plan,cfg.links[plan.key]||'#'));};
 card.append(eb);
 card.append(h('p',{style:{fontFamily:"Inter,sans-serif",fontSize:'10px',color:'var(--dim)',textAlign:'center',marginTop:'12px',letterSpacing:'1px',textTransform:'uppercase'},html:'Approval required · Payment via Selar'}));
 plansGrid.append(card);
 });
 plansSection.append(plansGrid);
+plansSection.append(div({style:{textAlign:'center',marginTop:'16px',marginBottom:'8px',fontFamily:"Inter,sans-serif",fontSize:'12px',color:'var(--gold)',letterSpacing:'1px'}},['Use code ',h('strong',{style:{fontFamily:"'DM Mono',monospace",fontSize:'13px',background:'rgba(201,168,76,0.12)',padding:'2px 8px',borderRadius:'2px',border:'1px solid var(--gold-border)'}},['LAUNCH2026']),' for 15% off — valid till June 30']));
 // FREE TIER OPTION
 const freeSection=div({style:{textAlign:'center',marginTop:'8px',paddingBottom:'16px'}});
 freeSection.append(
@@ -1097,6 +1094,33 @@ if(allItems.length){tsSection.style.display='block';
 })();
 })();
 return page;
+}
+function showPaymentNotice(plan,onContinue){
+const ov=div({cls:'modal-bg'});
+ov.onclick=e=>{if(e.target===ov)ov.remove();};
+const box=div({cls:'card',style:{maxWidth:'460px',width:'100%'}});
+box.append(
+  div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'16px'}},[
+    h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'20px'},html:'Before You Pay'}),
+    btn('✕','',()=>ov.remove(),{style:{background:'none',border:'none',color:'var(--muted)',fontSize:'18px',cursor:'pointer'}})
+  ]),
+  div({style:{background:'rgba(201,168,76,0.08)',border:'1px solid var(--gold-border)',borderRadius:'4px',padding:'14px 16px',marginBottom:'16px',fontFamily:"Inter,sans-serif",fontSize:'13px',color:'var(--text)',lineHeight:'1.7'}},
+    [h('strong',{style:{color:'var(--gold)',display:'block',marginBottom:'6px'}},['Payment Notice']),
+    document.createTextNode('We have noticed that students from Dominica are experiencing issues with card payments on Selar. You can pay via NBD bank transfer, or try any other card you have.')]),
+  div({style:{background:'var(--card)',border:'1px solid var(--border)',borderRadius:'4px',padding:'14px 16px',marginBottom:'16px',fontFamily:"'DM Mono',monospace",fontSize:'13px',lineHeight:'1.9'}},
+    [h('div',{style:{fontSize:'10px',letterSpacing:'2px',color:'var(--dim)',marginBottom:'8px',fontFamily:"Inter,sans-serif"}},['NBD BANK DETAILS']),
+    h('div',{},[document.createTextNode('Account Name: '),h('strong',{style:{color:'var(--gold)'}},['Deo Fortis Subscription'])]),
+    h('div',{},[document.createTextNode('Account: '),h('strong',{style:{color:'var(--gold)'}},['725001006'])]),
+    h('div',{},[document.createTextNode('Transit: '),h('strong',{style:{color:'var(--gold)'}},['7672768563'])]),
+    h('div',{style:{marginTop:'8px',fontFamily:"Inter,sans-serif",fontSize:'12px',color:'var(--dim)'}},[document.createTextNode('Amount: '),h('strong',{style:{color:'var(--text)'}},[''+plan.ecPrice+' ('+plan.price+')'])])]),
+  div({style:{fontFamily:"Inter,sans-serif",fontSize:'12px',color:'var(--muted)',marginBottom:'20px',lineHeight:'1.7'}},
+    [document.createTextNode('After paying, email your receipt to '),
+    h('strong',{style:{color:'var(--gold)'}},['deofortistutors@gmail.com']),
+    document.createTextNode('. Also email us there for any payment issues.')]),
+  btn('Continue to Payment →','btn-gold',()=>{ov.remove();onContinue();},{style:{width:'100%',padding:'14px',marginBottom:'8px'}}),
+  btn('Cancel','btn-outline',()=>ov.remove(),{style:{width:'100%',padding:'10px',fontSize:'12px'}})
+);
+ov.append(box);document.body.append(ov);
 }
 function showRsvpModal(){
 const ov=div({cls:'modal-bg'});
@@ -1356,14 +1380,13 @@ ps.append(h('p',{style:{fontFamily:"Inter,sans-serif",fontSize:'10px',letterSpac
 const pl=div({style:{display:'grid',gap:'12px'}});
 let links2={monthly:'#',sixmonth:'#',yearly:'#'};
 sb.from('admin_settings').select('*').single().then(({data})=>{if(data)links2={monthly:data.link_monthly||'#',sixmonth:data.link_sixmonth||'#',yearly:data.link_yearly||'#'};});
-[{name:'Monthly',price:'$10',period:'/ month',dur:'1 Month',color:'var(--gold)',key:'monthly'},{name:'6 Months',price:'$39',oldPrice:'$49',period:'/ 6 months',dur:'6 Months',color:'var(--teal)',popular:true,key:'sixmonth'},{name:'1 Year',price:'$59',oldPrice:'$79',period:'/ year',dur:'12 Months',color:'var(--purple)',key:'yearly'}].forEach(plan=>{
+[{name:'Monthly',price:'$10',period:'/ month',dur:'1 Month',color:'var(--gold)',key:'monthly',ecPrice:'EC $23'},{name:'6 Months',price:'$49',period:'/ 6 months',dur:'6 Months',color:'var(--teal)',popular:true,key:'sixmonth',ecPrice:'EC $112'},{name:'1 Year',price:'$79',period:'/ year',dur:'12 Months',color:'var(--purple)',key:'yearly',ecPrice:'EC $181'}].forEach(plan=>{
 const card=div({style:{background:'var(--card)',border:'1px solid var(--border)',borderRadius:'4px',padding:'20px 24px',cursor:'pointer',transition:'all .2s',position:'relative'},id:'pc-'+plan.key});
 if(plan.popular)card.append(h('span',{style:{position:'absolute',top:'-1px',right:'16px',background:'var(--teal)',color:'#0F0E0A',fontFamily:"Inter,sans-serif",fontSize:'9px',letterSpacing:'2px',textTransform:'uppercase',padding:'3px 10px',borderRadius:'0 0 4px 4px'},html:'Best Value'}));
 const row=div({style:{display:'flex',alignItems:'center',justifyContent:'space-between'}});
 const left=div({});
-const priceHtml=plan.price+' <span style="font-size:13px;color:var(--dim);font-weight:300">'+plan.period+'</span>'+(plan.oldPrice?' <span style="font-size:12px;color:var(--dim);text-decoration:line-through;margin-left:4px">'+plan.oldPrice+'</span>':'');
+const priceHtml=plan.price+' <span style="font-size:13px;color:var(--dim);font-weight:300">'+plan.period+'</span>';
 left.append(h('div',{cls:'mono',style:{marginBottom:'4px'},html:plan.name}),h('div',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'28px',color:plan.color,fontWeight:'700',lineHeight:'1'},html:priceHtml}));
-if(plan.oldPrice)left.append(h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'9px',color:plan.color,letterSpacing:'1px',marginTop:'4px',opacity:'.9'},html:'LAUNCH PRICE'}));
 const radio=div({style:{width:'22px',height:'22px',borderRadius:'50%',border:'2px solid var(--border)',flexShrink:'0'}});radio.id='pr-'+plan.key;row.append(left,radio);card.append(row,h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'10px',color:plan.color,letterSpacing:'1px',marginTop:'6px',opacity:'.7'},html:plan.dur+' of full access'}));
 card.onclick=()=>{
 [{name:'Monthly',key:'monthly'},{name:'6 Months',key:'sixmonth'},{name:'1 Year',key:'yearly'}].forEach(p2=>{const c=document.getElementById('pc-'+p2.key);const r=document.getElementById('pr-'+p2.key);if(c){c.style.border='1px solid var(--border)';c.style.background='var(--card)';}if(r){r.innerHTML='';r.style.border='2px solid var(--border)';}});
@@ -1538,8 +1561,7 @@ div({style:{fontSize:'48px',marginBottom:'20px'},html:' '}),
 div({style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontStyle:'italic',fontSize:'22px',color:'var(--gold)',marginBottom:'16px'},html:'Deo Fortis'}),
 h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'24px',marginBottom:'12px'},html:"You're on the list."}),
 h('p',{cls:'muted',style:{fontSize:'15px',lineHeight:'1.7',marginBottom:'24px'},html:'The platform launches <strong style="color:var(--gold)">June 7</strong>. You will get access on launch day. Join the live event below.'}),
-div({cls:'quote',style:{marginBottom:'24px',textAlign:'left'},html:'"Everyone is gifted."'}),
-btn('RSVP — Join the Launch Event','btn-rsvp',()=>showRsvpModal(),{style:{width:'100%',marginBottom:'12px',padding:'14px'}}));
+div({cls:'quote',style:{marginBottom:'24px',textAlign:'left'},html:'"Everyone is gifted."'}));
 const txSection=div({style:{textAlign:'left',borderTop:'1px solid var(--border)',paddingTop:'20px',marginTop:'4px',marginBottom:'12px'}});
 const txInput=inp('e.g. SC5ZY7WO3583N','text','');
 txInput.style.marginBottom='10px';
@@ -1591,14 +1613,12 @@ function showUpgradeModal(){
   });
   modal.append(grid);
   const planRows=div({style:{display:'flex',flexDirection:'column',gap:'10px',marginBottom:'16px'}});
-  const planDefs2=[{label:'Monthly',price:'$10',key:'monthly',cls:'btn-gold'},{label:'6 Months',price:'$39',oldPrice:'$49',key:'sixmonth',cls:'btn-teal'},{label:'Yearly',price:'$59',oldPrice:'$79',key:'yearly',cls:'btn-outline'}];
+  const planDefs2=[{label:'Monthly',price:'$10',key:'monthly',cls:'btn-gold',ecPrice:'EC $23'},{label:'6 Months',price:'$49',key:'sixmonth',cls:'btn-teal',ecPrice:'EC $112'},{label:'Yearly',price:'$79',key:'yearly',cls:'btn-outline',ecPrice:'EC $181'}];
   const buildPlanButtons=(links)=>{
     planRows.innerHTML='';
     planDefs2.forEach(p=>{
-      const b=btn('',p.cls,()=>{window.open(links[p.key]||'#','_blank');},{style:{width:'100%',display:'flex',justifyContent:'space-between',alignItems:'center',padding:'12px 16px'}});
-      const priceDisplay=p.oldPrice?'<span style="text-decoration:line-through;opacity:.5;font-size:11px;margin-right:4px">'+p.oldPrice+'</span>'+p.price:p.price;
-      const launchTag=p.oldPrice?'<span style="font-size:9px;letter-spacing:1px;opacity:.8;margin-left:6px">LAUNCH</span>':'';
-      b.innerHTML='<span>'+p.label+launchTag+'</span><span>'+priceDisplay+'</span>';
+      const b=btn('',p.cls,()=>{showPaymentNotice(p,()=>window.open(links[p.key]||'#','_blank'));},{style:{width:'100%',display:'flex',justifyContent:'space-between',alignItems:'center',padding:'12px 16px'}});
+      b.innerHTML='<span>'+p.label+'</span><span>'+p.price+'</span>';
       planRows.append(b);
     });
   };
@@ -1661,11 +1681,9 @@ function showExpiryBanner(daysLeft){
   const links=div({style:{display:'flex',gap:'10px',alignItems:'center'}},[
     mkLink('Monthly $10','monthly'),
     h('span',{html:'|'}),
-    mkLink('Monthly $10','monthly'),
+    mkLink('6 Months $49','sixmonth'),
     h('span',{html:'|'}),
-    mkLink('6 Months $39','sixmonth'),
-    h('span',{html:'|'}),
-    mkLink('Yearly $59','yearly')
+    mkLink('Yearly $79','yearly')
   ]);
   const closeBtn=h('span',{style:{cursor:'pointer',fontSize:'16px',fontWeight:'bold',marginLeft:'8px'},html:'✕'});
   closeBtn.onclick=()=>{banner.remove();expiryBannerEl=null;};
@@ -3809,7 +3827,7 @@ card.append(field('Demo Video URL',vI),h('p',{cls:'mono',style:{marginBottom:'20
 // Payment links
 card.append(h('hr',{style:{border:'none',borderTop:'1px solid var(--border)',margin:'24px 0'}}),h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'18px',marginBottom:'16px'},html:'Study Portal Payment Links'}));
 const lIs={};
-[['link_monthly','Monthly ($10)'],['link_sixmonth','6 Months ($39, was $49)'],['link_yearly','1 Year ($59, was $79)'],['link_custom','Custom Session ($15)']].forEach(([k,l])=>{const i=inp('https://selar.co/...','text',set[k]||'');lIs[k]=i;card.append(field(l,i));});
+[['link_monthly','Monthly ($10)'],['link_sixmonth','6 Months ($49)'],['link_yearly','1 Year ($79)'],['link_custom','Custom Session ($15)']].forEach(([k,l])=>{const i=inp('https://selar.co/...','text',set[k]||'');lIs[k]=i;card.append(field(l,i));});
 // Community & support
 card.append(h('hr',{style:{border:'none',borderTop:'1px solid var(--border)',margin:'24px 0'}}));
 card.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'18px',marginBottom:'16px'},html:'Platform Links'}));
