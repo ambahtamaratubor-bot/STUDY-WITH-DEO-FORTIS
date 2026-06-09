@@ -4179,13 +4179,112 @@ card.append(h('label',{cls:'label',html:'Subject Name'}),tI);
 const subsRowsDiv=div({style:{marginBottom:'16px',marginTop:'16px'}});
 card.append(h('label',{cls:'label',html:'Subsections (at least one)'}),subsRowsDiv);
 const subsectionRows=[];
+function parseQBlocks(text){
+  var blocks=text.split('\n\n').filter(function(b){return b.trim();});
+  var results=[];
+  for(var i=0;i<blocks.length;i++){
+    var rawLines=blocks[i].split('\n').filter(function(l){return l.trim();});
+    if(rawLines.length<2){continue;}
+    var expandedLines=[];
+    for(var ri=0;ri<rawLines.length;ri++){
+      var rl=rawLines[ri];
+      var hasInline=/[A-E][.)]\s.+\s[B-E][.)]\s/.test(rl);
+      if(hasInline){
+        var parts=rl.split(/\s+(?=[A-E][.)]\s)/);
+        for(var pi=0;pi<parts.length;pi++){expandedLines.push(parts[pi].trim());}
+      } else {expandedLines.push(rl);}
+    }
+    var lines=expandedLines.filter(function(l){return l.trim();});
+    if(lines.length<3){continue;}
+    var q={question:'',option_a:'',option_b:'',option_c:'',option_d:'',option_e:'',correct_answer:'',explanation:''};
+    q.question=lines[0];
+    var expIdx=-1;
+    for(var li=1;li<lines.length;li++){
+      var line=lines[li];
+      if(line.startsWith('A.')||line.startsWith('A)'))q.option_a=line.slice(2).trim();
+      if(line.startsWith('B.')||line.startsWith('B)'))q.option_b=line.slice(2).trim();
+      if(line.startsWith('C.')||line.startsWith('C)'))q.option_c=line.slice(2).trim();
+      if(line.startsWith('D.')||line.startsWith('D)'))q.option_d=line.slice(2).trim();
+      if(line.startsWith('E.')||line.startsWith('E)'))q.option_e=line.slice(2).trim();
+      if(line.toLowerCase().startsWith('answer:'))q.correct_answer=line.split(':')[1]?.trim().toUpperCase()||'';
+      if(line.toLowerCase().startsWith('explanation:')){q.explanation=line.split(':').slice(1).join(':').trim();expIdx=li;}
+    }
+    if(expIdx>=0&&expIdx<lines.length-1){var extra=lines.slice(expIdx+1).filter(function(l){return !l.startsWith('A.')&&!l.startsWith('B.')&&!l.startsWith('C.')&&!l.startsWith('D.')&&!l.startsWith('E.')&&!l.toLowerCase().startsWith('answer:');}).join(' ');if(extra)q.explanation+=' '+extra;}
+    var missing=[];
+    if(!q.option_a)missing.push('A');if(!q.option_b)missing.push('B');if(!q.option_c)missing.push('C');if(!q.option_d)missing.push('D');if(!q.correct_answer)missing.push('Answer');
+    q._ok=missing.length===0;
+    q._missing=missing;
+    q._idx=i+1;
+    results.push(q);
+  }
+  return results;
+}
+var previewPanel=div({style:{marginTop:'24px',display:'none'}});
+card.append(previewPanel);
+function showPreview(subName,qs){
+  previewPanel.style.display='block';
+  previewPanel.innerHTML='';
+  var ok=qs.filter(function(q){return q._ok;}).length;
+  var bad=qs.length-ok;
+  var headerBg=bad>0?'rgba(255,80,80,0.08)':'rgba(126,173,168,0.08)';
+  var headerBorder=bad>0?'#ff5050':'var(--teal)';
+  var headerColor=bad>0?'#ff5050':'var(--teal)';
+  var summary=div({style:{padding:'12px 16px',background:headerBg,border:'1px solid '+headerBorder,borderRadius:'4px',marginBottom:'16px',fontFamily:"Inter,sans-serif",fontSize:'13px',color:headerColor}});
+  summary.textContent='Preview: "'+subName+'" — '+ok+' valid, '+bad+' failed out of '+qs.length+' questions'+(bad>0?' — fix failed questions before uploading':'');
+  previewPanel.append(summary);
+  for(var i=0;i<qs.length;i++){
+    var q=qs[i];
+    var qWrap=div({style:{marginBottom:'16px',border:'1px solid '+(q._ok?'var(--border)':'#ff5050'),borderRadius:'4px',overflow:'hidden'}});
+    var qHeader=div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 12px',background:q._ok?'var(--card2)':'rgba(255,80,80,0.1)',fontFamily:"DM Mono,monospace",fontSize:'11px'}});
+    var qNum=div({});qNum.textContent='Q'+q._idx;qNum.style.color='var(--muted)';
+    var badge=div({});
+    badge.textContent=q._ok?'✓ OK':'✗ MISSING: '+q._missing.join(', ');
+    badge.style.color=q._ok?'var(--teal)':'#ff5050';
+    badge.style.fontWeight='600';
+    qHeader.append(qNum,badge);
+    qWrap.append(qHeader);
+    var qBody=div({style:{padding:'14px 16px'}});
+    var stemP=div({style:{fontFamily:"Georgia,serif",fontSize:'13px',color:'var(--text)',lineHeight:'1.7',marginBottom:'14px'}});
+    stemP.textContent=q.question;
+    qBody.append(stemP);
+    ['a','b','c','d','e'].forEach(function(opt){
+      var val=q['option_'+opt];if(!val)return;
+      var isCorr=q.correct_answer===opt.toUpperCase();
+      var ob=div({style:{display:'flex',alignItems:'flex-start',gap:'10px',padding:'9px 12px',marginBottom:'6px',border:'1px solid '+(isCorr?'var(--teal)':'var(--border)'),borderRadius:'3px',background:isCorr?'rgba(126,173,168,0.08)':'transparent',fontFamily:"Inter,sans-serif",fontSize:'13px',cursor:'default',color:isCorr?'var(--teal)':'var(--muted)'}});
+      var lbl=div({});lbl.textContent=opt.toUpperCase()+'.';lbl.style.fontWeight='700';lbl.style.minWidth='20px';lbl.style.fontFamily='DM Mono,monospace';
+      var txt=div({});txt.textContent=val;txt.style.color='var(--text)';
+      ob.append(lbl,txt);
+      qBody.append(ob);
+    });
+    if(q.correct_answer){
+      var ansRow=div({style:{marginTop:'10px',padding:'8px 12px',background:'rgba(126,173,168,0.06)',borderRadius:'3px',fontFamily:"DM Mono,monospace",fontSize:'11px',color:'var(--teal)'}});
+      ansRow.textContent='CORRECT ANSWER: '+q.correct_answer;
+      qBody.append(ansRow);
+    }
+    if(q.explanation){
+      var expRow=div({style:{marginTop:'8px',padding:'10px 12px',background:'var(--card2)',borderRadius:'3px',fontFamily:"Inter,sans-serif",fontSize:'12px',color:'var(--muted)',lineHeight:'1.6'}});
+      expRow.textContent=q.explanation;
+      qBody.append(expRow);
+    }
+    qWrap.append(qBody);
+    previewPanel.append(qWrap);
+  }
+}
 function addSubsectionRow(){
   const rowId=Date.now()+'_'+Math.random();
   const rowDiv=div({style:{marginBottom:'12px',padding:'12px',background:'var(--card2)',border:'1px solid var(--border)',borderRadius:'4px'}});
   const nameInp=inp('e.g. Gastroenterology','text','');
   const fileInp=h('input',{type:'file',accept:'.txt',style:{color:'var(--muted)',fontSize:'13px',fontFamily:"Inter,sans-serif",marginTop:'8px',display:'block'}});
   const removeBtn=btn('✕ Remove','btn-outline',()=>{rowDiv.remove();const idx=subsectionRows.findIndex(r=>r.id===rowId);if(idx!==-1)subsectionRows.splice(idx,1);},{style:{padding:'4px 12px',fontSize:'10px',color:'#ff4444',borderColor:'#ff4444',marginLeft:'12px'}});
-  const topRow=div({style:{display:'flex',alignItems:'center',gap:'8px'}},[nameInp,removeBtn]);
+  const previewBtn=btn('Preview','btn-outline',async function(){
+    if(!fileInp.files||!fileInp.files.length){upSt.textContent='Select a file first';return;}
+    var text=await fileInp.files[0].text();
+    var qs=parseQBlocks(text);
+    var subName=nameInp.value.trim()||'Untitled';
+    showPreview(subName,qs);
+    previewPanel.scrollIntoView({behavior:'smooth',block:'start'});
+  },{style:{padding:'4px 12px',fontSize:'10px',marginLeft:'8px'}});
+  const topRow=div({style:{display:'flex',alignItems:'center',gap:'8px'}},[nameInp,removeBtn,previewBtn]);
   rowDiv.append(topRow,fileInp);
   subsRowsDiv.append(rowDiv);
   subsectionRows.push({id:rowId,nameInp,fileInp});
@@ -4216,7 +4315,21 @@ const uploadBtn=btn('Upload All Subsections','btn-gold',async()=>{
     const blocks=text.split('\n\n').filter(b=>b.trim());
     const qs=[];
     for(const block of blocks){
-      const lines=block.split('\n').filter(l=>l.trim());
+      var rawLines=block.split('\n').filter(function(l){return l.trim();});
+      if(rawLines.length<2)continue;
+      var expandedLines=[];
+      for(var ri=0;ri<rawLines.length;ri++){
+        var rl=rawLines[ri];
+        var inlineOpt=/\s(?=[A-E][.)]\s)/g;
+        var hasInline=/[A-E][.)]\s.+\s[B-E][.)]\s/.test(rl);
+        if(hasInline){
+          var parts=rl.split(/\s+(?=[A-E][.)]\s)/);
+          for(var pi=0;pi<parts.length;pi++){expandedLines.push(parts[pi].trim());}
+        } else {
+          expandedLines.push(rl);
+        }
+      }
+      var lines=expandedLines.filter(function(l){return l.trim();});
       if(lines.length<3)continue;
       const q={topic:subject,subsection:subName,question:'',option_a:'',option_b:'',option_c:'',option_d:'',option_e:'',correct_answer:'',explanation:'',is_global:freeToggle.checked,user_id:null};
       q.question=lines[0];
