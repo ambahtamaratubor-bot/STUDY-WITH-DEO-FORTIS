@@ -4064,13 +4064,60 @@ const cards=lines.map(line=>{const parts=line.split(',');return{deck_id:deck.id,
 await sb.from('flashcards').insert(cards);upSt.textContent='✓ Uploaded '+cards.length+' cards!';
 }else{
 const blocks=text.split('\n\n').filter(b=>b.trim());const qs=[];
-for(const block of blocks){const lines=block.split('\n').filter(l=>l.trim());if(lines.length<3)continue;const q={topic:'Personal',subsection:r.topic,question:'',option_a:'',option_b:'',option_c:'',option_d:'',option_e:'',correct_answer:'',explanation:'',is_global:false,user_id:r.user_id};q.question=lines[0];let expIdx=-1;for(let li=1;li<lines.length;li++){const line=lines[li];if(line.startsWith('A.')||line.startsWith('A)'))q.option_a=line.slice(2).trim();else if(line.startsWith('B.')||line.startsWith('B)'))q.option_b=line.slice(2).trim();else if(line.startsWith('C.')||line.startsWith('C)'))q.option_c=line.slice(2).trim();else if(line.startsWith('D.')||line.startsWith('D)'))q.option_d=line.slice(2).trim();else if(line.startsWith('E.')||line.startsWith('E)'))q.option_e=line.slice(2).trim();else if(line.toLowerCase().startsWith('answer:'))q.correct_answer=line.split(':')[1].trim().toUpperCase();else if(line.toLowerCase().startsWith('explanation:')){q.explanation=line.split(':').slice(1).join(':').trim();expIdx=li;}}if(expIdx>=0&&expIdx<lines.length-1){const extra=lines.slice(expIdx+1).filter(l=>!l.startsWith('A.')&&!l.startsWith('B.')&&!l.startsWith('C.')&&!l.startsWith('D.')&&!l.startsWith('E.')&&!l.toLowerCase().startsWith('answer:')).join(' ');if(extra)q.explanation+=' '+extra;}if(q.question&&q.correct_answer)qs.push(q);}
+for(const block of blocks){
+var rawLines2=block.split('\n').filter(function(l){return l.trim();});
+if(rawLines2.length<2)continue;
+var expandedLines2=[];
+for(var ri2=0;ri2<rawLines2.length;ri2++){var rl2=rawLines2[ri2];var hasInline2=/[A-E][.)]\s.+\s[B-E][.)]\s/.test(rl2);if(hasInline2){var parts2=rl2.split(/\s+(?=[A-E][.)]\s)/);for(var pi2=0;pi2<parts2.length;pi2++){expandedLines2.push(parts2[pi2].trim());}}else{expandedLines2.push(rl2);}}
+var lines2=expandedLines2.filter(function(l){return l.trim();});
+if(lines2.length<3)continue;
+const q={topic:'Personal',subsection:r.topic,question:'',option_a:'',option_b:'',option_c:'',option_d:'',option_e:'',correct_answer:'',explanation:'',is_global:false,user_id:r.user_id};q.question=lines2[0];let expIdx=-1;for(let li=1;li<lines2.length;li++){const line=lines2[li];if(line.startsWith('A.')||line.startsWith('A)'))q.option_a=line.slice(2).trim();else if(line.startsWith('B.')||line.startsWith('B)'))q.option_b=line.slice(2).trim();else if(line.startsWith('C.')||line.startsWith('C)'))q.option_c=line.slice(2).trim();else if(line.startsWith('D.')||line.startsWith('D)'))q.option_d=line.slice(2).trim();else if(line.startsWith('E.')||line.startsWith('E)'))q.option_e=line.slice(2).trim();else if(line.toLowerCase().startsWith('answer:'))q.correct_answer=line.split(':')[1].trim().toUpperCase();else if(line.toLowerCase().startsWith('explanation:')){q.explanation=line.split(':').slice(1).join(':').trim();expIdx=li;}}if(expIdx>=0&&expIdx<lines2.length-1){const extra=lines2.slice(expIdx+1).filter(l=>!l.startsWith('A.')&&!l.startsWith('B.')&&!l.startsWith('C.')&&!l.startsWith('D.')&&!l.startsWith('E.')&&!l.toLowerCase().startsWith('answer:')).join(' ');if(extra)q.explanation+=' '+extra;}if(q.question&&q.correct_answer)qs.push(q);}
 if(qs.length){const{error:insertErr}=await sb.from('vignette_questions').insert(qs);if(insertErr){upSt.textContent='Insert error: '+insertErr.message;upSt.style.color='#ff4444';}else{upSt.textContent='✓ Uploaded '+qs.length+' questions!';upSt.style.color='var(--teal)';}}else upSt.textContent='No valid questions found — check file format.';
 }
 setTimeout(()=>upSt.style.display='none',3000);
 }
 if(r.style&&r.style.includes('flashcard')){const fi=h('input',{type:'file',accept:'.csv',style:{color:'var(--muted)',fontSize:'12px',fontFamily:"Inter,sans-serif"}});fi.onchange=e=>{if(e.target.files[0])handleUpload(e.target.files[0],true);};br2.append(div({},[h('label',{cls:'label',html:'Upload Flashcard CSV'}),fi]));}
-if(r.style&&r.style.includes('vignette')){const fi=h('input',{type:'file',accept:'.txt',style:{color:'var(--muted)',fontSize:'12px',fontFamily:"Inter,sans-serif"}});fi.onchange=e=>{if(e.target.files[0])handleUpload(e.target.files[0],false);};br2.append(div({},[h('label',{cls:'label',html:'Upload Vignette TXT'}),fi]));}
+if(r.style&&r.style.includes('vignette')){
+var vigWrap=div({});
+var vigLabel=h('label',{cls:'label',html:'Upload Vignette TXT'});
+var fi=h('input',{type:'file',accept:'.txt',style:{color:'var(--muted)',fontSize:'12px',fontFamily:"Inter,sans-serif",display:'block',marginBottom:'6px'}});
+var vigPreviewPanel=div({style:{display:'none',marginTop:'12px',maxHeight:'400px',overflowY:'auto',border:'1px solid var(--border)',borderRadius:'4px',padding:'12px'}});
+var vigPreviewBtn=btn('Preview','btn-outline',async function(){
+  if(!fi.files||!fi.files.length){upSt.textContent='Select a file first';upSt.style.display='block';return;}
+  var text=await fi.files[0].text();
+  var qs=parseQBlocks(text);
+  var ok=qs.filter(function(q){return q._ok;}).length;
+  var bad=qs.length-ok;
+  vigPreviewPanel.innerHTML='';
+  vigPreviewPanel.style.display='block';
+  var sumEl=div({style:{fontFamily:"Inter,sans-serif",fontSize:'12px',padding:'8px 10px',marginBottom:'10px',borderRadius:'3px',background:bad>0?'rgba(255,80,80,0.08)':'rgba(126,173,168,0.08)',border:'1px solid '+(bad>0?'#ff5050':'var(--teal)'),color:bad>0?'#ff5050':'var(--teal)'}});
+  sumEl.textContent=ok+' valid, '+bad+' failed out of '+qs.length+(bad>0?' — fix before uploading':'  — ready to upload');
+  vigPreviewPanel.append(sumEl);
+  for(var i=0;i<qs.length;i++){
+    var q=qs[i];
+    var qWrap=div({style:{marginBottom:'12px',border:'1px solid '+(q._ok?'var(--border)':'#ff5050'),borderRadius:'4px',overflow:'hidden'}});
+    var qHdr=div({style:{display:'flex',justifyContent:'space-between',padding:'6px 10px',background:q._ok?'var(--card2)':'rgba(255,80,80,0.1)',fontFamily:"DM Mono,monospace",fontSize:'10px'}});
+    var qN=div({});qN.textContent='Q'+q._idx;qN.style.color='var(--muted)';
+    var qB=div({});qB.textContent=q._ok?'✓ OK':'✗ MISSING: '+q._missing.join(', ');qB.style.color=q._ok?'var(--teal)':'#ff5050';qB.style.fontWeight='600';
+    qHdr.append(qN,qB);qWrap.append(qHdr);
+    var qBody=div({style:{padding:'10px 12px'}});
+    var stemEl=div({style:{fontFamily:"Georgia,serif",fontSize:'12px',color:'var(--text)',lineHeight:'1.6',marginBottom:'10px'}});stemEl.textContent=q.question;qBody.append(stemEl);
+    ['a','b','c','d','e'].forEach(function(opt){
+      var val=q['option_'+opt];if(!val)return;
+      var isCorr=q.correct_answer===opt.toUpperCase();
+      var ob=div({style:{display:'flex',gap:'8px',padding:'7px 10px',marginBottom:'4px',border:'1px solid '+(isCorr?'var(--teal)':'var(--border)'),borderRadius:'3px',background:isCorr?'rgba(126,173,168,0.08)':'transparent',fontFamily:"Inter,sans-serif",fontSize:'12px'}});
+      var lbl=div({});lbl.textContent=opt.toUpperCase()+'.';lbl.style.fontWeight='700';lbl.style.fontFamily='DM Mono,monospace';lbl.style.minWidth='18px';lbl.style.color=isCorr?'var(--teal)':'var(--muted)';
+      var txt=div({});txt.textContent=val;txt.style.color='var(--text)';
+      ob.append(lbl,txt);qBody.append(ob);
+    });
+    if(q.correct_answer){var ansEl=div({style:{marginTop:'8px',fontFamily:"DM Mono,monospace",fontSize:'10px',color:'var(--teal)',padding:'6px 10px',background:'rgba(126,173,168,0.06)',borderRadius:'3px'}});ansEl.textContent='ANSWER: '+q.correct_answer;qBody.append(ansEl);}
+    qWrap.append(qBody);vigPreviewPanel.append(qWrap);
+  }
+},{style:{padding:'4px 10px',fontSize:'10px',marginBottom:'6px'}});
+fi.onchange=function(e){if(e.target.files[0])handleUpload(e.target.files[0],false);};
+vigWrap.append(vigLabel,fi,vigPreviewBtn,vigPreviewPanel);
+br2.append(vigWrap);
+}
 if(r.style&&r.style.includes('theory')){
 const fi=h('input',{type:'file',accept:'.pdf',style:{color:'var(--muted)',fontSize:'12px',fontFamily:"Inter,sans-serif"}});
 fi.onchange=async e=>{
