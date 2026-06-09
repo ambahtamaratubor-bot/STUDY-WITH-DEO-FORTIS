@@ -4357,7 +4357,49 @@ const uploadBtn=btn('Upload All Subsections','btn-gold',async()=>{
   upSt.textContent='Uploaded '+total+' questions ('+withE+' with option E) across '+subsectionRows.length+' subsection(s)';
   await loadQuestionList();
 },{});
-card.append(uploadBtn,upSt);
+const repairBtn=btn('Repair Broken Questions','btn-outline',async function(){
+  repairBtn.disabled=true;repairBtn.textContent='Scanning...';
+  var page=0;var pageSize=1000;var broken=[];
+  while(true){
+    var res=await sb.from('vignette_questions').select('id,question,option_a').range(page*pageSize,(page+1)*pageSize-1);
+    if(res.error){upSt.textContent='Scan error: '+res.error.message;repairBtn.disabled=false;repairBtn.textContent='Repair Broken Questions';return;}
+    var rows=res.data||[];
+    for(var i=0;i<rows.length;i++){
+      var r=rows[i];
+      if(!r.option_a||!r.option_a.trim()){broken.push(r);}
+    }
+    if(rows.length<pageSize)break;
+    page++;
+  }
+  if(!broken.length){upSt.textContent='No broken questions found — everything looks good.';repairBtn.disabled=false;repairBtn.textContent='Repair Broken Questions';return;}
+  upSt.textContent='Found '+broken.length+' broken question(s). Repairing...';
+  var fixed=0;var failed=0;
+  for(var i=0;i<broken.length;i++){
+    var r=broken[i];
+    var stem=r.question||'';
+    var hasInline=/[A-E][.)]\s.+\s[B-E][.)]\s/.test(stem);
+    if(!hasInline){failed++;continue;}
+    var parts=stem.split(/\s+(?=[A-E][.)]\s)/);
+    var cleanStem=parts[0].trim();
+    var opts={option_a:'',option_b:'',option_c:'',option_d:'',option_e:''};
+    for(var pi=1;pi<parts.length;pi++){
+      var p=parts[pi].trim();
+      if(p.startsWith('A.')||p.startsWith('A)'))opts.option_a=p.slice(2).trim();
+      else if(p.startsWith('B.')||p.startsWith('B)'))opts.option_b=p.slice(2).trim();
+      else if(p.startsWith('C.')||p.startsWith('C)'))opts.option_c=p.slice(2).trim();
+      else if(p.startsWith('D.')||p.startsWith('D)'))opts.option_d=p.slice(2).trim();
+      else if(p.startsWith('E.')||p.startsWith('E)'))opts.option_e=p.slice(2).trim();
+    }
+    if(!opts.option_a||!opts.option_b||!opts.option_c||!opts.option_d){failed++;continue;}
+    opts.question=cleanStem;
+    var upd=await sb.from('vignette_questions').update(opts).eq('id',r.id);
+    if(upd.error){failed++;}else{fixed++;}
+  }
+  upSt.textContent='Repair complete: '+fixed+' fixed, '+failed+' could not be auto-repaired.';
+  repairBtn.disabled=false;repairBtn.textContent='Repair Broken Questions';
+  if(fixed>0)await loadQuestionList();
+},{style:{marginLeft:'10px'}});
+card.append(uploadBtn,repairBtn,upSt);
 const qListDiv=div({style:{marginTop:'24px'}});
 let selectedIds=new Set();
 async function loadQuestionList(){
