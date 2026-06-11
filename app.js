@@ -57,11 +57,19 @@ let payLinks={monthly:'#',sixmonth:'#',yearly:'#'};
 sb.from('admin_settings').select('link_monthly,link_sixmonth,link_yearly').single().then(({data})=>{if(data)payLinks={monthly:data.link_monthly||'#',sixmonth:data.link_sixmonth||'#',yearly:data.link_yearly||'#'};});
 function go(p){S.page=p;if(window._goT)clearTimeout(window._goT);window._goT=setTimeout(render,0);}
 function isInTrial(){return S.profile?.is_free_tier===true&&S.inTrial===true;}
-sb.auth.onAuthStateChange((_,session)=>{
+sb.auth.getSession().then(function(r){
+  var session=r&&r.data&&r.data.session;
+  if(session&&!signingUp){window._authHandled=true;S.user=session.user;getProfile(session.user.id);}
+  else if(!session){go('landing');}
+});
+sb.auth.onAuthStateChange(function(event,session){
   if(signingUp)return;
   if(window._teamLogin)return;
-  if(session){S.user=session.user;getProfile(session.user.id);}
-  else{S.user=null;S.profile=null;go('landing');}
+  if((event==='SIGNED_IN'||event==='INITIAL_SESSION')&&session){
+    if(window._authHandled){window._authHandled=false;return;}
+    S.user=session.user;getProfile(session.user.id);
+  }else if(event==='SIGNED_OUT'){S.user=null;S.profile=null;go('landing');}
+  else if(event==='TOKEN_REFRESHED'&&session){S.user=session.user;}
 });
 async function getProfile(id){
 const{data}=await sb.from('profiles').select('*').eq('id',id).single();
@@ -2573,6 +2581,21 @@ async function showDecks(){
 inner.innerHTML='';
 inner.append(h('span',{cls:'chapter',html:'Flashcard Decks'}),h('h1',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'40px',fontWeight:'700',marginBottom:'8px'},html:'Study <em class="gold-em">Flashcards</em>'}),h('p',{cls:'muted',style:{fontSize:'14px',marginBottom:'40px'},html:'Select a deck. Mark cards Easy, Iffy, or Hard as you go.'}));
 var mapletF=showMaplet('flashcards','Flip through your deck and rate each card. Hard cards come back sooner — that is spaced repetition working for you.');if(mapletF)inner.append(mapletF);
+var _drs=null;try{var _drr=sessionStorage.getItem('deck_resume');if(_drr){_drs=JSON.parse(_drr);}}catch(e){}
+if(_drs&&_drs.deckId&&_drs.currentIndex>0){
+  var resumeBanner=div({cls:'card',style:{marginBottom:'24px',padding:'16px',border:'1px solid var(--gold)',background:'rgba(200,169,110,0.08)'}});
+  resumeBanner.append(
+    h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'11px',color:'var(--gold)',marginBottom:'12px'},html:'⏸ Deck in progress — '+(_drs.deckName||'Flashcards')+' · card '+_drs.currentIndex+' of '+_drs.total}),
+    div({style:{display:'flex',gap:'10px'}},[
+      btn('Resume','btn-gold',async function(){
+        var{data:rd}=await sb.from('flashcard_decks').select('*').eq('id',_drs.deckId).single();
+        if(rd)loadDeck(rd);
+      },{style:{padding:'6px 16px',fontSize:'11px'}}),
+      btn('Discard','btn-outline',function(){sessionStorage.removeItem('deck_resume');showDecks();},{style:{padding:'6px 16px',fontSize:'11px'}})
+    ])
+  );
+  inner.append(resumeBanner);
+}
 const{data}=await (isFree?sb.from('flashcard_decks').select('*').eq('type','flashcard').eq('is_global',true).is('user_id',null).order('created_at',{ascending:false}):sb.from('flashcard_decks').select('*').or('user_id.eq.'+S.user.id+',user_id.is.null').neq('type','riddle').neq('type','emoji').order('created_at',{ascending:false}));
 decks=data||[];
 if(!decks.length){inner.append(div({cls:'card',style:{textAlign:'center',padding:'48px'}},[div({style:{fontSize:'40px',marginBottom:'16px'},html:' '}),h('p',{style:{fontSize:'14px',color:'var(--dim)'},html:'No flashcard decks yet.'})]));return;}
@@ -3497,7 +3520,13 @@ async function loadEmojiDecksPage(){}
 async function showDeckPlayer(deck,type){
   var{data:deckCards}=await sb.from('flashcards').select('*').eq('deck_id',deck.id);
   if(!deckCards||!deckCards.length)return;
-  var currentIndex=0,revealed=false,gotIt=0;
+  var savedState=null;
+  try{var _sr=sessionStorage.getItem('deck_resume');if(_sr){var _srp=JSON.parse(_sr);if(_srp.deckId===deck.id){savedState=_srp;}}}catch(e){}
+  var currentIndex=savedState?savedState.currentIndex:0;
+  var revealed=false;
+  var gotIt=savedState?savedState.gotIt:0;
+  function saveDeckState(){sessionStorage.setItem('deck_resume',JSON.stringify({deckId:deck.id,deckName:deck.name,currentIndex:currentIndex,gotIt:gotIt,total:deckCards.length}));}
+  function clearDeckState(){sessionStorage.removeItem('deck_resume');}
   var overlay=div({style:{position:'fixed',top:'0',left:'0',right:'0',bottom:'0',background:'rgba(0,0,0,0.95)',zIndex:'10000',display:'flex',alignItems:'center',justifyContent:'center',padding:'20px'}});
   var modal=div({style:{maxWidth:'600px',width:'100%',background:'var(--card)',border:'1px solid var(--gold)',borderRadius:'8px',padding:'32px',maxHeight:'90vh',overflowY:'auto'}});
   function renderCard(){
@@ -3505,13 +3534,13 @@ async function showDeckPlayer(deck,type){
     var card=deckCards[currentIndex];
     modal.append(h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'11px',color:'var(--dim)',marginBottom:'8px',textAlign:'right'},html:(currentIndex+1)+' / '+deckCards.length}));
     modal.append(h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'9px',color:'var(--teal)',marginBottom:'16px',textAlign:'right'},html:'✓ '+gotIt+' correct so far'}));
-    modal.append(div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'24px'}},[h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'24px',color:'var(--gold)'},html:deck.name}),btn('✕','',function(){overlay.style.display='none';},{style:{background:'none',border:'none',color:'var(--dim)',fontSize:'24px',cursor:'pointer'}})]));
+    modal.append(div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'24px'}},[h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'24px',color:'var(--gold)'},html:deck.name}),btn('✕','',function(){clearDeckState();overlay.style.display='none';},{style:{background:'none',border:'none',color:'var(--dim)',fontSize:'24px',cursor:'pointer'}})]));
     modal.append(div({style:{textAlign:'center',padding:'40px 20px',background:'var(--card2)',borderRadius:'8px',marginBottom:'24px'}},[h('div',{cls:type==='emoji'?'twemoji-scope':'',style:{fontFamily:type==='riddle'?"'Plus Jakarta Sans',sans-serif":'monospace',fontSize:type==='riddle'?'28px':'48px',color:'var(--text)',lineHeight:'1.3',whiteSpace:'pre-wrap'},html:card.question})]));
     if(!revealed){
       modal.append(btn('Reveal Answer →','btn-outline',function(){revealed=true;renderCard();},{style:{width:'100%',marginBottom:'16px'}}));
     }else{
       modal.append(div({style:{background:'rgba(200,169,110,0.1)',padding:'20px',borderRadius:'8px',marginBottom:'16px'}},[h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'13px',color:'var(--gold)',marginBottom:'8px'},html:'Answer:'}),h('div',{style:{fontFamily:'monospace',fontSize:'14px',color:'var(--text)',lineHeight:'1.4'},html:card.answer})]));
-      modal.append(div({style:{display:'flex',gap:'12px'}},[btn('Got It','btn-teal',function(){gotIt++;if(currentIndex+1<deckCards.length){currentIndex++;revealed=false;renderCard();}else{completeDeck();}},{style:{flex:'1'}}),btn('Did Not Get It','btn-outline',function(){if(currentIndex+1<deckCards.length){currentIndex++;revealed=false;renderCard();}else{completeDeck();}},{style:{flex:'1'}})]));
+      modal.append(div({style:{display:'flex',gap:'12px'}},[btn('Got It','btn-teal',function(){gotIt++;if(currentIndex+1<deckCards.length){currentIndex++;revealed=false;saveDeckState();renderCard();}else{clearDeckState();completeDeck();}},{style:{flex:'1'}}),btn('Did Not Get It','btn-outline',function(){if(currentIndex+1<deckCards.length){currentIndex++;revealed=false;saveDeckState();renderCard();}else{clearDeckState();completeDeck();}},{style:{flex:'1'}})]));
     }
   }
   async function completeDeck(){
