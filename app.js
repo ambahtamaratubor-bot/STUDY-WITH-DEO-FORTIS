@@ -176,7 +176,7 @@ if(!S.user){
   if(_rsess&&_rsess.user){
     S.user=_rsess.user;
     var _savedPage=localStorage.getItem('df-page');
-    if(_savedPage&&_savedPage!=='landing'&&_savedPage!=='login'&&_savedPage!=='signup'){S.page=_savedPage;}
+    if(_savedPage&&_savedPage!=='landing'&&_savedPage!=='login'&&_savedPage!=='signup'&&_savedPage!=='admin'){S.page=_savedPage;}
     if(!S.profile){await getProfile(_rsess.user.id);}return;
   }
 }
