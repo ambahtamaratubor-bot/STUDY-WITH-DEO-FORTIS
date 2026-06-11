@@ -75,6 +75,7 @@ if(data){
       localStorage.removeItem('pomodoroState');localStorage.removeItem('activeSession');
     }
   }
+  if(S.user?.email==='timothyambah.deofortis@gmail.com'){go('admin');return;}
   if(data.test_access===true&&data.status==='pending'){go('dashboard');return;}
   if(data.is_free_tier===true){
     go('dashboard');
@@ -3711,28 +3712,7 @@ let authed=false;
 function showLogin(){
 page.innerHTML='';
 const wrap=div({cls:'center',style:{minHeight:'100vh',padding:'24px'}});
-const card=div({cls:'card fade',style:{maxWidth:'360px',width:'100%'}});
-const aEmail=inp('Admin email','text');
-const aPass=inp('Admin password','password');
-const eEl=div({cls:'err hidden'});
-const entBtn=btn('Enter','btn-gold',async()=>{
-  const email=aEmail.value.trim().toLowerCase();
-  const password=aPass.value;
-  if(!email||!password){eEl.classList.remove('hidden');eEl.textContent='Enter email and password.';return;}
-  entBtn.disabled=true;entBtn.textContent='Signing in...';
-  const{data,error}=await sb.auth.signInWithPassword({email,password});
-  if(error){eEl.classList.remove('hidden');eEl.textContent='Invalid email or password.';entBtn.disabled=false;entBtn.textContent='Enter';return;}
-  const{data:roleData}=await sb.from('admin_roles').select('role').eq('user_id',data.user.id).single();
-  const isSuperAdmin=data.user.email==='timothyambah.deofortis@gmail.com'||roleData?.role==='super_admin';
-  if(!isSuperAdmin){eEl.classList.remove('hidden');eEl.textContent='You do not have admin access.';entBtn.disabled=false;entBtn.textContent='Enter';await sb.auth.signOut();return;}
-  S.user=data.user;
-  const{data:adminProfile}=await sb.from('profiles').select('*').eq('id',data.user.id).single();
-  S.profile=adminProfile||{};
-  authed=true;
-  showAdminPanel();
-},{style:{width:'100%',marginBottom:'16px'}});
-aPass.onkeydown=e=>{if(e.key==='Enter')entBtn.click();};
-const tmCard=div({cls:'card fade',style:{maxWidth:'360px',width:'100%',marginTop:'16px'}});
+const tmCard=div({cls:'card fade',style:{maxWidth:'360px',width:'100%'}});
 const tmEmail=inp('Team member email','text');
 const tmPass=inp('Password','password');
 const tmErr=div({cls:'err hidden'});
@@ -3762,8 +3742,7 @@ tmCard.append(
   h('br'),
   tmBtn
 );
-card.append(div({style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontStyle:'italic',fontSize:'22px',color:'var(--gold)',marginBottom:'4px'},html:'Deo Fortis'}),h('hr',{style:{border:'none',borderTop:'1px solid var(--border)',margin:'16px 0'}}),h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'22px',marginBottom:'16px'},html:'Admin Access'}),eEl,h('label',{cls:'label',html:'Email'}),aEmail,h('br'),h('label',{cls:'label',html:'Password'}),aPass,h('br'),entBtn,h('p',{style:{fontSize:'12px',color:'var(--dim)',textAlign:'center'},html:'<button onclick="go(\'landing\')" style="background:none;border:none;color:var(--dim);cursor:pointer;font-size:12px">← Back to site</button>'}));
-wrap.append(card,tmCard);page.append(wrap);
+wrap.append(tmCard);page.append(wrap);
 }
 async function showAdminPanel(){
 page.innerHTML='';
