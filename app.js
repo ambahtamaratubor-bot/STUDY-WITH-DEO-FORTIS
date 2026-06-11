@@ -3712,7 +3712,23 @@ let authed=false;
 function showLogin(){
 page.innerHTML='';
 const wrap=div({cls:'center',style:{minHeight:'100vh',padding:'24px'}});
-const tmCard=div({cls:'card fade',style:{maxWidth:'360px',width:'100%'}});
+const card=div({cls:'card fade',style:{maxWidth:'360px',width:'100%'}});
+const pI=inp('Enter admin password','password');
+const eEl=div({cls:'err hidden'});
+const entBtn=btn('Enter','btn-gold',async()=>{
+  const password=pI.value;
+  if(!password){eEl.classList.remove('hidden');eEl.textContent='Please enter the admin password.';return;}
+  entBtn.disabled=true;entBtn.textContent='Verifying...';
+  try{
+    const response=await fetch('https://yygjkqkzbdjnyyrrhdku.supabase.co/functions/v1/admin-actions',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+SKEY},body:JSON.stringify({action:'verify_admin',password})});
+    const data=await response.json();
+    if(data.success){authed=true;showAdminPanel();}
+    else{eEl.classList.remove('hidden');eEl.textContent=data.error||'Incorrect password.';}
+  }catch(err){eEl.classList.remove('hidden');eEl.textContent='Network error – please try again.';}
+  finally{entBtn.disabled=false;entBtn.textContent='Enter';}
+},{style:{width:'100%',marginBottom:'16px'}});
+pI.onkeydown=e=>{if(e.key==='Enter')entBtn.click();};
+const tmCard=div({cls:'card fade',style:{maxWidth:'360px',width:'100%',marginTop:'16px'}});
 const tmEmail=inp('Team member email','text');
 const tmPass=inp('Password','password');
 const tmErr=div({cls:'err hidden'});
@@ -3742,7 +3758,8 @@ tmCard.append(
   h('br'),
   tmBtn
 );
-wrap.append(tmCard);page.append(wrap);
+card.append(div({style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontStyle:'italic',fontSize:'22px',color:'var(--gold)',marginBottom:'4px'},html:'Deo Fortis'}),h('hr',{style:{border:'none',borderTop:'1px solid var(--border)',margin:'16px 0'}}),h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'22px',marginBottom:'16px'},html:'Admin Access'}),eEl,h('label',{cls:'label',html:'Password'}),pI,h('br'),entBtn,h('p',{style:{fontSize:'12px',color:'var(--dim)',textAlign:'center'},html:'<button onclick="go(\'landing\')" style="background:none;border:none;color:var(--dim);cursor:pointer;font-size:12px">← Back to site</button>'}));
+wrap.append(card,tmCard);page.append(wrap);
 }
 async function showAdminPanel(){
 page.innerHTML='';
