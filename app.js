@@ -1,8 +1,8 @@
 const SURL='https://yygjkqkzbdjnyyrrhdku.supabase.co';
-const SKEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl5Z2prcWt6YmRqbnl5cnJoZGt1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgwMjgyNTcsImV4cCI6MjA5MzYwNDI1N30.6mJTBhjWphURBnFefQziVreQW8WjYJLAAjMx6Sv-Kfk';
+const SKEY='sb_publishable_b83FyTbx9QbFYiJQNQE2Cg_ZnWFoN9F';
 const RESEND_KEY='re_NbpuzGhW_N5WRkmwF68SZ12yEy3q9Z7m9';
 const ADMIN_EMAIL='deofortistutors@gmail.com';
-const sb=window.supabase.createClient(SURL,SKEY,{auth:{persistSession:true,autoRefreshToken:true,storageKey:'df-auth',detectSessionInUrl:false,storage:window.localStorage}});
+const sb=window.supabase.createClient(SURL,SKEY,{auth:{persistSession:true,autoRefreshToken:true,storageKey:'df-auth',detectSessionInUrl:false,storage:window.localStorage},global:{headers:{'apikey':SKEY}}});
 let themeToggleBtns=[];
 function toggleTheme(){
   const current=document.documentElement.getAttribute('data-theme')||'dark';
