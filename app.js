@@ -57,19 +57,11 @@ let payLinks={monthly:'#',sixmonth:'#',yearly:'#'};
 sb.from('admin_settings').select('link_monthly,link_sixmonth,link_yearly').single().then(({data})=>{if(data)payLinks={monthly:data.link_monthly||'#',sixmonth:data.link_sixmonth||'#',yearly:data.link_yearly||'#'};});
 function go(p){S.page=p;if(window._goT)clearTimeout(window._goT);window._goT=setTimeout(render,0);}
 function isInTrial(){return S.profile?.is_free_tier===true&&S.inTrial===true;}
-sb.auth.getSession().then(function(r){
-  var session=r&&r.data&&r.data.session;
-  if(session&&!signingUp){window._authHandled=true;S.user=session.user;getProfile(session.user.id);}
-  else if(!session){go('landing');}
-});
 sb.auth.onAuthStateChange(function(event,session){
   if(signingUp)return;
   if(window._teamLogin)return;
-  if((event==='SIGNED_IN'||event==='INITIAL_SESSION')&&session){
-    if(window._authHandled){window._authHandled=false;return;}
-    S.user=session.user;getProfile(session.user.id);
-  }else if(event==='SIGNED_OUT'){S.user=null;S.profile=null;go('landing');}
-  else if(event==='TOKEN_REFRESHED'&&session){S.user=session.user;}
+  if(session){S.user=session.user;getProfile(session.user.id);}
+  else if(event==='SIGNED_OUT'){S.user=null;S.profile=null;go('landing');}
 });
 async function getProfile(id){
 const{data}=await sb.from('profiles').select('*').eq('id',id).single();
@@ -2581,7 +2573,7 @@ async function showDecks(){
 inner.innerHTML='';
 inner.append(h('span',{cls:'chapter',html:'Flashcard Decks'}),h('h1',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'40px',fontWeight:'700',marginBottom:'8px'},html:'Study <em class="gold-em">Flashcards</em>'}),h('p',{cls:'muted',style:{fontSize:'14px',marginBottom:'40px'},html:'Select a deck. Mark cards Easy, Iffy, or Hard as you go.'}));
 var mapletF=showMaplet('flashcards','Flip through your deck and rate each card. Hard cards come back sooner — that is spaced repetition working for you.');if(mapletF)inner.append(mapletF);
-var _drs=null;try{var _drr=sessionStorage.getItem('deck_resume');if(_drr){_drs=JSON.parse(_drr);}}catch(e){}
+var _drs=null;try{var _drk='deck_resume_'+(S.user&&S.user.id||'x');var _drr=localStorage.getItem(_drk);if(_drr){_drs=JSON.parse(_drr);}}catch(e){}
 if(_drs&&_drs.deckId&&_drs.currentIndex>0){
   var resumeBanner=div({cls:'card',style:{marginBottom:'24px',padding:'16px',border:'1px solid var(--gold)',background:'rgba(200,169,110,0.08)'}});
   resumeBanner.append(
@@ -2591,7 +2583,7 @@ if(_drs&&_drs.deckId&&_drs.currentIndex>0){
         var{data:rd}=await sb.from('flashcard_decks').select('*').eq('id',_drs.deckId).single();
         if(rd)loadDeck(rd);
       },{style:{padding:'6px 16px',fontSize:'11px'}}),
-      btn('Discard','btn-outline',function(){sessionStorage.removeItem('deck_resume');showDecks();},{style:{padding:'6px 16px',fontSize:'11px'}})
+      btn('Discard','btn-outline',function(){localStorage.removeItem('deck_resume_'+(S.user&&S.user.id||'x'));showDecks();},{style:{padding:'6px 16px',fontSize:'11px'}})
     ])
   );
   inner.append(resumeBanner);
@@ -3521,12 +3513,12 @@ async function showDeckPlayer(deck,type){
   var{data:deckCards}=await sb.from('flashcards').select('*').eq('deck_id',deck.id);
   if(!deckCards||!deckCards.length)return;
   var savedState=null;
-  try{var _sr=sessionStorage.getItem('deck_resume');if(_sr){var _srp=JSON.parse(_sr);if(_srp.deckId===deck.id){savedState=_srp;}}}catch(e){}
+  try{var _srk='deck_resume_'+(S.user&&S.user.id||'x');var _sr=localStorage.getItem(_srk);if(_sr){var _srp=JSON.parse(_sr);if(_srp.deckId===deck.id){savedState=_srp;}}}catch(e){}
   var currentIndex=savedState?savedState.currentIndex:0;
   var revealed=false;
   var gotIt=savedState?savedState.gotIt:0;
-  function saveDeckState(){sessionStorage.setItem('deck_resume',JSON.stringify({deckId:deck.id,deckName:deck.name,currentIndex:currentIndex,gotIt:gotIt,total:deckCards.length}));}
-  function clearDeckState(){sessionStorage.removeItem('deck_resume');}
+  function saveDeckState(){localStorage.setItem('deck_resume_'+(S.user&&S.user.id||'x'),JSON.stringify({deckId:deck.id,deckName:deck.name,currentIndex:currentIndex,gotIt:gotIt,total:deckCards.length}));}
+  function clearDeckState(){localStorage.removeItem('deck_resume_'+(S.user&&S.user.id||'x'));}
   var overlay=div({style:{position:'fixed',top:'0',left:'0',right:'0',bottom:'0',background:'rgba(0,0,0,0.95)',zIndex:'10000',display:'flex',alignItems:'center',justifyContent:'center',padding:'20px'}});
   var modal=div({style:{maxWidth:'600px',width:'100%',background:'var(--card)',border:'1px solid var(--gold)',borderRadius:'8px',padding:'32px',maxHeight:'90vh',overflowY:'auto'}});
   function renderCard(){
