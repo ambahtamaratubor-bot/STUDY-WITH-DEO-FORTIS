@@ -1,6 +1,5 @@
 const SURL='https://yygjkqkzbdjnyyrrhdku.supabase.co';
 const SKEY='sb_publishable_b83FyTbx9QbFYiJQNQE2Cg_ZnWFoN9F';
-const RESEND_KEY='re_NbpuzGhW_N5WRkmwF68SZ12yEy3q9Z7m9';
 const ADMIN_EMAIL='deofortistutors@gmail.com';
 const sb=window.supabase.createClient(SURL,SKEY,{auth:{persistSession:true,autoRefreshToken:true,storageKey:'df-auth',detectSessionInUrl:false,storage:window.localStorage},global:{headers:{'apikey':SKEY}}});
 let themeToggleBtns=[];
@@ -18,24 +17,6 @@ function makeThemeBtn(){
   return b;
 }
 let pkgsLoaded=false;
-async function sendAdminEmail(subject,body){
-try{
-await fetch('https://api.resend.com/emails',{
-method:'POST',
-headers:{'Content-Type':'application/json','Authorization':'Bearer '+RESEND_KEY},
-body:JSON.stringify({from:'Deo Fortis <noreply@deofortis.work>',to:ADMIN_EMAIL,subject,html:body})
-});
-}catch(e){console.log('Email error:',e);}
-}
-async function sendStudentEmail(toEmail,subject,body){
-try{
-await fetch('https://api.resend.com/emails',{
-method:'POST',
-headers:{'Content-Type':'application/json','Authorization':'Bearer '+RESEND_KEY},
-body:JSON.stringify({from:'Deo Fortis <noreply@deofortis.work>',to:toEmail,subject,html:body})
-});
-}catch(e){console.log('Student email error:',e);}
-}
 function emailBase(content){
 return `<div style="font-family:'Plus Jakarta Sans',Arial,sans-serif;max-width:560px;margin:0 auto;background:#0F0E0A;color:#E8E4DC;border-radius:8px;overflow:hidden">
   <div style="background:#0F0E0A;padding:32px 40px 20px;border-bottom:1px solid #2a2820;text-align:center">
@@ -1232,7 +1213,6 @@ const passVal=passI.value;
 submitBtn.textContent='Creating Account...';submitBtn.disabled=true;
 const{data,error}=await sb.auth.signUp({email:emailVal,password:passVal,options:{data:{full_name:nameVal,plan:plan.name}}});
 if(error){errEl.classList.remove('hidden');errEl.textContent=error.message;submitBtn.textContent='Create Account & Pay';submitBtn.disabled=false;return;}
-sendAdminEmail('New Signup — Deo Fortis','<h2>New Student Signed Up</h2><p><b>Name:</b> '+nameVal+'</p><p><b>Email:</b> '+emailVal+'</p><p><b>Plan:</b> '+plan.name+'</p>');
 ov.remove();
 window.open(selarLink,'_blank');
 showSignupSuccess(nameVal,selarLink);
@@ -1360,7 +1340,6 @@ await new Promise(function(r){setTimeout(r,1000);});
 await sb.from('profiles').upsert(profileData,{onConflict:'id'});
 localStorage.removeItem('signupType');
 if(freeTierApproved){
-sendAdminEmail('New Free Signup — Deo Fortis','<h2>New Free Student</h2><p>Name: '+nameVal+'</p><p>Email: '+emailVal+'</p>');
 S.user=data.user;
 S.profile={
   id:data.user.id,
@@ -1384,12 +1363,10 @@ go('dashboard');
 return;
 }
 if(isFreeSignup&&!freeTierApproved){
-sendAdminEmail('New Free Signup (Pending) — Deo Fortis','<h2>New Free Student — Pending</h2><p>Name: '+nameVal+'</p><p>Email: '+emailVal+'</p>');
 signingUp=false;
 go('pending');
 return;
 }
-sendAdminEmail('New Signup — Deo Fortis','<h2>New Student</h2><p>Name: '+nameVal+'</p><p>Email: '+emailVal+'</p><p>Plan: '+(sel?sel.name:'None')+'</p>');
 signingUp=false;
 sessionStorage.removeItem('selPlan');
 const link=sel?(payLinks[sel.key]||sel.link||'#'):'#';
@@ -2266,7 +2243,6 @@ const styleStr=cfg.recallStyles.join(', ');
 const fullDetails=(cfg.recallDetails+(recallPriority?'\nPriority: '+recallPriority+' first':'')).trim();
 await sb.from('recall_requests').insert({user_id:S.user.id,user_name:S.profile?.full_name,user_email:S.profile?.email,topic:cfg.topic,style:styleStr,details:fullDetails,quantity:parseInt(qtyI.value)||0,status:'pending',attachment_data:attachmentData,attachment_name:attachmentName,is_free_tier:isFreeTier});
 if(isFreeTier&&!isInTrial()){const warningDiv=div({style:{background:'rgba(200,169,110,0.1)',border:'1px solid var(--gold)',borderRadius:'4px',padding:'12px 16px',marginTop:'16px',fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'12px',color:'var(--gold)',textAlign:'center'}},[h('span',{style:{display:'block'}},['⚠️ Your request was received.']),h('span',{style:{display:'block',marginTop:'4px'}},['However, as a free tier member it will not be fulfilled. Upgrade to unlock active recall.'])]);ro.append(warningDiv);}
-sendAdminEmail('🧠 New Recall Request — Deo Fortis','<h2>New Active Recall Request</h2><p><b>Student:</b> '+S.profile?.full_name+'</p><p><b>Email:</b> '+S.profile?.email+'</p><p><b>Topic:</b> '+cfg.topic+'</p><p><b>Style:</b> '+styleStr+'</p><p><b>Quantity:</b> '+(qtyI.value||'Not specified')+'</p><p><b>Details:</b> '+(fullDetails||'None')+'</p><p><b>Attachment:</b> '+(attachmentName||'None')+'</p>');
 requestCount++;
 requestCountDiv.style.display='block';
 requestCountDiv.textContent='✓ '+requestCount+(requestCount===1?' request':' requests')+' sent this session.';
@@ -3718,7 +3694,6 @@ const mI=h('textarea',{cls:'input',placeholder:'Tell me about your study goals..
 const sBtn=btn('Send Request','btn-gold',async()=>{
 if(!nI.value||!eI.value||!pSel.value)return;
 await sb.from('booking_requests').insert({name:nI.value,email:eI.value,package:pSel.value,message:mI.value});
-sendAdminEmail(' New Booking Request — Deo Fortis','<h2>New Tutoring Booking</h2><p><b>Name:</b> '+nI.value+'</p><p><b>Email:</b> '+eI.value+'</p><p><b>Package:</b> '+pSel.value+'</p><p><b>Message:</b> '+mI.value+'</p>');
 box.innerHTML='<div style="text-align:center;padding:20px"><div style="font-size:48px;margin-bottom:16px"> </div><h2 style="font-family:Playfair Display,serif;font-size:22px;margin-bottom:12px">Request Sent!</h2><p style="color:var(--muted);font-size:14px;line-height:1.7">You will be contacted via email to confirm your booking.</p></div>';
 setTimeout(()=>ov.remove(),3000);
 });
@@ -3732,16 +3707,31 @@ return page;
 // ═══════════════════════════════
 function admin(){
 const page=div({});
-const PASS='deofortis2024';
 let authed=false;
 function showLogin(){
 page.innerHTML='';
 const wrap=div({cls:'center',style:{minHeight:'100vh',padding:'24px'}});
 const card=div({cls:'card fade',style:{maxWidth:'360px',width:'100%'}});
-const pI=inp('Enter admin password','password');
+const aEmail=inp('Admin email','text');
+const aPass=inp('Admin password','password');
 const eEl=div({cls:'err hidden'});
-const entBtn=btn('Enter','btn-gold',()=>{if(pI.value===PASS){authed=true;showAdminPanel();}else{eEl.classList.remove('hidden');eEl.textContent='Incorrect password.';}},{style:{width:'100%',marginBottom:'16px'}});
-pI.onkeydown=e=>{if(e.key==='Enter')entBtn.click();};
+const entBtn=btn('Enter','btn-gold',async()=>{
+  const email=aEmail.value.trim().toLowerCase();
+  const password=aPass.value;
+  if(!email||!password){eEl.classList.remove('hidden');eEl.textContent='Enter email and password.';return;}
+  entBtn.disabled=true;entBtn.textContent='Signing in...';
+  const{data,error}=await sb.auth.signInWithPassword({email,password});
+  if(error){eEl.classList.remove('hidden');eEl.textContent='Invalid email or password.';entBtn.disabled=false;entBtn.textContent='Enter';return;}
+  const{data:roleData}=await sb.from('admin_roles').select('role').eq('user_id',data.user.id).single();
+  const isSuperAdmin=data.user.email==='timothyambah.deofortis@gmail.com'||roleData?.role==='super_admin';
+  if(!isSuperAdmin){eEl.classList.remove('hidden');eEl.textContent='You do not have admin access.';entBtn.disabled=false;entBtn.textContent='Enter';await sb.auth.signOut();return;}
+  S.user=data.user;
+  const{data:adminProfile}=await sb.from('profiles').select('*').eq('id',data.user.id).single();
+  S.profile=adminProfile||{};
+  authed=true;
+  showAdminPanel();
+},{style:{width:'100%',marginBottom:'16px'}});
+aPass.onkeydown=e=>{if(e.key==='Enter')entBtn.click();};
 const tmCard=div({cls:'card fade',style:{maxWidth:'360px',width:'100%',marginTop:'16px'}});
 const tmEmail=inp('Team member email','text');
 const tmPass=inp('Password','password');
@@ -3772,7 +3762,7 @@ tmCard.append(
   h('br'),
   tmBtn
 );
-card.append(div({style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontStyle:'italic',fontSize:'22px',color:'var(--gold)',marginBottom:'4px'},html:'Deo Fortis'}),h('hr',{style:{border:'none',borderTop:'1px solid var(--border)',margin:'16px 0'}}),h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'22px',marginBottom:'16px'},html:'Admin Access'}),eEl,h('label',{cls:'label',html:'Password'}),pI,h('br'),entBtn,h('p',{style:{fontSize:'12px',color:'var(--dim)',textAlign:'center'},html:'<button onclick="go(\'landing\')" style="background:none;border:none;color:var(--dim);cursor:pointer;font-size:12px">← Back to site</button>'}));
+card.append(div({style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontStyle:'italic',fontSize:'22px',color:'var(--gold)',marginBottom:'4px'},html:'Deo Fortis'}),h('hr',{style:{border:'none',borderTop:'1px solid var(--border)',margin:'16px 0'}}),h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'22px',marginBottom:'16px'},html:'Admin Access'}),eEl,h('label',{cls:'label',html:'Email'}),aEmail,h('br'),h('label',{cls:'label',html:'Password'}),aPass,h('br'),entBtn,h('p',{style:{fontSize:'12px',color:'var(--dim)',textAlign:'center'},html:'<button onclick="go(\'landing\')" style="background:none;border:none;color:var(--dim);cursor:pointer;font-size:12px">← Back to site</button>'}));
 wrap.append(card,tmCard);page.append(wrap);
 }
 async function showAdminPanel(){
