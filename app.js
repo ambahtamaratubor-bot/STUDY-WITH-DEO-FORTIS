@@ -5102,8 +5102,7 @@ async function showTeamTab(){
       subContent.append(listDiv);
     }
     else if(sub==='teamAdmin'){
-      const SUPABASE_URL='https://yygjkqkzbdjnyyrrhdku.supabase.co';
-      const SERVICE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl5Z2prcWt6YmRqbnl5cnJoZGt1Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3ODAyODI1NywiZXhwIjoyMDkzNjA0MjU3fQ.h5cvqyOJiDgL500Lsj-3V7Bj5zQ749m8sR94dlxowe8';
+      const ADMIN_FN='https://yygjkqkzbdjnyyrrhdku.supabase.co/functions/v1/admin-actions';
       if(!isSuperAdmin&&!isManager){subContent.append(div({cls:'card',style:{textAlign:'center',padding:'40px'}},[h('p',{style:{fontSize:'14px',color:'var(--dim)'}},[document.createTextNode('Access restricted to Super Admins and Managers.')])]));return;}
       const{data:admins}=await sb.from('admin_roles').select('*,profiles(full_name,email)').order('created_at');
       const listDiv=div({style:{display:'flex',flexDirection:'column',gap:'12px',marginBottom:'24px'}});
@@ -5128,7 +5127,7 @@ async function showTeamTab(){
           const confirmReset=btn('Set','btn-teal',async()=>{
             if(resetInp.value.length<6){resetMsg.style.display='block';resetMsg.style.color='#ff4444';resetMsg.textContent='Min 6 chars.';return;}
             confirmReset.disabled=true;confirmReset.textContent='Saving...';
-            const res=await fetch(SUPABASE_URL+'/auth/v1/admin/users/'+admin.user_id,{method:'PATCH',headers:{'Content-Type':'application/json','apikey':SERVICE_KEY,'Authorization':'Bearer '+SERVICE_KEY},body:JSON.stringify({password:resetInp.value})});
+            const res=await fetch(ADMIN_FN,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+(await sb.auth.getSession()).data.session?.access_token},body:JSON.stringify({action:'reset_password',user_id:admin.user_id,password:resetInp.value})});
             if(res.ok){resetMsg.style.display='block';resetMsg.style.color='var(--teal)';resetMsg.textContent='✓ Password updated.';resetInp.value='';setTimeout(()=>{resetRow.style.display='none';resetMsg.style.display='none';},2000);}
             else{resetMsg.style.display='block';resetMsg.style.color='#ff4444';resetMsg.textContent='Reset failed.';}
             confirmReset.disabled=false;confirmReset.textContent='Set';
@@ -5145,7 +5144,7 @@ async function showTeamTab(){
             if(admin.user_id===S.user?.id){delMsg2.style.display='block';delMsg2.style.color='#ff4444';delMsg2.textContent='Cannot delete yourself.';return;}
             confirmDel.disabled=true;confirmDel.textContent='Deleting...';
             await sb.from('admin_roles').delete().eq('id',admin.id);
-            const res=await fetch(SUPABASE_URL+'/auth/v1/admin/users/'+admin.user_id,{method:'DELETE',headers:{'apikey':SERVICE_KEY,'Authorization':'Bearer '+SERVICE_KEY}});
+            const res=await fetch(ADMIN_FN,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+(await sb.auth.getSession()).data.session?.access_token},body:JSON.stringify({action:'delete_user',user_id:admin.user_id})});
             if(res.ok){loadSubTab('teamAdmin');}
             else{delMsg2.style.display='block';delMsg2.style.color='#ff4444';delMsg2.textContent='Delete failed.';confirmDel.disabled=false;confirmDel.textContent='Yes, Delete';}
           },{style:{fontSize:'10px',padding:'4px 10px',color:'#ff4444',borderColor:'#ff4444'}});
@@ -5178,7 +5177,7 @@ async function showTeamTab(){
             try{
               let userId=null;
               // Try to create new auth user
-              const createRes=await fetch(SUPABASE_URL+'/auth/v1/admin/users',{method:'POST',headers:{'Content-Type':'application/json','apikey':SERVICE_KEY,'Authorization':'Bearer '+SERVICE_KEY},body:JSON.stringify({email,password,email_confirm:true})});
+              const createRes=await fetch(ADMIN_FN,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+(await sb.auth.getSession()).data.session?.access_token},body:JSON.stringify({action:'create_user',email,password,email_confirm:true})});
               const newUser=await createRes.json();
               if(createRes.ok){
                 // New user created
