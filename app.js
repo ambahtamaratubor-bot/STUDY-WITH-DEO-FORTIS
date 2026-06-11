@@ -55,7 +55,7 @@ let S={page:'landing',user:null,profile:null};
 let signingUp=false;
 let payLinks={monthly:'#',sixmonth:'#',yearly:'#'};
 sb.from('admin_settings').select('link_monthly,link_sixmonth,link_yearly').single().then(({data})=>{if(data)payLinks={monthly:data.link_monthly||'#',sixmonth:data.link_sixmonth||'#',yearly:data.link_yearly||'#'};});
-function go(p){S.page=p;if(window._goT)clearTimeout(window._goT);window._goT=setTimeout(render,0);}
+function go(p){S.page=p;try{localStorage.setItem('df-page',p);}catch(e){}if(window._goT)clearTimeout(window._goT);window._goT=setTimeout(render,0);}
 function isInTrial(){return S.profile?.is_free_tier===true&&S.inTrial===true;}
 sb.auth.onAuthStateChange(function(event,session){
   if(signingUp)return;
@@ -126,6 +126,8 @@ if(data){
   }else{
     go('pending');
   }
+}else{
+  S.user=null;S.profile=null;go('landing');
 }
 }
 function h(tag,attr,kids){
@@ -189,7 +191,12 @@ const root=document.getElementById('root');
 if(!S.user){
   var _rs=await sb.auth.getSession();
   var _rsess=_rs&&_rs.data&&_rs.data.session;
-  if(_rsess&&_rsess.user){S.user=_rsess.user;if(!S.profile){await getProfile(_rsess.user.id);}return;}
+  if(_rsess&&_rsess.user){
+    S.user=_rsess.user;
+    var _savedPage=localStorage.getItem('df-page');
+    if(_savedPage&&_savedPage!=='landing'&&_savedPage!=='login'&&_savedPage!=='signup'){S.page=_savedPage;}
+    if(!S.profile){await getProfile(_rsess.user.id);}return;
+  }
 }
 root.innerHTML='';
 function theory(){
