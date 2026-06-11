@@ -2,7 +2,7 @@ const SURL='https://yygjkqkzbdjnyyrrhdku.supabase.co';
 const SKEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl5Z2prcWt6YmRqbnl5cnJoZGt1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgwMjgyNTcsImV4cCI6MjA5MzYwNDI1N30.6mJTBhjWphURBnFefQziVreQW8WjYJLAAjMx6Sv-Kfk';
 const RESEND_KEY='re_NbpuzGhW_N5WRkmwF68SZ12yEy3q9Z7m9';
 const ADMIN_EMAIL='deofortistutors@gmail.com';
-const sb=window.supabase.createClient(SURL,SKEY);
+const sb=window.supabase.createClient(SURL,SKEY,{auth:{persistSession:true,autoRefreshToken:true,storageKey:'df-auth',detectSessionInUrl:false,storage:window.localStorage}});
 let themeToggleBtns=[];
 function toggleTheme(){
   const current=document.documentElement.getAttribute('data-theme')||'dark';
@@ -60,8 +60,11 @@ function isInTrial(){return S.profile?.is_free_tier===true&&S.inTrial===true;}
 sb.auth.onAuthStateChange(function(event,session){
   if(signingUp)return;
   if(window._teamLogin)return;
-  if(session){S.user=session.user;getProfile(session.user.id);}
-  else if(event==='SIGNED_OUT'){S.user=null;S.profile=null;go('landing');}
+  if(event==='SIGNED_IN'||event==='INITIAL_SESSION'){
+    if(session&&session.user){S.user=session.user;getProfile(session.user.id);}
+  }else if(event==='SIGNED_OUT'){
+    if(S.user!==null){S.user=null;S.profile=null;go('landing');}
+  }
 });
 async function getProfile(id){
 const{data}=await sb.from('profiles').select('*').eq('id',id).single();
@@ -181,8 +184,13 @@ var SVG_CHEVRON_DOWN='<svg xmlns="http://www.w3.org/2000/svg" width="12" height=
 var SVG_CHEVRON_RIGHT='<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 6 15 12 9 18"/></svg>';
 
 function showMaplet(pageKey,message){var storageKey="maplet_"+pageKey;if(localStorage.getItem(storageKey)==="dismissed")return null;var maplet=div({style:{background:"rgba(200,169,110,0.08)",border:"1px solid var(--gold)",borderRadius:"4px",padding:"12px 20px",marginBottom:"24px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:"16px",fontSize:"13px",fontFamily:"Plus Jakarta Sans,sans-serif",color:"var(--text)",lineHeight:"1.5"}},[h("span",{style:{flex:"1"}},[message]),btn("\u2715","",function(){localStorage.setItem(storageKey,"dismissed");maplet.style.display="none";},{style:{background:"none",border:"none",color:"var(--dim)",cursor:"pointer",fontSize:"16px",padding:"4px 8px",flexShrink:"0"}})]);return maplet;}
-function render(){
+async function render(){
 const root=document.getElementById('root');
+if(!S.user){
+  var _rs=await sb.auth.getSession();
+  var _rsess=_rs&&_rs.data&&_rs.data.session;
+  if(_rsess&&_rsess.user){S.user=_rsess.user;if(!S.profile){await getProfile(_rsess.user.id);}return;}
+}
 root.innerHTML='';
 function theory(){
 const page=div({});
