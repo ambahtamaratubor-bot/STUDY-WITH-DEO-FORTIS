@@ -3730,31 +3730,6 @@ return page;
 function admin(){
 const page=div({});
 let authed=false;
-// Show loading then check session
-var _loadingDiv=div({style:{display:'flex',justifyContent:'center',alignItems:'center',minHeight:'100vh',color:'var(--muted)',fontFamily:'Inter,sans-serif',fontSize:'13px'}});
-_loadingDiv.textContent='Checking session...';
-page.append(_loadingDiv);
-(async function(){
-  var _sess=await sb.auth.getSession();
-  if(_sess&&_sess.data&&_sess.data.session&&_sess.data.session.user){
-    var _u=_sess.data.session.user;
-    var isSA=_u.email==='timothyambah.deofortis@gmail.com';
-    var isTA=false;
-    if(!isSA){
-      var _rd=await sb.from('admin_roles').select('role').eq('user_id',_u.id).maybeSingle();
-      isTA=!!(_rd&&_rd.data);
-    }
-    if(isSA||isTA){
-      S.user=_u;
-      var _rp=await sb.from('profiles').select('*').eq('id',_u.id).single();
-      S.profile=_rp&&_rp.data?_rp.data:{};
-      authed=true;
-      showAdminPanel();
-      return;
-    }
-  }
-  showLogin();
-})();
 function showLogin(){
 page.innerHTML='';
 const wrap=div({cls:'center',style:{minHeight:'100vh',padding:'24px'}});
