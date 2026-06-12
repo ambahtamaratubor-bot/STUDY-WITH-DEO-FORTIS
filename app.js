@@ -2512,9 +2512,15 @@ ns.append(ng);page.append(ns);
 }
 // Always auto-start — no pause button
 window.pomInterval=setInterval(tick,250);
-// visibilitychange — just resync, interval keeps running
+// visibilitychange — only update display, never rebuild UI
 if(window._visHandler)document.removeEventListener('visibilitychange',window._visHandler,true);
-window._visHandler=function(){if(!document.hidden&&window.pomPlan)tick();};
+window._visHandler=function(){
+  if(!document.hidden&&window.pomPlan){
+    var rem=computeRem();
+    if(td)td.textContent=fmtMS(rem);
+    updateTimerBar();
+  }
+};
 document.addEventListener('visibilitychange',window._visHandler,true);
 }
 showSetup();return page;
@@ -2576,7 +2582,13 @@ if(_drs&&_drs.deckId&&_drs.currentIndex>0){
         var{data:rd}=await sb.from('flashcard_decks').select('*').eq('id',_drs.deckId).single();
         if(rd){
           if(_drs.queue&&_drs.queue.length){
-            selDeck=rd;cards=_drs.queue;queue=_drs.queue;curIdx=_drs.currentIndex||0;prog=_drs.prog||{easy:0,iffy:0,hard:0};flipped=false;
+            selDeck=rd;
+            cards=_drs.cards&&_drs.cards.length?_drs.cards:_drs.queue;
+            queue=_drs.queue;
+            curIdx=_drs.currentIndex||0;
+            prog=_drs.prog||{easy:0,iffy:0,hard:0};
+            flipped=false;
+            queue.forEach(function(c){c._state=c._state||'none';c._seen=c._seen||0;});
             inner.innerHTML='';showCard();
           }else{loadDeck(rd);}
         }
@@ -2796,7 +2808,7 @@ if(cur._seen>=2){
 }
 if(!nq.length){checkForRemaining();return;}
 queue=nq;curIdx=Math.min(curIdx,queue.length-1);flipped=false;
-try{var _fsk='deck_resume_'+(S.user&&S.user.id||'x');localStorage.setItem(_fsk,JSON.stringify({deckId:selDeck.id,deckName:selDeck.topic||selDeck.name,currentIndex:curIdx,total:cards.length,queue:queue,prog:prog}));}catch(e){}
+try{var _fsk='deck_resume_'+(S.user&&S.user.id||'x');localStorage.setItem(_fsk,JSON.stringify({deckId:selDeck.id,deckName:selDeck.topic||selDeck.name,currentIndex:curIdx,total:cards.length,cards:cards,queue:queue,prog:prog}));}catch(e){}
 showCard();
 }
 function checkForRemaining(){
@@ -3718,7 +3730,10 @@ return page;
 function admin(){
 const page=div({});
 let authed=false;
-// Auto-login if session already exists
+// Show loading then check session
+page.append(div({cls:'center',style:{minHeight:'100vh'}},[
+  div({style:{color:'var(--muted)',fontFamily:'Inter,sans-serif',fontSize:'13px'}},['Checking session...'])
+]));
 (async function(){
   var _sess=await sb.auth.getSession();
   if(_sess&&_sess.data&&_sess.data.session&&_sess.data.session.user){
