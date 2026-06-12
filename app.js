@@ -41,7 +41,8 @@ function isInTrial(){return S.profile?.is_free_tier===true&&S.inTrial===true;}
 sb.auth.onAuthStateChange(function(event,session){
   if(signingUp)return;
   if(window._teamLogin)return;
-  if(event==='SIGNED_IN'||event==='INITIAL_SESSION'){
+  if(event==='TOKEN_REFRESHED')return;
+  if(event==='SIGNED_IN'||(event==='INITIAL_SESSION'&&!S.user)){
     if(session&&session.user){S.user=session.user;getProfile(session.user.id);}
   }else if(event==='SIGNED_OUT'){
     if(S.user!==null){S.user=null;S.profile=null;go('landing');}
@@ -75,10 +76,10 @@ if(data){
       localStorage.removeItem('pomodoroState');localStorage.removeItem('activeSession');
     }
   }
-  if(S.user?.email==='timothyambah.deofortis@gmail.com'){if(S.page!=='admin')go('admin');return;}
-  if(data.test_access===true&&data.status==='pending'){if(S.page!=='dashboard')go('dashboard');return;}
+  if(S.user?.email==='timothyambah.deofortis@gmail.com'){go('admin');return;}
+  if(data.test_access===true&&data.status==='pending'){go('dashboard');return;}
   if(data.is_free_tier===true){
-    if(S.page!=='dashboard')go('dashboard');
+    go('dashboard');
   }else if(data.status==='approved'&&data.is_free_tier===false){
     if(data.access_expires_at){
       const expiryDate=new Date(data.access_expires_at);
@@ -88,7 +89,7 @@ if(data){
         await sb.from('profiles').update({is_free_tier:true}).eq('id',id);
         data.is_free_tier=true;
         S.profile=data;
-        if(S.page!=='dashboard')go('dashboard');
+        go('dashboard');
       }else if(daysDiff<=7){
         S.expiryWarning=true;
         S.expiryDaysLeft=daysDiff>0?daysDiff:0;
@@ -96,17 +97,17 @@ if(data){
           sb.from('profiles').update({expiry_email_sent_days:daysDiff}).eq('id',id);
           data.expiry_email_sent_days=daysDiff;
         }
-        if(S.page!=='dashboard')go('dashboard');
+        go('dashboard');
       }else{
-        if(S.page!=='dashboard')go('dashboard');
+        go('dashboard');
       }
     }else{
-      if(S.page!=='dashboard')go('dashboard');
+      go('dashboard');
     }
   }else if(data.status==='approved'){
-    if(S.page!=='dashboard')go('dashboard');
+    go('dashboard');
   }else{
-    if(S.page!=='pending')go('pending');
+    go('pending');
   }
 }else{
   S.user=null;S.profile=null;go('landing');
