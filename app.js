@@ -2372,6 +2372,9 @@ const coutBtn=btn('⏹ Clock Out & Save Session','btn-gold',async()=>{
     const savedSession=localStorage.getItem('activeSession');
     const maxMins=window.sessionMaxMins||(savedSession?JSON.parse(savedSession).maxMins:null)||480;
     const actualMins=Math.min(rawMins,maxMins);
+    // Refresh session before update to ensure auth is valid
+    const{data:{session:_latestSess}}=await sb.auth.getSession();
+    if(_latestSess&&_latestSess.user){S.user=_latestSess.user;}
     // Update study session
     const{error:se}=await sb.from('study_sessions').update({ended_at:endTimeISO,duration_minutes:actualMins}).eq('id',window.activeSessionId).eq('user_id',S.user.id);
     if(se){console.error('Session update error:',se);throw se;}
