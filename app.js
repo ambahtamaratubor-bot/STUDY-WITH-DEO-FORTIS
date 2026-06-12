@@ -41,7 +41,8 @@ function isInTrial(){return S.profile?.is_free_tier===true&&S.inTrial===true;}
 sb.auth.onAuthStateChange(function(event,session){
   if(signingUp)return;
   if(window._teamLogin)return;
-  if(event==='SIGNED_IN'||event==='INITIAL_SESSION'){
+  if(event==='TOKEN_REFRESHED')return;
+  if(event==='SIGNED_IN'||(event==='INITIAL_SESSION'&&!S.user)){
     if(session&&session.user){S.user=session.user;getProfile(session.user.id);}
   }else if(event==='SIGNED_OUT'){
     if(S.user!==null){S.user=null;S.profile=null;go('landing');}
@@ -75,10 +76,10 @@ if(data){
       localStorage.removeItem('pomodoroState');localStorage.removeItem('activeSession');
     }
   }
-  if(S.user?.email==='timothyambah.deofortis@gmail.com'){go('admin');return;}
-  if(data.test_access===true&&data.status==='pending'){go('dashboard');return;}
+  if(S.user?.email==='timothyambah.deofortis@gmail.com'){if(S.page!=='admin')go('admin');return;}
+  if(data.test_access===true&&data.status==='pending'){if(S.page!=='dashboard')go('dashboard');return;}
   if(data.is_free_tier===true){
-    go('dashboard');
+    if(S.page!=='dashboard')go('dashboard');
   }else if(data.status==='approved'&&data.is_free_tier===false){
     if(data.access_expires_at){
       const expiryDate=new Date(data.access_expires_at);
@@ -88,7 +89,7 @@ if(data){
         await sb.from('profiles').update({is_free_tier:true}).eq('id',id);
         data.is_free_tier=true;
         S.profile=data;
-        go('dashboard');
+        if(S.page!=='dashboard')go('dashboard');
       }else if(daysDiff<=7){
         S.expiryWarning=true;
         S.expiryDaysLeft=daysDiff>0?daysDiff:0;
@@ -96,17 +97,17 @@ if(data){
           sb.from('profiles').update({expiry_email_sent_days:daysDiff}).eq('id',id);
           data.expiry_email_sent_days=daysDiff;
         }
-        go('dashboard');
+        if(S.page!=='dashboard')go('dashboard');
       }else{
-        go('dashboard');
+        if(S.page!=='dashboard')go('dashboard');
       }
     }else{
-      go('dashboard');
+      if(S.page!=='dashboard')go('dashboard');
     }
   }else if(data.status==='approved'){
-    go('dashboard');
+    if(S.page!=='dashboard')go('dashboard');
   }else{
-    go('pending');
+    if(S.page!=='pending')go('pending');
   }
 }else{
   S.user=null;S.profile=null;go('landing');
@@ -2573,7 +2574,12 @@ if(_drs&&_drs.deckId&&_drs.currentIndex>0){
     div({style:{display:'flex',gap:'10px'}},[
       btn('Resume','btn-gold',async function(){
         var{data:rd}=await sb.from('flashcard_decks').select('*').eq('id',_drs.deckId).single();
-        if(rd)loadDeck(rd);
+        if(rd){
+          if(_drs.queue&&_drs.queue.length){
+            selDeck=rd;cards=_drs.queue;queue=_drs.queue;curIdx=_drs.currentIndex||0;prog=_drs.prog||{easy:0,iffy:0,hard:0};flipped=false;
+            inner.innerHTML='';showCard();
+          }else{loadDeck(rd);}
+        }
       },{style:{padding:'6px 16px',fontSize:'11px'}}),
       btn('Discard','btn-outline',function(){localStorage.removeItem('deck_resume_'+(S.user&&S.user.id||'x'));showDecks();},{style:{padding:'6px 16px',fontSize:'11px'}})
     ])
@@ -2789,7 +2795,9 @@ if(cur._seen>=2){
   flipped=false;showCard();return;
 }
 if(!nq.length){checkForRemaining();return;}
-queue=nq;curIdx=Math.min(curIdx,queue.length-1);flipped=false;showCard();
+queue=nq;curIdx=Math.min(curIdx,queue.length-1);flipped=false;
+try{var _fsk='deck_resume_'+(S.user&&S.user.id||'x');localStorage.setItem(_fsk,JSON.stringify({deckId:selDeck.id,deckName:selDeck.topic||selDeck.name,currentIndex:curIdx,total:cards.length,queue:queue,prog:prog}));}catch(e){}
+showCard();
 }
 function checkForRemaining(){
   const remainingCards=cards.filter(c=>c._state==='hard'||c._state==='iffy');
@@ -2818,6 +2826,7 @@ function showRoundComplete(remainingCards){
   inner.append(card);
 }
 async function showDone(){
+try{localStorage.removeItem('deck_resume_'+(S.user&&S.user.id||'x'));}catch(e){}
 inner.innerHTML='';
 const total=prog.easy+prog.iffy+prog.hard;
 const easyPct=total>0?Math.round((prog.easy/total)*100):0;
@@ -3709,6 +3718,28 @@ return page;
 function admin(){
 const page=div({});
 let authed=false;
+// Auto-login if session already exists
+(async function(){
+  var _sess=await sb.auth.getSession();
+  if(_sess&&_sess.data&&_sess.data.session&&_sess.data.session.user){
+    var _u=_sess.data.session.user;
+    var isSA=_u.email==='timothyambah.deofortis@gmail.com';
+    var isTA=false;
+    if(!isSA){
+      var _rd=await sb.from('admin_roles').select('role').eq('user_id',_u.id).maybeSingle();
+      isTA=!!(_rd&&_rd.data);
+    }
+    if(isSA||isTA){
+      S.user=_u;
+      var _rp=await sb.from('profiles').select('*').eq('id',_u.id).single();
+      S.profile=_rp&&_rp.data?_rp.data:{};
+      authed=true;
+      showAdminPanel();
+      return;
+    }
+  }
+  showLogin();
+})();
 function showLogin(){
 page.innerHTML='';
 const wrap=div({cls:'center',style:{minHeight:'100vh',padding:'24px'}});
