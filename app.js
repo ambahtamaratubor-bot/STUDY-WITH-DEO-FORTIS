@@ -3731,9 +3731,9 @@ function admin(){
 const page=div({});
 let authed=false;
 // Show loading then check session
-page.append(div({cls:'center',style:{minHeight:'100vh'}},[
-  div({style:{color:'var(--muted)',fontFamily:'Inter,sans-serif',fontSize:'13px'}},['Checking session...'])
-]));
+var _loadingDiv=div({style:{display:'flex',justifyContent:'center',alignItems:'center',minHeight:'100vh',color:'var(--muted)',fontFamily:'Inter,sans-serif',fontSize:'13px'}});
+_loadingDiv.textContent='Checking session...';
+page.append(_loadingDiv);
 (async function(){
   var _sess=await sb.auth.getSession();
   if(_sess&&_sess.data&&_sess.data.session&&_sess.data.session.user){
