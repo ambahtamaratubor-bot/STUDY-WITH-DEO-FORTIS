@@ -43,7 +43,9 @@ sb.auth.onAuthStateChange(function(event,session){
   if(window._teamLogin)return;
   if(event==='TOKEN_REFRESHED')return;
   if(event==='SIGNED_IN'||(event==='INITIAL_SESSION'&&!S.user)){
-    if(session&&session.user){S.user=session.user;getProfile(session.user.id);}
+    if(session&&session.user){
+      if(!S.user||S.user.id!==session.user.id||!S.profile){S.user=session.user;getProfile(session.user.id);}
+    }
   }else if(event==='SIGNED_OUT'){
     if(S.user!==null){S.user=null;S.profile=null;go('landing');}
   }
@@ -77,38 +79,36 @@ if(data){
     }
   }
   if(S.user?.email==='timothyambah.deofortis@gmail.com'){go('admin');return;}
-  if(data.test_access===true&&data.status==='pending'){go('dashboard');return;}
-  if(data.is_free_tier===true){
-    go('dashboard');
-  }else if(data.status==='approved'&&data.is_free_tier===false){
-    if(data.access_expires_at){
-      const expiryDate=new Date(data.access_expires_at);
-      const now=new Date();
-      const daysDiff=Math.ceil((expiryDate-now)/(1000*60*60*24));
-      if(daysDiff<-4){
-        await sb.from('profiles').update({is_free_tier:true}).eq('id',id);
-        data.is_free_tier=true;
-        S.profile=data;
-        go('dashboard');
-      }else if(daysDiff<=7){
-        S.expiryWarning=true;
-        S.expiryDaysLeft=daysDiff>0?daysDiff:0;
-        if(daysDiff>0&&String(data.expiry_email_sent_days||'')!==String(daysDiff)){
-          sb.from('profiles').update({expiry_email_sent_days:daysDiff}).eq('id',id);
-          data.expiry_email_sent_days=daysDiff;
-        }
-        go('dashboard');
-      }else{
-        go('dashboard');
+  // Determine required page based on account status
+  var requiredPage=null;
+  if(data.test_access===true&&data.status==='pending') requiredPage='dashboard';
+  else if(data.status==='pending') requiredPage='pending';
+  else if(data.is_free_tier===true&&!isInTrial()) requiredPage=null;
+  else requiredPage=null;
+  // Handle expiry for paid users
+  if(!requiredPage&&data.status==='approved'&&data.is_free_tier===false&&data.access_expires_at){
+    const expiryDate=new Date(data.access_expires_at);
+    const now=new Date();
+    const daysDiff=Math.ceil((expiryDate-now)/(1000*60*60*24));
+    if(daysDiff<-4){
+      await sb.from('profiles').update({is_free_tier:true}).eq('id',id);
+      data.is_free_tier=true;
+      S.profile=data;
+      requiredPage='dashboard';
+    }else if(daysDiff<=7){
+      S.expiryWarning=true;
+      S.expiryDaysLeft=daysDiff>0?daysDiff:0;
+      if(daysDiff>0&&String(data.expiry_email_sent_days||'')!==String(daysDiff)){
+        sb.from('profiles').update({expiry_email_sent_days:daysDiff}).eq('id',id);
+        data.expiry_email_sent_days=daysDiff;
       }
-    }else{
-      go('dashboard');
     }
-  }else if(data.status==='approved'){
-    go('dashboard');
-  }else{
-    go('pending');
   }
+  // If forced redirect needed, go there
+  if(requiredPage){if(S.page!==requiredPage)go(requiredPage);return;}
+  // Otherwise stay on current page if valid, else go to dashboard
+  var validPages=['dashboard','study','flashcards','vignette','feynman','theory','notes','leaderboard'];
+  if(!validPages.includes(S.page)){go('dashboard');}
 }else{
   S.user=null;S.profile=null;go('landing');
 }
@@ -321,8 +321,16 @@ return page;
 
 const pages={landing,signup,login,pending,dashboard,study,flashcards,vignette,leaderboard,admin,feynman,theory,notes};
 if(!window.activeSessionId||!window.pomPlan){var _ps=localStorage.getItem('pomodoroState');if(_ps){try{var _psp=JSON.parse(_ps);if(_psp.activeSessionId){window.activeSessionId=_psp.activeSessionId;window.sessionStartTime=_psp.sessionStartTime||null;if(!window.pomPlan&&_psp.segStart){var _cfg=_psp.cfg||{};window.pomPlan={topic:_cfg.topic||'General Study',totalSessions:_cfg.sessions||4,workSec:(_cfg.workMins||25)*60,breakSec:(_cfg.breakMins||5)*60,currentCycle:_psp.curSess||1,isBreakMode:_psp.isBreak||false,startedAtTimestamp:_psp.segStart};}}  }catch(e){}}}
-root.append((pages[S.page]||landing)());
-if(window.activeSessionId){showNoiseBar();showTimerBar();}else{removeNoiseBar();removeTimerBar();}
+try{
+  root.append((pages[S.page]||landing)());
+  if(window.activeSessionId){showNoiseBar();showTimerBar();}else{removeNoiseBar();removeTimerBar();}
+}catch(err){
+  console.error('Render error:',err);
+  root.innerHTML='';
+  var errCard=div({cls:'card',style:{padding:'40px',textAlign:'center',maxWidth:'400px',margin:'80px auto'}});
+  errCard.append(h('h3',{style:{marginBottom:'12px'}},['Something went wrong']),h('p',{style:{color:'var(--muted)',fontSize:'13px',marginBottom:'16px'}},[err.message||'Unknown error']),btn('Reload','btn-gold',()=>go('dashboard'),{style:{width:'100%'}}));
+  root.append(errCard);
+}
 }
 
 function showNoiseBar(){
