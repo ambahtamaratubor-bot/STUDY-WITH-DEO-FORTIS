@@ -41,8 +41,7 @@ function isInTrial(){return S.profile?.is_free_tier===true&&S.inTrial===true;}
 sb.auth.onAuthStateChange(function(event,session){
   if(signingUp)return;
   if(window._teamLogin)return;
-  if(event==='TOKEN_REFRESHED')return;
-  if(event==='SIGNED_IN'||(event==='INITIAL_SESSION'&&!S.user)){
+  if(event==='SIGNED_IN'||event==='INITIAL_SESSION'){
     if(session&&session.user){S.user=session.user;getProfile(session.user.id);}
   }else if(event==='SIGNED_OUT'){
     if(S.user!==null){S.user=null;S.profile=null;go('landing');}
