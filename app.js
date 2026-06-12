@@ -2749,6 +2749,7 @@ const startBtn=btn('Start Session →','btn-gold',()=>{
   curIdx=0;
   flipped=false;
   prog={easy:0,iffy:0,hard:0};
+  try{var _fsk2='deck_resume_'+(S.user&&S.user.id||'x');localStorage.setItem(_fsk2,JSON.stringify({deckId:selDeck.id,deckName:selDeck.topic||selDeck.name,currentIndex:1,total:cards.length,cards:cards,queue:queue,prog:prog}));}catch(e){}
   showCard();
 },{style:{width:'100%',marginTop:'8px'}});
 card.append(startBtn);
@@ -2816,7 +2817,7 @@ if(cur._seen>=2){
 }
 if(!nq.length){checkForRemaining();return;}
 queue=nq;curIdx=Math.min(curIdx,queue.length-1);flipped=false;
-try{var _fsk='deck_resume_'+(S.user&&S.user.id||'x');localStorage.setItem(_fsk,JSON.stringify({deckId:selDeck.id,deckName:selDeck.topic||selDeck.name,currentIndex:curIdx,total:cards.length,cards:cards,queue:queue,prog:prog}));}catch(e){}
+try{var _fsk='deck_resume_'+(S.user&&S.user.id||'x');localStorage.setItem(_fsk,JSON.stringify({deckId:selDeck.id,deckName:selDeck.topic||selDeck.name,currentIndex:Math.max(1,curIdx),total:cards.length,cards:cards,queue:queue,prog:prog}));}catch(e){}
 showCard();
 }
 function checkForRemaining(){
@@ -2856,8 +2857,10 @@ const gradeMsg=grade==='A'?'Excellent mastery — 90%+ of cards easy.':grade==='
 // Save result and award points
 // Save result and award points — paid only
 if(!S.profile?.is_free_tier||isInTrial()){
+  var _fpts=cards.length||1;
   await sb.from('anki_results').insert({user_id:S.user.id,deck_id:selDeck?.id,deck_topic:selDeck?.topic,grade,easy_count:prog.easy,iffy_count:prog.iffy,hard_count:prog.hard});
-  await sb.from('profiles').update({total_points:(S.profile?.total_points||0)+20,total_anki_sessions:(S.profile?.total_anki_sessions||0)+1}).eq('id',S.user.id);
+  await sb.from('profiles').update({total_points:(S.profile?.total_points||0)+_fpts,total_anki_sessions:(S.profile?.total_anki_sessions||0)+1}).eq('id',S.user.id);
+  if(S.profile)S.profile.total_points=(S.profile.total_points||0)+_fpts;
 
 }
 const card=div({cls:'card fade',style:{textAlign:'center'}});
@@ -2868,7 +2871,7 @@ card.append(
   div({style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'80px',color:gradeColor,lineHeight:'1',marginBottom:'8px'},html:grade}),
   div({cls:'mono',style:{marginBottom:'4px'},html:gradeMsg}),
   div({style:{fontFamily:"Inter,sans-serif",fontSize:'13px',color:gradeColor,marginBottom:'4px'},html:easyPct+'% of cards marked Easy'}),
-  div({style:{fontFamily:"Inter,sans-serif",fontSize:'11px',color:'var(--gold)',marginBottom:'24px'},html:'+20 points earned'})
+  div({style:{fontFamily:"Inter,sans-serif",fontSize:'11px',color:'var(--gold)',marginBottom:'24px'},html:'+'+_fpts+' points earned'})
 );
 const sg=div({style:{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:'12px',marginBottom:'24px'}});
 [{l:'Easy',v:prog.easy,c:'var(--teal)'},{l:'Iffy',v:prog.iffy,c:'var(--gold)'},{l:'Hard',v:prog.hard,c:'#ff8888'}].forEach(s=>{const c=div({cls:'card',style:{padding:'16px',textAlign:'center'}});c.append(div({style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'28px',color:s.c},html:String(s.v)}),div({cls:'mono',html:s.l}));sg.append(c);});
@@ -3286,7 +3289,7 @@ async function submitQuiz(){
 clearInterval(tInterval);submitted=true;
 const score=questions.filter(q=>answers[q.id]===q.correct_answer).length;
 await sb.from('vignette_scores').insert({user_id:S.user.id,topic:selTopic,score,total:questions.length,mode,answers:answers,questions:questions});
-if(S.profile?.is_free_tier!==true||isInTrial())await sb.from('profiles').update({total_points:(S.profile?.total_points||0)+30}).eq('id',S.user.id);
+if(S.profile?.is_free_tier!==true||isInTrial()){var _vpts=questions.length*2;await sb.from('profiles').update({total_points:(S.profile?.total_points||0)+_vpts}).eq('id',S.user.id);if(S.profile)S.profile.total_points=(S.profile.total_points||0)+_vpts;}
 // Upsert question_progress for each answered question
 var progressUpserts=questions.filter(function(q){return answers[q.id]!==undefined;}).map(function(q){return{user_id:S.user.id,question_id:q.id,seen:true,answered_correctly:answers[q.id]===q.correct_answer,last_seen_at:new Date().toISOString()};});
 if(progressUpserts.length)await sb.from('question_progress').upsert(progressUpserts,{onConflict:'user_id,question_id'});
