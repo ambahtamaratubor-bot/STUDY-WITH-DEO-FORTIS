@@ -3628,8 +3628,8 @@ function showPointsRules(){
   const rows=[
     ['Clock in to a study session','+5'],
     ['Clock out of a study session','+5'],
-    ['Complete a vignette quiz','+30'],
-    ['Complete a flashcard deck','+20'],
+    ['Vignette question answered','+2 per question'],
+    ['Complete a flashcard deck','+ 1 per card flipped'],
     ['Complete a Riddle or Emoji Bitz deck','+20'],
     ['Save a theory note','+20'],
     ['Feynman submission approved','+20'],
