@@ -178,7 +178,7 @@ if(!S.user){
     S.user=_rsess.user;
     var _savedPage=localStorage.getItem('df-page');
     if(_savedPage&&_savedPage!=='landing'&&_savedPage!=='login'&&_savedPage!=='signup'&&_savedPage!=='admin'){S.page=_savedPage;}
-    if(!S.profile){await getProfile(_rsess.user.id);}return;
+    if(!S.profile){await getProfile(_rsess.user.id);render();return;}return;
   }
 }
 root.innerHTML='';
