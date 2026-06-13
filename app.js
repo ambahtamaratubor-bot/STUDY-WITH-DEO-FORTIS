@@ -4156,10 +4156,13 @@ upSt.style.display='block';upSt.textContent='Uploading...';
 const text=await file.text();
 if(isCsv){
 const lines=text.split('\n').filter(l=>l.trim());
-const{data:deck}=await sb.from('flashcard_decks').insert({topic:r.topic,user_id:r.user_id}).select().single();
-if(!deck){upSt.textContent='Error';return;}
+const{data:deck,error:deckErr}=await sb.from('flashcard_decks').insert({topic:r.topic,user_id:r.user_id}).select().single();
+if(!deck){upSt.textContent='Error creating deck: '+(deckErr?.message||'unknown');upSt.style.color='#ff4444';return;}
 const cards=lines.map(function(line){var cols=parseCSVRow(line);return{deck_id:deck.id,question:cols[0]?.trim(),answer:cols.slice(1).join(',').trim()};}).filter(function(c){return c.question&&c.answer;});
-await sb.from('flashcards').insert(cards);upSt.textContent='✓ Uploaded '+cards.length+' cards!';
+if(!cards.length){upSt.textContent='No valid cards found — check file format';upSt.style.color='#ff4444';return;}
+const{error:cardsErr}=await sb.from('flashcards').insert(cards);
+if(cardsErr){upSt.textContent='Error inserting cards: '+cardsErr.message;upSt.style.color='#ff4444';return;}
+upSt.textContent='✓ Uploaded '+cards.length+' cards!';upSt.style.color='var(--teal)';
 }else{
 const blocks=text.split('\n\n').filter(b=>b.trim());const qs=[];
 for(const block of blocks){
