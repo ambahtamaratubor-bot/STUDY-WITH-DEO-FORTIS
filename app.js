@@ -2685,7 +2685,7 @@ inner.append(hCard);
 }
 }
 async function loadDeck(deck){
-if(S.profile?.is_free_tier){
+if(S.profile?.is_free_tier&&!deck.user_id){
   const{data:attempts}=await sb.from('flashcard_progress').select('id').eq('user_id',S.user.id).limit(1);
   if(attempts&&attempts.length>0){
     inner.innerHTML='';
@@ -3064,7 +3064,7 @@ const qCountWrap=div({style:{marginBottom:'20px'}},[h('label',{cls:'label',html:
 inner.append(qCountWrap);
 const startBtn=btn('Start Quiz →','btn-gold',async()=>{
 if(!selectedTopics.length||!mode){alert('Please select at least one topic and mode');return;}
-if(S.profile?.is_free_tier){
+if(S.profile?.is_free_tier&&!selectedTopics.some(function(t){return personalTopics.has(t);})){
   const{data:sc}=await sb.from('vignette_scores').select('total').eq('user_id',S.user.id);
   const totalAnswered=(sc||[]).reduce((sum,s)=>sum+(s.total||0),0);
   if(totalAnswered>=10){
@@ -4156,10 +4156,11 @@ upSt.style.display='block';upSt.textContent='Uploading...';
 const text=await file.text();
 if(isCsv){
 const lines=text.split('\n').filter(l=>l.trim());
-const{data:deck}=await sb.from('flashcard_decks').insert({topic:r.topic,user_id:r.user_id}).select().single();
+const{data:deck}=await sb.from('flashcard_decks').insert({topic:r.topic,user_id:r.user_id,type:'flashcard',name:r.topic,is_global:false}).select().single();
 if(!deck){upSt.textContent='Error';return;}
-const cards=lines.map(line=>{const parts=line.split(',');return{deck_id:deck.id,question:parts[0]?.trim(),answer:parts.slice(1).join(',').trim()};}).filter(c=>c.question&&c.answer);
+const cards=lines.map(function(line){var cols=parseCSVRow(line);return{deck_id:deck.id,question:cols[0]?.trim(),answer:cols.slice(1).join(',').trim()};}).filter(function(c){return c.question&&c.answer;});
 await sb.from('flashcards').insert(cards);upSt.textContent='✓ Uploaded '+cards.length+' cards!';
+await sb.from('profiles').update({has_new_content:true}).eq('id',r.user_id);
 }else{
 const blocks=text.split('\n\n').filter(b=>b.trim());const qs=[];
 for(const block of blocks){
@@ -4174,7 +4175,31 @@ if(qs.length){const{error:insertErr}=await sb.from('vignette_questions').insert(
 }
 setTimeout(()=>upSt.style.display='none',3000);
 }
-if(r.style&&r.style.includes('flashcard')){const fi=h('input',{type:'file',accept:'.csv',style:{color:'var(--muted)',fontSize:'12px',fontFamily:"Inter,sans-serif"}});fi.onchange=e=>{if(e.target.files[0])handleUpload(e.target.files[0],true);};br2.append(div({},[h('label',{cls:'label',html:'Upload Flashcard CSV'}),fi]));}
+if(r.style&&r.style.includes('flashcard')){
+var csvWrap=div({});
+var csvPreviewPanel=div({style:{display:'none',marginTop:'10px',maxHeight:'300px',overflowY:'auto',border:'1px solid var(--border)',borderRadius:'4px',padding:'10px'}});
+var csvFi=h('input',{type:'file',accept:'.csv',style:{color:'var(--muted)',fontSize:'12px',fontFamily:"Inter,sans-serif",display:'block',marginBottom:'6px'}});
+var csvPrevBtn=btn('Preview','btn-outline',async function(){
+  if(!csvFi.files||!csvFi.files.length){upSt.style.display='block';upSt.textContent='Select a file first';return;}
+  var raw=await csvFi.files[0].text();
+  var rows=raw.split('\n').filter(function(l){return l.trim();});
+  var parsed=rows.map(function(row){var cols=parseCSVRow(row);return{q:cols[0]?.trim()||'',a:cols.slice(1).join(',').trim()||''};});
+  csvPreviewPanel.innerHTML='';csvPreviewPanel.style.display='block';
+  var valid=parsed.filter(function(c){return c.q&&c.a;}).length;
+  var sum=div({style:{fontFamily:"Inter,sans-serif",fontSize:'12px',padding:'6px 10px',marginBottom:'8px',borderRadius:'3px',background:valid<parsed.length?'rgba(255,80,80,0.08)':'rgba(126,173,168,0.08)',border:'1px solid '+(valid<parsed.length?'#ff5050':'var(--teal)'),color:valid<parsed.length?'#ff5050':'var(--teal)'}});
+  sum.textContent=valid+' valid, '+(parsed.length-valid)+' failed out of '+parsed.length;
+  csvPreviewPanel.append(sum);
+  parsed.forEach(function(c){
+    var row=div({style:{padding:'8px 10px',marginBottom:'6px',border:'1px solid '+(c.q&&c.a?'var(--border)':'#ff5050'),borderRadius:'3px'}});
+    var qEl=div({style:{fontSize:'12px',color:'var(--text)',fontWeight:'600',marginBottom:'4px'}});qEl.textContent='Q: '+(c.q||'— MISSING —');
+    var aEl=div({style:{fontSize:'12px',color:'var(--muted)'}});aEl.textContent='A: '+(c.a||'— MISSING —');
+    row.append(qEl,aEl);csvPreviewPanel.append(row);
+  });
+},{style:{padding:'4px 10px',fontSize:'10px',marginBottom:'4px'}});
+csvFi.onchange=function(e){if(e.target.files[0])handleUpload(e.target.files[0],true);};
+csvWrap.append(h('label',{cls:'label',html:'Upload Flashcard CSV'}),csvFi,csvPrevBtn,csvPreviewPanel);
+br2.append(csvWrap);
+}
 if(r.style&&r.style.includes('vignette')){
 const vigWrap=div({});
 const vigLabel=h('label',{cls:'label',html:'Upload Vignette TXT'});
@@ -4696,7 +4721,21 @@ content.innerHTML='';content.append(card);
 }
 if(tab==='feynman'){
 content.innerHTML='';
-function parseCSVRow(row){const result=[];let cur='';let inQuotes=false;for(let ch of row){if(ch==='"'){inQuotes=!inQuotes;}else if(ch===','&&!inQuotes){result.push(cur.trim());cur='';}else{cur+=ch;}}result.push(cur.trim());return result;}
+function parseCSVRow(row){
+// If the row contains a question mark, split there — question ends at ?, answer is everything after the next comma
+var qIdx=row.indexOf('?');
+if(qIdx!==-1){
+  var question=row.slice(0,qIdx+1).trim();
+  var rest=row.slice(qIdx+1);
+  var commaIdx=rest.indexOf(',');
+  var answer=commaIdx!==-1?rest.slice(commaIdx+1).trim():rest.trim();
+  if(question&&answer)return[question,answer];
+}
+// Fallback: standard CSV comma split respecting quotes
+const result=[];let cur='';let inQuotes=false;
+for(let ch of row){if(ch==='"'){inQuotes=!inQuotes;}else if(ch===','&&!inQuotes){result.push(cur.trim());cur='';}else{cur+=ch;}}
+result.push(cur.trim());return result;
+}
 const{data:allSubs}=await sb.from('feynman_submissions').select('*').order('created_at',{ascending:false});
 const submissions=allSubs||[];
 const totalCount=submissions.length;
