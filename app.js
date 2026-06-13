@@ -5269,54 +5269,117 @@ async function showTeamTab(){
     }
     else if(sub==='history'){
       if(!isSuperAdmin&&!isManager){subContent.append(div({cls:'card',style:{textAlign:'center',padding:'40px'}},[h('p',{style:{fontSize:'14px',color:'var(--dim)'}},[document.createTextNode('Access restricted.')])]));return;}
-      // Fulfilled recalls — who did the recall and when
-      var fulfilledRes=await sb.from('recall_requests').select('id,user_name,topic,style,fulfilled_by,fulfilled_at').eq('status','fulfilled').order('fulfilled_at',{ascending:false}).limit(50);
+      // Fetch fulfilled recalls
+      var fulfilledRes=await sb.from('recall_requests').select('id,user_name,topic,style,fulfilled_by,fulfilled_at,updated_at').eq('status','fulfilled').order('fulfilled_at',{ascending:false}).limit(200);
       var fulfilled=fulfilledRes.data||[];
-      // Fetch handler names for fulfilled recalls
+      // Fetch handler names
       var handlerIds=[...new Set(fulfilled.filter(function(r){return r.fulfilled_by;}).map(function(r){return r.fulfilled_by;}))];
       var handlerMap={};
       if(handlerIds.length){
         var{data:handlerProfs}=await sb.from('profiles').select('id,full_name,email').in('id',handlerIds);
         (handlerProfs||[]).forEach(function(p){handlerMap[p.id]=p.full_name||p.email;});
       }
-      // Assignment history
-      const{data:history}=await sb.from('recall_assignment_history').select('*,changed_by_profile:changed_by(full_name,email),to_profile:to_user(full_name,email),from_profile:from_user(full_name,email)').order('changed_at',{ascending:false}).limit(50);
-      // Fulfilled recalls section
-      subContent.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'16px',marginBottom:'12px'}},[document.createTextNode('Fulfilled Recalls')]));
-      if(!fulfilled||!fulfilled.length){
-        subContent.append(div({style:{padding:'12px',fontSize:'13px',color:'var(--dim)',marginBottom:'24px'}},[document.createTextNode('No fulfilled recalls yet.')]));
-      }else{
-        const ftable=div({style:{overflowX:'auto',marginBottom:'32px'}});
-        const fgrid=div({style:{display:'grid',gridTemplateColumns:'1fr 1fr 80px 1fr 150px',gap:'0',fontSize:'12px',minWidth:'700px',border:'1px solid var(--border)',borderRadius:'4px',overflow:'hidden'}});
-        ['Student','Topic','Style','Handled By','Fulfilled At'].forEach(function(hdr){fgrid.append(div({style:{padding:'8px 10px',fontWeight:'bold',background:'var(--card2)',borderBottom:'1px solid var(--border)'}},[document.createTextNode(hdr)]));});
-        (fulfilled||[]).forEach(function(r){
-          var handlerName=r.fulfilled_by?(handlerMap[r.fulfilled_by]||'Unknown'):'—';
-          var fulfilledAt=r.fulfilled_at?new Date(r.fulfilled_at).toLocaleString():'—';
-          [r.user_name||'—',r.topic||'—',r.style||'—',handlerName,fulfilledAt].forEach(function(val){
-            fgrid.append(div({style:{padding:'8px 10px',borderBottom:'1px solid var(--border)',color:'var(--text)'}},[document.createTextNode(val)]));
+      // Controls row
+      var groupBy='month';
+      var controlsRow=div({style:{display:'flex',alignItems:'center',gap:'8px',marginBottom:'20px',flexWrap:'wrap'}});
+      controlsRow.append(h('span',{style:{fontFamily:"'DM Mono',monospace",fontSize:'10px',letterSpacing:'2px',color:'var(--dim)',textTransform:'uppercase'}},[document.createTextNode('Group by')]));
+      var groupBtns={};
+      function setGroup(g){
+        groupBy=g;
+        Object.keys(groupBtns).forEach(function(k){
+          var b=groupBtns[k];
+          if(k===g){b.style.background='var(--gold)';b.style.color='var(--bg)';b.style.border='1px solid var(--gold)';}
+          else{b.style.background='transparent';b.style.color='var(--text)';b.style.border='1px solid var(--border)';}
+        });
+        renderGroups();
+      }
+      ['month','week','handler','student'].forEach(function(g){
+        var label={month:'Month',week:'Week',handler:'Handler',student:'Student'}[g];
+        var b=btn(label,'btn-outline',function(){setGroup(g);},{style:{fontSize:'11px',padding:'5px 12px'}});
+        groupBtns[g]=b;
+        controlsRow.append(b);
+      });
+      subContent.append(controlsRow);
+      var groupContainer=div({});
+      subContent.append(groupContainer);
+      function getGroupKey(r){
+        var dateStr=r.fulfilled_at||r.updated_at||null;
+        if(groupBy==='month'){
+          if(!dateStr)return 'Unknown Date';
+          var d=new Date(dateStr);
+          return d.toLocaleString('default',{month:'long',year:'numeric'});
+        }
+        if(groupBy==='week'){
+          if(!dateStr)return 'Unknown Date';
+          var d2=new Date(dateStr);
+          var day=d2.getDay();
+          var mon=new Date(d2);mon.setDate(d2.getDate()-(day===0?6:day-1));
+          var sun=new Date(mon);sun.setDate(mon.getDate()+6);
+          return 'Week of '+mon.toLocaleDateString('default',{month:'short',day:'numeric'})+' – '+sun.toLocaleDateString('default',{month:'short',day:'numeric',year:'numeric'});
+        }
+        if(groupBy==='handler'){
+          return r.fulfilled_by?(handlerMap[r.fulfilled_by]||'Unknown'):'Not recorded';
+        }
+        if(groupBy==='student'){
+          return r.user_name||'Unknown Student';
+        }
+        return 'Other';
+      }
+      function renderGroups(){
+        groupContainer.innerHTML='';
+        if(!fulfilled.length){
+          groupContainer.append(div({cls:'card',style:{textAlign:'center',padding:'32px'}},[h('p',{style:{fontSize:'13px',color:'var(--dim)'}},[document.createTextNode('No fulfilled recalls yet.')])]));
+          return;
+        }
+        // Build groups preserving insertion order
+        var groupMap={};
+        var groupOrder=[];
+        fulfilled.forEach(function(r){
+          var key=getGroupKey(r);
+          if(!groupMap[key]){groupMap[key]=[];groupOrder.push(key);}
+          groupMap[key].push(r);
+        });
+        groupOrder.forEach(function(key){
+          var items=groupMap[key];
+          var isOpen=true;
+          // Group header
+          var header=div({style:{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'10px 14px',background:'var(--card2)',border:'1px solid var(--border)',borderRadius:'4px',cursor:'pointer',marginBottom:'2px',userSelect:'none'}});
+          var headerLeft=div({style:{display:'flex',alignItems:'center',gap:'10px'}});
+          var chevron=h('span',{style:{fontFamily:"'DM Mono',monospace",fontSize:'10px',color:'var(--gold)',transition:'transform .2s',display:'inline-block'}},[document.createTextNode('▼')]);
+          var groupLabel=h('span',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'13px',fontWeight:'600',color:'var(--text)'}},[document.createTextNode(key)]);
+          var countBadge=h('span',{style:{fontFamily:"'DM Mono',monospace",fontSize:'10px',color:'var(--dim)',background:'var(--bg)',border:'1px solid var(--border)',borderRadius:'3px',padding:'1px 7px'}},[document.createTextNode(items.length+' recall'+(items.length!==1?'s':''))]);
+          headerLeft.append(chevron,groupLabel);
+          header.append(headerLeft,countBadge);
+          // Body
+          var body=div({style:{marginBottom:'12px',border:'1px solid var(--border)',borderTop:'none',borderRadius:'0 0 4px 4px',overflow:'hidden'}});
+          items.forEach(function(r,idx){
+            var handlerName=r.fulfilled_by?(handlerMap[r.fulfilled_by]||'Unknown'):'—';
+            var dateStr=r.fulfilled_at||r.updated_at||null;
+            var fulfilledAt=dateStr?new Date(dateStr).toLocaleString():'—';
+            var row=div({style:{display:'grid',gridTemplateColumns:'1fr 1fr 90px 1fr 140px',gap:'0',fontSize:'12px',borderBottom:idx<items.length-1?'1px solid var(--border)':'none',background:idx%2===0?'transparent':'rgba(255,255,255,0.015)'}});
+            if(idx===0){
+              // Column headers on first row of each group
+              var hdrRow=div({style:{display:'grid',gridTemplateColumns:'1fr 1fr 90px 1fr 140px',gap:'0',fontSize:'10px',fontFamily:"'DM Mono',monospace",letterSpacing:'1px',textTransform:'uppercase',color:'var(--dim)',borderBottom:'1px solid var(--border)',background:'var(--card2)'}});
+              ['Student','Topic','Style','Handler','When'].forEach(function(col){
+                hdrRow.append(div({style:{padding:'6px 10px'}},[document.createTextNode(col)]));
+              });
+              body.append(hdrRow);
+            }
+            [r.user_name||'—',r.topic||'—',r.style||'—',handlerName,fulfilledAt].forEach(function(val,ci){
+              row.append(div({style:{padding:'8px 10px',color:ci===0?'var(--text)':'var(--muted)',fontWeight:ci===0?'500':'400'}},[document.createTextNode(val)]));
+            });
+            body.append(row);
           });
-        });
-        ftable.append(fgrid);
-        subContent.append(ftable);
-      }
-      // Assignment history section
-      subContent.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'16px',marginBottom:'12px'}},[document.createTextNode('Assignment History')]));
-      if(!history||!history.length){subContent.append(div({style:{padding:'12px',fontSize:'13px',color:'var(--dim)'}},[document.createTextNode('No assignment history yet.')]));return;}
-      const table=div({style:{overflowX:'auto'}});
-      const grid=div({style:{display:'grid',gridTemplateColumns:'80px 1fr 1fr 1fr 1fr 150px',gap:'0',fontSize:'12px',minWidth:'900px',border:'1px solid var(--border)',borderRadius:'4px',overflow:'hidden'}});
-      const headers=['Recall','Student','From','To','Changed By','When'];
-      headers.forEach(function(hdr){grid.append(div({style:{padding:'8px 10px',fontWeight:'bold',background:'var(--card2)',borderBottom:'1px solid var(--border)'}},[document.createTextNode(hdr)]));});
-      for(const entry of history){
-        const{data:recall}=await sb.from('recall_requests').select('user_name,topic').eq('id',entry.recall_id).single();
-        const toProf=entry.to_profile||null;
-        const fromProf=entry.from_profile||null;
-        const changedProf=entry.changed_by_profile||null;
-        [String(entry.recall_id).slice(-6),recall?.user_name||'—',fromProf?.full_name||fromProf?.email||'—',toProf?.full_name||toProf?.email||'—',changedProf?.full_name||changedProf?.email||'—',new Date(entry.changed_at).toLocaleString()].forEach(function(val){
-          grid.append(div({style:{padding:'8px 10px',borderBottom:'1px solid var(--border)',color:'var(--text)'}},[document.createTextNode(val)]));
+          header.onclick=function(){
+            isOpen=!isOpen;
+            body.style.display=isOpen?'block':'none';
+            chevron.style.transform=isOpen?'rotate(0deg)':'rotate(-90deg)';
+          };
+          groupContainer.append(header,body);
         });
       }
-      table.append(grid);
-      subContent.append(table);
+      // Set default active button and render
+      setGroup('month');
     }
     else if(sub==='announce'){
       const{data:announcements}=await sb.from('announcements').select('*,profiles(full_name,email)').order('created_at',{ascending:false});
