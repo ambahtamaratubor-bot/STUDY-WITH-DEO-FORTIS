@@ -1328,14 +1328,19 @@ errBox.classList.remove('hidden');errBox.textContent=error.message;submitBtn.tex
 }
 if(data&&data.user){
 var isFreeSignup=localStorage.getItem('signupType')==='free';
-var profileData={id:data.user.id,email:emailVal,full_name:nameVal,status:'pending',is_free_tier:isFreeSignup?true:false};
+var trialExpiry=new Date();trialExpiry.setDate(trialExpiry.getDate()+3);
+var profileData={id:data.user.id,email:emailVal,full_name:nameVal,status:isFreeSignup?'approved':'pending',is_free_tier:isFreeSignup?true:false};
+if(isFreeSignup)profileData.access_expires_at=trialExpiry.toISOString();
 if(sel)profileData.plan=sel.name;
 await new Promise(function(r){setTimeout(r,1000);});
 await sb.from('profiles').upsert(profileData,{onConflict:'id'});
 localStorage.removeItem('signupType');
 if(isFreeSignup){
+S.user=data.user;
+S.profile={id:data.user.id,email:emailVal,full_name:nameVal,status:'approved',is_free_tier:true,plan:null,total_points:0,total_study_minutes:0,streak_count:0,total_anki_sessions:0,study_goals:{daily_hours:4,weekly_hours:20},topic_goals:{},rest_days:[],access_expires_at:trialExpiry.toISOString()};
+S.inTrial=true;
 signingUp=false;
-go('pending');
+go('dashboard');
 return;
 }
 signingUp=false;
@@ -1536,10 +1541,9 @@ function pending(){
 const page=div({cls:'center',style:{minHeight:'100vh',padding:'24px'}});
 const card=div({cls:'card fade',style:{width:'100%',maxWidth:'480px',textAlign:'center'}});
 card.append(
-div({style:{fontSize:'48px',marginBottom:'20px'},html:' '}),
-div({style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontStyle:'italic',fontSize:'22px',color:'var(--gold)',marginBottom:'16px'},html:'Deo Fortis'}),
-h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'24px',marginBottom:'12px'},html:"You're on the list."}),
-h('p',{cls:'muted',style:{fontSize:'15px',lineHeight:'1.7',marginBottom:'24px'},html:'The platform launches <strong style="color:var(--gold)">June 7</strong>. You will get access on launch day. Join the live event below.'}),
+h('img',{src:'https://raw.githubusercontent.com/ambahtamaratubor-bot/STUDY-WITH-DEO-FORTIS/main/logo.png',alt:'Deo Fortis',style:{height:'56px',width:'auto',display:'block',margin:'0 auto 24px'}}),
+h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'24px',marginBottom:'12px'},html:'Your account is under review.'}),
+h('p',{cls:'muted',style:{fontSize:'15px',lineHeight:'1.7',marginBottom:'24px'},html:'Once your payment is confirmed you will receive an email and your dashboard will be unlocked. If you have already paid, enter your Selar reference below to activate immediately.'}),
 div({cls:'quote',style:{marginBottom:'24px',textAlign:'left'},html:'"Everyone is gifted."'}));
 const txSection=div({style:{textAlign:'left',borderTop:'1px solid var(--border)',paddingTop:'20px',marginTop:'4px',marginBottom:'12px'}});
 const txInput=inp('e.g. SC5ZY7WO3583N','text','');
