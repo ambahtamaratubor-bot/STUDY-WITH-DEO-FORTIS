@@ -184,7 +184,7 @@ root.innerHTML='';
 function theory(){
 const page=div({});
 const nav=div({cls:'dash-nav'});
-const logo=div({cls:'logo',html:'Deo Fortis'});
+const logo=h('img',{src:'https://raw.githubusercontent.com/ambahtamaratubor-bot/STUDY-WITH-DEO-FORTIS/main/logo.png',alt:'Deo Fortis',cls:'logo',style:{height:'36px',width:'auto',display:'block'}});
 const dashboardBtn=btn('← Dashboard','btn-outline',()=>go('dashboard'),{style:{padding:'8px 16px'}});
 nav.append(logo,div({style:{display:'flex',gap:'12px',alignItems:'center'}},[dashboardBtn,makeThemeBtn()]));
 const inner=div({cls:'inner'});
@@ -248,7 +248,7 @@ function renderMarkdown(text){let html=text;html=html.replace(/\*\*(.+?)\*\*/g,'
 function notes(){
 const page=div({});
 const nav=div({cls:'dash-nav'});
-const logo=div({cls:'logo',html:'Deo Fortis'});
+const logo=h('img',{src:'https://raw.githubusercontent.com/ambahtamaratubor-bot/STUDY-WITH-DEO-FORTIS/main/logo.png',alt:'Deo Fortis',cls:'logo',style:{height:'36px',width:'auto',display:'block'}});
 const rightNav=div({style:{display:'flex',gap:'12px',alignItems:'center'}},[]);
 const dashboardBtn=btn('\u2190 Dashboard','btn-outline',()=>go('dashboard'),{style:{padding:'8px 16px'}});
 rightNav.append(dashboardBtn,makeThemeBtn());
@@ -897,7 +897,6 @@ hero.append(shelf);
 const hc=div({style:{position:'relative',zIndex:'1'}});
 const heroLogo=h('img',{src:'https://raw.githubusercontent.com/ambahtamaratubor-bot/STUDY-WITH-DEO-FORTIS/main/logo.png',alt:'Deo Fortis',style:{height:'80px',width:'auto',display:'block',marginBottom:'24px'}});
 hc.append(
-heroLogo,
 h('span',{cls:'chapter',html:'— A Premium Study Platform —'}),
 h('h1',{cls:'big',html:'Study with<br><em class="gold-em">Deo Fortis!</em>'}),
 h('hr',{style:{border:'none',borderTop:'1px solid var(--border)',margin:'28px 0',maxWidth:'480px'}}),
@@ -1704,7 +1703,7 @@ if(S.expiryWarning)showExpiryBanner(S.expiryDaysLeft);
 // NAV
 const nav=div({cls:'dash-nav'});
 nav.append(
-  div({cls:'logo',html:'Deo Fortis'}),
+  h('img',{src:'https://raw.githubusercontent.com/ambahtamaratubor-bot/STUDY-WITH-DEO-FORTIS/main/logo.png',alt:'Deo Fortis',cls:'logo',style:{height:'36px',width:'auto',display:'block'}}),
   div({style:{display:'flex',gap:'8px'}},[
     btn('Leaderboard','btn-outline',()=>go('leaderboard'),{style:{padding:'8px 16px'}}),
     makeThemeBtn(),
@@ -2543,7 +2542,7 @@ function flashcards(){
 const page=div({});
 const isFree=S.profile?.is_free_tier===true;
 const nav=div({cls:'dash-nav'});
-nav.append(div({cls:'logo',html:'Deo Fortis'}),div({style:{display:'flex',gap:'8px'}},[btn('← Dashboard','btn-outline',()=>{sessionStorage.removeItem('vignette_resume');go('dashboard');},{style:{padding:'8px 16px'}}),makeThemeBtn()]));
+nav.append(h('img',{src:'https://raw.githubusercontent.com/ambahtamaratubor-bot/STUDY-WITH-DEO-FORTIS/main/logo.png',alt:'Deo Fortis',cls:'logo',style:{height:'36px',width:'auto',display:'block'}}),div({style:{display:'flex',gap:'8px'}},[btn('← Dashboard','btn-outline',()=>{sessionStorage.removeItem('vignette_resume');go('dashboard');},{style:{padding:'8px 16px'}}),makeThemeBtn()]));
 page.append(nav);
 let decks=[],selDeck=null,cards=[],queue=[],curIdx=0,flipped=false,prog={easy:0,iffy:0,hard:0};
 const tabBar=div({style:{display:'flex',gap:'8px',padding:'0 24px',borderBottom:'1px solid var(--border)',background:'var(--nav-bg)'}});
@@ -2892,7 +2891,7 @@ function vignette(){
 const page=div({});
 const isFree=S.profile?.is_free_tier===true;
 const nav=div({cls:'dash-nav'});
-nav.append(div({cls:'logo',html:'Deo Fortis'}),div({style:{display:'flex',gap:'8px'}},[btn('← Dashboard','btn-outline',()=>go('dashboard'),{style:{padding:'8px 16px'}}),makeThemeBtn()]));
+nav.append(h('img',{src:'https://raw.githubusercontent.com/ambahtamaratubor-bot/STUDY-WITH-DEO-FORTIS/main/logo.png',alt:'Deo Fortis',cls:'logo',style:{height:'36px',width:'auto',display:'block'}}),div({style:{display:'flex',gap:'8px'}},[btn('← Dashboard','btn-outline',()=>go('dashboard'),{style:{padding:'8px 16px'}}),makeThemeBtn()]));
 page.append(nav);
 let questions=[],current=0,answers={},submitted=false,revealed={},ruledOut={},highlights={},timeLeft=0,tInterval=null,selTopic='',mode='',timeLimit=60,qFilter='all';
 let activeHighlightBtn=null;
@@ -3389,7 +3388,7 @@ function feynman(){
 var page=div({cls:'dash-page'});
 if(S.profile?.is_free_tier===true&&!isInTrial()){
   var navFree=div({cls:'dash-nav'});
-  navFree.append(div({cls:'logo',html:'Deo Fortis'}),div({style:{display:'flex',gap:'8px'}},[btn('Back to Dashboard','btn-outline',function(){go('dashboard');},{style:{padding:'8px 16px'}}),makeThemeBtn()]));
+  navFree.append(h('img',{src:'https://raw.githubusercontent.com/ambahtamaratubor-bot/STUDY-WITH-DEO-FORTIS/main/logo.png',alt:'Deo Fortis',cls:'logo',style:{height:'36px',width:'auto',display:'block'}}),div({style:{display:'flex',gap:'8px'}},[btn('Back to Dashboard','btn-outline',function(){go('dashboard');},{style:{padding:'8px 16px'}}),makeThemeBtn()]));
   page.append(navFree);
   var preview=div({cls:'inner',style:{position:'relative'}});
   preview.append(
@@ -3437,7 +3436,7 @@ if(S.profile?.is_free_tier===true&&!isInTrial()){
   return page;
 }
 var nav=div({cls:'dash-nav'});
-nav.append(div({cls:'logo',html:'Deo Fortis'}),div({style:{display:'flex',gap:'8px'}},[btn('Study','btn-outline',function(){go('study');},{style:{padding:'8px 16px'}}),btn('Dashboard','btn-outline',function(){go('dashboard');},{style:{padding:'8px 16px'}}),makeThemeBtn(),btn('Log Out','btn-outline',function(){sb.auth.signOut();},{style:{padding:'8px 16px'}})]));
+nav.append(h('img',{src:'https://raw.githubusercontent.com/ambahtamaratubor-bot/STUDY-WITH-DEO-FORTIS/main/logo.png',alt:'Deo Fortis',cls:'logo',style:{height:'36px',width:'auto',display:'block'}}),div({style:{display:'flex',gap:'8px'}},[btn('Study','btn-outline',function(){go('study');},{style:{padding:'8px 16px'}}),btn('Dashboard','btn-outline',function(){go('dashboard');},{style:{padding:'8px 16px'}}),makeThemeBtn(),btn('Log Out','btn-outline',function(){sb.auth.signOut();},{style:{padding:'8px 16px'}})]));
 page.append(nav);
 var container=div({cls:'inner'});
 page.append(container);
@@ -3583,7 +3582,7 @@ return page;
 function leaderboard(){
 const page=div({});
 const nav=div({cls:'dash-nav'});
-nav.append(div({cls:'logo',html:'Deo Fortis'}),div({style:{display:'flex',gap:'8px'}},[btn('← Dashboard','btn-outline',()=>go('dashboard'),{style:{padding:'8px 16px'}}),makeThemeBtn()]));
+nav.append(h('img',{src:'https://raw.githubusercontent.com/ambahtamaratubor-bot/STUDY-WITH-DEO-FORTIS/main/logo.png',alt:'Deo Fortis',cls:'logo',style:{height:'36px',width:'auto',display:'block'}}),div({style:{display:'flex',gap:'8px'}},[btn('← Dashboard','btn-outline',()=>go('dashboard'),{style:{padding:'8px 16px'}}),makeThemeBtn()]));
 page.append(nav);
 if(S.profile?.is_free_tier===true&&!isInTrial()){
   const preview=div({cls:'inner-sm',style:{position:'relative'}});
@@ -3799,7 +3798,7 @@ wrap.append(card,tmCard);page.append(wrap);
 async function showAdminPanel(){
 page.innerHTML='';
 const aN=div({style:{background:'var(--nav-bg)',borderBottom:'1px solid var(--border)',padding:'16px 24px',display:'flex',alignItems:'center',justifyContent:'space-between',position:'sticky',top:'0',zIndex:'100'}});
-aN.append(div({cls:'logo',html:'Admin — Deo Fortis'}),div({style:{display:'flex',gap:'8px'}},[makeThemeBtn(),btn('← Site','btn-outline',()=>go('landing'),{style:{padding:'8px 16px'}})]));
+aN.append(h('img',{src:'https://raw.githubusercontent.com/ambahtamaratubor-bot/STUDY-WITH-DEO-FORTIS/main/logo.png',alt:'Deo Fortis',cls:'logo',style:{height:'36px',width:'auto',display:'block'}}),div({style:{display:'flex',gap:'8px'}},[makeThemeBtn(),btn('← Site','btn-outline',()=>go('landing'),{style:{padding:'8px 16px'}})]));
 page.append(aN);
 const tabs=div({style:{display:'none'}});
 const content=div({cls:'inner-md',style:{padding:'24px'}});
