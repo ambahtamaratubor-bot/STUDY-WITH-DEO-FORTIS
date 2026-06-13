@@ -2019,7 +2019,7 @@ twoCol.append(recentCard);
     const khLeft=div({style:{display:'flex',alignItems:'center',gap:'12px'}});
     const khTxt=div({});
     khTxt.append(
-      h('div',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'15px',color:'var(--text)',fontWeight:'600',marginBottom:'2px'},html:'Biweekly Kahoot'}),
+      h('div',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'15px',color:'var(--text)',fontWeight:'600',marginBottom:'2px'},html:'Bimonthly Kahoot'}),
       h('div',{style:{fontSize:'12px',color:'var(--muted)'},html:'Join our live quiz sessions and compete with the community.'})
     );
     khLeft.append(h('div',{style:{fontSize:'22px'},html:ICONS.zap}),khTxt);
@@ -3907,7 +3907,7 @@ const comI=inp('https://...','text',set.community_link||'');
 const supI=inp('deofortistutors@gmail.com','email',set.support_email||'');
 const spI=inp('https://... (study partner matching form or link)','text',set.link_study_partner||'');
 const khI=inp('https://... (Kahoot signup form or link)','text',set.link_kahoot||'');
-card.append(field('Community Link (Forum / Discord / WhatsApp)',comI),field('Support Email (shown on dashboard)',supI),field('Study Partner Matching Link',spI),field('Biweekly Kahoot Link',khI));
+card.append(field('Community Link (Forum / Discord / WhatsApp)',comI),field('Support Email (shown on dashboard)',supI),field('Study Partner Matching Link',spI),field('Bimonthly Kahoot Link',khI));
 // White noise
 card.append(h('hr',{style:{border:'none',borderTop:'1px solid var(--border)',margin:'24px 0'}}));
 card.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'18px',marginBottom:'8px'},html:'White Noise Audio Links'}));
