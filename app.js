@@ -5060,8 +5060,9 @@ async function showTeamTab(){
       (assignments||[]).forEach(a=>{assignMap[a.recall_id]=a.assigned_to;});
       const currentUserId=S.user?.id||null;
       // Determine current shift slot
+      // Schedule stores days Monday=0...Sunday=6; JS getDay() is Sunday=0...Saturday=6
       var now=new Date();
-      var currentDayInt=now.getDay();
+      var currentDayInt=(now.getDay()+6)%7;
       var hr=now.getHours();
       var currentSlot=hr>=19?'7pm':hr>=15?'3pm':hr>=11?'11am':'7am';
       var currentSlotLabel=hr>=19?'7pm–11pm':hr>=15?'3pm–7pm':hr>=11?'11am–3pm':'7am–11am';
@@ -5071,12 +5072,33 @@ async function showTeamTab(){
       var shiftBanner=div({style:{padding:'10px 14px',background:'rgba(126,173,168,0.1)',border:'1px solid rgba(126,173,168,0.3)',borderRadius:'4px',marginBottom:'16px',fontSize:'12px',fontFamily:"'DM Mono',monospace",color:'var(--teal)'}});
       shiftBanner.textContent='On shift now ('+currentSlotLabel+'): '+(onShiftNames.length?onShiftNames.join(', '):'No one assigned');
       subContent.append(shiftBanner);
+      // Auto-assign unassigned recalls to on-shift workers
+      if(onShiftIds.length&&recalls&&recalls.length){
+        for(var ri=0;ri<recalls.length;ri++){
+          var rc=recalls[ri];
+          if(!assignMap[rc.id]){
+            // Pick first on-shift worker as primary assignee
+            var autoAssignee=onShiftIds[0];
+            var{data:inserted}=await sb.from('recall_assignments').insert({recall_id:rc.id,assigned_to:autoAssignee,assigned_by:currentUserId}).select().single();
+            if(inserted){
+              assignMap[rc.id]=autoAssignee;
+              await sb.from('recall_requests').update({status:'assigned'}).eq('id',rc.id);
+            }
+          }
+        }
+      }
       if(!recalls||!recalls.length){subContent.append(div({cls:'card',style:{textAlign:'center',padding:'40px'}},[h('p',{style:{fontSize:'14px',color:'var(--dim)'}},[document.createTextNode('No pending recalls.')])]));return;}
       const listDiv=div({style:{display:'flex',flexDirection:'column',gap:'16px'}});
       for(const recall of recalls){
         const assignedTo=assignMap[recall.id];
-        const assignedName=assignedTo?workerMap[assignedTo]||'Unknown':'Unassigned';
-        const isMyRecall=assignedTo===currentUserId;
+        // Show all on-shift workers if this recall is assigned to one of them, otherwise show assigned name
+        var displayNames;
+        if(assignedTo&&onShiftIds.includes(assignedTo)&&onShiftIds.length>1){
+          displayNames=onShiftNames.join(' + ');
+        }else{
+          displayNames=assignedTo?workerMap[assignedTo]||'Unknown':'Unassigned';
+        }
+        const isMyRecall=assignedTo===currentUserId||onShiftIds.includes(currentUserId);
         const card=div({cls:'card',style:{borderLeft:'3px solid '+(isMyRecall?'var(--gold)':'var(--border)')}});
         const headerRow=div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'8px'}});
         const studentInfo=div({});
@@ -5084,7 +5106,7 @@ async function showTeamTab(){
         studentInfo.append(h('div',{style:{fontSize:'12px',color:'var(--muted)'}},[document.createTextNode(recall.topic+' · '+recall.style)]));
         headerRow.append(studentInfo,h('div',{style:{fontSize:'11px',color:'var(--dim)'}},[document.createTextNode(new Date(recall.created_at).toLocaleString())]));
         card.append(headerRow);
-        const badge=div({style:{display:'inline-block',fontSize:'11px',padding:'2px 8px',borderRadius:'3px',marginBottom:'8px',background:isMyRecall?'rgba(201,150,58,0.15)':'rgba(126,173,168,0.1)',color:isMyRecall?'var(--gold)':'var(--teal)',border:'1px solid '+(isMyRecall?'rgba(201,150,58,0.3)':'rgba(126,173,168,0.2)')}},[document.createTextNode('Assigned to: '+assignedName+(isMyRecall?' (you)':''))]);
+        const badge=div({style:{display:'inline-block',fontSize:'11px',padding:'2px 8px',borderRadius:'3px',marginBottom:'8px',background:isMyRecall?'rgba(201,150,58,0.15)':'rgba(126,173,168,0.1)',color:isMyRecall?'var(--gold)':'var(--teal)',border:'1px solid '+(isMyRecall?'rgba(201,150,58,0.3)':'rgba(126,173,168,0.2)')}},[document.createTextNode('Assigned to: '+displayNames+(isMyRecall?' (you)':''))]);
         card.append(badge);
         if(canWrite){
           const assignRow=div({style:{display:'flex',gap:'8px',alignItems:'center',marginTop:'8px'}});
