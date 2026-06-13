@@ -877,8 +877,10 @@ const page=div({});
 let scrolled=false;
 let cfg={video:'',links:{monthly:'#',sixmonth:'#',yearly:'#'},testimonials:[],packages:[]};
 const nav=div({cls:'top-nav',id:'tnav'});
+const navLogo=h('img',{src:'https://raw.githubusercontent.com/ambahtamaratubor-bot/STUDY-WITH-DEO-FORTIS/main/logo.png',alt:'Deo Fortis',style:{height:'40px',width:'auto',display:'block',cursor:'pointer'}});
+navLogo.onclick=()=>window.scrollTo({top:0,behavior:'smooth'});
 nav.append(
-div({cls:'logo',html:'Deo Fortis'}),
+navLogo,
 div({style:{display:'flex',gap:'32px',alignItems:'center'}},[
 h('a',{cls:'nav-link',href:'#plans',html:'Plans'}),
 h('a',{cls:'nav-link',href:'#tutoring',html:'Tutoring'}),
@@ -893,7 +895,9 @@ const shelf=div({style:{position:'absolute',top:'100px',right:'0',opacity:'.1',d
 [{h:160,w:22,c:'#8B4513'},{h:200,w:30,c:'#2F4F4F'},{h:140,w:18,c:'#8B0000'},{h:185,w:26,c:'#4B0082'},{h:220,w:34,c:'#556B2F'},{h:150,w:20,c:'#8B6914'},{h:175,w:28,c:'#1C3A5E'},{h:130,w:16,c:'#6B3A2A'},{h:195,w:24,c:'#2E4A1E'},{h:210,w:32,c:'#4A1942'}].forEach(b=>shelf.append(div({style:{height:b.h+'px',width:b.w+'px',background:b.c,borderRadius:'2px 2px 0 0'}})));
 hero.append(shelf);
 const hc=div({style:{position:'relative',zIndex:'1'}});
+const heroLogo=h('img',{src:'https://raw.githubusercontent.com/ambahtamaratubor-bot/STUDY-WITH-DEO-FORTIS/main/logo.png',alt:'Deo Fortis',style:{height:'80px',width:'auto',display:'block',marginBottom:'24px'}});
 hc.append(
+heroLogo,
 h('span',{cls:'chapter',html:'— A Premium Study Platform —'}),
 h('h1',{cls:'big',html:'Study with<br><em class="gold-em">Deo Fortis!</em>'}),
 h('hr',{style:{border:'none',borderTop:'1px solid var(--border)',margin:'28px 0',maxWidth:'480px'}}),
