@@ -4156,11 +4156,10 @@ upSt.style.display='block';upSt.textContent='Uploading...';
 const text=await file.text();
 if(isCsv){
 const lines=text.split('\n').filter(l=>l.trim());
-const{data:deck}=await sb.from('flashcard_decks').insert({topic:r.topic,user_id:r.user_id,type:'flashcard',name:r.topic,is_global:false}).select().single();
+const{data:deck}=await sb.from('flashcard_decks').insert({topic:r.topic,user_id:r.user_id}).select().single();
 if(!deck){upSt.textContent='Error';return;}
 const cards=lines.map(function(line){var cols=parseCSVRow(line);return{deck_id:deck.id,question:cols[0]?.trim(),answer:cols.slice(1).join(',').trim()};}).filter(function(c){return c.question&&c.answer;});
 await sb.from('flashcards').insert(cards);upSt.textContent='✓ Uploaded '+cards.length+' cards!';
-await sb.from('profiles').update({has_new_content:true}).eq('id',r.user_id);
 }else{
 const blocks=text.split('\n\n').filter(b=>b.trim());const qs=[];
 for(const block of blocks){
