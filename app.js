@@ -4158,10 +4158,16 @@ if(isCsv){
 const lines=text.split('\n').filter(l=>l.trim());
 const{data:deck,error:deckErr}=await sb.from('flashcard_decks').insert({topic:r.topic,user_id:r.user_id}).select().single();
 if(!deck){upSt.textContent='Error creating deck: '+(deckErr?.message||'unknown');upSt.style.color='#ff4444';return;}
-const cards=lines.map(function(line){var cols=parseCSVRow(line);return{deck_id:deck.id,question:cols[0]?.trim(),answer:cols.slice(1).join(',').trim()};}).filter(function(c){return c.question&&c.answer;});
-if(!cards.length){upSt.textContent='No valid cards found — check file format';upSt.style.color='#ff4444';return;}
+const cards=lines.map(function(line){
+  var qIdx=line.indexOf('?');
+  var q,a;
+  if(qIdx!==-1){q=line.slice(0,qIdx+1).trim();var rest=line.slice(qIdx+1);var ci=rest.indexOf(',');a=ci!==-1?rest.slice(ci+1).trim():rest.trim();}
+  else{var parts=line.split(',');q=parts[0]?.trim();a=parts.slice(1).join(',').trim();}
+  return{deck_id:deck.id,question:q,answer:a};
+}).filter(function(c){return c.question&&c.answer;});
+if(!cards.length){upSt.textContent='No valid cards found';upSt.style.color='#ff4444';return;}
 const{error:cardsErr}=await sb.from('flashcards').insert(cards);
-if(cardsErr){upSt.textContent='Error inserting cards: '+cardsErr.message;upSt.style.color='#ff4444';return;}
+if(cardsErr){upSt.textContent='Error: '+cardsErr.message;upSt.style.color='#ff4444';return;}
 upSt.textContent='✓ Uploaded '+cards.length+' cards!';upSt.style.color='var(--teal)';
 }else{
 const blocks=text.split('\n\n').filter(b=>b.trim());const qs=[];
@@ -4185,7 +4191,12 @@ var csvPrevBtn=btn('Preview','btn-outline',async function(){
   if(!csvFi.files||!csvFi.files.length){upSt.style.display='block';upSt.textContent='Select a file first';return;}
   var raw=await csvFi.files[0].text();
   var rows=raw.split('\n').filter(function(l){return l.trim();});
-  var parsed=rows.map(function(row){var cols=parseCSVRow(row);return{q:cols[0]?.trim()||'',a:cols.slice(1).join(',').trim()||''};});
+  var parsed=rows.map(function(row){
+    var qIdx=row.indexOf('?');var q,a;
+    if(qIdx!==-1){q=row.slice(0,qIdx+1).trim();var rest=row.slice(qIdx+1);var ci=rest.indexOf(',');a=ci!==-1?rest.slice(ci+1).trim():rest.trim();}
+    else{var parts=row.split(',');q=parts[0]?.trim();a=parts.slice(1).join(',').trim();}
+    return{q:q||'',a:a||''};
+  });
   csvPreviewPanel.innerHTML='';csvPreviewPanel.style.display='block';
   var valid=parsed.filter(function(c){return c.q&&c.a;}).length;
   var sum=div({style:{fontFamily:"Inter,sans-serif",fontSize:'12px',padding:'6px 10px',marginBottom:'8px',borderRadius:'3px',background:valid<parsed.length?'rgba(255,80,80,0.08)':'rgba(126,173,168,0.08)',border:'1px solid '+(valid<parsed.length?'#ff5050':'var(--teal)'),color:valid<parsed.length?'#ff5050':'var(--teal)'}});
