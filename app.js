@@ -81,8 +81,7 @@ if(data){
   if(S.user?.email==='timothyambah.deofortis@gmail.com'){go('admin');return;}
   // Determine required page based on account status
   var requiredPage=null;
-  if(data.test_access===true&&data.status==='pending') requiredPage='dashboard';
-  else if(data.status==='pending') requiredPage='pending';
+  if(data.status==='pending') requiredPage='pending';
   else if(data.is_free_tier===true&&!isInTrial()) requiredPage=null;
   else requiredPage=null;
   // Handle expiry for paid users
@@ -942,7 +941,6 @@ card.append(h('p',{style:{fontFamily:"Inter,sans-serif",fontSize:'10px',color:'v
 plansGrid.append(card);
 });
 plansSection.append(plansGrid);
-plansSection.append(div({style:{textAlign:'center',marginTop:'16px',marginBottom:'8px',fontFamily:"Inter,sans-serif",fontSize:'12px',color:'var(--gold)',letterSpacing:'1px'}},['Use code ',h('strong',{style:{fontFamily:"'DM Mono',monospace",fontSize:'13px',background:'rgba(201,168,76,0.12)',padding:'2px 8px',borderRadius:'2px',border:'1px solid var(--gold-border)'}},['LAUNCH2026']),' for 15% off — valid till June 30']));
 // FREE TIER OPTION
 const freeSection=div({style:{textAlign:'center',marginTop:'8px',paddingBottom:'16px'}});
 freeSection.append(
@@ -1127,16 +1125,10 @@ var transit=h('div',{},[document.createTextNode('Transit: '),h('strong',{style:{
 var pricing=h('div',{style:{marginTop:'8px',fontFamily:"Inter,sans-serif",fontSize:'12px',color:'var(--dim)'}});
 pricing.append(
   document.createTextNode('USD: '),
-  h('span',{style:{textDecoration:'line-through',opacity:'.6'}},[''+plan.price]),
-  document.createTextNode(' \u2192 '),
-  h('strong',{style:{color:'var(--gold)'}},[''+plan.discPrice]),
+  h('strong',{style:{color:'var(--gold)'}},[''+plan.price]),
   h('br',{},[]),
   document.createTextNode('EC: '),
-  h('span',{style:{textDecoration:'line-through',opacity:'.6'}},[''+plan.ecPrice]),
-  document.createTextNode(' \u2192 '),
-  h('strong',{style:{color:'var(--gold)'}},[''+plan.discEcPrice]),
-  h('br',{},[]),
-  h('span',{style:{fontSize:'10px',letterSpacing:'1px',color:'var(--teal)'}},['15% off with code LAUNCH2026 \u00b7 valid till June 30'])
+  h('strong',{style:{color:'var(--gold)'}},[''+plan.ecPrice])
 );
 nbd.append(nbdLabel,accName,acc,transit,pricing);
 var emailNote=div({style:{fontFamily:"Inter,sans-serif",fontSize:'12px',color:'var(--muted)',marginBottom:'20px',lineHeight:'1.7'}});
@@ -1333,46 +1325,12 @@ errBox.classList.remove('hidden');errBox.textContent=error.message;submitBtn.tex
 }
 if(data&&data.user){
 var isFreeSignup=localStorage.getItem('signupType')==='free';
-var launchModeOn=false;
-try{
-var lmRes=await sb.from('admin_settings').select('launch_mode').eq('id',1).maybeSingle();
-if(!lmRes.error&&lmRes.data){
-var raw=lmRes.data.launch_mode;
-if(raw===true||raw===1||raw==='true')launchModeOn=true;
-}
-}catch(e){console.warn('Failed to fetch launch_mode',e);}
-var freeTierApproved=isFreeSignup&&launchModeOn;
-var threeDays=null;if(freeTierApproved){threeDays=new Date();threeDays.setDate(threeDays.getDate()+3);}
-var profileData={id:data.user.id,email:emailVal,full_name:nameVal,status:freeTierApproved?'approved':'pending',is_free_tier:freeTierApproved?true:false};
+var profileData={id:data.user.id,email:emailVal,full_name:nameVal,status:'pending',is_free_tier:isFreeSignup?true:false};
 if(sel)profileData.plan=sel.name;
-if(freeTierApproved)profileData.access_expires_at=threeDays.toISOString();
 await new Promise(function(r){setTimeout(r,1000);});
 await sb.from('profiles').upsert(profileData,{onConflict:'id'});
 localStorage.removeItem('signupType');
-if(freeTierApproved){
-S.user=data.user;
-S.profile={
-  id:data.user.id,
-  email:emailVal,
-  full_name:nameVal,
-  status:'approved',
-  is_free_tier:true,
-  plan:sel?sel.name:null,
-  total_points:0,
-  total_study_minutes:0,
-  streak_count:0,
-  total_anki_sessions:0,
-  study_goals:{daily_hours:4,weekly_hours:20},
-  topic_goals:{},
-  rest_days:[],
-  access_expires_at:threeDays?threeDays.toISOString():null
-};
-S.inTrial=true;
-signingUp=false;
-go('dashboard');
-return;
-}
-if(isFreeSignup&&!freeTierApproved){
+if(isFreeSignup){
 signingUp=false;
 go('pending');
 return;
@@ -1996,9 +1954,11 @@ twoCol.append(recentCard);
 
 // RIGHT — Quick Actions (loaded async for community link)
 (async()=>{
-  const{data:adminData}=await sb.from('admin_settings').select('community_link,support_email').single();
+  const{data:adminData}=await sb.from('admin_settings').select('community_link,support_email,link_study_partner,link_kahoot').single();
   const commLink=adminData?.community_link||'#';
   const supportEmail=adminData?.support_email||'';
+  const studyPartnerLink=adminData?.link_study_partner||'';
+  const kahootLink=adminData?.link_kahoot||'';
   const actionsCard=div({cls:'card'});
   actionsCard.append(
     h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'18px',marginBottom:'4px'},html:'Quick Actions'}),
@@ -2031,6 +1991,42 @@ twoCol.append(recentCard);
   commBtn.style.cssText='display:'+(commLink&&commLink!=='#'?'block':'none')+';padding:10px 20px;font-family:"DM Mono",monospace;font-size:11px;letter-spacing:2px;text-transform:uppercase;background:var(--gold);color:#0F0E0A;text-decoration:none;border-radius:2px;flex-shrink:0;';
   commCard.append(commLeft,commBtn);
   container.append(commCard);
+
+  // STUDY PARTNER CARD
+  if(studyPartnerLink){
+    const spCard=div({cls:'card',style:{marginTop:'12px',padding:'16px 24px',display:'flex',alignItems:'center',justifyContent:'space-between',gap:'16px'}});
+    const spLeft=div({style:{display:'flex',alignItems:'center',gap:'12px'}});
+    const spTxt=div({});
+    spTxt.append(
+      h('div',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'15px',color:'var(--text)',fontWeight:'600',marginBottom:'2px'},html:'Find a Study Partner'}),
+      h('div',{style:{fontSize:'12px',color:'var(--muted)'},html:'Get matched with another student to study together.'})
+    );
+    spLeft.append(h('div',{style:{fontSize:'22px'},html:ICONS.puzzle}),spTxt);
+    const spBtn=document.createElement('a');
+    spBtn.href=studyPartnerLink;spBtn.target='_blank';
+    spBtn.textContent='Click Here →';
+    spBtn.style.cssText='display:block;padding:8px 16px;font-family:"DM Mono",monospace;font-size:11px;letter-spacing:2px;text-transform:uppercase;background:transparent;color:var(--gold);text-decoration:none;border:1px solid var(--gold);border-radius:2px;flex-shrink:0;white-space:nowrap;';
+    spCard.append(spLeft,spBtn);
+    container.append(spCard);
+  }
+
+  // KAHOOT CARD
+  if(kahootLink){
+    const khCard=div({cls:'card',style:{marginTop:'12px',padding:'16px 24px',display:'flex',alignItems:'center',justifyContent:'space-between',gap:'16px'}});
+    const khLeft=div({style:{display:'flex',alignItems:'center',gap:'12px'}});
+    const khTxt=div({});
+    khTxt.append(
+      h('div',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'15px',color:'var(--text)',fontWeight:'600',marginBottom:'2px'},html:'Biweekly Kahoot'}),
+      h('div',{style:{fontSize:'12px',color:'var(--muted)'},html:'Join our live quiz sessions and compete with the community.'})
+    );
+    khLeft.append(h('div',{style:{fontSize:'22px'},html:ICONS.zap}),khTxt);
+    const khBtn=document.createElement('a');
+    khBtn.href=kahootLink;khBtn.target='_blank';
+    khBtn.textContent='Click Here →';
+    khBtn.style.cssText='display:block;padding:8px 16px;font-family:"DM Mono",monospace;font-size:11px;letter-spacing:2px;text-transform:uppercase;background:transparent;color:var(--teal);text-decoration:none;border:1px solid var(--teal);border-radius:2px;flex-shrink:0;white-space:nowrap;';
+    khCard.append(khLeft,khBtn);
+    container.append(khCard);
+  }
 
   // SUPPORT CARD
   const supCard=div({cls:'card',style:{marginTop:'12px',padding:'16px 24px',display:'flex',alignItems:'center',gap:'12px'}});
@@ -3906,7 +3902,9 @@ card.append(h('hr',{style:{border:'none',borderTop:'1px solid var(--border)',mar
 card.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'18px',marginBottom:'16px'},html:'Platform Links'}));
 const comI=inp('https://...','text',set.community_link||'');
 const supI=inp('deofortistutors@gmail.com','email',set.support_email||'');
-card.append(field('Community Link (Forum / Discord / WhatsApp)',comI),field('Support Email (shown on dashboard)',supI));
+const spI=inp('https://... (study partner matching form or link)','text',set.link_study_partner||'');
+const khI=inp('https://... (Kahoot signup form or link)','text',set.link_kahoot||'');
+card.append(field('Community Link (Forum / Discord / WhatsApp)',comI),field('Support Email (shown on dashboard)',supI),field('Study Partner Matching Link',spI),field('Biweekly Kahoot Link',khI));
 // White noise
 card.append(h('hr',{style:{border:'none',borderTop:'1px solid var(--border)',margin:'24px 0'}}));
 card.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'18px',marginBottom:'8px'},html:'White Noise Audio Links'}));
@@ -3917,23 +3915,9 @@ const ncI=inp('Cafe MP3 URL (.mp3)','text',set.noise_cafe||'');
 const nwI=inp('White Noise MP3 URL (.mp3)','text',set.noise_white||'');
 card.append(field(' Rain',nrI),field(' Ocean',noI),field(' Cafe',ncI),field(' White Noise',nwI));
 // Save
-// Launch Mode
-card.append(h('hr',{style:{border:'none',borderTop:'1px solid var(--border)',margin:'24px 0'}}));
-card.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'18px',marginBottom:'4px'},html:'Launch Settings'}));
-card.append(h('p',{cls:'mono',style:{marginBottom:'16px'},html:'Controls signup behaviour before and after launch'}));
-const launchModeRow=div({style:{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'16px',background:'var(--card2)',border:'1px solid var(--border)',borderRadius:'4px',marginBottom:'8px'}});
-const launchModeLabel=div({});
-launchModeLabel.append(h('div',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'14px',color:'var(--text)',fontWeight:'600',marginBottom:'4px'},html:'Launch Mode'}),h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'12px',color:'var(--muted)'},html:'OFF = new signups land on Pending, no auto free tier. ON = normal behaviour, free tier assigned immediately.'}));
-const launchToggle=div({style:{width:'48px',height:'26px',borderRadius:'13px',background:set.launch_mode?'var(--teal)':'var(--border)',cursor:'pointer',position:'relative',transition:'background .2s',flexShrink:'0'}});
-const launchKnob=div({style:{width:'20px',height:'20px',borderRadius:'50%',background:'#fff',position:'absolute',top:'3px',left:set.launch_mode?'25px':'3px',transition:'left .2s'}});
-launchToggle.append(launchKnob);
-let launchModeVal=set.launch_mode||false;
-launchToggle.onclick=()=>{launchModeVal=!launchModeVal;launchToggle.style.background=launchModeVal?'var(--teal)':'var(--border)';launchKnob.style.left=launchModeVal?'25px':'3px';};
-launchModeRow.append(launchModeLabel,launchToggle);
-card.append(launchModeRow);
 const sm=div({cls:'ok',style:{display:'none',marginTop:'12px'},html:'✓ Settings saved!'});
 const saveBtn=btn('Save Settings','btn-gold',async()=>{
-const obj={id:1,video_url:vI.value,community_link:comI.value,support_email:supI.value,noise_rain:nrI.value,noise_ocean:noI.value,noise_cafe:ncI.value,noise_white:nwI.value,launch_mode:launchModeVal};
+const obj={id:1,video_url:vI.value,community_link:comI.value,support_email:supI.value,noise_rain:nrI.value,noise_ocean:noI.value,noise_cafe:ncI.value,noise_white:nwI.value,link_study_partner:spI.value,link_kahoot:khI.value};
 Object.keys(lIs).forEach(k=>obj[k]=lIs[k].value);
 const{error}=await sb.from('admin_settings').upsert(obj);
 if(error){alert('Save error: '+error.message);return;}
@@ -4243,7 +4227,7 @@ reader.readAsDataURL(file);
 br2.append(div({},[h('label',{cls:'label',html:'Upload Theory PDF'}),fi]));
 }
 br2.append(btn('Reject','btn-outline',async()=>{await sb.from('recall_requests').update({status:'rejected',updated_at:new Date().toISOString()}).eq('id',r.id);loadTab('recalls');},{style:{padding:'8px 16px',fontSize:'11px',color:'#ff4444',borderColor:'#ff4444'}}));
-br2.append(btn('Mark Done','btn-teal',async()=>{await sb.from('recall_requests').update({status:'fulfilled',updated_at:new Date().toISOString()}).eq('id',r.id);if(r.user_id)await sb.from('profiles').update({has_new_content:true}).eq('id',r.user_id);loadTab('recalls');},{style:{padding:'8px 16px',fontSize:'11px'}}));
+br2.append(btn('Mark Done','btn-teal',async()=>{await sb.from('recall_requests').update({status:'fulfilled',updated_at:new Date().toISOString(),fulfilled_by:S.user?.id||null,fulfilled_at:new Date().toISOString()}).eq('id',r.id);if(r.user_id)await sb.from('profiles').update({has_new_content:true}).eq('id',r.user_id);loadTab('recalls');},{style:{padding:'8px 16px',fontSize:'11px'}}));
 card.append(br2);
 (async()=>{
   const delSection=div({style:{marginTop:'16px',borderTop:'1px solid var(--border)',paddingTop:'12px'}});
@@ -5075,6 +5059,18 @@ async function showTeamTab(){
       const assignMap={};
       (assignments||[]).forEach(a=>{assignMap[a.recall_id]=a.assigned_to;});
       const currentUserId=S.user?.id||null;
+      // Determine current shift slot
+      var now=new Date();
+      var currentDayInt=now.getDay();
+      var hr=now.getHours();
+      var currentSlot=hr>=19?'7pm':hr>=15?'3pm':hr>=11?'11am':'7am';
+      var currentSlotLabel=hr>=19?'7pm–11pm':hr>=15?'3pm–7pm':hr>=11?'11am–3pm':'7am–11am';
+      var{data:shiftRows}=await sb.from('shift_schedule').select('worker_id').eq('day_of_week',currentDayInt).eq('slot',currentSlot);
+      var onShiftIds=(shiftRows||[]).map(function(s){return s.worker_id;});
+      var onShiftNames=onShiftIds.map(function(id){return workerMap[id]||'Unknown';});
+      var shiftBanner=div({style:{padding:'10px 14px',background:'rgba(126,173,168,0.1)',border:'1px solid rgba(126,173,168,0.3)',borderRadius:'4px',marginBottom:'16px',fontSize:'12px',fontFamily:"'DM Mono',monospace",color:'var(--teal)'}});
+      shiftBanner.textContent='On shift now ('+currentSlotLabel+'): '+(onShiftNames.length?onShiftNames.join(', '):'No one assigned');
+      subContent.append(shiftBanner);
       if(!recalls||!recalls.length){subContent.append(div({cls:'card',style:{textAlign:'center',padding:'40px'}},[h('p',{style:{fontSize:'14px',color:'var(--dim)'}},[document.createTextNode('No pending recalls.')])]));return;}
       const listDiv=div({style:{display:'flex',flexDirection:'column',gap:'16px'}});
       for(const recall of recalls){
@@ -5251,25 +5247,51 @@ async function showTeamTab(){
     }
     else if(sub==='history'){
       if(!isSuperAdmin&&!isManager){subContent.append(div({cls:'card',style:{textAlign:'center',padding:'40px'}},[h('p',{style:{fontSize:'14px',color:'var(--dim)'}},[document.createTextNode('Access restricted.')])]));return;}
+      // Fulfilled recalls — who did the recall and when
+      var fulfilledRes=await sb.from('recall_requests').select('id,user_name,topic,style,fulfilled_by,fulfilled_at').eq('status','fulfilled').order('fulfilled_at',{ascending:false}).limit(50);
+      var fulfilled=fulfilledRes.data||[];
+      // Fetch handler names for fulfilled recalls
+      var handlerIds=[...new Set(fulfilled.filter(function(r){return r.fulfilled_by;}).map(function(r){return r.fulfilled_by;}))];
+      var handlerMap={};
+      if(handlerIds.length){
+        var{data:handlerProfs}=await sb.from('profiles').select('id,full_name,email').in('id',handlerIds);
+        (handlerProfs||[]).forEach(function(p){handlerMap[p.id]=p.full_name||p.email;});
+      }
+      // Assignment history
       const{data:history}=await sb.from('recall_assignment_history').select('*,changed_by_profile:changed_by(full_name,email),to_profile:to_user(full_name,email),from_profile:from_user(full_name,email)').order('changed_at',{ascending:false}).limit(50);
-      if(!history||!history.length){subContent.append(div({cls:'card',style:{textAlign:'center',padding:'40px'}},[h('p',{style:{fontSize:'14px',color:'var(--dim)'}},[document.createTextNode('No assignment history yet.')])]));return;}
+      // Fulfilled recalls section
+      subContent.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'16px',marginBottom:'12px'}},[document.createTextNode('Fulfilled Recalls')]));
+      if(!fulfilled||!fulfilled.length){
+        subContent.append(div({style:{padding:'12px',fontSize:'13px',color:'var(--dim)',marginBottom:'24px'}},[document.createTextNode('No fulfilled recalls yet.')]));
+      }else{
+        const ftable=div({style:{overflowX:'auto',marginBottom:'32px'}});
+        const fgrid=div({style:{display:'grid',gridTemplateColumns:'1fr 1fr 80px 1fr 150px',gap:'0',fontSize:'12px',minWidth:'700px',border:'1px solid var(--border)',borderRadius:'4px',overflow:'hidden'}});
+        ['Student','Topic','Style','Handled By','Fulfilled At'].forEach(function(hdr){fgrid.append(div({style:{padding:'8px 10px',fontWeight:'bold',background:'var(--card2)',borderBottom:'1px solid var(--border)'}},[document.createTextNode(hdr)]));});
+        (fulfilled||[]).forEach(function(r){
+          var handlerName=r.fulfilled_by?(handlerMap[r.fulfilled_by]||'Unknown'):'—';
+          var fulfilledAt=r.fulfilled_at?new Date(r.fulfilled_at).toLocaleString():'—';
+          [r.user_name||'—',r.topic||'—',r.style||'—',handlerName,fulfilledAt].forEach(function(val){
+            fgrid.append(div({style:{padding:'8px 10px',borderBottom:'1px solid var(--border)',color:'var(--text)'}},[document.createTextNode(val)]));
+          });
+        });
+        ftable.append(fgrid);
+        subContent.append(ftable);
+      }
+      // Assignment history section
+      subContent.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'16px',marginBottom:'12px'}},[document.createTextNode('Assignment History')]));
+      if(!history||!history.length){subContent.append(div({style:{padding:'12px',fontSize:'13px',color:'var(--dim)'}},[document.createTextNode('No assignment history yet.')]));return;}
       const table=div({style:{overflowX:'auto'}});
-      const grid=div({style:{display:'grid',gridTemplateColumns:'80px 1fr 1fr 1fr 1fr 150px',gap:'8px',fontSize:'12px',minWidth:'900px'}});
-      const headers=['Recall','Student','Assigned To','Reassigned To','Changed By','When'];
-      headers.forEach(hdr=>grid.append(div({style:{padding:'8px',fontWeight:'bold',background:'var(--card2)'}},[document.createTextNode(hdr)])));
+      const grid=div({style:{display:'grid',gridTemplateColumns:'80px 1fr 1fr 1fr 1fr 150px',gap:'0',fontSize:'12px',minWidth:'900px',border:'1px solid var(--border)',borderRadius:'4px',overflow:'hidden'}});
+      const headers=['Recall','Student','From','To','Changed By','When'];
+      headers.forEach(function(hdr){grid.append(div({style:{padding:'8px 10px',fontWeight:'bold',background:'var(--card2)',borderBottom:'1px solid var(--border)'}},[document.createTextNode(hdr)]));});
       for(const entry of history){
         const{data:recall}=await sb.from('recall_requests').select('user_name,topic').eq('id',entry.recall_id).single();
         const toProf=entry.to_profile||null;
         const fromProf=entry.from_profile||null;
         const changedProf=entry.changed_by_profile||null;
-        grid.append(
-          div({style:{padding:'8px',borderBottom:'1px solid var(--border)'}},[document.createTextNode(String(entry.recall_id).slice(-6))]),
-          div({style:{padding:'8px',borderBottom:'1px solid var(--border)'}},[document.createTextNode(recall?.user_name||'—')]),
-          div({style:{padding:'8px',borderBottom:'1px solid var(--border)'}},[document.createTextNode(fromProf?.full_name||fromProf?.email||'—')]),
-          div({style:{padding:'8px',borderBottom:'1px solid var(--border)'}},[document.createTextNode(toProf?.full_name||toProf?.email||'—')]),
-          div({style:{padding:'8px',borderBottom:'1px solid var(--border)'}},[document.createTextNode(changedProf?.full_name||changedProf?.email||'—')]),
-          div({style:{padding:'8px',borderBottom:'1px solid var(--border)'}},[document.createTextNode(new Date(entry.changed_at).toLocaleString())])
-        );
+        [String(entry.recall_id).slice(-6),recall?.user_name||'—',fromProf?.full_name||fromProf?.email||'—',toProf?.full_name||toProf?.email||'—',changedProf?.full_name||changedProf?.email||'—',new Date(entry.changed_at).toLocaleString()].forEach(function(val){
+          grid.append(div({style:{padding:'8px 10px',borderBottom:'1px solid var(--border)',color:'var(--text)'}},[document.createTextNode(val)]));
+        });
       }
       table.append(grid);
       subContent.append(table);
