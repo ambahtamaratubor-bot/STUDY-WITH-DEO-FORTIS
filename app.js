@@ -1200,40 +1200,84 @@ const passI=inp('Min. 6 characters','password');
 const pass2I=inp('Confirm password','password');
 function wrapWithEye(inputEl){
   const wrapper=div({style:{position:'relative',display:'flex',alignItems:'center'}});
-  inputEl.style.flex='1';
-  inputEl.style.paddingRight='44px';
-  const toggleBtn=h('button',{style:{position:'absolute',right:'8px',top:'50%',transform:'translateY(-50%)',background:'none',border:'none',color:'var(--dim)',cursor:'pointer',fontSize:'14px',padding:'4px 8px'}},[document.createTextNode('👁')]);
+  inputEl.style.flex='1';inputEl.style.paddingRight='44px';
+  const toggleBtn=h('button',{style:{position:'absolute',right:'8px',top:'50%',transform:'translateY(-50%)',background:'none',border:'none',color:'var(--dim)',cursor:'pointer',fontSize:'14px',padding:'4px 8px'}},[document.createTextNode('\u{1F441}')]);
   let isVisible=false;
-  toggleBtn.onclick=()=>{
-    isVisible=!isVisible;
-    inputEl.type=isVisible?'text':'password';
-    toggleBtn.innerHTML=isVisible?'👁‍🗨':'👁';
-  };
-  wrapper.append(inputEl,toggleBtn);
-  return wrapper;
+  toggleBtn.onclick=()=>{isVisible=!isVisible;inputEl.type=isVisible?'text':'password';toggleBtn.innerHTML=isVisible?'\u{1F441}\u200D\u{1F5E8}':'\u{1F441}';};
+  wrapper.append(inputEl,toggleBtn);return wrapper;
 }
 const wrappedPass=wrapWithEye(passI);
 const wrappedPass2=wrapWithEye(pass2I);
 const badge=div({style:{background:plan.color,color:'#0F0E0A',borderRadius:'4px',padding:'12px 16px',marginBottom:'20px',display:'flex',justifyContent:'space-between',alignItems:'center'}});
 badge.append(div({},[div({style:{fontFamily:"Inter,sans-serif",fontSize:'9px',letterSpacing:'2px',textTransform:'uppercase',marginBottom:'4px'},html:'Selected Plan'}),div({style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'20px',fontWeight:'700'},html:plan.name+' — '+plan.price})]),div({style:{fontFamily:"Inter,sans-serif",fontSize:'10px',letterSpacing:'1px'},html:plan.dur+' access'}));
-const submitBtn=btn('Create Account & Pay','btn-gold',async()=>{
-errEl.classList.add('hidden');
-if(!nameI.value||!emailI.value||!passI.value){errEl.classList.remove('hidden');errEl.textContent='Please fill in all fields.';return;}
-if(passI.value.length<6){errEl.classList.remove('hidden');errEl.textContent='Password must be at least 6 characters.';return;}
-if(passI.value!==pass2I.value){errEl.classList.remove('hidden');errEl.textContent='Passwords do not match.';return;}
-const nameVal=nameI.value.trim();
-const emailVal=emailI.value.trim();
-const passVal=passI.value;
-submitBtn.textContent='Creating Account...';submitBtn.disabled=true;
-const{data,error}=await sb.auth.signUp({email:emailVal,password:passVal,options:{data:{full_name:nameVal,plan:plan.name}}});
-if(error){errEl.classList.remove('hidden');errEl.textContent=error.message;submitBtn.textContent='Create Account & Pay';submitBtn.disabled=false;return;}
-ov.remove();
-window.open(selarLink,'_blank');
-showSignupSuccess(nameVal,selarLink);
+const termsRow=div({style:{display:'flex',alignItems:'flex-start',gap:'10px',marginTop:'12px',marginBottom:'4px'}});
+const termsChk=document.createElement('input');termsChk.type='checkbox';termsChk.style.cssText='margin-top:3px;accent-color:var(--gold);cursor:pointer;flex-shrink:0;';
+const termsLbl=div({style:{fontFamily:'Inter,sans-serif',fontSize:'12px',color:'var(--muted)',lineHeight:'1.6'}});
+const tp1=document.createTextNode('I have read and agree to the ');
+const tpPriv=document.createElement('span');tpPriv.textContent='Privacy Policy';tpPriv.style.cssText='color:var(--gold);cursor:pointer;text-decoration:underline;';tpPriv.onclick=showPrivacyModal;
+const tp2=document.createTextNode(' and ');
+const tpTerms=document.createElement('span');tpTerms.textContent='Terms and Conditions';tpTerms.style.cssText='color:var(--gold);cursor:pointer;text-decoration:underline;';tpTerms.onclick=showTermsModal;
+termsLbl.append(tp1,tpPriv,tp2,tpTerms,document.createTextNode('.'));
+termsRow.append(termsChk,termsLbl);
+const formView=div({});
+const submitBtn=btn('Continue','btn-gold',async()=>{
+  errEl.classList.add('hidden');
+  if(!nameI.value.trim()||!emailI.value.trim()||!passI.value){errEl.classList.remove('hidden');errEl.textContent='Please fill in all fields.';return;}
+  if(passI.value.length<6){errEl.classList.remove('hidden');errEl.textContent='Password must be at least 6 characters.';return;}
+  if(passI.value!==pass2I.value){errEl.classList.remove('hidden');errEl.textContent='Passwords do not match.';return;}
+  if(!termsChk.checked){errEl.classList.remove('hidden');errEl.textContent='Please agree to the Privacy Policy and Terms to continue.';return;}
+  submitBtn.textContent='Sending code...';submitBtn.disabled=true;
+  var code=String(Math.floor(100000+Math.random()*900000));
+  var expires=new Date(Date.now()+15*60*1000).toISOString();
+  var{error:codeErr}=await sb.from('verification_codes').insert({email:emailI.value.trim(),code,expires_at:expires,is_used:false,attempts:0});
+  if(codeErr){errEl.classList.remove('hidden');errEl.textContent='Could not send verification code. Please try again.';submitBtn.textContent='Continue';submitBtn.disabled=false;return;}
+  try{await fetch('https://script.google.com/macros/s/AKfycbxh_qahHUtBuc3IlYDTeWPlp4GG_zksJWUA5ewLijK1mEmd5FynsttlCRJqgkhqE4QQCg/exec',{method:'POST',body:JSON.stringify({action:'send_verification',email:emailI.value.trim(),name:nameI.value.trim(),code})});}catch(e){}
+  formView.style.display='none';verifyView.style.display='block';
+  verifyLbl.textContent='We sent a 6-digit code to '+emailI.value.trim()+'. It may take up to 1 minute.';
+  submitBtn.textContent='Continue';submitBtn.disabled=false;
 },{style:{width:'100%',padding:'16px',marginTop:'8px'}});
-box.append(div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'16px'}},[h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'22px'},html:'Create Account'}),btn('x','',()=>ov.remove(),{style:{background:'none',border:'none',color:'var(--muted)',fontSize:'18px',cursor:'pointer'}})]),badge,errEl,field('Full Name',nameI),field('Email',emailI),field('Password',wrappedPass),field('Confirm Password',wrappedPass2),submitBtn,h('p',{style:{fontSize:'12px',color:'var(--dim)',textAlign:'center',marginTop:'12px',fontFamily:"Inter,sans-serif",letterSpacing:'1px'},html:'You will be redirected to Selar to complete payment'}),h('p',{style:{fontSize:'13px',color:'var(--muted)',textAlign:'center',marginTop:'12px'},html:'Already have an account? <button onclick="go(\'login\')" style="background:none;border:none;color:var(--gold);cursor:pointer;font-size:13px">Log in</button>'}));
+formView.append(badge,errEl,field('Full Name',nameI),field('Email',emailI),field('Password',wrappedPass),field('Confirm Password',wrappedPass2),termsRow,submitBtn,h('p',{style:{fontSize:'13px',color:'var(--muted)',textAlign:'center',marginTop:'12px'},html:'Already have an account? <button onclick="go(\'login\')" style="background:none;border:none;color:var(--gold);cursor:pointer;font-size:13px">Log in</button>'}));
+const verifyView=div({style:{display:'none'}});
+const verifyLbl=h('p',{style:{fontFamily:'Inter,sans-serif',fontSize:'13px',color:'var(--muted)',marginBottom:'16px'},html:''});
+const verifyErr=div({cls:'err hidden'});
+const codeInp=inp('Enter 6-digit code','text','');
+codeInp.style.letterSpacing='8px';codeInp.style.fontSize='20px';codeInp.style.textAlign='center';codeInp.style.marginBottom='12px';
+const verifyBtn=btn('Verify & Create Account','btn-gold',async()=>{
+  var code=codeInp.value.trim();
+  if(code.length!==6){verifyErr.classList.remove('hidden');verifyErr.textContent='Please enter the 6-digit code.';return;}
+  verifyErr.classList.add('hidden');verifyBtn.textContent='Verifying...';verifyBtn.disabled=true;
+  var em=emailI.value.trim();var now=new Date().toISOString();
+  var{data:rows}=await sb.from('verification_codes').select('*').eq('email',em).eq('is_used',false).gt('expires_at',now).order('created_at',{ascending:false}).limit(1);
+  if(!rows||!rows.length){verifyErr.classList.remove('hidden');verifyErr.textContent='Code expired. Go back and request a new one.';verifyBtn.textContent='Verify & Create Account';verifyBtn.disabled=false;return;}
+  var row=rows[0];
+  if(row.attempts>=5){verifyErr.classList.remove('hidden');verifyErr.textContent='Too many attempts. Go back and request a new code.';verifyBtn.textContent='Verify & Create Account';verifyBtn.disabled=false;return;}
+  if(row.code!==code){
+    await sb.from('verification_codes').update({attempts:(row.attempts||0)+1}).eq('id',row.id);
+    verifyErr.classList.remove('hidden');verifyErr.textContent='Incorrect code. '+(4-row.attempts)+' attempts remaining.';
+    verifyBtn.textContent='Verify & Create Account';verifyBtn.disabled=false;return;
+  }
+  await sb.from('verification_codes').update({is_used:true}).eq('id',row.id);
+  verifyBtn.textContent='Creating account...';
+  var{data,error}=await sb.auth.signUp({email:em,password:passI.value,options:{data:{full_name:nameI.value.trim(),plan:plan.name}}});
+  if(error){verifyErr.classList.remove('hidden');verifyErr.textContent=error.message;verifyBtn.textContent='Verify & Create Account';verifyBtn.disabled=false;return;}
+  ov.remove();window.open(selarLink,'_blank');showSignupSuccess(nameI.value.trim(),selarLink);
+},{style:{width:'100%',marginBottom:'12px'}});
+var enrolResend=h('span',{style:{display:'block',textAlign:'center',fontSize:'12px',color:'var(--gold)',cursor:'pointer',marginTop:'8px'},html:'Resend code'});
+enrolResend.onclick=async function(){
+  var newCode=String(Math.floor(100000+Math.random()*900000));
+  var newExpires=new Date(Date.now()+15*60*1000).toISOString();
+  await sb.from('verification_codes').insert({email:emailI.value.trim(),code:newCode,expires_at:newExpires,is_used:false,attempts:0});
+  try{await fetch('https://script.google.com/macros/s/AKfycbxh_qahHUtBuc3IlYDTeWPlp4GG_zksJWUA5ewLijK1mEmd5FynsttlCRJqgkhqE4QQCg/exec',{method:'POST',body:JSON.stringify({action:'send_verification',email:emailI.value.trim(),name:nameI.value.trim(),code:newCode})});}catch(e){}
+  verifyErr.classList.remove('hidden');verifyErr.style.background='var(--correct-bg)';verifyErr.style.border='1px solid var(--teal)';verifyErr.style.color='var(--teal)';
+  verifyErr.textContent='New code sent. Check your email.';
+};
+var enrolBack=h('span',{style:{display:'block',textAlign:'center',fontSize:'12px',color:'var(--dim)',cursor:'pointer',marginTop:'8px'},html:'← Back'});
+enrolBack.onclick=function(){verifyView.style.display='none';formView.style.display='block';codeInp.value='';verifyErr.classList.add('hidden');};
+verifyView.append(verifyLbl,verifyErr,field('6-Digit Code',codeInp),verifyBtn,enrolResend,enrolBack);
+box.append(div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'16px'}},[h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'22px'},html:'Create Account'}),btn('x','',()=>ov.remove(),{style:{background:'none',border:'none',color:'var(--muted)',fontSize:'18px',cursor:'pointer'}})]),formView,verifyView);
 ov.append(box);document.body.append(ov);
 }
+
 function showSignupSuccess(name,selarLink){
 const ov=div({cls:'modal-bg'});
 const box=div({cls:'card',style:{maxWidth:'440px',width:'100%',textAlign:'center'}});
@@ -3851,23 +3895,7 @@ let authed=false;
 function showLogin(){
 page.innerHTML='';
 const wrap=div({cls:'center',style:{minHeight:'100vh',padding:'24px'}});
-const card=div({cls:'card fade',style:{maxWidth:'360px',width:'100%'}});
-const pI=inp('Enter admin password','password');
-const eEl=div({cls:'err hidden'});
-const entBtn=btn('Enter','btn-gold',async()=>{
-  const password=pI.value;
-  if(!password){eEl.classList.remove('hidden');eEl.textContent='Please enter the admin password.';return;}
-  entBtn.disabled=true;entBtn.textContent='Verifying...';
-  try{
-    const response=await fetch('https://yygjkqkzbdjnyyrrhdku.supabase.co/functions/v1/admin-actions',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+SKEY},body:JSON.stringify({action:'verify_admin',password})});
-    const data=await response.json();
-    if(data.success){authed=true;showAdminPanel();}
-    else{eEl.classList.remove('hidden');eEl.textContent=data.error||'Incorrect password.';}
-  }catch(err){eEl.classList.remove('hidden');eEl.textContent='Network error – please try again.';}
-  finally{entBtn.disabled=false;entBtn.textContent='Enter';}
-},{style:{width:'100%',marginBottom:'16px'}});
-pI.onkeydown=e=>{if(e.key==='Enter')entBtn.click();};
-const tmCard=div({cls:'card fade',style:{maxWidth:'360px',width:'100%',marginTop:'16px'}});
+const tmCard=div({cls:'card fade',style:{maxWidth:'360px',width:'100%'}});
 const tmEmail=inp('Team member email','text');
 const tmPass=inp('Password','password');
 const tmErr=div({cls:'err hidden'});
@@ -3889,16 +3917,18 @@ const tmBtn=btn('Team Login','btn-teal',async()=>{
 },{style:{width:'100%',marginTop:'8px'}});
 tmPass.onkeydown=e=>{if(e.key==='Enter')tmBtn.click();};
 tmCard.append(
-  h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'18px',marginBottom:'16px',color:'var(--text)'},html:'Team Member Login'}),
+  h('div',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontStyle:'italic',fontSize:'22px',color:'var(--gold)',marginBottom:'4px'},html:'Deo Fortis'}),
+  h('hr',{style:{border:'none',borderTop:'1px solid var(--border)',margin:'16px 0'}}),
+  h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'18px',marginBottom:'16px',color:'var(--text)'},html:'Admin Login'}),
   tmErr,
   h('label',{cls:'label',html:'Email'}),tmEmail,
   h('br'),
   h('label',{cls:'label',html:'Password'}),tmPass,
   h('br'),
-  tmBtn
+  tmBtn,
+  h('p',{style:{fontSize:'12px',color:'var(--dim)',textAlign:'center',marginTop:'12px'},html:'<button onclick="go(\'landing\')" style="background:none;border:none;color:var(--dim);cursor:pointer;font-size:12px">← Back to site</button>'})
 );
-card.append(div({style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontStyle:'italic',fontSize:'22px',color:'var(--gold)',marginBottom:'4px'},html:'Deo Fortis'}),h('hr',{style:{border:'none',borderTop:'1px solid var(--border)',margin:'16px 0'}}),h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'22px',marginBottom:'16px'},html:'Admin Access'}),eEl,h('label',{cls:'label',html:'Password'}),pI,h('br'),entBtn,h('p',{style:{fontSize:'12px',color:'var(--dim)',textAlign:'center'},html:'<button onclick="go(\'landing\')" style="background:none;border:none;color:var(--dim);cursor:pointer;font-size:12px">← Back to site</button>'}));
-wrap.append(card,tmCard);page.append(wrap);
+wrap.append(tmCard);page.append(wrap);
 }
 async function showAdminPanel(){
 page.innerHTML='';
@@ -3918,9 +3948,9 @@ try{
   panelIsSuperAdmin=panelTeamRole==='super_admin';
 }catch(e){
   panelTeamRole=null;
-  panelIsSuperAdmin=panelTeamRole==='super_admin';
+  panelIsSuperAdmin=false;
 }
-if(!panelIsSuperAdmin&&!panelTeamRole){panelIsSuperAdmin=true;}// password login fallback
+if(!panelIsSuperAdmin&&!panelTeamRole){page.innerHTML='';page.append(h('p',{style:{textAlign:'center',padding:'40px',color:'var(--dim)',fontFamily:'Inter,sans-serif'},html:'Access denied. You do not have a valid admin role.'}));return;}
 if(panelTeamRole&&!panelIsSuperAdmin){
   const workerTabs=['recalls','feynman','riddles','team'];
   const managerTabs=['settings','recalls','flashcards','questions','testimonials','packages','bookings','feynman','riddles','team'];
