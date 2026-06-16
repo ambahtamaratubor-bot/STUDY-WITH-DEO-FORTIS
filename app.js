@@ -6,9 +6,12 @@ function sani(html){return DOMPurify.sanitize(html||'',{USE_PROFILES:{html:true}
 const ADMIN_FN='https://yygjkqkzbdjnyyrrhdku.supabase.co/functions/v1/admin-actions';
 async function callAdminFn(action,payload){
   const{data:{session}}=await sb.auth.getSession();
-  const token=session?.access_token||SKEY;
-  const res=await fetch(ADMIN_FN,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify({action,...payload})});
-  return res.json();
+  if(!session?.access_token){console.warn('callAdminFn called without session for action:',action);return{success:false,error:'Not authenticated'};}
+  try{
+    const res=await fetch(ADMIN_FN,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+session.access_token},body:JSON.stringify({action,...payload})});
+    if(!res.ok){console.error('callAdminFn HTTP error:',res.status,action);return{success:false,error:'Server error '+res.status};}
+    return res.json();
+  }catch(e){console.error('callAdminFn network error:',action,e.message);return{success:false,error:'Network error'};}
 }
 let themeToggleBtns=[];
 function toggleTheme(){
@@ -63,13 +66,14 @@ const{data}=await sb.from('profiles').select('*').eq('id',id).single();
 if(data){
   if(data.is_free_tier===null||data.is_free_tier===undefined){
     if(data.status==='approved'){
-      await callAdminFn('init_tier',{is_free_tier:false});
+      await sb.from('profiles').update({is_free_tier:false}).eq('id',id);
       data.is_free_tier=false;
     }else{
       const wasFreeSignup=localStorage.getItem('signupType')==='free';
       const tierValue=wasFreeSignup?true:false;
-      const trialExpiry=tierValue?(()=>{const d=new Date();d.setDate(d.getDate()+3);return d.toISOString();})():null;
-      await callAdminFn('init_tier',{is_free_tier:tierValue,trial_expiry:trialExpiry});
+      const upd={is_free_tier:tierValue};
+      if(tierValue){const d=new Date();d.setDate(d.getDate()+3);upd.access_expires_at=d.toISOString();}
+      await sb.from('profiles').update(upd).eq('id',id);
       data.is_free_tier=tierValue;
     }
   }
@@ -93,7 +97,7 @@ if(data){
     const now=new Date();
     const daysDiff=Math.ceil((expiryDate-now)/(1000*60*60*24));
     if(daysDiff<-4){
-      await callAdminFn('downgrade_expired',{});
+      await sb.from('profiles').update({is_free_tier:true}).eq('id',id);
       data.is_free_tier=true;
       S.profile=data;
       requiredPage='dashboard';
@@ -5618,10 +5622,19 @@ showLogin();return page;
 // AI TUTOR CHAT PANEL
 // ═══════════════════════════════
 let freeMessagesCount=0;
+// Load persisted count from DB on init for free users
+async function loadFreeMessageCount(){
+  if(S.profile?.is_free_tier!==true||isInTrial())return;
+  const today=new Date().toISOString().split('T')[0];
+  const{data}=await sb.from('profiles').select('free_ai_messages_date,free_ai_messages_count').eq('id',S.user.id).single();
+  if(data&&data.free_ai_messages_date===today){freeMessagesCount=data.free_ai_messages_count||0;}
+  else{freeMessagesCount=0;await sb.from('profiles').update({free_ai_messages_date:today,free_ai_messages_count:0}).eq('id',S.user.id);}
+}
 let currentMessages=[];
 
 function initAIChat(){
   if(document.getElementById('ai-chat-btn'))return;
+  loadFreeMessageCount();
   const chatBtn=document.createElement('button');
   chatBtn.id='ai-chat-btn';
   chatBtn.innerHTML=ICONS.brain+' Ask Tutor';
@@ -5662,7 +5675,11 @@ function initAIChat(){
       if(isFree&&freeMessagesCount>=5){addMessage('assistant','Free tier limit reached (5 messages per session). 👑 Upgrade to continue chatting.');return;}
       addMessage('user',text);
       currentMessages.push({role:'user',content:text});
-      if(isFree)freeMessagesCount++;
+      if(isFree){
+        freeMessagesCount++;
+        const today=new Date().toISOString().split('T')[0];
+        sb.from('profiles').update({free_ai_messages_date:today,free_ai_messages_count:freeMessagesCount}).eq('id',S.user.id);
+      }
       thinkingDiv=div({style:{alignSelf:'flex-start',background:'var(--card)',padding:'8px 12px',borderRadius:'12px',fontSize:'12px',color:'var(--dim)'}});
       thinkingDiv.textContent='...';
       messagesDiv.appendChild(thinkingDiv);
