@@ -10,6 +10,7 @@ async function callAdminFn(action,payload){
   const res=await fetch(ADMIN_FN,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify({action,...payload})});
   return res.json();
 }
+let themeToggleBtns=[];
 function toggleTheme(){
   const current=document.documentElement.getAttribute('data-theme')||'dark';
   const next=current==='dark'?'light':'dark';
