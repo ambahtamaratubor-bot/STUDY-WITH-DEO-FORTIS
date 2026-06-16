@@ -3864,10 +3864,15 @@ const thisPts=calcPts(twScores,twDecks,twFeynman);
 const lastPts=calcPts(lwScores,lwDecks,lwFeynman);
 const medals=['1st','2nd','3rd'];
 b.innerHTML='';
+// Build last week's ranking by sorting users by their last week activity points
+const lastWeekRanks={};
+const sortedByLast=[...leaderUsers].sort((a,b)=>(lastPts[b.id]||0)-(lastPts[a.id]||0));
+sortedByLast.forEach((u,i)=>{lastWeekRanks[u.id]=i+1;});
 leaderUsers.forEach((u,i)=>{
-  const tw=thisPts[u.id]||0;const lw=lastPts[u.id]||0;
-  const trend=tw>lw?'↑':tw<lw?'↓':'—';
-  const trendColor=tw>lw?'#4ade80':tw<lw?'#ff4444':'var(--muted)';
+  const currentRank=i+1;
+  const prevRank=lastWeekRanks[u.id]||currentRank;
+  const trend=currentRank<prevRank?'↑':currentRank>prevRank?'↓':'—';
+  const trendColor=trend==='↑'?'var(--teal)':trend==='↓'?'#ff6b6b':'var(--muted)';
   const r=div({cls:'leaderboard-row',style:{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'12px 0',borderBottom:'1px solid var(--border)'}});
   const left=div({style:{display:'flex',alignItems:'center',gap:'12px'}});
   const rankEl=h('span',{style:{fontSize:'13px',color:'var(--gold)',fontWeight:'700',width:'36px',flexShrink:'0'}});rankEl.textContent=medals[i]||(i+1)+'.';
