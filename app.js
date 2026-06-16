@@ -2,7 +2,14 @@ const SURL='https://yygjkqkzbdjnyyrrhdku.supabase.co';
 const SKEY='sb_publishable_b83FyTbx9QbFYiJQNQE2Cg_ZnWFoN9F';
 const ADMIN_EMAIL='deofortistutors@gmail.com';
 const sb=window.supabase.createClient(SURL,SKEY,{auth:{persistSession:true,autoRefreshToken:true,storageKey:'df-auth',detectSessionInUrl:false,storage:window.localStorage},global:{headers:{'apikey':SKEY}}});
-let themeToggleBtns=[];
+function sani(html){return DOMPurify.sanitize(html||'',{USE_PROFILES:{html:true}});}
+const ADMIN_FN='https://yygjkqkzbdjnyyrrhdku.supabase.co/functions/v1/admin-actions';
+async function callAdminFn(action,payload){
+  const{data:{session}}=await sb.auth.getSession();
+  const token=session?.access_token||SKEY;
+  const res=await fetch(ADMIN_FN,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify({action,...payload})});
+  return res.json();
+}
 function toggleTheme(){
   const current=document.documentElement.getAttribute('data-theme')||'dark';
   const next=current==='dark'?'light':'dark';
@@ -55,12 +62,13 @@ const{data}=await sb.from('profiles').select('*').eq('id',id).single();
 if(data){
   if(data.is_free_tier===null||data.is_free_tier===undefined){
     if(data.status==='approved'){
-      await sb.from('profiles').update({is_free_tier:false}).eq('id',id);
+      await callAdminFn('init_tier',{is_free_tier:false});
       data.is_free_tier=false;
     }else{
       const wasFreeSignup=localStorage.getItem('signupType')==='free';
       const tierValue=wasFreeSignup?true:false;
-      await sb.from('profiles').update({is_free_tier:tierValue}).eq('id',id);
+      const trialExpiry=tierValue?(()=>{const d=new Date();d.setDate(d.getDate()+3);return d.toISOString();})():null;
+      await callAdminFn('init_tier',{is_free_tier:tierValue,trial_expiry:trialExpiry});
       data.is_free_tier=tierValue;
     }
   }
@@ -78,7 +86,8 @@ if(data){
       localStorage.removeItem('pomodoroState');localStorage.removeItem('activeSession');
     }
   }
-  if(S.user?.email==='timothyambah.deofortis@gmail.com'){go('admin');return;}
+  const{data:_ar}=await sb.from('admin_roles').select('role').eq('user_id',id).maybeSingle();
+  if(_ar?.role){go('admin');return;}
   // Determine required page based on account status
   var requiredPage=null;
   if(data.status==='pending') requiredPage='pending';
@@ -90,7 +99,7 @@ if(data){
     const now=new Date();
     const daysDiff=Math.ceil((expiryDate-now)/(1000*60*60*24));
     if(daysDiff<-4){
-      await sb.from('profiles').update({is_free_tier:true}).eq('id',id);
+      await callAdminFn('downgrade_expired',{});
       data.is_free_tier=true;
       S.profile=data;
       requiredPage='dashboard';
@@ -116,7 +125,7 @@ function h(tag,attr,kids){
 const e=document.createElement(tag);
 if(attr)Object.entries(attr).forEach(([k,v])=>{
 if(k==='cls')e.className=v;
-else if(k==='html')e.innerHTML=v;
+else if(k==='html')e.innerHTML=sani(v);
 else if(k==='style'&&typeof v==='object')Object.assign(e.style,v);
 else if(k.startsWith('on'))e.addEventListener(k.slice(2),v);
 else e[k]=v;
@@ -263,8 +272,8 @@ const notesContent=div({});notesContent.id='notes-content';
 if(!nlist||nlist.length===0){const emptyCard=div({cls:'card',style:{textAlign:'center',padding:'40px'}},[]);const emptyMsg=h('p',{style:{color:'var(--muted)',fontSize:'14px'},html:'No notes yet. Go to Theory Hub to save your first recall response.'},[]);emptyCard.append(emptyMsg);notesContent.append(emptyCard);inner.append(notesContent);return;}
 const tree={};
 nlist.forEach(function(n){const fk=n.folder||'General';if(!tree[fk])tree[fk]={notes:[],subfolders:{}};if(n.subfolder&&n.subfolder.trim()){const sk=n.subfolder.trim();if(!tree[fk].subfolders[sk])tree[fk].subfolders[sk]=[];tree[fk].subfolders[sk].push(n);}else{tree[fk].notes.push(n);}});
-function exportNote(n){const win=window.open('','_blank');let xhtml='<!DOCTYPE html><html><head><meta charset="UTF-8"><title>'+n.title+'</title><style>body{font-family:Georgia,serif;max-width:600px;margin:40px auto;padding:0 24px;color:#1a1814;background:#fff;}h1{font-size:20px;font-weight:700;margin-bottom:8px;}pre{font-family:inherit;font-size:15px;line-height:1.8;white-space:pre-wrap;color:#333;}</style></head><body>';xhtml+='<div style="text-align:center;margin-bottom:32px;"><div style="font-family:Georgia,serif;font-style:italic;font-size:28px;color:#C8A96E;">Deo Fortis</div><div style="font-size:10px;color:#888;letter-spacing:3px;text-transform:uppercase;margin-top:4px;">Everyone is gifted.</div></div>';xhtml+='<hr style="border:none;border-top:1px solid #eee;margin:24px 0;">';xhtml+='<h1>'+n.title+'</h1>';xhtml+='<div style="font-size:12px;color:#888;margin-bottom:16px;">Topic: '+n.topic+(n.folder?' &bull; Folder: '+n.folder:'')+(n.subfolder?' &bull; '+n.subfolder:'')+'</div>';xhtml+='<div style="font-size:15px;line-height:1.8;color:#333;">'+n.content+'</div>';xhtml+='<div style="text-align:center;margin-top:40px;font-size:11px;color:#aaa;">Deo Fortis &bull; deofortis.work</div>';xhtml+='</body></html>';win.document.write(xhtml);win.document.close();win.print();}
-function openNoteModal(n){const overlay=div({cls:'modal-bg'},[]);const modal=div({cls:'card',style:{maxWidth:'680px',width:'100%',maxHeight:'85vh',overflowY:'auto',position:'relative'}},[]);overlay.onclick=function(e){if(e.target===overlay)overlay.remove();};const modalHeader=div({style:{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:'16px'}},[]);const titleInput=h('input',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'18px',fontWeight:'600',color:'var(--text)',background:'transparent',border:'none',borderBottom:'1px solid transparent',padding:'2px 4px',cursor:'text',flex:'1',marginRight:'12px'}});titleInput.value=n.title;titleInput.onfocus=function(){titleInput.style.borderBottom='1px solid var(--teal)';};titleInput.onblur=async function(){titleInput.style.borderBottom='1px solid transparent';if(titleInput.value.trim()&&titleInput.value.trim()!==n.title){await sb.from('notes').update({title:titleInput.value.trim()}).eq('id',n.id);n.title=titleInput.value.trim();}};const topBtns=div({style:{display:'flex',gap:'8px',flexShrink:'0'}},[]);let isFullscreen=false;const fullscreenBtn=btn('Expand','btn-outline',function(){isFullscreen=!isFullscreen;if(isFullscreen){modal.style.maxWidth='100vw';modal.style.width='100vw';modal.style.maxHeight='100vh';modal.style.height='100vh';modal.style.borderRadius='0';modal.style.margin='0';overlay.style.padding='0';fullscreenBtn.textContent='Collapse';}else{modal.style.maxWidth='680px';modal.style.width='100%';modal.style.maxHeight='85vh';modal.style.height='';modal.style.borderRadius='';modal.style.margin='';overlay.style.padding='24px';fullscreenBtn.textContent='Expand';}},{style:{fontSize:'10px',padding:'4px 10px'}});const closeBtn=btn('\u2715','',function(){overlay.remove();},{style:{background:'none',border:'none',color:'var(--muted)',fontSize:'18px',cursor:'pointer',padding:'4px'}});topBtns.append(fullscreenBtn,closeBtn);modalHeader.append(titleInput,topBtns);const metaDiv=div({style:{fontSize:'11px',color:'var(--dim)',marginBottom:'16px'}},[]);metaDiv.textContent=new Date(n.created_at).toLocaleDateString()+' \u00b7 '+n.topic+(n.subfolder?' \u00b7 '+n.subfolder:'');let isEditing=false;const viewDiv=div({style:{fontSize:'14px',color:'var(--muted)',lineHeight:'1.8',marginBottom:'16px'}},[]);viewDiv.innerHTML=n.content;const editDiv=div({style:{display:'none',marginBottom:'16px'}},[]);const editor=div({style:{minHeight:'200px',padding:'12px',border:'1px solid var(--border)',borderRadius:'2px',fontSize:'14px',color:'var(--text)',lineHeight:'1.8',outline:'none',overflowY:'auto',marginBottom:'8px',background:'var(--bg)'}});editor.contentEditable='true';editor.innerHTML=n.content;const editToolbar=makeMarkdownToolbar(editor);const editMeta=div({style:{display:'flex',gap:'8px',marginBottom:'8px'}},[]);const folderInp=h('input',{cls:'input',style:{fontSize:'12px',padding:'6px 10px',flex:'1'}});folderInp.value=n.folder||'';folderInp.placeholder='Folder';const subfolderInp=h('input',{cls:'input',style:{fontSize:'12px',padding:'6px 10px',flex:'1'}});subfolderInp.value=n.subfolder||'';subfolderInp.placeholder='Subfolder (optional)';editMeta.append(folderInp,subfolderInp);const saveStatus=div({style:{fontSize:'11px',color:'var(--teal)',marginBottom:'8px',display:'none'}},[]);const saveEditHandler=async function(){const{error}=await sb.from('notes').update({content:editor.innerHTML,folder:folderInp.value.trim()||null,subfolder:subfolderInp.value.trim()||null,updated_at:new Date().toISOString()}).eq('id',n.id);if(error){saveStatus.textContent=error.message;saveStatus.style.color='var(--gold)';saveStatus.style.display='block';return;}n.content=editor.innerHTML;n.folder=folderInp.value.trim()||null;n.subfolder=subfolderInp.value.trim()||null;viewDiv.innerHTML=editor.innerHTML;saveStatus.textContent='Saved!';saveStatus.style.color='var(--teal)';saveStatus.style.display='block';setTimeout(function(){saveStatus.style.display='none';},1500);};const saveBtn=btn('Save','btn-teal',saveEditHandler,{style:{fontSize:'11px',padding:'6px 14px'}});editDiv.append(editToolbar,editor,editMeta,saveStatus,saveBtn);const actionRow=div({style:{display:'flex',gap:'8px',borderTop:'1px solid var(--border)',paddingTop:'16px',marginTop:'8px'}},[]);const editBtn=btn('Edit','btn-outline',function(){isEditing=!isEditing;if(isEditing){editDiv.style.display='block';viewDiv.style.display='none';editBtn.textContent='Cancel';modal.style.maxWidth='100vw';modal.style.width='100vw';modal.style.maxHeight='100vh';modal.style.height='100vh';modal.style.borderRadius='0';modal.style.margin='0';overlay.style.padding='0';fullscreenBtn.textContent='Collapse';isFullscreen=true;}else{editDiv.style.display='none';viewDiv.style.display='block';editBtn.textContent='Edit';modal.style.maxWidth='680px';modal.style.width='100%';modal.style.maxHeight='85vh';modal.style.height='';modal.style.borderRadius='';modal.style.margin='';overlay.style.padding='24px';fullscreenBtn.textContent='Expand';isFullscreen=false;}},{style:{fontSize:'11px',padding:'6px 14px'}});const exportBtn=btn('Export','btn-outline',function(){exportNote(n);},{style:{fontSize:'11px',padding:'6px 14px'}});actionRow.append(editBtn,exportBtn);modal.append(modalHeader,actionRow,metaDiv,viewDiv,editDiv);overlay.append(modal);document.body.append(overlay);}
+function exportNote(n){const win=window.open('','_blank');let xhtml='<!DOCTYPE html><html><head><meta charset="UTF-8"><title>'+n.title+'</title><style>body{font-family:Georgia,serif;max-width:600px;margin:40px auto;padding:0 24px;color:#1a1814;background:#fff;}h1{font-size:20px;font-weight:700;margin-bottom:8px;}pre{font-family:inherit;font-size:15px;line-height:1.8;white-space:pre-wrap;color:#333;}</style></head><body>';xhtml+='<div style="text-align:center;margin-bottom:32px;"><div style="font-family:Georgia,serif;font-style:italic;font-size:28px;color:#C8A96E;">Deo Fortis</div><div style="font-size:10px;color:#888;letter-spacing:3px;text-transform:uppercase;margin-top:4px;">Everyone is gifted.</div></div>';xhtml+='<hr style="border:none;border-top:1px solid #eee;margin:24px 0;">';xhtml+='<h1>'+sani(n.title)+'</h1>';xhtml+='<div style="font-size:12px;color:#888;margin-bottom:16px;">Topic: '+sani(n.topic)+(n.folder?' &bull; Folder: '+sani(n.folder):'')+(n.subfolder?' &bull; '+sani(n.subfolder):'')+'</div>';xhtml+='<div style="font-size:15px;line-height:1.8;color:#333;">'+sani(n.content)+'</div>';xhtml+='<div style="text-align:center;margin-top:40px;font-size:11px;color:#aaa;">Deo Fortis &bull; deofortis.work</div>';xhtml+='</body></html>';win.document.write(xhtml);win.document.close();win.print();}
+function openNoteModal(n){const overlay=div({cls:'modal-bg'},[]);const modal=div({cls:'card',style:{maxWidth:'680px',width:'100%',maxHeight:'85vh',overflowY:'auto',position:'relative'}},[]);overlay.onclick=function(e){if(e.target===overlay)overlay.remove();};const modalHeader=div({style:{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:'16px'}},[]);const titleInput=h('input',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'18px',fontWeight:'600',color:'var(--text)',background:'transparent',border:'none',borderBottom:'1px solid transparent',padding:'2px 4px',cursor:'text',flex:'1',marginRight:'12px'}});titleInput.value=n.title;titleInput.onfocus=function(){titleInput.style.borderBottom='1px solid var(--teal)';};titleInput.onblur=async function(){titleInput.style.borderBottom='1px solid transparent';if(titleInput.value.trim()&&titleInput.value.trim()!==n.title){await sb.from('notes').update({title:titleInput.value.trim()}).eq('id',n.id);n.title=titleInput.value.trim();}};const topBtns=div({style:{display:'flex',gap:'8px',flexShrink:'0'}},[]);let isFullscreen=false;const fullscreenBtn=btn('Expand','btn-outline',function(){isFullscreen=!isFullscreen;if(isFullscreen){modal.style.maxWidth='100vw';modal.style.width='100vw';modal.style.maxHeight='100vh';modal.style.height='100vh';modal.style.borderRadius='0';modal.style.margin='0';overlay.style.padding='0';fullscreenBtn.textContent='Collapse';}else{modal.style.maxWidth='680px';modal.style.width='100%';modal.style.maxHeight='85vh';modal.style.height='';modal.style.borderRadius='';modal.style.margin='';overlay.style.padding='24px';fullscreenBtn.textContent='Expand';}},{style:{fontSize:'10px',padding:'4px 10px'}});const closeBtn=btn('\u2715','',function(){overlay.remove();},{style:{background:'none',border:'none',color:'var(--muted)',fontSize:'18px',cursor:'pointer',padding:'4px'}});topBtns.append(fullscreenBtn,closeBtn);modalHeader.append(titleInput,topBtns);const metaDiv=div({style:{fontSize:'11px',color:'var(--dim)',marginBottom:'16px'}},[]);metaDiv.textContent=new Date(n.created_at).toLocaleDateString()+' \u00b7 '+n.topic+(n.subfolder?' \u00b7 '+n.subfolder:'');let isEditing=false;const viewDiv=div({style:{fontSize:'14px',color:'var(--muted)',lineHeight:'1.8',marginBottom:'16px'}},[]);viewDiv.innerHTML=sani(n.content);const editDiv=div({style:{display:'none',marginBottom:'16px'}},[]);const editor=div({style:{minHeight:'200px',padding:'12px',border:'1px solid var(--border)',borderRadius:'2px',fontSize:'14px',color:'var(--text)',lineHeight:'1.8',outline:'none',overflowY:'auto',marginBottom:'8px',background:'var(--bg)'}});editor.contentEditable='true';editor.innerHTML=sani(n.content);const editToolbar=makeMarkdownToolbar(editor);const editMeta=div({style:{display:'flex',gap:'8px',marginBottom:'8px'}},[]);const folderInp=h('input',{cls:'input',style:{fontSize:'12px',padding:'6px 10px',flex:'1'}});folderInp.value=n.folder||'';folderInp.placeholder='Folder';const subfolderInp=h('input',{cls:'input',style:{fontSize:'12px',padding:'6px 10px',flex:'1'}});subfolderInp.value=n.subfolder||'';subfolderInp.placeholder='Subfolder (optional)';editMeta.append(folderInp,subfolderInp);const saveStatus=div({style:{fontSize:'11px',color:'var(--teal)',marginBottom:'8px',display:'none'}},[]);const saveEditHandler=async function(){const{error}=await sb.from('notes').update({content:editor.innerHTML,folder:folderInp.value.trim()||null,subfolder:subfolderInp.value.trim()||null,updated_at:new Date().toISOString()}).eq('id',n.id);if(error){saveStatus.textContent=error.message;saveStatus.style.color='var(--gold)';saveStatus.style.display='block';return;}n.content=editor.innerHTML;n.folder=folderInp.value.trim()||null;n.subfolder=subfolderInp.value.trim()||null;viewDiv.innerHTML=sani(editor.innerHTML);saveStatus.textContent='Saved!';saveStatus.style.color='var(--teal)';saveStatus.style.display='block';setTimeout(function(){saveStatus.style.display='none';},1500);};const saveBtn=btn('Save','btn-teal',saveEditHandler,{style:{fontSize:'11px',padding:'6px 14px'}});editDiv.append(editToolbar,editor,editMeta,saveStatus,saveBtn);const actionRow=div({style:{display:'flex',gap:'8px',borderTop:'1px solid var(--border)',paddingTop:'16px',marginTop:'8px'}},[]);const editBtn=btn('Edit','btn-outline',function(){isEditing=!isEditing;if(isEditing){editDiv.style.display='block';viewDiv.style.display='none';editBtn.textContent='Cancel';modal.style.maxWidth='100vw';modal.style.width='100vw';modal.style.maxHeight='100vh';modal.style.height='100vh';modal.style.borderRadius='0';modal.style.margin='0';overlay.style.padding='0';fullscreenBtn.textContent='Collapse';isFullscreen=true;}else{editDiv.style.display='none';viewDiv.style.display='block';editBtn.textContent='Edit';modal.style.maxWidth='680px';modal.style.width='100%';modal.style.maxHeight='85vh';modal.style.height='';modal.style.borderRadius='';modal.style.margin='';overlay.style.padding='24px';fullscreenBtn.textContent='Expand';isFullscreen=false;}},{style:{fontSize:'11px',padding:'6px 14px'}});const exportBtn=btn('Export','btn-outline',function(){exportNote(n);},{style:{fontSize:'11px',padding:'6px 14px'}});actionRow.append(editBtn,exportBtn);modal.append(modalHeader,actionRow,metaDiv,viewDiv,editDiv);overlay.append(modal);document.body.append(overlay);}
 function renderNoteRow(n,container){const row=div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 0',borderBottom:'1px solid var(--border)'}},[]);const leftDiv=div({style:{flex:'1'}},[]);const titleEl=h('div',{style:{fontSize:'14px',color:'var(--text)',fontWeight:'500'}},[]);titleEl.textContent=n.title;const metaEl=h('div',{style:{fontSize:'11px',color:'var(--dim)',marginTop:'2px'}},[]);metaEl.textContent=new Date(n.created_at).toLocaleDateString()+' \u00b7 '+n.topic;leftDiv.append(titleEl,metaEl);const btnRow=div({style:{display:'flex',gap:'6px'}},[]);const viewBtn=btn('View','btn-outline',function(){openNoteModal(n);},{style:{fontSize:'10px',padding:'4px 8px'}});const xBtn=btn('Export','btn-outline',function(){exportNote(n);},{style:{fontSize:'10px',padding:'4px 8px'}});const deleteBtn=btn('Delete','btn-outline',async function(){if(!confirm('Delete this note?'))return;await sb.from('notes').delete().eq('id',n.id);loadNotes();},{style:{fontSize:'10px',padding:'4px 8px',color:'#ff4444',borderColor:'#ff4444'}});btnRow.append(viewBtn,xBtn,deleteBtn);row.append(leftDiv,btnRow);container.append(row);}
 for(const folderName in tree){
 const allFolderIds=[];tree[folderName].notes.forEach(function(n){allFolderIds.push(n.id);});for(const sk in tree[folderName].subfolders){tree[folderName].subfolders[sk].forEach(function(n){allFolderIds.push(n.id);});}
@@ -1060,7 +1069,7 @@ howSection.append(hg);
 page.append(howSection);
 // FOOTER
 const footer=div({style:{borderTop:'1px solid var(--border)',padding:'48px',textAlign:'center'}});
-footer.append(div({style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontStyle:'italic',fontSize:'28px',color:'var(--gold)',marginBottom:'10px'},html:'Deo Fortis'}),div({style:{color:'var(--gold)',opacity:'.4',letterSpacing:'8px',marginBottom:'12px'},html:'✦ ✦ ✦'}),h('p',{style:{fontSize:'14px',color:'var(--dim)',fontWeight:'300'},html:'Study with purpose. Results follow.'}),btn('Admin','',()=>go('admin'),{style:{background:'none',border:'none',color:'var(--muted)',fontSize:'11px',marginTop:'24px',fontFamily:"Inter,sans-serif",letterSpacing:'2px',textTransform:'uppercase'}}));
+footer.append(div({style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontStyle:'italic',fontSize:'28px',color:'var(--gold)',marginBottom:'10px'},html:'Deo Fortis'}),div({style:{color:'var(--gold)',opacity:'.4',letterSpacing:'8px',marginBottom:'12px'},html:'✦ ✦ ✦'}),h('p',{style:{fontSize:'14px',color:'var(--dim)',fontWeight:'300'},html:'Study with purpose. Results follow.'}),btn('admin','',()=>go('admin'),{style:{background:'none',border:'none',color:'var(--dim)',fontSize:'9px',marginTop:'24px',fontFamily:'Inter,sans-serif',letterSpacing:'1px',textTransform:'uppercase',opacity:'0.3'}}));
 page.append(footer);
 // Load data
 (async()=>{
@@ -1286,9 +1295,21 @@ const wrappedPass=wrapWithEye(passInput);
 const wrappedPass2=wrapWithEye(pass2Input);
 function wrapField(labelText,inputWrapper){const w=div({style:{marginBottom:'16px'}});const l=h('label',{cls:'label',html:labelText});w.append(l,inputWrapper);return w;}
 fc.append(wrapField('Full Name',nameInput),wrapField('Email',emailInput),wrapField('Password',wrappedPass),wrapField('Confirm Password',wrappedPass2));
+const termsRow=div({style:{display:'flex',alignItems:'flex-start',gap:'10px',marginTop:'16px',marginBottom:'8px'}});
+const termsCheck=document.createElement('input');termsCheck.type='checkbox';termsCheck.id='su-terms';termsCheck.style.cssText='margin-top:3px;accent-color:var(--gold);cursor:pointer;flex-shrink:0;';
+const termsLabel=div({style:{fontFamily:'Inter,sans-serif',fontSize:'12px',color:'var(--muted)',lineHeight:'1.6'}});
+const t1=document.createTextNode('I have read and agree to the ');
+const privLink=document.createElement('span');privLink.textContent='Privacy Policy';privLink.style.cssText='color:var(--gold);cursor:pointer;text-decoration:underline;';privLink.onclick=showPrivacyModal;
+const t2=document.createTextNode(' and ');
+const termsLink=document.createElement('span');termsLink.textContent='Terms and Conditions';termsLink.style.cssText='color:var(--gold);cursor:pointer;text-decoration:underline;';termsLink.onclick=showTermsModal;
+const t3=document.createTextNode('.');
+termsLabel.append(t1,privLink,t2,termsLink,t3);
+termsRow.append(termsCheck,termsLabel);
+fc.append(termsRow);
 const submitBtn=document.createElement('button');
 submitBtn.style.cssText='width:100%;padding:16px;font-family:"DM Mono",monospace;font-size:11px;letter-spacing:2px;text-transform:uppercase;cursor:pointer;border:none;border-radius:2px;background:var(--gold);color:#0F0E0A;margin-top:8px;';
-submitBtn.textContent=sel?'Create Account — '+sel.price:'Create Account';
+submitBtn.textContent=sel?'Continue — '+sel.price:'Continue';
+var pendingSignupData=null;
 submitBtn.onclick=async function(){
 const nameVal=document.getElementById('su-name').value.trim();
 const emailVal=document.getElementById('su-email').value.trim();
@@ -1300,63 +1321,112 @@ if(!nameVal){errBox.classList.remove('hidden');errBox.textContent='Please enter 
 if(!emailVal){errBox.classList.remove('hidden');errBox.textContent='Please enter your email.';return;}
 if(!passVal||passVal.length<6){errBox.classList.remove('hidden');errBox.textContent='Password must be at least 6 characters.';return;}
 if(passVal!==pass2Val){errBox.classList.remove('hidden');errBox.textContent='Passwords do not match.';return;}
-submitBtn.textContent='Creating Account...';submitBtn.disabled=true;
+if(!document.getElementById('su-terms').checked){errBox.classList.remove('hidden');errBox.textContent='Please agree to the Privacy Policy and Terms to continue.';return;}
+submitBtn.textContent='Sending code...';submitBtn.disabled=true;
+var code=String(Math.floor(100000+Math.random()*900000));
+var expires=new Date(Date.now()+15*60*1000).toISOString();
+var{error:codeErr}=await sb.from('verification_codes').insert({email:emailVal,code:code,expires_at:expires,is_used:false,attempts:0});
+if(codeErr){errBox.classList.remove('hidden');errBox.textContent='Could not send verification code. Please try again.';submitBtn.textContent=sel?'Continue — '+sel.price:'Continue';submitBtn.disabled=false;return;}
 try{
-signingUp=true;
-const{data,error}=await sb.auth.signUp({email:emailVal,password:passVal,options:{data:{full_name:nameVal}}});
-if(error){
-signingUp=false;
-if(error.message.toLowerCase().includes('already registered')||error.message.toLowerCase().includes('already exists')){
-  if(!sel){errBox.classList.remove('hidden');errBox.textContent='Account already exists. Please select a plan to upgrade.';submitBtn.textContent='Create Account';submitBtn.disabled=false;return;}
-  const{data:existingProfile}=await sb.from('profiles').select('id').eq('email',emailVal).single();
-  if(existingProfile){await sb.from('profiles').update({plan:sel.name,status:'pending'}).eq('id',existingProfile.id);}
-  const link=sel?(payLinks[sel.key]||sel.link||'#'):'#';
-  if(link&&link!=='#')window.open(link,'_blank');
-  wrap.innerHTML='';
-  const dc=div({cls:'card',style:{textAlign:'center'}});
-  dc.append(
-    h('div',{style:{display:'flex',justifyContent:'center',marginBottom:'16px'},html:'<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="var(--gold)"><path d="M3 18h18v2H3v-2zm0-2l3-8 4 4 2-6 2 6 4-4 3 8H3z"/></svg>'}),
-    h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'24px',marginBottom:'12px'},html:'Complete Your Upgrade'}),
-    h('p',{cls:'muted',style:{fontSize:'14px',lineHeight:'1.8',marginBottom:'24px'},html:'Your payment link has opened. Once payment is confirmed your account will be upgraded to full access.'}),
-    h('p',{style:{fontFamily:"Inter,sans-serif",fontSize:'10px',color:'var(--dim)',letterSpacing:'1px',textTransform:'uppercase',marginTop:'16px'},html:"You'll be upgraded as soon as your payment is verified"}),
-    btn('Log In','btn-outline',()=>go('login'),{style:{marginTop:'16px',width:'100%'}})
-  );
-  wrap.append(dc);
-  return;
-}
-errBox.classList.remove('hidden');errBox.textContent=error.message;submitBtn.textContent=sel?'Create Account — '+sel.price:'Create Account';submitBtn.disabled=false;return;
-}
-if(data&&data.user){
-var isFreeSignup=localStorage.getItem('signupType')==='free';
-var trialExpiry=new Date();trialExpiry.setDate(trialExpiry.getDate()+3);
-var profileData={id:data.user.id,email:emailVal,full_name:nameVal,status:isFreeSignup?'approved':'pending',is_free_tier:isFreeSignup?true:false};
-if(isFreeSignup)profileData.access_expires_at=trialExpiry.toISOString();
-if(sel)profileData.plan=sel.name;
-await new Promise(function(r){setTimeout(r,1000);});
-await sb.from('profiles').upsert(profileData,{onConflict:'id'});
-localStorage.removeItem('signupType');
-if(isFreeSignup){
-S.user=data.user;
-S.profile={id:data.user.id,email:emailVal,full_name:nameVal,status:'approved',is_free_tier:true,plan:null,total_points:0,total_study_minutes:0,streak_count:0,total_anki_sessions:0,study_goals:{daily_hours:4,weekly_hours:20},topic_goals:{},rest_days:[],access_expires_at:trialExpiry.toISOString()};
-S.inTrial=true;
-signingUp=false;
-go('dashboard');
-return;
-}
-signingUp=false;
-sessionStorage.removeItem('selPlan');
-const link=sel?(payLinks[sel.key]||sel.link||'#'):'#';
-if(link&&link!=='#')window.open(link,'_blank');
-wrap.innerHTML='';
-const dc=div({cls:'card',style:{textAlign:'center'}});
-dc.append(h('div',{style:{fontSize:'48px',marginBottom:'16px'},html:' '}),h('div',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontStyle:'italic',fontSize:'22px',color:'var(--gold)',marginBottom:'16px'},html:'Deo Fortis'}),h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'24px',marginBottom:'12px'},html:'Account Created!'}),h('p',{cls:'muted',style:{fontSize:'14px',lineHeight:'1.8',marginBottom:'24px'},html:'Hi '+nameVal+'! Complete your payment to get approved.'}));
-if(link&&link!=='#'){const payBtn=document.createElement('a');payBtn.href=link;payBtn.target='_blank';payBtn.textContent='Complete Payment '+(sel?'— '+sel.price:'')+' →';payBtn.style.cssText='display:block;text-align:center;padding:12px 28px;font-family:"DM Mono",monospace;font-size:11px;letter-spacing:2px;text-transform:uppercase;background:var(--gold);color:#0F0E0A;text-decoration:none;border-radius:2px;margin-bottom:12px;';dc.append(payBtn);}
-dc.append(h('p',{style:{fontFamily:"Inter,sans-serif",fontSize:'10px',color:'var(--dim)',letterSpacing:'1px',textTransform:'uppercase',marginTop:'16px'},html:"You'll be approved as soon as your payment is verified"}));
-const lb=btn('Log In After Paying','btn-outline',()=>go('login'),{style:{marginTop:'16px',width:'100%'}});dc.append(lb);wrap.append(dc);
-}
-}catch(e){const eb2=document.getElementById('su-err');if(eb2){eb2.classList.remove('hidden');eb2.textContent='Something went wrong. Please try again.';}submitBtn.textContent=sel?'Create Account — '+sel.price:'Create Account';submitBtn.disabled=false;}
+  await fetch('https://script.google.com/macros/s/AKfycbxh_qahHUtBuc3IlYDTeWPlp4GG_zksJWUA5ewLijK1mEmd5FynsttlCRJqgkhqE4QQCg/exec',{method:'POST',body:JSON.stringify({action:'send_verification',email:emailVal,name:nameVal,code:code})});
+}catch(e){}
+pendingSignupData={nameVal,emailVal,passVal,sel};
+fc.style.display='none';
+verifyView.style.display='block';
+verifyEmailLabel.textContent='We sent a 6-digit code to '+emailVal+'. It may take up to 1 minute.';
+submitBtn.textContent=sel?'Continue — '+sel.price:'Continue';submitBtn.disabled=false;
 };
-fc.append(submitBtn);wrap.append(fc);
+fc.append(submitBtn);
+// ── Verification view ─────────────────────────────────────────────────────
+var verifyView=div({style:{display:'none'}});
+var verifyCard=div({cls:'card',style:{marginBottom:'20px'}});
+verifyCard.append(
+  h('div',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontStyle:'italic',fontSize:'22px',color:'var(--gold)',marginBottom:'4px'},html:'Deo Fortis'}),
+  h('hr',{style:{border:'none',borderTop:'1px solid var(--border)',margin:'16px 0'}}),
+  h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'22px',marginBottom:'8px'},html:'Verify Your Email'})
+);
+var verifyEmailLabel=h('p',{style:{fontFamily:'Inter,sans-serif',fontSize:'13px',color:'var(--muted)',marginBottom:'20px'},html:''});
+var verifyErr=div({cls:'err hidden'});
+var codeInput=inp('Enter 6-digit code','text','');
+codeInput.style.marginBottom='12px';codeInput.style.letterSpacing='8px';codeInput.style.fontSize='20px';codeInput.style.textAlign='center';
+var verifyBtn=btn('Verify & Create Account','btn-gold',async function(){
+  var code=codeInput.value.trim();
+  if(code.length!==6){verifyErr.classList.remove('hidden');verifyErr.textContent='Please enter the 6-digit code.';return;}
+  verifyErr.classList.add('hidden');verifyBtn.textContent='Verifying...';verifyBtn.disabled=true;
+  if(!pendingSignupData){verifyErr.classList.remove('hidden');verifyErr.textContent='Session expired. Please start again.';verifyBtn.textContent='Verify & Create Account';verifyBtn.disabled=false;return;}
+  var em=pendingSignupData.emailVal;
+  var now=new Date().toISOString();
+  var{data:rows}=await sb.from('verification_codes').select('*').eq('email',em).eq('is_used',false).gt('expires_at',now).order('created_at',{ascending:false}).limit(1);
+  if(!rows||!rows.length){verifyErr.classList.remove('hidden');verifyErr.textContent='Code expired. Please go back and request a new one.';verifyBtn.textContent='Verify & Create Account';verifyBtn.disabled=false;return;}
+  var row=rows[0];
+  if(row.attempts>=5){verifyErr.classList.remove('hidden');verifyErr.textContent='Too many attempts. Please go back and request a new code.';verifyBtn.textContent='Verify & Create Account';verifyBtn.disabled=false;return;}
+  if(row.code!==code){
+    await sb.from('verification_codes').update({attempts:(row.attempts||0)+1}).eq('id',row.id);
+    verifyErr.classList.remove('hidden');verifyErr.textContent='Incorrect code. '+(4-row.attempts)+' attempts remaining.';
+    verifyBtn.textContent='Verify & Create Account';verifyBtn.disabled=false;return;
+  }
+  await sb.from('verification_codes').update({is_used:true}).eq('id',row.id);
+  // Email verified — now create the account
+  verifyBtn.textContent='Creating account...';
+  try{
+    signingUp=true;
+    var{data,error}=await sb.auth.signUp({email:pendingSignupData.emailVal,password:pendingSignupData.passVal,options:{data:{full_name:pendingSignupData.nameVal}}});
+    if(error){
+      signingUp=false;
+      if(error.message.toLowerCase().includes('already registered')||error.message.toLowerCase().includes('already exists')){
+        var selLocal=pendingSignupData.sel;
+        if(selLocal){
+          var{data:existingProfile}=await sb.from('profiles').select('id').eq('email',pendingSignupData.emailVal).single();
+          if(existingProfile){await sb.from('profiles').update({plan:selLocal.name,status:'pending'}).eq('id',existingProfile.id);}
+          var link=payLinks[selLocal.key]||selLocal.link||'#';
+          if(link&&link!=='#')window.open(link,'_blank');
+        }
+        verifyErr.classList.remove('hidden');verifyErr.textContent='An account with this email already exists. Please log in.';
+      }else{verifyErr.classList.remove('hidden');verifyErr.textContent=error.message;}
+      verifyBtn.textContent='Verify & Create Account';verifyBtn.disabled=false;return;
+    }
+    if(data&&data.user){
+      var isFreeSignup=localStorage.getItem('signupType')==='free';
+      var trialExpiry=new Date();trialExpiry.setDate(trialExpiry.getDate()+3);
+      var profileData={id:data.user.id,email:pendingSignupData.emailVal,full_name:pendingSignupData.nameVal,status:isFreeSignup?'approved':'pending',is_free_tier:isFreeSignup?true:false};
+      if(isFreeSignup)profileData.access_expires_at=trialExpiry.toISOString();
+      if(pendingSignupData.sel)profileData.plan=pendingSignupData.sel.name;
+      await new Promise(function(r){setTimeout(r,1000);});
+      await sb.from('profiles').upsert(profileData,{onConflict:'id'});
+      localStorage.removeItem('signupType');
+      if(isFreeSignup){
+        S.user=data.user;
+        S.profile={id:data.user.id,email:pendingSignupData.emailVal,full_name:pendingSignupData.nameVal,status:'approved',is_free_tier:true,plan:null,total_points:0,total_study_minutes:0,streak_count:0,total_anki_sessions:0,study_goals:{daily_hours:4,weekly_hours:20},topic_goals:{},rest_days:[],access_expires_at:trialExpiry.toISOString()};
+        S.inTrial=true;signingUp=false;go('dashboard');return;
+      }
+      signingUp=false;sessionStorage.removeItem('selPlan');
+      var selLocal2=pendingSignupData.sel;
+      var link2=selLocal2?(payLinks[selLocal2.key]||selLocal2.link||'#'):'#';
+      if(link2&&link2!=='#')window.open(link2,'_blank');
+      wrap.innerHTML='';
+      var dc=div({cls:'card',style:{textAlign:'center'}});
+      dc.append(h('div',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontStyle:'italic',fontSize:'22px',color:'var(--gold)',marginBottom:'16px'},html:'Deo Fortis'}),h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'24px',marginBottom:'12px'},html:'Account Created!'}),h('p',{cls:'muted',style:{fontSize:'14px',lineHeight:'1.8',marginBottom:'24px'},html:'Hi '+pendingSignupData.nameVal+'! Complete your payment to get approved.'}));
+      if(link2&&link2!=='#'){var payBtn=document.createElement('a');payBtn.href=link2;payBtn.target='_blank';payBtn.textContent='Complete Payment '+(selLocal2?'— '+selLocal2.price:'')+' \u2192';payBtn.style.cssText='display:block;text-align:center;padding:12px 28px;font-family:"DM Mono",monospace;font-size:11px;letter-spacing:2px;text-transform:uppercase;background:var(--gold);color:#0F0E0A;text-decoration:none;border-radius:2px;margin-bottom:12px;';dc.append(payBtn);}
+      dc.append(h('p',{style:{fontFamily:'Inter,sans-serif',fontSize:'10px',color:'var(--dim)',letterSpacing:'1px',textTransform:'uppercase',marginTop:'16px'},html:"You'll be approved as soon as your payment is verified"}),btn('Log In After Paying','btn-outline',()=>go('login'),{style:{marginTop:'16px',width:'100%'}}));
+      wrap.append(dc);
+    }
+  }catch(e){verifyErr.classList.remove('hidden');verifyErr.textContent='Something went wrong. Please try again.';verifyBtn.textContent='Verify & Create Account';verifyBtn.disabled=false;}
+},{style:{width:'100%',marginBottom:'12px'}});
+var resendLink=h('span',{style:{display:'block',textAlign:'center',fontSize:'12px',color:'var(--gold)',cursor:'pointer',marginTop:'8px'},html:'Resend code'});
+resendLink.onclick=async function(){
+  if(!pendingSignupData)return;
+  var newCode=String(Math.floor(100000+Math.random()*900000));
+  var newExpires=new Date(Date.now()+15*60*1000).toISOString();
+  await sb.from('verification_codes').insert({email:pendingSignupData.emailVal,code:newCode,expires_at:newExpires,is_used:false,attempts:0});
+  try{await fetch('https://script.google.com/macros/s/AKfycbxh_qahHUtBuc3IlYDTeWPlp4GG_zksJWUA5ewLijK1mEmd5FynsttlCRJqgkhqE4QQCg/exec',{method:'POST',body:JSON.stringify({action:'send_verification',email:pendingSignupData.emailVal,name:pendingSignupData.nameVal,code:newCode})});}catch(e){}
+  verifyErr.classList.remove('hidden');verifyErr.style.background='var(--correct-bg)';verifyErr.style.border='1px solid var(--teal)';verifyErr.style.color='var(--teal)';
+  verifyErr.textContent='New code sent. Check your email.';
+};
+var backLink=h('span',{style:{display:'block',textAlign:'center',fontSize:'12px',color:'var(--dim)',cursor:'pointer',marginTop:'8px'},html:'\u2190 Back'});
+backLink.onclick=function(){verifyView.style.display='none';fc.style.display='block';codeInput.value='';verifyErr.classList.add('hidden');};
+verifyCard.append(verifyEmailLabel,verifyErr,field('6-Digit Code',codeInput),verifyBtn,resendLink,backLink);
+verifyView.append(verifyCard);
+wrap.append(verifyView);
 const isFreeSig=localStorage.getItem('signupType')==='free';
 if(!sel&&!isFreeSig){
 const ps=div({style:{marginBottom:'20px'}});
@@ -1383,6 +1453,58 @@ ps.append(pl);wrap.append(ps);
 const lp=div({style:{fontSize:'13px',color:'var(--muted)',textAlign:'center',marginTop:'16px'}});lp.append(document.createTextNode('Already have an account? '));const ll=document.createElement('button');ll.style.cssText='background:none;border:none;color:var(--gold);cursor:pointer;font-size:13px;';ll.textContent='Log in';ll.onclick=()=>go('login');lp.append(ll);
 const bp=div({style:{textAlign:'center',marginTop:'8px'}});const bl2=document.createElement('button');bl2.style.cssText="background:none;border:none;color:var(--dim);cursor:pointer;font-size:12px;font-family:Inter,sans-serif;letter-spacing:1px;";bl2.textContent='← Back to home';bl2.onclick=()=>go('landing');bp.append(bl2);
 wrap.append(lp,bp);page.append(wrap);return page;
+}
+// ═══════════════════════════════
+// PRIVACY / TERMS MODALS
+// ═══════════════════════════════
+function showPrivacyModal(){
+  var ov=div({cls:'modal-bg'});
+  var box=div({cls:'card',style:{maxWidth:'640px',width:'100%',maxHeight:'80vh',overflowY:'auto',position:'relative'}});
+  var closeBtn=btn('\u2715','',function(){ov.remove();},{style:{position:'absolute',top:'16px',right:'16px',background:'none',border:'none',color:'var(--muted)',fontSize:'18px',cursor:'pointer'}});
+  box.append(closeBtn);
+  box.append(h('div',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontStyle:'italic',fontSize:'20px',color:'var(--gold)',marginBottom:'4px'},html:'Deo Fortis'}));
+  box.append(h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'20px',marginBottom:'20px'},html:'Privacy Policy'}));
+  var sections=[
+    {t:'Who We Are',b:'Deo Fortis is a medical education platform at deofortis.work. Contact us at deofortistutors@gmail.com.'},
+    {t:'Eligibility',b:'This platform is for users aged 16 and above. By signing up you confirm you meet this requirement.'},
+    {t:'What We Collect',b:'We collect your name, email, and study activity (questions answered, flashcard sessions, notes, Feynman submissions, active recall requests, streaks, and points). We do NOT collect payment information — payments are handled entirely by Selar.'},
+    {t:'How We Use It',b:'To create and manage your account, deliver platform features, send account emails, calculate your leaderboard ranking, and improve the platform. We do not sell your data.'},
+    {t:'Who We Share With',b:'Supabase (database and auth), Google Apps Script (emails), and Cloudflare (AI Tutor). We share no data with any other third parties.'},
+    {t:'Data Storage',b:'Your data may be stored in servers worldwide including the US and EU through our service providers. By signing up you consent to this.'},
+    {t:'Your Rights',b:'You can access, correct, or delete your data at any time by emailing deofortistutors@gmail.com. Account deletion is processed within 30 days.'},
+    {t:'Cookies',b:'We use browser local storage (not cookies) to remember your session and preferences. We do not use advertising cookies or tracking pixels.'},
+  ];
+  sections.forEach(function(s){
+    box.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'13px',fontWeight:'700',color:'var(--gold)',marginBottom:'4px',marginTop:'16px'},html:s.t}));
+    box.append(h('p',{style:{fontFamily:'Inter,sans-serif',fontSize:'13px',color:'var(--muted)',lineHeight:'1.7'},html:s.b}));
+  });
+  ov.onclick=function(e){if(e.target===ov)ov.remove();};
+  ov.append(box);document.body.append(ov);
+}
+function showTermsModal(){
+  var ov=div({cls:'modal-bg'});
+  var box=div({cls:'card',style:{maxWidth:'640px',width:'100%',maxHeight:'80vh',overflowY:'auto',position:'relative'}});
+  var closeBtn=btn('\u2715','',function(){ov.remove();},{style:{position:'absolute',top:'16px',right:'16px',background:'none',border:'none',color:'var(--muted)',fontSize:'18px',cursor:'pointer'}});
+  box.append(closeBtn);
+  box.append(h('div',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontStyle:'italic',fontSize:'20px',color:'var(--gold)',marginBottom:'4px'},html:'Deo Fortis'}));
+  box.append(h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'20px',marginBottom:'20px'},html:'Terms and Conditions'}));
+  var sections=[
+    {t:'Acceptance',b:'By creating an account on Deo Fortis you agree to these Terms. If you do not agree, do not use the platform.'},
+    {t:'Eligibility',b:'You must be at least 16 years old to use Deo Fortis.'},
+    {t:'What We Provide',b:'Deo Fortis is a study aid — Q-Bank, flashcards, active recall, Feynman Arena, AI Tutor, and progress tracking. It is not a substitute for formal medical education. Passing any licensing examination is not guaranteed.'},
+    {t:'Accounts',b:'You are responsible for keeping your credentials secure. Do not share your account. Each subscription is for one individual user only.'},
+    {t:'Subscriptions',b:'Payments are processed by Selar. Subscription fees are non-refundable except where required by law. Contact deofortistutors@gmail.com for concerns.'},
+    {t:'Acceptable Use',b:'Do not share credentials, bypass subscription restrictions, upload harmful content, attempt to hack the platform, or impersonate others. Violations result in immediate account termination without refund.'},
+    {t:'Our Content',b:'All Q-Bank questions, flashcard decks, theory notes, and educational materials are our intellectual property. You may not copy or distribute them outside the platform.'},
+    {t:'Limitation of Liability',b:'Deo Fortis is not liable for failure to pass any examination, loss of study data due to technical issues beyond our control, or any indirect loss from use of the platform.'},
+    {t:'Contact',b:'For questions about these Terms email deofortistutors@gmail.com.'},
+  ];
+  sections.forEach(function(s){
+    box.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'13px',fontWeight:'700',color:'var(--gold)',marginBottom:'4px',marginTop:'16px'},html:s.t}));
+    box.append(h('p',{style:{fontFamily:'Inter,sans-serif',fontSize:'13px',color:'var(--muted)',lineHeight:'1.7'},html:s.b}));
+  });
+  ov.onclick=function(e){if(e.target===ov)ov.remove();};
+  ov.append(box);document.body.append(ov);
 }
 // ═══════════════════════════════
 // LOGIN
@@ -1515,12 +1637,11 @@ const newPassBtn=btn('Set New Password','btn-gold',async()=>{
   if(!resetUserId){newPassErr.classList.remove('hidden');newPassErr.textContent='Session expired. Please start again.';return;}
   newPassErr.classList.add('hidden');newPassBtn.textContent='Updating...';newPassBtn.disabled=true;
   try{
-    const res=await fetch('https://script.google.com/macros/s/AKfycbwUQZjwbwAMiNC1yoMUUVIRzP3HV0MQ6TXyjvjhb79UoJk5CefbwUWhtrCpvs9hRbDU/exec',{method:'POST',body:JSON.stringify({user_id:resetUserId,password:p1})});
-    const json=await res.json();
-    if(json.success){
+    const res=await callAdminFn('reset_own_password',{password:p1});
+    if(res.success){
       show('login');errEl.classList.remove('hidden');errEl.style.background='var(--correct-bg)';errEl.style.border='1px solid var(--teal)';errEl.style.color='var(--teal)';
       errEl.textContent='Password updated! Log in with your new password.';
-    }else{newPassErr.classList.remove('hidden');newPassErr.textContent=json.error||'Something went wrong. Try again.';}
+    }else{newPassErr.classList.remove('hidden');newPassErr.textContent=res.error||'Something went wrong. Try again.';}
   }catch(e){newPassErr.classList.remove('hidden');newPassErr.textContent='Network error. Try again.';}
   newPassBtn.textContent='Set New Password';newPassBtn.disabled=false;
 },{style:{width:'100%',marginBottom:'12px'}});
@@ -1553,18 +1674,8 @@ const txBtn=btn('Verify & Activate →','btn-gold',async()=>{
   const txId=txInput.value.trim().toUpperCase();
   if(!txId){txStatus.style.display='block';txStatus.style.color='#ff4444';txStatus.textContent='Please enter your Payment Reference.';return;}
   txBtn.disabled=true;txBtn.textContent='Verifying...';txStatus.style.display='none';
-  const{data:subs,error}=await sb.from('subscriptions').select('*').ilike('selar_transaction_id',txId).limit(1);
-  if(error||!subs||!subs.length){txStatus.style.display='block';txStatus.style.color='#ff4444';txStatus.textContent='Transaction not found. Wait a few minutes and try again — it can take up to 5 minutes to process.';txBtn.disabled=false;txBtn.textContent='Verify & Activate →';return;}
-  const sub=subs[0];
-  if(sub.status==='approved'){txStatus.style.display='block';txStatus.style.color='#ff4444';txStatus.textContent='This transaction has already been used.';txBtn.disabled=false;txBtn.textContent='Verify & Activate →';return;}
-  const now=new Date();const expiry=new Date(now);
-  if(sub.plan_type==='monthly')expiry.setDate(now.getDate()+30);
-  else if(sub.plan_type==='sixmonth')expiry.setDate(now.getDate()+183);
-  else if(sub.plan_type==='yearly')expiry.setDate(now.getDate()+365);
-  else expiry.setDate(now.getDate()+30);
-  await sb.from('profiles').update({status:'approved',is_free_tier:false,plan:sub.selar_product_name||sub.plan_type,access_expires_at:expiry.toISOString()}).eq('id',S.user.id);
-  const{error:updateErr}=await sb.from('subscriptions').update({status:'approved'}).eq('id',sub.id);
-  if(updateErr){txStatus.style.display='block';txStatus.style.color='#ff4444';txStatus.textContent='Error marking transaction used: '+updateErr.message;txBtn.disabled=false;txBtn.textContent='Verify & Activate →';return;}
+  const result=await callAdminFn('activate_subscription',{transaction_id:txId});
+  if(!result.success){txStatus.style.display='block';txStatus.style.color='#ff4444';txStatus.textContent=result.error==='Transaction already used'?'This transaction has already been used.':result.error==='Transaction not found'?'Transaction not found. Wait a few minutes and try again — it can take up to 5 minutes to process.':'Verification failed. Please contact support.';txBtn.disabled=false;txBtn.textContent='Verify & Activate →';return;}
   txStatus.style.display='block';txStatus.style.color='var(--teal)';txStatus.textContent='✓ Payment verified! Taking you to your dashboard...';
   setTimeout(()=>{window.location.reload();},1800);
 },{style:{width:'100%',marginBottom:'8px'}});
@@ -1621,18 +1732,8 @@ function showUpgradeModal(){
     const txId=txInput3.value.trim().toUpperCase();
     if(!txId){txStatus3.style.display='block';txStatus3.style.color='#ff4444';txStatus3.textContent='Please enter your Payment Reference.';return;}
     txBtn3.disabled=true;txBtn3.textContent='Verifying...';txStatus3.style.display='none';
-    const{data:subs,error}=await sb.from('subscriptions').select('*').ilike('selar_transaction_id',txId).limit(1);
-    if(error||!subs||!subs.length){txStatus3.style.display='block';txStatus3.style.color='#ff4444';txStatus3.textContent='Transaction not found. It can take up to 5 minutes to process.';txBtn3.disabled=false;txBtn3.textContent='Verify Payment →';return;}
-    const sub=subs[0];
-    if(sub.status==='approved'){txStatus3.style.display='block';txStatus3.style.color='#ff4444';txStatus3.textContent='This transaction has already been used.';txBtn3.disabled=false;txBtn3.textContent='Verify Payment →';return;}
-    const now=new Date();const expiry=new Date(now);
-    if(sub.plan_type==='monthly')expiry.setDate(now.getDate()+30);
-    else if(sub.plan_type==='sixmonth')expiry.setDate(now.getDate()+183);
-    else if(sub.plan_type==='yearly')expiry.setDate(now.getDate()+365);
-    else expiry.setDate(now.getDate()+30);
-    await sb.from('profiles').update({status:'approved',is_free_tier:false,plan:sub.selar_product_name||sub.plan_type,access_expires_at:expiry.toISOString()}).eq('id',S.user.id);
-    const{error:updateErr3}=await sb.from('subscriptions').update({status:'approved'}).eq('id',sub.id);
-    if(updateErr3){txStatus3.style.display='block';txStatus3.style.color='#ff4444';txStatus3.textContent='Error marking transaction used: '+updateErr3.message;txBtn3.disabled=false;txBtn3.textContent='Verify Payment →';return;}
+    const result=await callAdminFn('activate_subscription',{transaction_id:txId});
+    if(!result.success){txStatus3.style.display='block';txStatus3.style.color='#ff4444';txStatus3.textContent=result.error==='Transaction already used'?'This transaction has already been used.':result.error==='Transaction not found'?'Transaction not found. It can take up to 5 minutes to process.':'Verification failed. Please contact support.';txBtn3.disabled=false;txBtn3.textContent='Verify Payment →';return;}
     txStatus3.style.display='block';txStatus3.style.color='var(--teal)';txStatus3.textContent='✓ Payment verified! Refreshing your access...';
     setTimeout(()=>{overlay.remove();window.location.reload();},1800);
   },{style:{width:'100%',marginBottom:'12px'}});
@@ -3814,10 +3915,10 @@ let panelIsSuperAdmin=false;
 try{
   const{data:panelRoleRow}=await sb.from('admin_roles').select('role').eq('user_id',S.user?.id||'').maybeSingle();
   panelTeamRole=panelRoleRow?.role||null;
-  panelIsSuperAdmin=S.user?.email==='timothyambah.deofortis@gmail.com'||panelTeamRole==='super_admin';
+  panelIsSuperAdmin=panelTeamRole==='super_admin';
 }catch(e){
   panelTeamRole=null;
-  panelIsSuperAdmin=S.user?.email==='timothyambah.deofortis@gmail.com';
+  panelIsSuperAdmin=panelTeamRole==='super_admin';
 }
 if(!panelIsSuperAdmin&&!panelTeamRole){panelIsSuperAdmin=true;}// password login fallback
 if(panelTeamRole&&!panelIsSuperAdmin){
@@ -3986,13 +4087,13 @@ function switchSubTab(key){
       const testKnob=div({style:{width:'14px',height:'14px',borderRadius:'50%',background:'#fff',position:'absolute',top:'3px',left:u.test_access?'19px':'3px',transition:'left .2s'}});
       testToggle.append(testKnob);
       let testAccessVal=u.test_access||false;
-      testToggle.onclick=async()=>{testAccessVal=!testAccessVal;testToggle.style.background=testAccessVal?'var(--teal)':'var(--border)';testKnob.style.left=testAccessVal?'19px':'3px';await sb.from('profiles').update({test_access:testAccessVal}).eq('id',u.id);};
+      testToggle.onclick=async()=>{testAccessVal=!testAccessVal;testToggle.style.background=testAccessVal?'var(--teal)':'var(--border)';testKnob.style.left=testAccessVal?'19px':'3px';await callAdminFn('set_test_access',{user_id:u.id,value:testAccessVal});};
       testAccessWrap.append(testLabel,testToggle);
       actionsDiv.append(testAccessWrap,select,
         btn('Approve','btn-teal',async()=>{
           const days=parseInt(select.value,10);
           const exp=new Date();exp.setDate(exp.getDate()+days);
-          await sb.from('profiles').update({status:'approved',is_free_tier:false,access_expires_at:exp.toISOString()}).eq('id',u.id);
+          await callAdminFn('approve_user',{user_id:u.id,days:30});
           loadTab('users');
         },{style:{padding:'4px 12px',fontSize:'11px'}}),
         btn('Decline','btn-outline',async()=>{
@@ -4032,11 +4133,11 @@ function switchSubTab(key){
           const base=expiryDate&&expiryDate>new Date()?expiryDate:new Date();
           const newExp=new Date(base);newExp.setDate(newExp.getDate()+days);
           const planMap={'30':'Monthly','180':'6 Months','365':'Yearly'};
-          await sb.from('profiles').update({access_expires_at:newExp.toISOString(),plan:planMap[extendSelect.value]||u.plan}).eq('id',u.id);
+          await callAdminFn('extend_subscription',{user_id:u.id,new_expiry:newExp.toISOString(),plan:planMap[extendSelect.value]||u.plan});
           loadTab('users');
         },{style:{padding:'4px 12px',fontSize:'11px'}}),
-        btn('Trial (3 days)','btn-outline',async()=>{const exp=new Date();exp.setDate(exp.getDate()+3);await sb.from('profiles').update({is_free_tier:true,status:'approved',access_expires_at:exp.toISOString()}).eq('id',u.id);loadTab('users');},{style:{padding:'4px 12px',fontSize:'11px'}}),
-        btn('Permanent Free','btn-outline',async()=>{await sb.from('profiles').update({is_free_tier:true,status:'approved',access_expires_at:'2020-01-01T00:00:00.000Z'}).eq('id',u.id);loadTab('users');},{style:{padding:'4px 12px',fontSize:'11px'}})
+        btn('Trial (3 days)','btn-outline',async()=>{await callAdminFn('set_trial',{user_id:u.id,days:3});loadTab('users');},{style:{padding:'4px 12px',fontSize:'11px'}}),
+        btn('Permanent Free','btn-outline',async()=>{await callAdminFn('set_permanent_free',{user_id:u.id});loadTab('users');},{style:{padding:'4px 12px',fontSize:'11px'}})
       );
       topRow.append(nameDiv);
       row.append(topRow,infoDiv,planBadge,actionsDiv);
@@ -4049,9 +4150,9 @@ function switchSubTab(key){
       const actionsDiv=div({style:{display:'flex',gap:'8px',alignItems:'center',flexWrap:'wrap'}});
       actionsDiv.append(
         tierLabel,
-        btn('Set Paid','btn-teal',async()=>{const exp=new Date();exp.setDate(exp.getDate()+30);await sb.from('profiles').update({is_free_tier:false,status:'approved',access_expires_at:exp.toISOString()}).eq('id',u.id);loadTab('users');},{style:{padding:'4px 12px',fontSize:'11px'}}),
-        btn('Trial (3 days)','btn-outline',async()=>{const exp=new Date();exp.setDate(exp.getDate()+3);await sb.from('profiles').update({is_free_tier:true,status:'approved',access_expires_at:exp.toISOString()}).eq('id',u.id);loadTab('users');},{style:{padding:'4px 12px',fontSize:'11px'}}),
-        btn('Permanent Free','btn-outline',async()=>{await sb.from('profiles').update({is_free_tier:true,status:'approved',access_expires_at:'2020-01-01T00:00:00.000Z'}).eq('id',u.id);loadTab('users');},{style:{padding:'4px 12px',fontSize:'11px'}})
+        btn('Set Paid','btn-teal',async()=>{await callAdminFn('set_paid',{user_id:u.id,days:30});loadTab('users');},{style:{padding:'4px 12px',fontSize:'11px'}}),
+        btn('Trial (3 days)','btn-outline',async()=>{await callAdminFn('set_trial',{user_id:u.id,days:3});loadTab('users');},{style:{padding:'4px 12px',fontSize:'11px'}}),
+        btn('Permanent Free','btn-outline',async()=>{await callAdminFn('set_permanent_free',{user_id:u.id});loadTab('users');},{style:{padding:'4px 12px',fontSize:'11px'}})
       );
       topRow.append(nameDiv,actionsDiv);
       row.append(topRow,infoDiv);
@@ -4073,7 +4174,7 @@ function switchSubTab(key){
       pointsRow.append(pointsInput,btn('Add/Deduct Points','btn-outline',async()=>{
         const delta=parseInt(pointsInput.value,10);
         if(isNaN(delta)||delta===0)return;
-        await sb.from('profiles').update({total_points:(u.total_points||0)+delta}).eq('id',u.id);
+        await callAdminFn('adjust_points',{user_id:u.id,delta});
         loadTab('users');
       },{style:{padding:'4px 12px',fontSize:'11px'}}));
       row.append(topRow,statsRow,pointsRow);
@@ -4141,7 +4242,7 @@ recs.forEach(r=>{
 const card=div({cls:'card',style:{marginBottom:'16px'}});
 const hdr2=div({style:{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:'12px'}});
 const nameDiv=div({style:{fontSize:'15px',color:'var(--text)',marginBottom:'4px'}});
-nameDiv.innerHTML=(r.user_name||'—');
+nameDiv.innerHTML=sani(r.user_name||'—');
 if(r.is_free_tier===true){const badge=h('span',{style:{background:'#8B0000',color:'white',fontSize:'9px',fontWeight:'600',letterSpacing:'0.5px',textTransform:'uppercase',padding:'2px 8px',borderRadius:'2px',marginLeft:'8px',display:'inline-block'}},['DO NOT FULFIL']);nameDiv.append(badge);}
 hdr2.append(div({},[nameDiv,div({style:{fontSize:'12px',color:'var(--muted)'},html:r.user_email||''})]),h('span',{style:{fontFamily:"Inter,sans-serif",fontSize:'10px',letterSpacing:'1px',textTransform:'uppercase',color:r.status==='pending'?'var(--gold)':'var(--teal)'},html:r.status}));
 card.append(hdr2);
@@ -4264,7 +4365,7 @@ reader.onload=async()=>{
 const base64=reader.result.split(',')[1];
 const{error}=await sb.from('theory_pdfs').insert({user_id:r.user_id,topic:r.topic,filename:file.name,data:base64,recall_request_id:r.id});
 if(error){upSt.textContent='Error: '+error.message;}
-else{upSt.textContent='✓ PDF uploaded!';await sb.from('profiles').update({has_new_content:true}).eq('id',r.user_id);}
+else{upSt.textContent='✓ PDF uploaded!';await callAdminFn('set_has_new_content',{user_id:r.user_id});}
 setTimeout(()=>upSt.style.display='none',3000);
 };
 reader.readAsDataURL(file);
@@ -4272,7 +4373,7 @@ reader.readAsDataURL(file);
 br2.append(div({},[h('label',{cls:'label',html:'Upload Theory PDF'}),fi]));
 }
 br2.append(btn('Reject','btn-outline',async()=>{await sb.from('recall_requests').update({status:'rejected',updated_at:new Date().toISOString()}).eq('id',r.id);loadTab('recalls');},{style:{padding:'8px 16px',fontSize:'11px',color:'#ff4444',borderColor:'#ff4444'}}));
-br2.append(btn('Mark Done','btn-teal',async()=>{await sb.from('recall_requests').update({status:'fulfilled',updated_at:new Date().toISOString(),fulfilled_by:S.user?.id||null,fulfilled_at:new Date().toISOString()}).eq('id',r.id);if(r.user_id)await sb.from('profiles').update({has_new_content:true}).eq('id',r.user_id);loadTab('recalls');},{style:{padding:'8px 16px',fontSize:'11px'}}));
+br2.append(btn('Mark Done','btn-teal',async()=>{await callAdminFn('mark_recall_done',{recall_id:r.id,user_id:r.user_id,fulfilled_by:S.user?.id||null});loadTab('recalls');},{style:{padding:'8px 16px',fontSize:'11px'}}));
 card.append(br2);
 (async()=>{
   const delSection=div({style:{marginTop:'16px',borderTop:'1px solid var(--border)',paddingTop:'12px'}});
@@ -4981,7 +5082,7 @@ async function showTeamTab(){
   const{data:roleRow,error:roleErr}=await sb.from('admin_roles').select('role').eq('user_id',S.user?.id||'').maybeSingle();
   let userRole=(!roleErr&&roleRow?.role)||null;
   console.log('showTeamTab role:',userRole,'user:',S.user?.email);
-  const isSuperAdmin=userRole==='super_admin'||S.user?.email==='timothyambah.deofortis@gmail.com'||!S.user;
+  const isSuperAdmin=userRole==='super_admin';
   const isManager=userRole==='manager';
   const isWorker=userRole==='worker';
   const canWrite=isSuperAdmin||isManager;
@@ -5200,7 +5301,7 @@ async function showTeamTab(){
       subContent.append(listDiv);
     }
     else if(sub==='teamAdmin'){
-      const ADMIN_FN='https://yygjkqkzbdjnyyrrhdku.supabase.co/functions/v1/admin-actions';
+      
       if(!isSuperAdmin&&!isManager){subContent.append(div({cls:'card',style:{textAlign:'center',padding:'40px'}},[h('p',{style:{fontSize:'14px',color:'var(--dim)'}},[document.createTextNode('Access restricted to Super Admins and Managers.')])]));return;}
       const{data:admins}=await sb.from('admin_roles').select('*,profiles(full_name,email)').order('created_at');
       const listDiv=div({style:{display:'flex',flexDirection:'column',gap:'12px',marginBottom:'24px'}});
