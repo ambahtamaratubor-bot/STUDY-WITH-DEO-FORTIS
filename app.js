@@ -59,11 +59,6 @@ sb.auth.onAuthStateChange(function(event,session){
 });
 async function getProfile(id){
 const{data}=await sb.from('profiles').select('*').eq('id',id).single();
-if(!data){
-  await sb.auth.signOut();
-  go('landing');
-  return;
-}
 if(data){
   if(data.is_free_tier===null||data.is_free_tier===undefined){
     if(data.status==='approved'){
@@ -81,7 +76,6 @@ if(data){
   S.inTrial=false;
   if(data.is_free_tier===true&&data.access_expires_at){S.inTrial=new Date(data.access_expires_at)>new Date();}
   await checkStreakOnLogin();
-  // Validate any restored session — clear phantom sessions before page renders
   var _restoredId=null;
   try{var _rps=localStorage.getItem('pomodoroState');if(_rps){var _rpsp=JSON.parse(_rps);if(_rpsp.activeSessionId)_restoredId=_rpsp.activeSessionId;}}catch(e){}
   if(_restoredId){
@@ -91,13 +85,8 @@ if(data){
       localStorage.removeItem('pomodoroState');localStorage.removeItem('activeSession');
     }
   }
-  
-  // Determine required page based on account status
   var requiredPage=null;
   if(data.status==='pending') requiredPage='pending';
-  else if(data.is_free_tier===true&&!isInTrial()) requiredPage=null;
-  else requiredPage=null;
-  // Handle expiry for paid users
   if(!requiredPage&&data.status==='approved'&&data.is_free_tier===false&&data.access_expires_at){
     const expiryDate=new Date(data.access_expires_at);
     const now=new Date();
@@ -116,13 +105,17 @@ if(data){
       }
     }
   }
-  // If forced redirect needed, go there
   if(requiredPage){if(S.page!==requiredPage)go(requiredPage);return;}
-  // Otherwise stay on current page if valid, else go to dashboard
   var validPages=['dashboard','study','flashcards','vignette','feynman','theory','notes','leaderboard'];
   if(!validPages.includes(S.page)){go('dashboard');}
 }else{
-  S.user=null;S.profile=null;go('landing');
+  // No profile found — admin-only or orphaned account
+  // Sign out safely and go to landing after globals are ready
+  await sb.auth.signOut();
+  S.user=null;
+  S.profile=null;
+  S.page='landing';
+  setTimeout(render,100);
 }
 }
 function h(tag,attr,kids){
