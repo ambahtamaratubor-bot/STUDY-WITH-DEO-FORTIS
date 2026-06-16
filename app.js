@@ -5,11 +5,20 @@ const sb=window.supabase.createClient(SURL,SKEY,{auth:{persistSession:true,autoR
 function sani(html){return DOMPurify.sanitize(html||'',{USE_PROFILES:{html:true}});}
 function dfLogo(){
   var wrap=document.createElement('div');
-  wrap.style.cssText='font-family:Georgia,serif;font-style:italic;font-size:22px;font-weight:700;letter-spacing:-0.5px;margin-bottom:4px;user-select:none;';
-  var d=document.createElement('span');d.style.color='#B8922E';d.textContent='D';
-  var sep=document.createElement('span');sep.style.cssText='color:#B8922E;opacity:0.4;margin:0 2px;font-weight:300;';sep.textContent='|';
-  var f=document.createElement('span');f.style.color='var(--teal)';f.textContent='F';
-  wrap.append(d,sep,f);
+  wrap.style.cssText='display:flex;align-items:center;gap:10px;text-decoration:none;cursor:pointer;';
+  var bookBox=document.createElement('div');
+  bookBox.style.cssText='width:38px;height:38px;background:#1A1510;border:1px solid rgba(184,146,46,0.3);border-radius:6px;display:flex;align-items:center;justify-content:center;position:relative;flex-shrink:0;';
+  bookBox.innerHTML='<svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" stroke="#7EB8A4" stroke-width="1.5" stroke-linecap="round"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" stroke="#7EB8A4" stroke-width="1.5"/><text x="7" y="14" font-family="Georgia,serif" font-style="italic" font-weight="700" font-size="9" fill="#B8922E" letter-spacing="-0.5">DF</text></svg>';
+  var textBox=document.createElement('div');
+  textBox.style.cssText='display:flex;flex-direction:column;line-height:1.2;';
+  var name=document.createElement('span');
+  name.style.cssText='font-family:Georgia,serif;font-style:italic;font-size:16px;font-weight:700;color:#B8922E;letter-spacing:0.3px;';
+  name.textContent='Deo Fortis';
+  var tag=document.createElement('span');
+  tag.style.cssText='font-family:Inter,sans-serif;font-size:8px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);font-weight:500;';
+  tag.textContent='Everyone is gifted';
+  textBox.append(name,tag);
+  wrap.append(bookBox,textBox);
   return wrap;
 }
 const ADMIN_FN='https://yygjkqkzbdjnyyrrhdku.supabase.co/functions/v1/admin-actions';
@@ -200,7 +209,7 @@ root.innerHTML='';
 function theory(){
 const page=div({});
 const nav=div({cls:'dash-nav'});
-const logo=h('img',{src:'https://raw.githubusercontent.com/ambahtamaratubor-bot/STUDY-WITH-DEO-FORTIS/main/logo.png',alt:'Deo Fortis',cls:'logo',style:{height:'36px',width:'auto',display:'block'}});
+const logo=dfLogo();
 const dashboardBtn=btn('← Dashboard','btn-outline',()=>go('dashboard'),{style:{padding:'8px 16px'}});
 nav.append(logo,div({style:{display:'flex',gap:'12px',alignItems:'center'}},[dashboardBtn,makeThemeBtn()]));
 const inner=div({cls:'inner'});
@@ -264,7 +273,7 @@ function renderMarkdown(text){let html=text;html=html.replace(/\*\*(.+?)\*\*/g,'
 function notes(){
 const page=div({});
 const nav=div({cls:'dash-nav'});
-const logo=h('img',{src:'https://raw.githubusercontent.com/ambahtamaratubor-bot/STUDY-WITH-DEO-FORTIS/main/logo.png',alt:'Deo Fortis',cls:'logo',style:{height:'36px',width:'auto',display:'block'}});
+const logo=dfLogo();
 const rightNav=div({style:{display:'flex',gap:'12px',alignItems:'center'}},[]);
 const dashboardBtn=btn('\u2190 Dashboard','btn-outline',()=>go('dashboard'),{style:{padding:'8px 16px'}});
 rightNav.append(dashboardBtn,makeThemeBtn());
@@ -1859,7 +1868,7 @@ if(S.expiryWarning)showExpiryBanner(S.expiryDaysLeft);
 // NAV
 const nav=div({cls:'dash-nav'});
 nav.append(
-  h('img',{src:'https://raw.githubusercontent.com/ambahtamaratubor-bot/STUDY-WITH-DEO-FORTIS/main/logo.png',alt:'Deo Fortis',cls:'logo',style:{height:'36px',width:'auto',display:'block'}}),
+  dfLogo(),
   div({style:{display:'flex',gap:'8px'}},[
     btn('Leaderboard','btn-outline',()=>go('leaderboard'),{style:{padding:'8px 16px'}}),
     makeThemeBtn(),
@@ -2698,7 +2707,7 @@ function flashcards(){
 const page=div({});
 const isFree=S.profile?.is_free_tier===true;
 const nav=div({cls:'dash-nav'});
-nav.append(h('img',{src:'https://raw.githubusercontent.com/ambahtamaratubor-bot/STUDY-WITH-DEO-FORTIS/main/logo.png',alt:'Deo Fortis',cls:'logo',style:{height:'36px',width:'auto',display:'block'}}),div({style:{display:'flex',gap:'8px'}},[btn('← Dashboard','btn-outline',()=>{sessionStorage.removeItem('vignette_resume');go('dashboard');},{style:{padding:'8px 16px'}}),makeThemeBtn()]));
+nav.append(dfLogo(),div({style:{display:'flex',gap:'8px'}},[btn('← Dashboard','btn-outline',()=>{sessionStorage.removeItem('vignette_resume');go('dashboard');},{style:{padding:'8px 16px'}}),makeThemeBtn()]));
 page.append(nav);
 let decks=[],selDeck=null,cards=[],queue=[],curIdx=0,flipped=false,prog={easy:0,iffy:0,hard:0};
 const tabBar=div({style:{display:'flex',gap:'8px',padding:'0 24px',borderBottom:'1px solid var(--border)',background:'var(--nav-bg)'}});
@@ -3047,7 +3056,7 @@ function vignette(){
 const page=div({});
 const isFree=S.profile?.is_free_tier===true;
 const nav=div({cls:'dash-nav'});
-nav.append(h('img',{src:'https://raw.githubusercontent.com/ambahtamaratubor-bot/STUDY-WITH-DEO-FORTIS/main/logo.png',alt:'Deo Fortis',cls:'logo',style:{height:'36px',width:'auto',display:'block'}}),div({style:{display:'flex',gap:'8px'}},[btn('← Dashboard','btn-outline',()=>go('dashboard'),{style:{padding:'8px 16px'}}),makeThemeBtn()]));
+nav.append(dfLogo(),div({style:{display:'flex',gap:'8px'}},[btn('← Dashboard','btn-outline',()=>go('dashboard'),{style:{padding:'8px 16px'}}),makeThemeBtn()]));
 page.append(nav);
 let questions=[],current=0,answers={},submitted=false,revealed={},ruledOut={},highlights={},timeLeft=0,tInterval=null,selTopic='',mode='',timeLimit=60,qFilter='all';
 let activeHighlightBtn=null;
@@ -3544,7 +3553,7 @@ function feynman(){
 var page=div({cls:'dash-page'});
 if(S.profile?.is_free_tier===true&&!isInTrial()){
   var navFree=div({cls:'dash-nav'});
-  navFree.append(h('img',{src:'https://raw.githubusercontent.com/ambahtamaratubor-bot/STUDY-WITH-DEO-FORTIS/main/logo.png',alt:'Deo Fortis',cls:'logo',style:{height:'36px',width:'auto',display:'block'}}),div({style:{display:'flex',gap:'8px'}},[btn('Back to Dashboard','btn-outline',function(){go('dashboard');},{style:{padding:'8px 16px'}}),makeThemeBtn()]));
+  navFree.append(dfLogo(),div({style:{display:'flex',gap:'8px'}},[btn('Back to Dashboard','btn-outline',function(){go('dashboard');},{style:{padding:'8px 16px'}}),makeThemeBtn()]));
   page.append(navFree);
   var preview=div({cls:'inner',style:{position:'relative'}});
   preview.append(
@@ -3592,7 +3601,7 @@ if(S.profile?.is_free_tier===true&&!isInTrial()){
   return page;
 }
 var nav=div({cls:'dash-nav'});
-nav.append(h('img',{src:'https://raw.githubusercontent.com/ambahtamaratubor-bot/STUDY-WITH-DEO-FORTIS/main/logo.png',alt:'Deo Fortis',cls:'logo',style:{height:'36px',width:'auto',display:'block'}}),div({style:{display:'flex',gap:'8px'}},[btn('Study','btn-outline',function(){go('study');},{style:{padding:'8px 16px'}}),btn('Dashboard','btn-outline',function(){go('dashboard');},{style:{padding:'8px 16px'}}),makeThemeBtn(),btn('Log Out','btn-outline',function(){sb.auth.signOut();},{style:{padding:'8px 16px'}})]));
+nav.append(dfLogo(),div({style:{display:'flex',gap:'8px'}},[btn('Study','btn-outline',function(){go('study');},{style:{padding:'8px 16px'}}),btn('Dashboard','btn-outline',function(){go('dashboard');},{style:{padding:'8px 16px'}}),makeThemeBtn(),btn('Log Out','btn-outline',function(){sb.auth.signOut();},{style:{padding:'8px 16px'}})]));
 page.append(nav);
 var container=div({cls:'inner'});
 page.append(container);
@@ -3738,7 +3747,7 @@ return page;
 function leaderboard(){
 const page=div({});
 const nav=div({cls:'dash-nav'});
-nav.append(h('img',{src:'https://raw.githubusercontent.com/ambahtamaratubor-bot/STUDY-WITH-DEO-FORTIS/main/logo.png',alt:'Deo Fortis',cls:'logo',style:{height:'36px',width:'auto',display:'block'}}),div({style:{display:'flex',gap:'8px'}},[btn('← Dashboard','btn-outline',()=>go('dashboard'),{style:{padding:'8px 16px'}}),makeThemeBtn()]));
+nav.append(dfLogo(),div({style:{display:'flex',gap:'8px'}},[btn('← Dashboard','btn-outline',()=>go('dashboard'),{style:{padding:'8px 16px'}}),makeThemeBtn()]));
 page.append(nav);
 if(S.profile?.is_free_tier===true&&!isInTrial()){
   const preview=div({cls:'inner-sm',style:{position:'relative'}});
@@ -3932,15 +3941,15 @@ tmCard.append(
   h('br'),
   h('label',{cls:'label',html:'Password'}),tmPass,
   h('br'),
-  tmBtn,
-  h('p',{style:{fontSize:'12px',color:'var(--dim)',textAlign:'center',marginTop:'12px'},html:'<button onclick="go(\'landing\')" style="background:none;border:none;color:var(--dim);cursor:pointer;font-size:12px">← Back to site</button>'})
+  tmBtn
 );
+const backToSite=document.createElement('p');backToSite.style.cssText='font-size:12px;color:var(--dim);text-align:center;margin-top:12px;';const backBtn=document.createElement('button');backBtn.style.cssText='background:none;border:none;color:var(--dim);cursor:pointer;font-size:12px;';backBtn.textContent='← Back to site';backBtn.onclick=function(){go('landing');};backToSite.append(backBtn);tmCard.append(backToSite);
 wrap.append(tmCard);page.append(wrap);
 }
 async function showAdminPanel(){
 page.innerHTML='';
 const aN=div({style:{background:'var(--nav-bg)',borderBottom:'1px solid var(--border)',padding:'16px 24px',display:'flex',alignItems:'center',justifyContent:'space-between',position:'sticky',top:'0',zIndex:'100'}});
-aN.append(h('img',{src:'https://raw.githubusercontent.com/ambahtamaratubor-bot/STUDY-WITH-DEO-FORTIS/main/logo.png',alt:'Deo Fortis',cls:'logo',style:{height:'36px',width:'auto',display:'block'}}),div({style:{display:'flex',gap:'8px'}},[makeThemeBtn(),btn('← Site','btn-outline',()=>go('landing'),{style:{padding:'8px 16px'}})]));
+aN.append(dfLogo(),div({style:{display:'flex',gap:'8px'}},[makeThemeBtn(),btn('← Site','btn-outline',()=>go('landing'),{style:{padding:'8px 16px'}})]));
 page.append(aN);
 const tabs=div({style:{display:'none'}});
 const content=div({cls:'inner-md',style:{padding:'24px'}});
