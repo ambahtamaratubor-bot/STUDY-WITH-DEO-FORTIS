@@ -100,6 +100,19 @@ h2.big{font-family:'Playfair Display',serif;font-size:clamp(32px,5vw,56px);font-
 .btn-rsvp{background:var(--gold);color:#0F0E0A;animation:rsvpPulse 2s ease-in-out infinite;}
 .spinner{width:40px;height:40px;border:4px solid rgba(184,146,46,0.2);border-top:4px solid var(--gold);border-radius:50%;animation:spin 1s linear infinite;}
 @keyframes spin{0%{transform:rotate(0deg);}100%{transform:rotate(360deg);}}
+@media(max-width:600px){
+.dash-nav{padding:12px 16px;}
+.top-nav{padding:12px 16px;}
+.inner{padding:24px 16px;}
+.inner-sm{padding:24px 16px;}
+.inner-md{padding:24px 16px;}
+.section{padding:48px 16px;}
+.df-two-col{grid-template-columns:1fr!important;}
+.df-three-col{grid-template-columns:1fr 1fr!important;}
+.df-admin-layout{flex-direction:column!important;}
+.df-admin-sidebar{width:100%!important;min-height:auto!important;position:relative!important;top:auto!important;border-right:none!important;border-bottom:1px solid var(--border)!important;padding:8px 16px!important;display:flex!important;flex-wrap:wrap!important;gap:4px!important;flex-direction:row!important;}
+.df-nav-btns span{display:none!important;}
+}
 </style>
 <script>(function(){var t=localStorage.getItem('theme');document.documentElement.setAttribute('data-theme',t==='light'?'light':'dark');})()</script>
 </head>

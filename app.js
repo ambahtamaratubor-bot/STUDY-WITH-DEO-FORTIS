@@ -1869,7 +1869,7 @@ if(S.expiryWarning)showExpiryBanner(S.expiryDaysLeft);
 const nav=div({cls:'dash-nav'});
 nav.append(
   dfLogo(),
-  div({style:{display:'flex',gap:'8px'}},[
+  div({cls:'df-nav-btns',style:{display:'flex',gap:'8px'}},[
     btn('Leaderboard','btn-outline',()=>go('leaderboard'),{style:{padding:'8px 16px'}}),
     makeThemeBtn(),
     isFree?btn('⬆ Upgrade','btn-gold',()=>showUpgradeModal(),{style:{padding:'8px 16px'}}):null,
@@ -2108,7 +2108,7 @@ container.append(flashcardSection);
 if(isFree&&!isInTrial()){flashcardSection.style.opacity='0.3';flashcardSection.style.pointerEvents='none';}
 
 // TWO COLUMN — recent sessions + quick actions
-const twoCol=div({style:{display:'grid',gridTemplateColumns:'2fr 1fr',gap:'16px',marginBottom:'24px'}});
+const twoCol=div({cls:'df-two-col',style:{display:'grid',gridTemplateColumns:'2fr 1fr',gap:'16px',marginBottom:'24px'}});
 container.append(twoCol);
 
 // LEFT — Recent Sessions
@@ -3997,7 +3997,7 @@ function setActiveTab(tabId){
 const tabIconMap={settings:ICONS.target,users:ICONS.layers,recalls:ICONS.pencil,flashcards:ICONS.book,questions:ICONS.question,testimonials:ICONS.star,packages:ICONS.zap,bookings:ICONS.mail,feynman:ICONS.brain};
 
 // Build sidebar
-const sidebar=div({style:{width:'220px',flexShrink:'0',background:'var(--card)',borderRight:'1px solid var(--border)',minHeight:'calc(100vh - 57px)',overflowY:'auto',position:'sticky',top:'57px',paddingTop:'8px'}});
+const sidebar=div({cls:'df-admin-sidebar',style:{width:'220px',flexShrink:'0',background:'var(--card)',borderRight:'1px solid var(--border)',minHeight:'calc(100vh - 57px)',overflowY:'auto',position:'sticky',top:'57px',paddingTop:'8px'}});
 
 tabDefs.forEach(([id,label])=>{
   const isActive=id===curTab;
@@ -4033,7 +4033,7 @@ tabDefs.forEach(([id,label])=>{
 })();
 
 // Admin layout — sidebar + content
-const adminLayout=div({style:{display:'flex',minHeight:'calc(100vh - 57px)'}});
+const adminLayout=div({cls:'df-admin-layout',style:{display:'flex',minHeight:'calc(100vh - 57px)'}});
 adminLayout.append(sidebar,div({style:{flex:'1',overflowY:'auto'}},[tabs,content]));
 page.append(adminLayout);
 let currentFilter='pending';
