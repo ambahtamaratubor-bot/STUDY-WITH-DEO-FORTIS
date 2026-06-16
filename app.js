@@ -337,7 +337,95 @@ page.append(nav,inner);
 return page;
 }
 
-const pages={landing,signup,login,pending,dashboard,study,flashcards,vignette,leaderboard,admin,feynman,theory,notes};
+function about(){
+const page=div({});
+const nav=div({cls:'top-nav',id:'tnav',style:{justifyContent:'space-between'}});
+const navLogo=dfLogo();
+navLogo.onclick=()=>go('landing');
+const navRight=div({style:{display:'flex',gap:'12px',alignItems:'center'}});
+navRight.append(makeThemeBtn(),btn('← Back','btn-outline',()=>go('landing'),{style:{padding:'8px 20px',fontSize:'12px'}}));
+if(S.user){navRight.append(btn('Dashboard','btn-gold',()=>go('dashboard'),{style:{padding:'8px 20px',fontSize:'12px'}}));}
+nav.append(navLogo,navRight);
+page.append(nav);
+// HERO
+const hero=div({style:{minHeight:'55vh',display:'flex',flexDirection:'column',justifyContent:'center',padding:'120px 24px 64px',maxWidth:'760px'}});
+hero.append(
+  h('span',{cls:'chapter',style:{color:'var(--gold)',letterSpacing:'4px',marginBottom:'20px',display:'block'},html:'— ABOUT —'}),
+  h('h1',{cls:'big',style:{marginBottom:'20px',lineHeight:'0.95'},html:'<span style="color:#FFFFFF;font-family:\'Playfair Display\',serif;">Everyone is</span><br><em class="gold-em">Gifted.</em>'}),
+  div({style:{width:'60px',height:'2px',background:'var(--gold)',marginBottom:'28px'}}),
+  h('p',{cls:'muted',style:{fontSize:'16px',lineHeight:'1.9',maxWidth:'620px'},html:'Deo Fortis is a premium study platform built on one belief: that every student has the capacity to master their material — they just need the right system. We combine structured recall science with practical tools so that learning becomes something you do intentionally, not accidentally.'})
+);
+page.append(hero);
+// MISSION
+const missionSection=div({cls:'section',style:{borderTop:'1px solid var(--border)',padding:'80px 24px'}});
+const missionInner=div({style:{maxWidth:'760px',margin:'0 auto'}});
+missionInner.append(
+  h('span',{cls:'chapter',html:'Chapter I — Why We Exist'}),
+  h('h2',{cls:'big',style:{marginBottom:'24px'},html:'Built for the student<br><em class="gold-em">done making excuses.</em>'}),
+  h('p',{cls:'muted',style:{fontSize:'15px',lineHeight:'1.9',marginBottom:'16px'},html:'Most study apps are built around passive consumption — videos, highlights, summaries. Deo Fortis is different. Every tool on this platform is designed around active recall: the scientifically proven method of strengthening memory by retrieving it, not just re-reading it.'}),
+  h('p',{cls:'muted',style:{fontSize:'15px',lineHeight:'1.9'},html:'Whether you\'re preparing for medical exams, professional certifications, or any high-stakes knowledge test, the platform gives you a repeatable, measurable system you can trust.'})
+);
+missionSection.append(missionInner);
+page.append(missionSection);
+// PILLARS
+const pillarsSection=div({cls:'section',style:{background:'var(--card)',padding:'80px 24px'}});
+const pillarsInner=div({style:{maxWidth:'760px',margin:'0 auto'}});
+pillarsInner.append(h('span',{cls:'chapter',html:'Chapter II — The Pillars'}),h('h2',{cls:'big',style:{marginBottom:'40px'},html:'How we help you<br><em class="gold-em">actually retain.</em>'}));
+const pillarsGrid=div({cls:'grid-auto',style:{gridTemplateColumns:'repeat(auto-fit,minmax(220px,1fr))'}});
+[
+  {icon:ICONS.target,title:'Active Recall',body:'Three distinct recall formats — theory, vignette, and Feynman — so you can test yourself the way that works best for you.'},
+  {icon:ICONS.zap,title:'Pomodoro Engine',body:'Built-in session timer with work/break cycles. Clock in, stay focused, track every minute of real study time.'},
+  {icon:ICONS.layers,title:'Spaced Repetition',body:'Anki-style flashcard decks with difficulty tracking. Hard cards come back sooner. Easy cards give way to harder ones.'},
+  {icon:ICONS.chart,title:'Analytics & Streaks',body:'Daily streak tracking, session history, and leaderboard points so your progress is visible and motivating.'},
+].forEach(p=>{
+  const card=div({cls:'card',style:{padding:'28px'}});
+  const iconWrap=div({style:{width:'40px',height:'40px',background:'rgba(184,146,46,0.1)',borderRadius:'4px',display:'flex',alignItems:'center',justifyContent:'center',marginBottom:'16px',color:'var(--gold)'}});
+  iconWrap.innerHTML=p.icon;
+  card.append(iconWrap,h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'16px',marginBottom:'10px',color:'var(--text)'},html:p.title}),h('p',{cls:'muted',style:{fontSize:'13px',lineHeight:'1.8'}},[ document.createTextNode(p.body)]));
+  pillarsGrid.append(card);
+});
+pillarsInner.append(pillarsGrid);
+pillarsSection.append(pillarsInner);
+page.append(pillarsSection);
+// CTA
+const ctaSection=div({style:{padding:'80px 24px',textAlign:'center'}});
+const ctaInner=div({style:{maxWidth:'520px',margin:'0 auto'}});
+ctaInner.append(
+  h('span',{cls:'chapter',html:'Chapter III — Get Started'}),
+  h('h2',{cls:'big',style:{marginBottom:'16px'},html:'Ready to study<br><em class="gold-em">with intention?</em>'}),
+  h('p',{cls:'muted',style:{fontSize:'15px',lineHeight:'1.8',marginBottom:'32px'},html:'Join the platform and build a study system that actually sticks.'}),
+  div({style:{display:'flex',gap:'16px',justifyContent:'center',flexWrap:'wrap'}},[
+    btn('View Plans','btn-gold',()=>go('landing'),{style:{padding:'14px 32px',fontSize:'13px'}}),
+    btn('Log In','btn-outline',()=>go('login'),{style:{padding:'14px 32px',fontSize:'13px'}}),
+  ])
+);
+ctaSection.append(ctaInner);
+page.append(ctaSection);
+// CREATOR
+const creatorSection=div({style:{background:'var(--card)',borderTop:'1px solid var(--border)',padding:'80px 24px'}});
+const creatorInner=div({style:{maxWidth:'760px',margin:'0 auto',display:'flex',gap:'48px',alignItems:'flex-start',flexWrap:'wrap'}});
+const creatorLeft=div({style:{flex:'0 0 auto'}});
+const creatorMonogram=div({style:{width:'80px',height:'80px',borderRadius:'50%',background:'rgba(184,146,46,0.12)',border:'1px solid rgba(184,146,46,0.3)',display:'flex',alignItems:'center',justifyContent:'center',fontFamily:"Georgia,serif",fontStyle:'italic',fontSize:'28px',fontWeight:'700',color:'var(--gold)'}});
+creatorMonogram.textContent='A';
+creatorLeft.append(creatorMonogram);
+const creatorRight=div({style:{flex:'1',minWidth:'260px'}});
+creatorRight.append(
+  h('span',{cls:'chapter',html:'The Founder'}),
+  h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'22px',color:'var(--text)',marginBottom:'4px'},html:'Dr. Tamaratubor Ambah, MD'}),
+  div({style:{width:'40px',height:'2px',background:'var(--gold)',marginBottom:'20px'}}),
+  h('p',{cls:'muted',style:{fontSize:'14px',lineHeight:'1.9',marginBottom:'14px'},html:'Deo Fortis was created by Dr. Tamaratubor Ambah, MD — a physician who lived through the grind of medical education and came out the other side knowing it could be done better.'}),
+  h('p',{cls:'muted',style:{fontSize:'14px',lineHeight:'1.9'},html:'The platform is a direct product of the study system Dr. Ambah developed and refined through years of medical training — built not in theory, but in the trenches of actual high-stakes learning. Every tool on this platform is something that was earned, not imagined.'})
+);
+creatorInner.append(creatorLeft,creatorRight);
+creatorSection.append(creatorInner);
+page.append(creatorSection);
+// FOOTER
+const footer=div({style:{borderTop:'1px solid var(--border)',padding:'24px',textAlign:'center'}});
+footer.append(h('p',{cls:'mono',style:{color:'var(--dim)',fontSize:'11px',letterSpacing:'2px'},html:'Deo Fortis · deofortis.work · Everyone is gifted.'}));
+page.append(footer);
+return page;
+}
+const pages={landing,signup,login,pending,dashboard,study,flashcards,vignette,leaderboard,admin,feynman,theory,notes,about};
 if(!window.activeSessionId||!window.pomPlan){var _ps=localStorage.getItem('pomodoroState');if(_ps){try{var _psp=JSON.parse(_ps);if(_psp.activeSessionId){window.activeSessionId=_psp.activeSessionId;window.sessionStartTime=_psp.sessionStartTime||null;if(!window.pomPlan&&_psp.segStart){var _cfg=_psp.cfg||{};window.pomPlan={topic:_cfg.topic||'General Study',totalSessions:_cfg.sessions||4,workSec:(_cfg.workMins||25)*60,breakSec:(_cfg.breakMins||5)*60,currentCycle:_psp.curSess||1,isBreakMode:_psp.isBreak||false,startedAtTimestamp:_psp.segStart};}}  }catch(e){}}}
 try{
   root.append((pages[S.page]||landing)());
@@ -903,7 +991,7 @@ nav.append(
   h('div',{cls:'df-nav-links',style:{display:'flex',gap:'32px',alignItems:'center',position:'absolute',left:'50%',transform:'translateX(-50%)'}},[
     h('a',{cls:'nav-link',href:'#plans',html:'Plans'}),
     h('a',{cls:'nav-link',href:'#tutoring',html:'Tutoring'}),
-    h('a',{cls:'nav-link',href:'#about',html:'About'}),
+    h('a',{cls:'nav-link',href:'#',onclick:function(e){e.preventDefault();go('about');},html:'About'}),
   ]),
   div({style:{display:'flex',gap:'12px',alignItems:'center'}},[
     makeThemeBtn(),
@@ -916,11 +1004,11 @@ page.append(nav);
 const BOOKS_IMG='https://raw.githubusercontent.com/ambahtamaratubor-bot/STUDY-WITH-DEO-FORTIS/main/E3677AB0-D918-4B22-A368-EB2C6F68557F.PNG';
 const hero=div({style:{minHeight:'100vh',display:'flex',flexDirection:'column',justifyContent:'center',position:'relative',overflow:'hidden',paddingTop:'80px'}});
 // Books backdrop
-const heroBg=div({style:{position:'absolute',inset:'0',backgroundImage:'url('+BOOKS_IMG+')',backgroundSize:'65%',backgroundPosition:'bottom right',backgroundRepeat:'no-repeat',zIndex:'0'}});
-// Dark overlay — stronger on left for text, fades to reveal books on right
-const heroOverlay=div({style:{position:'absolute',inset:'0',background:'linear-gradient(to right, rgba(14,11,8,0.97) 0%, rgba(14,11,8,0.92) 35%, rgba(14,11,8,0.75) 55%, rgba(14,11,8,0.3) 75%, rgba(14,11,8,0.1) 100%)',zIndex:'1'}});
-// Bottom fade
-const heroFade=div({style:{position:'absolute',bottom:'0',left:'0',right:'0',height:'200px',background:'linear-gradient(to top, var(--bg) 0%, transparent 100%)',zIndex:'2'}});
+const heroBg=div({style:{position:'absolute',inset:'0',backgroundImage:'url('+BOOKS_IMG+')',backgroundSize:'65%',backgroundPosition:'bottom right',backgroundRepeat:'no-repeat',zIndex:'0',filter:'brightness(0.55) contrast(1.1)'}});
+// Dark overlay — always dark regardless of theme, stronger on left for text
+const heroOverlay=div({style:{position:'absolute',inset:'0',background:'linear-gradient(to right, rgba(10,8,5,0.98) 0%, rgba(10,8,5,0.93) 35%, rgba(10,8,5,0.78) 55%, rgba(10,8,5,0.45) 75%, rgba(10,8,5,0.25) 100%)',zIndex:'1'}});
+// Bottom fade — always fades to near-black so it stays dark in light mode too
+const heroFade=div({style:{position:'absolute',bottom:'0',left:'0',right:'0',height:'240px',background:'linear-gradient(to top, rgba(10,8,5,1) 0%, rgba(10,8,5,0) 100%)',zIndex:'2'}});
 hero.append(heroBg,heroOverlay,heroFade);
 const hc=div({style:{position:'relative',zIndex:'3',padding:'0 24px',maxWidth:'700px'}});
 hc.append(
