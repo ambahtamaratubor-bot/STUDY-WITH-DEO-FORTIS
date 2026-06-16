@@ -907,13 +907,13 @@ nav.append(
   ]),
   div({style:{display:'flex',gap:'12px',alignItems:'center'}},[
     makeThemeBtn(),
-    btn('Log In','btn-outline',()=>go('login'),{style:{padding:'8px 20px',fontSize:'12px'}}),
+    btn('Log In','btn-outline',()=>go('login'),{style:{padding:'8px 20px',fontSize:'12px',color:'#FFFFFF',borderColor:'rgba(255,255,255,0.4)'}}),
   ])
 );
 window.onscroll=()=>{const s=window.scrollY>60;if(s!==scrolled){scrolled=s;nav.classList.toggle('scrolled',s);}};
 page.append(nav);
 // HERO
-const BOOKS_IMG='https://raw.githubusercontent.com/ambahtamaratubor-bot/STUDY-WITH-DEO-FORTIS/main/F8F81BFF-E141-46AB-9D23-A245DF9DF0CD.PNG';
+const BOOKS_IMG='https://raw.githubusercontent.com/ambahtamaratubor-bot/STUDY-WITH-DEO-FORTIS/main/E3677AB0-D918-4B22-A368-EB2C6F68557F.PNG';
 const hero=div({style:{minHeight:'100vh',display:'flex',flexDirection:'column',justifyContent:'center',position:'relative',overflow:'hidden',paddingTop:'80px'}});
 // Books backdrop
 const heroBg=div({style:{position:'absolute',inset:'0',backgroundImage:'url('+BOOKS_IMG+')',backgroundSize:'cover',backgroundPosition:'center right',backgroundRepeat:'no-repeat',zIndex:'0'}});
@@ -925,7 +925,7 @@ hero.append(heroBg,heroOverlay,heroFade);
 const hc=div({style:{position:'relative',zIndex:'3',padding:'0 48px',maxWidth:'700px'}});
 hc.append(
   h('span',{cls:'chapter',style:{color:'var(--gold)',letterSpacing:'4px',marginBottom:'20px',display:'block'},html:'— A PREMIUM STUDY PLATFORM —'}),
-  h('h1',{cls:'big',style:{marginBottom:'20px',lineHeight:'0.95'},html:'Study with<br><em class="gold-em">Deo Fortis!</em>'}),
+  h('h1',{cls:'big',style:{marginBottom:'20px',lineHeight:'0.95'},html:'<span style="color:#FFFFFF;font-family:\'Playfair Display\',serif;">Study with</span><br><em class="gold-em">Deo Fortis!</em>'}),
   h('div',{style:{width:'60px',height:'2px',background:'var(--gold)',marginBottom:'24px'}}),
   h('p',{cls:'muted',style:{fontSize:'16px',lineHeight:'1.8',maxWidth:'480px',marginBottom:'0'},html:'A structured, evidence-based study system built for students who are done making excuses and ready to actually retain what they learn.'})
 );
