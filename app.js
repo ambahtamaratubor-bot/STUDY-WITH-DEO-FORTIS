@@ -916,7 +916,7 @@ page.append(nav);
 const BOOKS_IMG='https://raw.githubusercontent.com/ambahtamaratubor-bot/STUDY-WITH-DEO-FORTIS/main/E3677AB0-D918-4B22-A368-EB2C6F68557F.PNG';
 const hero=div({style:{minHeight:'100vh',display:'flex',flexDirection:'column',justifyContent:'center',position:'relative',overflow:'hidden',paddingTop:'80px'}});
 // Books backdrop
-const heroBg=div({style:{position:'absolute',inset:'0',backgroundImage:'url('+BOOKS_IMG+')',backgroundSize:'contain',backgroundPosition:'bottom right',backgroundRepeat:'no-repeat',zIndex:'0'}});
+const heroBg=div({style:{position:'absolute',inset:'0',backgroundImage:'url('+BOOKS_IMG+')',backgroundSize:'65%',backgroundPosition:'bottom right',backgroundRepeat:'no-repeat',zIndex:'0'}});
 // Dark overlay — stronger on left for text, fades to reveal books on right
 const heroOverlay=div({style:{position:'absolute',inset:'0',background:'linear-gradient(to right, rgba(14,11,8,0.97) 0%, rgba(14,11,8,0.92) 35%, rgba(14,11,8,0.75) 55%, rgba(14,11,8,0.3) 75%, rgba(14,11,8,0.1) 100%)',zIndex:'1'}});
 // Bottom fade
