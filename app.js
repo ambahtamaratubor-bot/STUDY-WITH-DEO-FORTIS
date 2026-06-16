@@ -59,6 +59,13 @@ sb.auth.onAuthStateChange(function(event,session){
 });
 async function getProfile(id){
 const{data}=await sb.from('profiles').select('*').eq('id',id).single();
+if(!data){
+  // No student profile — could be an admin-only account
+  // Check if they have an admin role and route accordingly
+  const{data:ar}=await sb.from('admin_roles').select('role').eq('user_id',id).maybeSingle();
+  if(ar?.role){go('admin');}else{await sb.auth.signOut();go('landing');}
+  return;
+}
 if(data){
   if(data.is_free_tier===null||data.is_free_tier===undefined){
     if(data.status==='approved'){
@@ -86,8 +93,7 @@ if(data){
       localStorage.removeItem('pomodoroState');localStorage.removeItem('activeSession');
     }
   }
-  const{data:_ar}=await sb.from('admin_roles').select('role').eq('user_id',id).maybeSingle();
-  if(_ar?.role){go('admin');return;}
+  
   // Determine required page based on account status
   var requiredPage=null;
   if(data.status==='pending') requiredPage='pending';
@@ -1069,7 +1075,7 @@ howSection.append(hg);
 page.append(howSection);
 // FOOTER
 const footer=div({style:{borderTop:'1px solid var(--border)',padding:'48px',textAlign:'center'}});
-footer.append(div({style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontStyle:'italic',fontSize:'28px',color:'var(--gold)',marginBottom:'10px'},html:'Deo Fortis'}),div({style:{color:'var(--gold)',opacity:'.4',letterSpacing:'8px',marginBottom:'12px'},html:'✦ ✦ ✦'}),h('p',{style:{fontSize:'14px',color:'var(--dim)',fontWeight:'300'},html:'Study with purpose. Results follow.'}),btn('admin','',()=>go('admin'),{style:{background:'none',border:'none',color:'var(--dim)',fontSize:'9px',marginTop:'24px',fontFamily:'Inter,sans-serif',letterSpacing:'1px',textTransform:'uppercase',opacity:'0.3'}}));
+footer.append(div({style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontStyle:'italic',fontSize:'28px',color:'var(--gold)',marginBottom:'10px'},html:'Deo Fortis'}),div({style:{color:'var(--gold)',opacity:'.4',letterSpacing:'8px',marginBottom:'12px'},html:'✦ ✦ ✦'}),h('p',{style:{fontSize:'14px',color:'var(--dim)',fontWeight:'300'},html:'Study with purpose. Results follow.'}),btn('portal','',()=>go('admin'),{style:{background:'none',border:'none',color:'var(--dim)',fontSize:'9px',marginTop:'24px',fontFamily:'Inter,sans-serif',letterSpacing:'1px',textTransform:'uppercase',opacity:'0.3'}}));
 page.append(footer);
 // Load data
 (async()=>{
