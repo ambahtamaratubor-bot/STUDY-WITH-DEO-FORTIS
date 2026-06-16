@@ -30,9 +30,10 @@
 *{box-sizing:border-box;margin:0;padding:0;}
 html{scroll-behavior:smooth;}
 body{background:var(--bg);color:var(--text);font-family:'Plus Jakarta Sans',sans-serif;min-height:100vh;}
-[data-theme="dark"] body{background-image:url('https://raw.githubusercontent.com/ambahtamaratubor-bot/STUDY-WITH-DEO-FORTIS/main/E3677AB0-D918-4B22-A368-EB2C6F68557F.PNG');background-size:cover;background-position:center;background-attachment:fixed;background-repeat:no-repeat;}
+[data-theme="dark"] body{background-image:url('https://raw.githubusercontent.com/ambahtamaratubor-bot/STUDY-WITH-DEO-FORTIS/main/E3677AB0-D918-4B22-A368-EB2C6F68557F.PNG');background-size:contain;background-position:bottom right;background-attachment:fixed;background-repeat:no-repeat;}
 [data-theme="dark"] body::before{content:'';position:fixed;inset:0;background:rgba(14,11,8,0.94);z-index:0;pointer-events:none;}
 [data-theme="dark"] #root{position:relative;z-index:1;}
+@media(max-width:600px){.df-nav-links{display:none!important;}}
 ::-webkit-scrollbar{width:3px;}::-webkit-scrollbar-thumb{background:var(--gold);}
 a{text-decoration:none;color:inherit;}
 input,textarea,select{outline:none;font-family:'Plus Jakarta Sans',sans-serif;}

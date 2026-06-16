@@ -900,7 +900,7 @@ const navLogo=dfLogo();
 navLogo.onclick=()=>window.scrollTo({top:0,behavior:'smooth'});
 nav.append(
   navLogo,
-  div({style:{display:'flex',gap:'32px',alignItems:'center',position:'absolute',left:'50%',transform:'translateX(-50%)'}},[
+  h('div',{cls:'df-nav-links',style:{display:'flex',gap:'32px',alignItems:'center',position:'absolute',left:'50%',transform:'translateX(-50%)'}},[
     h('a',{cls:'nav-link',href:'#plans',html:'Plans'}),
     h('a',{cls:'nav-link',href:'#tutoring',html:'Tutoring'}),
     h('a',{cls:'nav-link',href:'#about',html:'About'}),
@@ -916,13 +916,13 @@ page.append(nav);
 const BOOKS_IMG='https://raw.githubusercontent.com/ambahtamaratubor-bot/STUDY-WITH-DEO-FORTIS/main/E3677AB0-D918-4B22-A368-EB2C6F68557F.PNG';
 const hero=div({style:{minHeight:'100vh',display:'flex',flexDirection:'column',justifyContent:'center',position:'relative',overflow:'hidden',paddingTop:'80px'}});
 // Books backdrop
-const heroBg=div({style:{position:'absolute',inset:'0',backgroundImage:'url('+BOOKS_IMG+')',backgroundSize:'cover',backgroundPosition:'center right',backgroundRepeat:'no-repeat',zIndex:'0'}});
+const heroBg=div({style:{position:'absolute',inset:'0',backgroundImage:'url('+BOOKS_IMG+')',backgroundSize:'contain',backgroundPosition:'bottom right',backgroundRepeat:'no-repeat',zIndex:'0'}});
 // Dark overlay — stronger on left for text, fades to reveal books on right
 const heroOverlay=div({style:{position:'absolute',inset:'0',background:'linear-gradient(to right, rgba(14,11,8,0.97) 0%, rgba(14,11,8,0.92) 35%, rgba(14,11,8,0.75) 55%, rgba(14,11,8,0.3) 75%, rgba(14,11,8,0.1) 100%)',zIndex:'1'}});
 // Bottom fade
 const heroFade=div({style:{position:'absolute',bottom:'0',left:'0',right:'0',height:'200px',background:'linear-gradient(to top, var(--bg) 0%, transparent 100%)',zIndex:'2'}});
 hero.append(heroBg,heroOverlay,heroFade);
-const hc=div({style:{position:'relative',zIndex:'3',padding:'0 48px',maxWidth:'700px'}});
+const hc=div({style:{position:'relative',zIndex:'3',padding:'0 24px',maxWidth:'700px'}});
 hc.append(
   h('span',{cls:'chapter',style:{color:'var(--gold)',letterSpacing:'4px',marginBottom:'20px',display:'block'},html:'— A PREMIUM STUDY PLATFORM —'}),
   h('h1',{cls:'big',style:{marginBottom:'20px',lineHeight:'0.95'},html:'<span style="color:#FFFFFF;font-family:\'Playfair Display\',serif;">Study with</span><br><em class="gold-em">Deo Fortis!</em>'}),
@@ -939,7 +939,7 @@ vbtn.onclick=()=>showVidModal(cfg.video);
 hbtns.append(vbtn);
 hc.append(hbtns);
 // Stats bar
-const statsBar=div({style:{display:'flex',gap:'0',marginTop:'56px',borderTop:'1px solid rgba(184,146,46,0.15)',paddingTop:'28px',flexWrap:'wrap',gap:'0'}});
+const statsBar=div({style:{display:'flex',gap:'0',marginTop:'48px',borderTop:'1px solid rgba(184,146,46,0.15)',paddingTop:'24px',flexWrap:'wrap'}});
 [['3','Recall Formats'],['100%','Full Access'],['∞','Sessions']].forEach(([n,l],i)=>{
   const s=div({style:{paddingRight:'40px',marginRight:'40px',borderRight:i<2?'1px solid rgba(184,146,46,0.15)':'none'}});
   s.append(
