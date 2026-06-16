@@ -983,7 +983,7 @@ function landing(){
 const page=div({});
 let scrolled=false;
 let cfg={video:'',links:{monthly:'#',sixmonth:'#',yearly:'#'},testimonials:[],packages:[]};
-const nav=div({cls:'top-nav',id:'tnav',style:{justifyContent:'space-between'}});
+const nav=div({cls:'top-nav',id:'tnav',style:{justifyContent:'space-between',background:'#0A0805',borderBottomColor:'rgba(184,146,46,0.15)'}});
 const navLogo=dfLogo();
 navLogo.onclick=()=>window.scrollTo({top:0,behavior:'smooth'});
 nav.append(
@@ -1002,7 +1002,7 @@ window.onscroll=()=>{const s=window.scrollY>60;if(s!==scrolled){scrolled=s;nav.c
 page.append(nav);
 // HERO
 const BOOKS_IMG='https://raw.githubusercontent.com/ambahtamaratubor-bot/STUDY-WITH-DEO-FORTIS/main/E3677AB0-D918-4B22-A368-EB2C6F68557F.PNG';
-const hero=div({style:{minHeight:'100vh',display:'flex',flexDirection:'column',justifyContent:'center',position:'relative',overflow:'hidden',paddingTop:'80px'}});
+const hero=div({style:{minHeight:'100vh',display:'flex',flexDirection:'column',justifyContent:'center',position:'relative',overflow:'hidden',paddingTop:'80px',background:'#0A0805'}});
 // Books backdrop
 const heroBg=div({style:{position:'absolute',inset:'0',backgroundImage:'url('+BOOKS_IMG+')',backgroundSize:'65%',backgroundPosition:'bottom right',backgroundRepeat:'no-repeat',zIndex:'0',filter:'brightness(0.55) contrast(1.1)'}});
 // Dark overlay — always dark regardless of theme, stronger on left for text
