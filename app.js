@@ -9,16 +9,10 @@ function dfLogo(){
   var mark=document.createElement('div');
   mark.style.cssText='width:36px;height:36px;flex-shrink:0;';
   mark.innerHTML='<svg width="36" height="36" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="1" y="1" width="34" height="34" rx="5" fill="#14110D" stroke="#B8922E" stroke-width="1.5"/><line x1="18" y1="4" x2="18" y2="32" stroke="#B8922E" stroke-width="1" opacity="0.6"/><text x="9" y="24" font-family="Georgia,serif" font-style="italic" font-weight="700" font-size="16" fill="#B8922E">D</text><text x="20" y="24" font-family="Georgia,serif" font-style="italic" font-weight="700" font-size="16" fill="#7EB8A4">F</text></svg>';
-  var textBox=document.createElement('div');
-  textBox.style.cssText='display:flex;flex-direction:column;line-height:1.25;';
   var name=document.createElement('span');
-  name.style.cssText='font-family:Georgia,serif;font-style:italic;font-size:16px;font-weight:700;color:var(--gold);letter-spacing:0.3px;';
+  name.style.cssText='font-family:Georgia,serif;font-style:italic;font-size:18px;font-weight:700;color:var(--gold);letter-spacing:0.3px;';
   name.textContent='Deo Fortis';
-  var tag=document.createElement('span');
-  tag.style.cssText='font-family:Inter,sans-serif;font-size:8px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);font-weight:500;';
-  tag.textContent='Everyone is gifted';
-  textBox.append(name,tag);
-  wrap.append(mark,textBox);
+  wrap.append(mark,name);
   return wrap;
 }
 const ADMIN_FN='https://yygjkqkzbdjnyyrrhdku.supabase.co/functions/v1/admin-actions';
@@ -901,46 +895,60 @@ function landing(){
 const page=div({});
 let scrolled=false;
 let cfg={video:'',links:{monthly:'#',sixmonth:'#',yearly:'#'},testimonials:[],packages:[]};
-const nav=div({cls:'top-nav',id:'tnav'});
+const nav=div({cls:'top-nav',id:'tnav',style:{justifyContent:'space-between'}});
 const navLogo=dfLogo();
 navLogo.onclick=()=>window.scrollTo({top:0,behavior:'smooth'});
 nav.append(
-navLogo,
-div({style:{display:'flex',gap:'32px',alignItems:'center'}},[
-h('a',{cls:'nav-link',href:'#plans',html:'Plans'}),
-h('a',{cls:'nav-link',href:'#tutoring',html:'Tutoring'}),
-btn('Log In','btn-outline',()=>go('login'),{style:{padding:'8px 18px'}}),
-])
+  navLogo,
+  div({style:{display:'flex',gap:'32px',alignItems:'center',position:'absolute',left:'50%',transform:'translateX(-50%)'}},[
+    h('a',{cls:'nav-link',href:'#plans',html:'Plans'}),
+    h('a',{cls:'nav-link',href:'#tutoring',html:'Tutoring'}),
+    h('a',{cls:'nav-link',href:'#about',html:'About'}),
+  ]),
+  div({style:{display:'flex',gap:'12px',alignItems:'center'}},[
+    makeThemeBtn(),
+    btn('Log In','btn-outline',()=>go('login'),{style:{padding:'8px 20px',fontSize:'12px'}}),
+  ])
 );
 window.onscroll=()=>{const s=window.scrollY>60;if(s!==scrolled){scrolled=s;nav.classList.toggle('scrolled',s);}};
 page.append(nav);
 // HERO
-const hero=div({cls:'section fade',style:{minHeight:'100vh',display:'flex',flexDirection:'column',justifyContent:'center',paddingTop:'140px',position:'relative'}});
-const shelf=div({style:{position:'absolute',top:'100px',right:'0',opacity:'.1',display:'flex',alignItems:'flex-end',gap:'3px',borderBottom:'4px solid #3A3020'}});
-[{h:160,w:22,c:'#8B4513'},{h:200,w:30,c:'#2F4F4F'},{h:140,w:18,c:'#8B0000'},{h:185,w:26,c:'#4B0082'},{h:220,w:34,c:'#556B2F'},{h:150,w:20,c:'#8B6914'},{h:175,w:28,c:'#1C3A5E'},{h:130,w:16,c:'#6B3A2A'},{h:195,w:24,c:'#2E4A1E'},{h:210,w:32,c:'#4A1942'}].forEach(b=>shelf.append(div({style:{height:b.h+'px',width:b.w+'px',background:b.c,borderRadius:'2px 2px 0 0'}})));
-hero.append(shelf);
-const hc=div({style:{position:'relative',zIndex:'1'}});
-const heroLogo=(function(){var el=document.createElement('div');el.style.cssText='margin-bottom:24px;';el.innerHTML='<svg width="80" height="80" viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="2" width="76" height="76" rx="10" fill="#14110D" stroke="#B8922E" stroke-width="2"/><line x1="40" y1="8" x2="40" y2="72" stroke="#B8922E" stroke-width="1.5" opacity="0.6"/><text x="10" y="54" font-family="Georgia,serif" font-style="italic" font-weight="700" font-size="40" fill="#B8922E">D</text><text x="43" y="54" font-family="Georgia,serif" font-style="italic" font-weight="700" font-size="40" fill="#7EB8A4">F</text></svg>';return el;})();
+const BOOKS_IMG='https://raw.githubusercontent.com/ambahtamaratubor-bot/STUDY-WITH-DEO-FORTIS/main/F8F81BFF-E141-46AB-9D23-A245DF9DF0CD.PNG';
+const hero=div({style:{minHeight:'100vh',display:'flex',flexDirection:'column',justifyContent:'center',position:'relative',overflow:'hidden',paddingTop:'80px'}});
+// Books backdrop
+const heroBg=div({style:{position:'absolute',inset:'0',backgroundImage:'url('+BOOKS_IMG+')',backgroundSize:'cover',backgroundPosition:'center right',backgroundRepeat:'no-repeat',zIndex:'0'}});
+// Dark overlay — stronger on left for text, fades to reveal books on right
+const heroOverlay=div({style:{position:'absolute',inset:'0',background:'linear-gradient(to right, rgba(14,11,8,0.97) 0%, rgba(14,11,8,0.92) 35%, rgba(14,11,8,0.75) 55%, rgba(14,11,8,0.3) 75%, rgba(14,11,8,0.1) 100%)',zIndex:'1'}});
+// Bottom fade
+const heroFade=div({style:{position:'absolute',bottom:'0',left:'0',right:'0',height:'200px',background:'linear-gradient(to top, var(--bg) 0%, transparent 100%)',zIndex:'2'}});
+hero.append(heroBg,heroOverlay,heroFade);
+const hc=div({style:{position:'relative',zIndex:'3',padding:'0 48px',maxWidth:'700px'}});
 hc.append(
-h('span',{cls:'chapter',html:'— A Premium Study Platform —'}),
-h('h1',{cls:'big',html:'Study with<br><em class="gold-em">Deo Fortis!</em>'}),
-h('hr',{style:{border:'none',borderTop:'1px solid var(--border)',margin:'28px 0',maxWidth:'480px'}}),
-h('p',{cls:'muted',style:{fontSize:'16px',lineHeight:'1.8',maxWidth:'520px'},html:'A structured, evidence-based study system built for students who are done making excuses and ready to actually retain what they learn.'})
+  h('span',{cls:'chapter',style:{color:'var(--gold)',letterSpacing:'4px',marginBottom:'20px',display:'block'},html:'— A PREMIUM STUDY PLATFORM —'}),
+  h('h1',{cls:'big',style:{marginBottom:'20px',lineHeight:'0.95'},html:'Study with<br><em class="gold-em">Deo Fortis!</em>'}),
+  h('div',{style:{width:'60px',height:'2px',background:'var(--gold)',marginBottom:'24px'}}),
+  h('p',{cls:'muted',style:{fontSize:'16px',lineHeight:'1.8',maxWidth:'480px',marginBottom:'0'},html:'A structured, evidence-based study system built for students who are done making excuses and ready to actually retain what they learn.'})
 );
 const hbtns=div({style:{display:'flex',gap:'16px',marginTop:'32px',flexWrap:'wrap',alignItems:'center'}});
-hbtns.append(h('a',{cls:'btn btn-gold',href:'#plans',html:'View Plans →'}));
-const vbtn=div({style:{display:'inline-flex',alignItems:'center',gap:'10px',padding:'12px 24px',border:'1px solid var(--border)',borderRadius:'2px',fontFamily:"Inter,sans-serif",fontSize:'11px',letterSpacing:'2px',textTransform:'uppercase',color:'var(--muted)',cursor:'pointer'}});
-vbtn.append(div({style:{width:'24px',height:'24px',borderRadius:'50%',border:'1px solid var(--dim)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'10px',color:'var(--gold)',html:'▶'}}),document.createTextNode('Watch Demo (Optional)'));
+hbtns.append(h('a',{cls:'btn btn-gold',href:'#plans',style:{padding:'14px 32px',fontSize:'13px'},html:'View Plans →'}));
+const vbtn=div({style:{display:'inline-flex',alignItems:'center',gap:'10px',padding:'13px 24px',border:'1px solid rgba(184,146,46,0.3)',borderRadius:'2px',fontFamily:"Inter,sans-serif",fontSize:'11px',letterSpacing:'2px',textTransform:'uppercase',color:'var(--muted)',cursor:'pointer'}});
+const playIcon=div({style:{width:'22px',height:'22px',borderRadius:'50%',border:'1px solid var(--gold)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'9px',color:'var(--gold)'}});
+playIcon.textContent='▶';
+vbtn.append(playIcon,document.createTextNode('Watch Demo'));
 vbtn.onclick=()=>showVidModal(cfg.video);
 hbtns.append(vbtn);
 hc.append(hbtns);
-const stats=div({style:{display:'flex',gap:'48px',marginTop:'56px',flexWrap:'wrap'}});
-[['3','Recall Formats'],['100%','Full Access'],['∞','Sessions']].forEach(([n,l])=>{
-const s=div({style:{borderLeft:'2px solid var(--border)',paddingLeft:'16px'}});
-s.append(div({style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'36px',color:'var(--gold)',lineHeight:'1',fontWeight:'700'},html:n}),div({cls:'mono',style:{marginTop:'6px'},html:l}));
-stats.append(s);
+// Stats bar
+const statsBar=div({style:{display:'flex',gap:'0',marginTop:'56px',borderTop:'1px solid rgba(184,146,46,0.15)',paddingTop:'28px',flexWrap:'wrap',gap:'0'}});
+[['3','Recall Formats'],['100%','Full Access'],['∞','Sessions']].forEach(([n,l],i)=>{
+  const s=div({style:{paddingRight:'40px',marginRight:'40px',borderRight:i<2?'1px solid rgba(184,146,46,0.15)':'none'}});
+  s.append(
+    div({style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'32px',color:'var(--gold)',lineHeight:'1',fontWeight:'700'},html:n}),
+    div({cls:'mono',style:{marginTop:'6px',fontSize:'9px',letterSpacing:'3px'},html:l})
+  );
+  statsBar.append(s);
 });
-hc.append(stats);
+hc.append(statsBar);
 hero.append(hc);
 page.append(hero);
 const features=['Full Pomodoro System','Active Recall Engine (Theory, Anki, Vignette)','Request Recall Sessions Anytime','Feynman Arena — Teach What You Know','Leaderboard & Points System','Riddle & Emoji Bitz Decks','Personalised Study Goals','Clock In / Clock Out Tracking','Admin-Curated Q-Bank & Flashcards','Study Analytics & Streak Tracking'];
