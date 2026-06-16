@@ -1397,6 +1397,7 @@ verifyEmailLabel.textContent='We sent a 6-digit code to '+emailVal+'. It may tak
 submitBtn.textContent=sel?'Continue — '+sel.price:'Continue';submitBtn.disabled=false;
 };
 fc.append(submitBtn);
+wrap.append(fc);
 // ── Verification view ─────────────────────────────────────────────────────
 var verifyView=div({style:{display:'none'}});
 var verifyCard=div({cls:'card',style:{marginBottom:'20px'}});
