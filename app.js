@@ -60,10 +60,8 @@ sb.auth.onAuthStateChange(function(event,session){
 async function getProfile(id){
 const{data}=await sb.from('profiles').select('*').eq('id',id).single();
 if(!data){
-  // No student profile — could be an admin-only account
-  // Check if they have an admin role and route accordingly
-  const{data:ar}=await sb.from('admin_roles').select('role').eq('user_id',id).maybeSingle();
-  if(ar?.role){go('admin');}else{await sb.auth.signOut();go('landing');}
+  await sb.auth.signOut();
+  go('landing');
   return;
 }
 if(data){
