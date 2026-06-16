@@ -5,20 +5,20 @@ const sb=window.supabase.createClient(SURL,SKEY,{auth:{persistSession:true,autoR
 function sani(html){return DOMPurify.sanitize(html||'',{USE_PROFILES:{html:true}});}
 function dfLogo(){
   var wrap=document.createElement('div');
-  wrap.style.cssText='display:flex;align-items:center;gap:10px;text-decoration:none;cursor:pointer;';
-  var bookBox=document.createElement('div');
-  bookBox.style.cssText='width:38px;height:38px;background:#1A1510;border:1px solid rgba(184,146,46,0.3);border-radius:6px;display:flex;align-items:center;justify-content:center;position:relative;flex-shrink:0;';
-  bookBox.innerHTML='<svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" stroke="#7EB8A4" stroke-width="1.5" stroke-linecap="round"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" stroke="#7EB8A4" stroke-width="1.5"/><text x="7" y="14" font-family="Georgia,serif" font-style="italic" font-weight="700" font-size="9" fill="#B8922E" letter-spacing="-0.5">DF</text></svg>';
+  wrap.style.cssText='display:flex;align-items:center;gap:10px;cursor:pointer;user-select:none;';
+  var mark=document.createElement('div');
+  mark.style.cssText='width:36px;height:36px;flex-shrink:0;';
+  mark.innerHTML='<svg width="36" height="36" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="1" y="1" width="34" height="34" rx="5" fill="#14110D" stroke="#B8922E" stroke-width="1.5"/><line x1="18" y1="4" x2="18" y2="32" stroke="#B8922E" stroke-width="1" opacity="0.6"/><text x="9" y="24" font-family="Georgia,serif" font-style="italic" font-weight="700" font-size="16" fill="#B8922E">D</text><text x="20" y="24" font-family="Georgia,serif" font-style="italic" font-weight="700" font-size="16" fill="#7EB8A4">F</text></svg>';
   var textBox=document.createElement('div');
-  textBox.style.cssText='display:flex;flex-direction:column;line-height:1.2;';
+  textBox.style.cssText='display:flex;flex-direction:column;line-height:1.25;';
   var name=document.createElement('span');
-  name.style.cssText='font-family:Georgia,serif;font-style:italic;font-size:16px;font-weight:700;color:#B8922E;letter-spacing:0.3px;';
+  name.style.cssText='font-family:Georgia,serif;font-style:italic;font-size:16px;font-weight:700;color:var(--gold);letter-spacing:0.3px;';
   name.textContent='Deo Fortis';
   var tag=document.createElement('span');
   tag.style.cssText='font-family:Inter,sans-serif;font-size:8px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);font-weight:500;';
   tag.textContent='Everyone is gifted';
   textBox.append(name,tag);
-  wrap.append(bookBox,textBox);
+  wrap.append(mark,textBox);
   return wrap;
 }
 const ADMIN_FN='https://yygjkqkzbdjnyyrrhdku.supabase.co/functions/v1/admin-actions';
@@ -902,7 +902,7 @@ const page=div({});
 let scrolled=false;
 let cfg={video:'',links:{monthly:'#',sixmonth:'#',yearly:'#'},testimonials:[],packages:[]};
 const nav=div({cls:'top-nav',id:'tnav'});
-const navLogo=h('img',{src:'https://raw.githubusercontent.com/ambahtamaratubor-bot/STUDY-WITH-DEO-FORTIS/main/logo.png',alt:'Deo Fortis',style:{height:'40px',width:'auto',display:'block',cursor:'pointer'}});
+const navLogo=dfLogo();
 navLogo.onclick=()=>window.scrollTo({top:0,behavior:'smooth'});
 nav.append(
 navLogo,
@@ -920,7 +920,7 @@ const shelf=div({style:{position:'absolute',top:'100px',right:'0',opacity:'.1',d
 [{h:160,w:22,c:'#8B4513'},{h:200,w:30,c:'#2F4F4F'},{h:140,w:18,c:'#8B0000'},{h:185,w:26,c:'#4B0082'},{h:220,w:34,c:'#556B2F'},{h:150,w:20,c:'#8B6914'},{h:175,w:28,c:'#1C3A5E'},{h:130,w:16,c:'#6B3A2A'},{h:195,w:24,c:'#2E4A1E'},{h:210,w:32,c:'#4A1942'}].forEach(b=>shelf.append(div({style:{height:b.h+'px',width:b.w+'px',background:b.c,borderRadius:'2px 2px 0 0'}})));
 hero.append(shelf);
 const hc=div({style:{position:'relative',zIndex:'1'}});
-const heroLogo=h('img',{src:'https://raw.githubusercontent.com/ambahtamaratubor-bot/STUDY-WITH-DEO-FORTIS/main/logo.png',alt:'Deo Fortis',style:{height:'80px',width:'auto',display:'block',marginBottom:'24px'}});
+const heroLogo=(function(){var el=document.createElement('div');el.style.cssText='margin-bottom:24px;';el.innerHTML='<svg width="80" height="80" viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="2" width="76" height="76" rx="10" fill="#14110D" stroke="#B8922E" stroke-width="2"/><line x1="40" y1="8" x2="40" y2="72" stroke="#B8922E" stroke-width="1.5" opacity="0.6"/><text x="10" y="54" font-family="Georgia,serif" font-style="italic" font-weight="700" font-size="40" fill="#B8922E">D</text><text x="43" y="54" font-family="Georgia,serif" font-style="italic" font-weight="700" font-size="40" fill="#7EB8A4">F</text></svg>';return el;})();
 hc.append(
 h('span',{cls:'chapter',html:'— A Premium Study Platform —'}),
 h('h1',{cls:'big',html:'Study with<br><em class="gold-em">Deo Fortis!</em>'}),
@@ -1722,7 +1722,7 @@ function pending(){
 const page=div({cls:'center',style:{minHeight:'100vh',padding:'24px'}});
 const card=div({cls:'card fade',style:{width:'100%',maxWidth:'480px',textAlign:'center'}});
 card.append(
-h('img',{src:'https://raw.githubusercontent.com/ambahtamaratubor-bot/STUDY-WITH-DEO-FORTIS/main/logo.png',alt:'Deo Fortis',style:{height:'56px',width:'auto',display:'block',margin:'0 auto 24px'}}),
+(function(){var el=document.createElement('div');el.style.cssText='margin:0 auto 24px;width:56px;height:56px;';el.innerHTML='<svg width="56" height="56" viewBox="0 0 56 56" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="1.5" y="1.5" width="53" height="53" rx="7" fill="#14110D" stroke="#B8922E" stroke-width="1.5"/><line x1="28" y1="6" x2="28" y2="50" stroke="#B8922E" stroke-width="1" opacity="0.6"/><text x="7" y="38" font-family="Georgia,serif" font-style="italic" font-weight="700" font-size="26" fill="#B8922E">D</text><text x="30" y="38" font-family="Georgia,serif" font-style="italic" font-weight="700" font-size="26" fill="#7EB8A4">F</text></svg>';return el;})(),
 h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'24px',marginBottom:'12px'},html:'Your account is under review.'}),
 h('p',{cls:'muted',style:{fontSize:'15px',lineHeight:'1.7',marginBottom:'24px'},html:'Once your payment is confirmed you will receive an email and your dashboard will be unlocked. If you have already paid, enter your Selar reference below to activate immediately.'}),
 div({cls:'quote',style:{marginBottom:'24px',textAlign:'left'},html:'"Everyone is gifted."'}));
