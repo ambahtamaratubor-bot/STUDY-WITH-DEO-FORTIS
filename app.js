@@ -1548,13 +1548,18 @@ var verifyBtn=btn('Verify & Create Account','btn-gold',async function(){
       verifyBtn.textContent='Verify & Create Account';verifyBtn.disabled=false;return;
     }
     if(data&&data.user){
-      var isFreeSignup=localStorage.getItem('signupType')==='free'||(!pendingSignupData.sel);
+      var isFreeSignup=!pendingSignupData.sel;
       var trialExpiry=new Date();trialExpiry.setDate(trialExpiry.getDate()+3);
       var profileData={id:data.user.id,email:pendingSignupData.emailVal,full_name:pendingSignupData.nameVal,status:isFreeSignup?'approved':'pending',is_free_tier:isFreeSignup?true:false};
       if(isFreeSignup)profileData.access_expires_at=trialExpiry.toISOString();
       if(pendingSignupData.sel)profileData.plan=pendingSignupData.sel.name;
       await new Promise(function(r){setTimeout(r,1000);});
-      await sb.from('profiles').upsert(profileData,{onConflict:'id'});
+      var createResult=await callAdminFn('create_profile',profileData);
+      if(!createResult||!createResult.success){
+        verifyErr.classList.remove('hidden');
+        verifyErr.textContent='Account created but profile setup failed. Please contact support.';
+        verifyBtn.textContent='Verify & Create Account';verifyBtn.disabled=false;return;
+      }
       localStorage.removeItem('signupType');
       if(isFreeSignup){
         S.user=data.user;
