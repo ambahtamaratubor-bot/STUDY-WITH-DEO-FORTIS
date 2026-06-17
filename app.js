@@ -206,7 +206,26 @@ if(!S.user){
 }
 root.innerHTML='';
 function theory(){
-const page=div({});
+const page=div({cls:'dash-page'});
+if(S.profile?.is_free_tier===true&&!isInTrial()){
+  var navFreeT=div({cls:'dash-nav'});
+  navFreeT.append(dfLogo(),div({style:{display:'flex',gap:'8px'}},[btn('Back to Dashboard','btn-outline',function(){go('dashboard');},{style:{padding:'8px 16px'}}),makeThemeBtn()]));
+  page.append(navFreeT);
+  var previewT=div({cls:'inner'});
+  previewT.append(
+    div({style:{marginBottom:'32px'}},[
+      h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'11px',color:'var(--teal)',textTransform:'uppercase',letterSpacing:'1px',marginBottom:'8px'},html:'Theory Hub'}),
+      h('h1',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'32px',color:'var(--gold)',marginBottom:'8px'},html:'Your Theory Content'}),
+      h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'13px',color:'var(--dim)',lineHeight:'1.8',maxWidth:'520px'},html:'Active recall sessions are a paid feature. Request a theory session on any topic — your tutors build a personalised PDF and upload it here for you to read, respond to, and save as notes.'})
+    ]),
+    div({cls:'card',style:{padding:'24px',textAlign:'center'}},[
+      h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'13px',color:'var(--muted)',marginBottom:'16px'},html:'Upgrade to unlock Theory Hub and unlimited active recall sessions.'}),
+      btn('Upgrade Now','btn-gold',function(){showUpgradeModal();},{style:{padding:'10px 28px'}})
+    ])
+  );
+  page.append(previewT);
+  return page;
+}
 const nav=div({cls:'dash-nav'});
 const logo=dfLogo();
 const dashboardBtn=btn('← Dashboard','btn-outline',()=>go('dashboard'),{style:{padding:'8px 16px'}});
@@ -2245,7 +2264,7 @@ twoCol.append(recentCard);
       actionButton(ICONS.trophy,'Leaderboard',()=>go('leaderboard')),
       actionButton(ICONS.message,'Community',()=>{if(commLink&&commLink!=='#')window.open(commLink,'_blank');}),
       actionButton(ICONS.brain,'Feynman Arena',()=>go('feynman')),
-      actionButton(ICONS.file,'Theory Hub',()=>go('theory')),
+      actionButton(ICONS.file,'Theory Hub',()=>{if(isFree&&!isInTrial()){showUpgradeModal();return;}go('theory');}),
       actionButton(ICONS.book,'My Notes',()=>go('notes'))
     ])
   );
@@ -2827,7 +2846,7 @@ async function showBitz(){
 inner.innerHTML='';
 inner.append(h('span',{cls:'chapter',html:'Riddle & Emoji Bitz'}),h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'32px',marginBottom:'8px'},html:'Brain Teasers & Emoji Challenges'}),h('p',{cls:'muted',style:{fontSize:'14px',marginBottom:'32px'},html:'Brain teasers and emoji challenges to keep your mind sharp.'}));
 (async()=>{
-var bitzQuery=isFree?sb.from('flashcard_decks').select('*').or('type.eq.riddle,type.eq.emoji').eq('is_global',true).is('user_id',null).order('created_at',{ascending:false}):sb.from('flashcard_decks').select('*').or('type.eq.riddle,type.eq.emoji').or('user_id.eq.'+S.user.id+',user_id.is.null').order('created_at',{ascending:false});
+var bitzQuery=(isFree&&!isInTrial())?sb.from('flashcard_decks').select('*').or('type.eq.riddle,type.eq.emoji').eq('is_global',true).is('user_id',null).order('created_at',{ascending:false}):sb.from('flashcard_decks').select('*').or('type.eq.riddle,type.eq.emoji').or('user_id.eq.'+S.user.id+',user_id.is.null').order('created_at',{ascending:false});
 var{data:bdecks}=await bitzQuery;
 if(!bdecks||!bdecks.length){inner.append(div({cls:'card',style:{textAlign:'center',padding:'48px'}},[h('p',{style:{fontSize:'14px',color:'var(--dim)'},html:'No riddle or emoji decks available yet.'},[])]));}
 else{var grid=div({style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(240px,1fr))',gap:'16px',marginBottom:'32px'}});bdecks.forEach(function(deck){var card=div({cls:'card',style:{cursor:'pointer'}});card.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'18px',color:'var(--text)',marginBottom:'8px'},html:deck.name||deck.topic},[]),btn('Start Deck →','btn-gold',function(){loadDeck(deck);},{style:{width:'100%',marginTop:'16px'}}));grid.append(card);});inner.append(grid);}
@@ -2880,7 +2899,7 @@ if(_drs&&_drs.deckId&&_drs.currentIndex>0){
   );
   inner.append(resumeBanner);
 }
-const{data}=await (isFree?sb.from('flashcard_decks').select('*').eq('type','flashcard').eq('is_global',true).is('user_id',null).order('created_at',{ascending:false}):sb.from('flashcard_decks').select('*').or('user_id.eq.'+S.user.id+',user_id.is.null').neq('type','riddle').neq('type','emoji').order('created_at',{ascending:false}));
+const{data}=await ((isFree&&!isInTrial())?sb.from('flashcard_decks').select('*').eq('type','flashcard').eq('is_global',true).is('user_id',null).order('created_at',{ascending:false}):sb.from('flashcard_decks').select('*').or('user_id.eq.'+S.user.id+',user_id.is.null').neq('type','riddle').neq('type','emoji').order('created_at',{ascending:false}));
 decks=data||[];
 if(!decks.length){inner.append(div({cls:'card',style:{textAlign:'center',padding:'48px'}},[div({style:{fontSize:'40px',marginBottom:'16px'},html:' '}),h('p',{style:{fontSize:'14px',color:'var(--dim)'},html:'No flashcard decks yet.'})]));return;}
 const grid=div({style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(240px,1fr))',gap:'16px'}});
