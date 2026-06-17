@@ -19,7 +19,7 @@ const ADMIN_FN='https://yygjkqkzbdjnyyrrhdku.supabase.co/functions/v1/admin-acti
 async function callAdminFn(action,payload){
   const{data:{session}}=await sb.auth.getSession();
   if(!session?.access_token){console.warn('callAdminFn no session:',action);return{success:false,error:'Not authenticated'};}
-  const res=await fetch(ADMIN_FN,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify({action,...payload})});
+  const res=await fetch(ADMIN_FN,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+session.access_token},body:JSON.stringify({action,...payload})});
   return res.json();
 }
 let themeToggleBtns=[];
