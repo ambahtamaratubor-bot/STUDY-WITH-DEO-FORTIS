@@ -1548,7 +1548,7 @@ var verifyBtn=btn('Verify & Create Account','btn-gold',async function(){
       verifyBtn.textContent='Verify & Create Account';verifyBtn.disabled=false;return;
     }
     if(data&&data.user){
-      var isFreeSignup=localStorage.getItem('signupType')==='free';
+      var isFreeSignup=localStorage.getItem('signupType')==='free'||(!pendingSignupData.sel);
       var trialExpiry=new Date();trialExpiry.setDate(trialExpiry.getDate()+3);
       var profileData={id:data.user.id,email:pendingSignupData.emailVal,full_name:pendingSignupData.nameVal,status:isFreeSignup?'approved':'pending',is_free_tier:isFreeSignup?true:false};
       if(isFreeSignup)profileData.access_expires_at=trialExpiry.toISOString();
