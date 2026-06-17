@@ -71,7 +71,12 @@ sb.auth.onAuthStateChange(function(event,session){
   }
 });
 async function getProfile(id){
-const{data}=await sb.from('profiles').select('*').eq('id',id).single();
+let{data,error}=await sb.from('profiles').select('*').eq('id',id).single();
+if(!data&&error){
+  await sb.auth.refreshSession();
+  const retry=await sb.from('profiles').select('*').eq('id',id).single();
+  data=retry.data;
+}
 if(data){
   if(data.is_free_tier===null||data.is_free_tier===undefined){
     if(data.status==='approved'){
