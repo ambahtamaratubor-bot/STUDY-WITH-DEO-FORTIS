@@ -150,6 +150,21 @@ return e;
 }
 function div(a,k){return h('div',a,k);}
 function btn(text,cls,onclick,extra){const b=h('button',{cls:'btn '+cls,onclick,...extra},[text]);return b;}
+function skel(lines,opts){
+  opts=opts||{};
+  const wrap=div({style:{padding:opts.pad||'0'}});
+  if(opts.circle){const c=div({cls:'skel skel-circle',style:{width:opts.size||'40px',height:opts.size||'40px',marginBottom:'12px'}});wrap.append(c);}
+  (lines||[]).forEach(function(w){
+    const l=div({cls:'skel skel-line '+(opts.size==='lg'?'lg':opts.size==='xl'?'xl':opts.size==='sm'?'sm':''),style:{width:w,maxWidth:'100%'}});
+    wrap.append(l);
+  });
+  return wrap;
+}
+function skelCard(rows){
+  const c=div({cls:'skel-card',style:{marginBottom:'12px'}});
+  rows.forEach(function(r){c.append(skel(r));});
+  return c;
+}
 function inp(ph,type='text',val=''){const i=h('input',{cls:'input',placeholder:ph,type,value:val});return i;}
 function fmtMS(s){return String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0');}
 function fmtHMS(s){return String(Math.floor(s/3600)).padStart(2,'0')+':'+String(Math.floor((s%3600)/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0');}
@@ -234,7 +249,9 @@ const inner=div({cls:'inner'});
 inner.append(h('span',{cls:'chapter',html:'Theory Hub'}),h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'26px',marginBottom:'8px'},html:'Your Theory Content'}),h('p',{cls:'muted',style:{fontSize:'14px',marginBottom:'32px'},html:'Review your theory materials and record your recall responses.'}));
 var mapletT=showMaplet('theory','Your personalised theory PDFs live here. Read, respond, and save your notes directly from this page.');if(mapletT)inner.append(mapletT);
 (async()=>{
+const theorySkel=skelCard([['40%'],['100%'],['100%'],['80%']]);inner.append(theorySkel);
 const{data:pdfs}=await sb.from('theory_pdfs').select('*').eq('user_id',S.user.id).order('created_at',{ascending:false});
+theorySkel.remove();
 if(!pdfs||pdfs.length===0){const emptyCard=div({cls:'card',style:{textAlign:'center',padding:'40px'}});emptyCard.append(h('p',{style:{color:'var(--muted)',fontSize:'14px'},html:'No theory content yet. Request an active recall session to get started.'}));inner.append(emptyCard);}
 else{
 const pdfCard=div({cls:'card',style:{marginTop:'12px'}});
@@ -300,7 +317,9 @@ const inner=div({cls:'inner'});
 inner.append(h('span',{cls:'chapter',html:'My Notes'},[]),h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'26px',marginBottom:'8px'},html:'My Notes'},[]),h('p',{cls:'muted',style:{fontSize:'14px',marginBottom:'32px'},html:'Your saved recall responses, organised by topic.'},[]));
 var mapletN=showMaplet('notes','All your saved recall responses live here. Organise by folder, edit anytime, and export as a branded PDF.');if(mapletN)inner.append(mapletN);
 async function loadNotes(){
+const notesSkel=skelCard([['50%'],['100%'],['80%'],['100%'],['60%']]);inner.append(notesSkel);
 const{data:nlist}=await sb.from('notes').select('*').eq('user_id',S.user.id).order('created_at',{ascending:false});
+notesSkel.remove();
 Array.from(inner.children).forEach(function(c){if(c.id==='notes-content')c.remove();});
 const notesContent=div({});notesContent.id='notes-content';
 if(!nlist||nlist.length===0){const emptyCard=div({cls:'card',style:{textAlign:'center',padding:'40px'}},[]);const emptyMsg=h('p',{style:{color:'var(--muted)',fontSize:'14px'},html:'No notes yet. Go to Theory Hub to save your first recall response.'},[]);emptyCard.append(emptyMsg);notesContent.append(emptyCard);inner.append(notesContent);return;}
@@ -842,14 +861,15 @@ function renderGoalsProgress(){
     function makeBar(label,actual,goal){
       const pct=Math.min(100,Math.round((actual/goal)*100));
       const color=actual>=goal?'var(--teal)':'var(--gold)';
+      const glow=actual>=goal?'0 0 10px rgba(126,184,164,0.5)':'0 0 10px rgba(184,146,46,0.5)';
       const row=div({style:{marginBottom:'14px'}});
       row.append(
-        div({style:{display:'flex',justifyContent:'space-between',marginBottom:'4px'}},[
+        div({style:{display:'flex',justifyContent:'space-between',marginBottom:'5px'}},[
           h('span',{style:{fontFamily:'Inter,sans-serif',fontSize:'12px',color:'var(--text)'},html:label}),
           h('span',{style:{fontFamily:'Inter,sans-serif',fontSize:'12px',color:actual>=goal?'var(--teal)':'var(--gold)'},html:formatTime(actual)+' / '+formatTime(goal)+(actual>=goal?' ✓':'')})
         ]),
-        div({style:{background:'var(--card2)',borderRadius:'2px',height:'6px',overflow:'hidden'}},[
-          div({style:{height:'100%',width:pct+'%',background:color,borderRadius:'2px',transition:'width 0.6s ease'}})
+        div({cls:'df-prog'},[
+          div({style:{height:'100%',width:pct+'%',background:color,borderRadius:'4px',transition:'width 0.6s ease',boxShadow:glow}})
         ])
       );
       return row;
@@ -2267,8 +2287,9 @@ const recentCard=div({cls:'card df-sess-card'});
 recentCard.append(
   h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'18px',marginBottom:'4px'},html:'Recent Sessions'}),
   h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'12px',color:'var(--muted)',marginBottom:'16px'},html:'your last 5 study blocks'}),
-  div({id:'slist',html:'<p style="font-size:14px;color:var(--dim)">Loading...</p>'})
+  div({id:'slist'})
 );
+(function(){var sl=document.getElementById('slist');if(sl){sl.append(skel(['55%','80%'],{pad:'8px 0'}),skel(['45%','70%'],{pad:'8px 0'}),skel(['60%','75%'],{pad:'8px 0'}));}})();
 twoCol.append(recentCard);
 
 // RIGHT — Quick Actions (loaded async for community link)
@@ -2873,10 +2894,12 @@ page.append(tabBar);
 const inner=div({cls:'inner-sm'});page.append(inner);
 async function showBitz(){
 inner.innerHTML='';
+const bitzSkel=div({});for(var _j=0;_j<3;_j++){bitzSkel.append(skelCard([['60%'],['80%'],['40%']]));} inner.append(bitzSkel);
 inner.append(h('span',{cls:'chapter',html:'Riddle & Emoji Bitz'}),h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'32px',marginBottom:'8px'},html:'Brain Teasers & Emoji Challenges'}),h('p',{cls:'muted',style:{fontSize:'14px',marginBottom:'32px'},html:'Brain teasers and emoji challenges to keep your mind sharp.'}));
 (async()=>{
 var bitzQuery=(isFree&&!isInTrial())?sb.from('flashcard_decks').select('*').or('type.eq.riddle,type.eq.emoji').eq('is_global',true).is('user_id',null).order('created_at',{ascending:false}):sb.from('flashcard_decks').select('*').or('type.eq.riddle,type.eq.emoji').or('user_id.eq.'+S.user.id+',user_id.is.null').order('created_at',{ascending:false});
 var{data:bdecks}=await bitzQuery;
+bitzSkel.remove();
 if(!bdecks||!bdecks.length){inner.append(div({cls:'card',style:{textAlign:'center',padding:'48px'}},[h('p',{style:{fontSize:'14px',color:'var(--dim)'},html:'No riddle or emoji decks available yet.'},[])]));}
 else{var grid=div({style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(240px,1fr))',gap:'16px',marginBottom:'32px'}});bdecks.forEach(function(deck){var card=div({cls:'card',style:{cursor:'pointer'}});card.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'18px',color:'var(--text)',marginBottom:'8px'},html:deck.name||deck.topic},[]),btn('Start Deck →','btn-gold',function(){loadDeck(deck);},{style:{width:'100%',marginTop:'16px'}}));grid.append(card);});inner.append(grid);}
 var submitCard=div({cls:'card',style:{marginTop:'24px'}});
@@ -2900,6 +2923,7 @@ inner.append(submitCard);
 }
 async function showDecks(){
 inner.innerHTML='';
+const deckSkel=div({});for(var _i=0;_i<3;_i++){deckSkel.append(skelCard([['60%'],['80%'],['40%']]));} inner.append(deckSkel);
 inner.append(h('span',{cls:'chapter',html:'Flashcard Decks'}),h('h1',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'40px',fontWeight:'700',marginBottom:'8px'},html:'Study <em class="gold-em">Flashcards</em>'}),h('p',{cls:'muted',style:{fontSize:'14px',marginBottom:'40px'},html:'Select a deck. Mark cards Easy, Iffy, or Hard as you go.'}));
 var mapletF=showMaplet('flashcards','Flip through your deck and rate each card. Hard cards come back sooner — that is spaced repetition working for you.');if(mapletF)inner.append(mapletF);
 var _drs=null;try{var _drk='deck_resume_'+(S.user&&S.user.id||'x');var _drr=localStorage.getItem(_drk);if(_drr){_drs=JSON.parse(_drr);}}catch(e){}
@@ -2929,7 +2953,7 @@ if(_drs&&_drs.deckId&&_drs.currentIndex>0){
   inner.append(resumeBanner);
 }
 const{data}=await ((isFree&&!isInTrial())?sb.from('flashcard_decks').select('*').eq('type','flashcard').eq('is_global',true).is('user_id',null).order('created_at',{ascending:false}):sb.from('flashcard_decks').select('*').or('user_id.eq.'+S.user.id+',user_id.is.null').neq('type','riddle').neq('type','emoji').order('created_at',{ascending:false}));
-decks=data||[];
+deckSkel.remove();decks=data||[];
 if(!decks.length){inner.append(div({cls:'card',style:{textAlign:'center',padding:'48px'}},[div({style:{fontSize:'40px',marginBottom:'16px'},html:' '}),h('p',{style:{fontSize:'14px',color:'var(--dim)'},html:'No flashcard decks yet.'})]));return;}
 const grid=div({style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(240px,1fr))',gap:'16px'}});
 decks.forEach(deck=>{
@@ -3994,7 +4018,7 @@ inner.append(
   ]),
   h('p',{cls:'muted',style:{fontSize:'14px',marginBottom:'40px'},html:'Rankings based on total points. Updated in real time.'})
 );
-const board=div({cls:'card',style:{marginBottom:'32px'},id:'board',html:'<p style="font-size:14px;color:var(--dim);text-align:center;padding:20px">Loading...</p>'});
+const board=div({cls:'card',style:{marginBottom:'32px'},id:'board'});board.append(skelCard([['60%'],['80%'],['40%']]),skelCard([['60%'],['80%'],['40%']]),skelCard([['60%'],['80%'],['40%']]));
 inner.append(board);
 const bc=div({cls:'card',style:{textAlign:'center',borderColor:'var(--gold-border)',borderTopWidth:'3px',borderTopColor:'var(--gold)'}});
 bc.append(div({style:{fontSize:'32px',marginBottom:'12px'},html:ICONS.book}),h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'22px',marginBottom:'8px'},html:'Want Personal Tutoring?'}),h('p',{cls:'muted',style:{fontSize:'14px',lineHeight:'1.7',marginBottom:'20px'},html:'Work directly with me. Get personalised guidance and full portal access.'}),btn('Book a Session →','btn-gold',()=>showBooking()));
@@ -4002,6 +4026,7 @@ inner.append(bc);page.append(inner);
 (async()=>{
 const{data:leaderUsers}=await sb.from('profiles').select('id,full_name,total_points,total_study_minutes,streak_count').eq('status','approved').order('total_points',{ascending:false}).limit(20);
 const b=document.getElementById('board');if(!b)return;
+b.innerHTML='';
 if(!leaderUsers||!leaderUsers.length){b.innerHTML='<p style="font-size:14px;color:var(--dim);text-align:center;padding:20px">No data yet. Be the first to clock in!</p>';return;}
 const now=new Date();
 const thisMonday=new Date(now);thisMonday.setDate(now.getDate()-now.getDay()+(now.getDay()===0?-6:1));thisMonday.setHours(0,0,0,0);
@@ -4198,7 +4223,7 @@ adminLayout.append(sidebar,div({style:{flex:'1',overflowY:'auto'}},[tabs,content
 page.append(adminLayout);
 let currentFilter='pending';
 async function loadTab(tab){
-content.innerHTML='<p style="color:var(--dim);font-size:14px;padding:24px">Loading...</p>';
+content.innerHTML='';content.append(skelCard([['40%'],['70%'],['50%']]),skelCard([['60%'],['80%'],['45%']]));
 if(tab==='settings'){
 const{data:s}=await sb.from('admin_settings').select('*').single();
 const set=s||{};
@@ -4853,7 +4878,7 @@ card.append(uploadBtn,repairBtn,upSt);
 const qListDiv=div({style:{marginTop:'24px'}});
 let selectedIds=new Set();
 async function loadQuestionList(){
-  qListDiv.innerHTML='<div style="font-family:Inter,sans-serif;font-size:11px;color:var(--dim);padding:8px 0">Loading...</div>';
+  qListDiv.innerHTML='';qListDiv.append(skel(['60%','80%','40%']),skel(['50%','70%','60%']));
   selectedIds=new Set();
   // Get total count first (no limit)
   const{count}=await sb.from('vignette_questions').select('*',{count:'exact',head:true}).is('user_id',null);
