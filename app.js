@@ -1966,12 +1966,16 @@ function showExpiryBanner(daysLeft){
 // COLLAPSIBLE SECTION HELPER
 // ═══════════════════════════════
 function collapsibleSection(title,contentBuilder){
-  const card=div({cls:'card',style:{marginBottom:'16px'}});
+  const iconMap={'Study Consistency':ICONS.target,'Q-Bank Performance':ICONS.question,'Flashcard Progress':ICONS.layers};
+  const card=div({cls:'df-coll-row',style:{marginBottom:'8px'}});
   let loaded=false;
-  const chevron=h('span',{style:{fontSize:'14px',color:'var(--dim)'},html:SVG_CHEVRON_RIGHT});
-  const header=div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',cursor:'pointer',paddingBottom:'12px',borderBottom:'1px solid var(--border)'}});
-  header.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'18px',margin:'0'},html:title}),chevron);
-  const contentDiv=div({style:{display:'none',paddingTop:'16px'}});
+  const iconEl=div({cls:'df-coll-icon'});
+  iconEl.innerHTML=iconMap[title]||ICONS.target;
+  const chevron=h('span',{style:{fontSize:'14px',color:'var(--dim)',marginLeft:'auto'},html:SVG_CHEVRON_RIGHT});
+  const titleEl=h('span',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'13px',fontWeight:'500',color:'var(--muted)',flex:'1'},html:title});
+  const header=div({style:{display:'flex',alignItems:'center',gap:'12px',width:'100%',cursor:'pointer'}});
+  header.append(iconEl,titleEl,chevron);
+  const contentDiv=div({style:{display:'none',paddingTop:'12px',borderTop:'1px solid var(--border)',marginTop:'12px',width:'100%'}});
   header.onclick=()=>{
     const open=contentDiv.style.display==='block';
     contentDiv.style.display=open?'none':'block';
@@ -2022,18 +2026,29 @@ page.append(container);
 
 // STAT CARD HELPER
 function statCard(title,value,barColor,subLabel=''){
-  const wrap=div({style:{position:'relative',background:'var(--card)',border:'1px solid var(--border)',borderRadius:'12px',overflow:'hidden',boxShadow:'0 10px 25px rgba(0,0,0,0.05),0 2px 6px rgba(0,0,0,0.03)',padding:'18px 16px'}});
-  const iconEl=div({style:{position:'absolute',top:'14px',right:'14px',width:'32px',height:'32px',borderRadius:'50%',background:'rgba(198,168,90,0.12)',display:'flex',alignItems:'center',justifyContent:'center',color:'var(--gold)'}});
-  iconEl.innerHTML=title.toLowerCase().includes('point')?ICONS.star:ICONS.target;
-  const barsEl=div({style:{display:'flex',gap:'3px',alignItems:'flex-end',marginTop:'14px',height:'24px'}});
-  [40,55,35,70,45,90,60].forEach(function(pct,i){var col=div({style:{width:'6px',borderRadius:'2px',height:pct+'%',background:i%2===0?'rgba(198,168,90,0.2)':'var(--gold)'}});barsEl.append(col);});
+  const isPoints=title.toLowerCase().includes('point');
+  const wrap=div({cls:'df-stat-card'});
+  const fireEl=div({cls:'df-stat-fire'});
   wrap.append(
-    iconEl,
-    h('div',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'36px',color:'var(--text)',fontWeight:'700',letterSpacing:'-1px',lineHeight:'1'},html:String(value)}),
-    h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'10px',textTransform:'uppercase',color:'var(--muted)',letterSpacing:'2px',marginTop:'6px'},html:title}),
-    barsEl,
-    subLabel?h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'12px',color:'var(--teal)',marginTop:'4px'},html:subLabel}):null
+    h('div',{cls:'df-stat-val',html:String(value)}),
+    h('div',{cls:'df-stat-lbl',html:title}),
+    fireEl
   );
+  if(isPoints){
+    const wm=div({cls:'df-stat-watermark'});
+    wm.innerHTML='<svg width="110" height="110" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="0.8"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r="1.5" fill="currentColor"/></svg>';
+    wrap.append(wm);
+  } else {
+    const barsEl=div({cls:'df-stat-bars'});
+    [18,30,14,40,22,50,32,20,38,25,45,28,35,42,26,48,33,44,19,36].forEach(function(v){
+      const max=48;
+      const b=div({cls:'df-stat-bar'});
+      b.style.height=Math.round((v/max)*36)+'px';
+      barsEl.append(b);
+    });
+    wrap.append(barsEl);
+  }
+  if(subLabel)wrap.append(h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'12px',color:'var(--teal)',marginTop:'4px'},html:subLabel}));
   return wrap;
 }
 
@@ -2053,16 +2068,16 @@ function actionButton(icon,label,onClick){
 }
 
 // GREETING ROW + STREAK BADGE
-const greetingRow=div({style:{marginBottom:'20px'}});
+const greetingRow=div({cls:'df-welcome-card',style:{marginBottom:'16px'}});
 greetingRow.append(
-  h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'11px',fontWeight:'600',letterSpacing:'2px',color:'var(--gold)',marginBottom:'4px'},html:'WELCOME BACK'}),
-  h('h1',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'30px',fontWeight:'700',letterSpacing:'-0.5px',color:'var(--text)',lineHeight:'1.1',marginBottom:'5px'},html:p.full_name||'Scholar'}),
-  h('p',{style:{fontFamily:'Inter,sans-serif',fontSize:'12px',color:'var(--muted)'},html:'Plan: <span style="color:var(--gold);font-weight:500">'+(p.plan||'Active')+'</span> · Expires: '+(p.access_expires_at?new Date(p.access_expires_at).toLocaleDateString():'Active')}),
-  div({style:{display:'inline-flex',alignItems:'center',gap:'10px',background:'var(--card)',border:'1px solid var(--border)',borderRadius:'10px',padding:'10px 16px',marginTop:'14px',boxShadow:'0 2px 6px rgba(0,0,0,0.03)'}},[
+  h('div',{style:{fontFamily:'"Plus Jakarta Sans",sans-serif',fontSize:'10px',fontWeight:'700',letterSpacing:'2px',color:'var(--gold)',marginBottom:'3px'},html:'WELCOME BACK'}),
+  h('h1',{style:{fontFamily:'"Plus Jakarta Sans",sans-serif',fontSize:'26px',fontWeight:'700',letterSpacing:'-0.5px',color:'var(--text)',lineHeight:'1.1',marginBottom:'4px'},html:p.full_name||'Scholar'}),
+  h('p',{style:{fontFamily:'"Plus Jakarta Sans",sans-serif',fontSize:'11px',color:'var(--muted)'},html:'Plan: <span style="color:var(--gold);font-weight:500">'+(p.plan||'Active')+'</span> · Expires: '+(p.access_expires_at?new Date(p.access_expires_at).toLocaleDateString():'Active')}),
+  div({style:{display:'inline-flex',alignItems:'center',gap:'8px',background:'var(--bg)',border:'1px solid var(--gold-border)',borderRadius:'8px',padding:'8px 14px',marginTop:'10px'}},[
     h('span',{style:{display:'flex',alignItems:'center'},html:SVG_FIRE}),
     div({},[
-      h('div',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'22px',fontWeight:'700',color:'var(--text)',lineHeight:'1'},html:String((isFree&&!isInTrial())?Math.min(1,p.streak_count||0):(p.streak_count||0))}),
-      h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'11px',color:'var(--muted)',marginTop:'2px'},html:(isFree&&!isInTrial())?'locked':'day streak'})
+      h('div',{style:{fontFamily:'"Plus Jakarta Sans",sans-serif',fontSize:'20px',fontWeight:'700',color:'var(--text)',lineHeight:'1'},html:String((isFree&&!isInTrial())?Math.min(1,p.streak_count||0):(p.streak_count||0))}),
+      h('div',{style:{fontFamily:'"Plus Jakarta Sans",sans-serif',fontSize:'10px',color:'var(--muted)',marginTop:'1px'},html:(isFree&&!isInTrial())?'locked':'day streak'})
     ])
   ])
 );
@@ -2109,7 +2124,7 @@ statsGrid.append(
 container.append(statsGrid);
 
 // GOALS PROGRESS SECTION
-const goalsSection=div({cls:'card',style:{marginBottom:'28px'}});
+const goalsSection=div({cls:'card df-goals-card',style:{marginBottom:'16px'}});
 let goalsOpen=true;
 const goalsHeader=div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'16px',cursor:'pointer'}});
 const goalsToggle=h('span',{style:{color:'var(--dim)',transition:'transform 0.2s'},html:SVG_CHEVRON_DOWN});
@@ -2241,7 +2256,7 @@ const twoCol=div({cls:'df-two-col',style:{display:'grid',gridTemplateColumns:'2f
 container.append(twoCol);
 
 // LEFT — Recent Sessions
-const recentCard=div({cls:'card',style:{borderRadius:'12px',boxShadow:'0 10px 25px rgba(0,0,0,0.05),0 2px 6px rgba(0,0,0,0.03)'}});
+const recentCard=div({cls:'card',style:{borderRadius:'12px',boxShadow:'0 8px 32px rgba(0,0,0,0.5),inset 0 1px 0 rgba(255,255,255,0.02)'}});
 recentCard.append(
   h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'18px',marginBottom:'4px'},html:'Recent Sessions'}),
   h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'12px',color:'var(--muted)',marginBottom:'16px'},html:'your last 5 study blocks'}),
@@ -2357,7 +2372,7 @@ async function loadSess(){
     const startTime=start.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'});
     const endTime=end?end.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'}):'ongoing';
     const mins=s.duration_minutes||(end?Math.round((end-start)/60000):0);
-    const clockIcon=div({style:{width:'30px',height:'30px',borderRadius:'50%',border:'1.5px solid var(--gold-border)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:'0',color:'var(--gold)'}});clockIcon.innerHTML=ICONS.target;
+    const clockIcon=div({cls:'df-sess-clk'});clockIcon.innerHTML=ICONS.target;
     row.append(
       div({style:{display:'flex',alignItems:'center',gap:'12px'}},[
         clockIcon,
