@@ -2040,7 +2040,7 @@ function actionButton(icon,label,onClick){
   btn2.onmouseenter=()=>btn2.style.background='var(--gold-subtle)';
   btn2.onmouseleave=()=>btn2.style.background='transparent';
   btn2.append(
-    h('div',{style:{width:'24px',height:'24px',marginBottom:'8px',display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 8px auto'},html:icon}),
+    h('div',{style:{width:'24px',height:'24px',marginBottom:'8px',display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 8px auto',color:'var(--text)'},html:icon}),
     h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'13px',color:'var(--text)'},html:label}),
     h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'11px',color:'var(--muted)'},html:'→'})
   );
