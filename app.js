@@ -2039,8 +2039,10 @@ function actionButton(icon,label,onClick){
   const btn2=div({style:{border:'1px solid var(--border)',padding:'12px',borderRadius:'2px',cursor:'pointer',background:'transparent',textAlign:'center'},onclick:onClick});
   btn2.onmouseenter=()=>btn2.style.background='var(--gold-subtle)';
   btn2.onmouseleave=()=>btn2.style.background='transparent';
+  const iconDiv=div({style:{display:'flex',alignItems:'center',justifyContent:'center',marginBottom:'8px',color:'var(--text)'}});
+  iconDiv.innerHTML=icon;
   btn2.append(
-    h('div',{style:{width:'24px',height:'24px',marginBottom:'8px',display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 8px auto',color:'var(--text)'},html:icon}),
+    iconDiv,
     h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'13px',color:'var(--text)'},html:label}),
     h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'11px',color:'var(--muted)'},html:'→'})
   );
