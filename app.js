@@ -2069,17 +2069,21 @@ function actionButton(icon,label,onClick){
 
 // GREETING ROW + STREAK BADGE
 const greetingRow=div({cls:'df-welcome-card',style:{marginBottom:'16px'}});
-greetingRow.append(
-  h('div',{style:{fontFamily:'"Plus Jakarta Sans",sans-serif',fontSize:'10px',fontWeight:'700',letterSpacing:'2px',color:'var(--gold)',marginBottom:'3px'},html:'WELCOME BACK'}),
-  h('h1',{style:{fontFamily:'"Plus Jakarta Sans",sans-serif',fontSize:'26px',fontWeight:'700',letterSpacing:'-0.5px',color:'var(--text)',lineHeight:'1.1',marginBottom:'4px'},html:p.full_name||'Scholar'}),
-  h('p',{style:{fontFamily:'"Plus Jakarta Sans",sans-serif',fontSize:'11px',color:'var(--muted)'},html:'Plan: <span style="color:var(--gold);font-weight:500">'+(p.plan||'Active')+'</span> · Expires: '+(p.access_expires_at?new Date(p.access_expires_at).toLocaleDateString():'Active')}),
-  div({style:{display:'inline-flex',alignItems:'center',gap:'8px',background:'var(--bg)',border:'1px solid var(--gold-border)',borderRadius:'8px',padding:'8px 14px',marginTop:'10px'}},[
-    h('span',{style:{display:'flex',alignItems:'center'},html:SVG_FIRE}),
-    div({},[
-      h('div',{style:{fontFamily:'"Plus Jakarta Sans",sans-serif',fontSize:'20px',fontWeight:'700',color:'var(--text)',lineHeight:'1'},html:String((isFree&&!isInTrial())?Math.min(1,p.streak_count||0):(p.streak_count||0))}),
-      h('div',{style:{fontFamily:'"Plus Jakarta Sans",sans-serif',fontSize:'10px',color:'var(--muted)',marginTop:'1px'},html:(isFree&&!isInTrial())?'locked':'day streak'})
-    ])
+const streakPill=div({style:{display:'inline-flex',alignItems:'center',gap:'5px',background:'var(--bg)',border:'1px solid var(--gold-border)',borderRadius:'6px',padding:'5px 9px',flexShrink:'0'}});
+streakPill.append(
+  h('span',{style:{display:'flex',alignItems:'center'},html:SVG_FIRE}),
+  div({},[
+    h('div',{style:{fontFamily:'"Plus Jakarta Sans",sans-serif',fontSize:'14px',fontWeight:'700',color:'var(--text)',lineHeight:'1'},html:String((isFree&&!isInTrial())?Math.min(1,p.streak_count||0):(p.streak_count||0))}),
+    h('div',{style:{fontFamily:'"Plus Jakarta Sans",sans-serif',fontSize:'8px',color:'var(--muted)',marginTop:'1px'},html:(isFree&&!isInTrial())?'locked':'streak'})
   ])
+);
+const welcomeTop=div({style:{display:'flex',alignItems:'center',justifyContent:'space-between',gap:'8px',marginBottom:'8px'}});
+const welcomeHeading=h('h1',{style:{fontFamily:"'Playfair Display',serif",fontStyle:'italic',fontSize:'20px',fontWeight:'700',lineHeight:'1',flex:'1',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}});
+welcomeHeading.innerHTML='<em style="color:var(--gold);font-style:italic">Welcome,</em> <span style="color:var(--teal)">'+(p.full_name||'Scholar')+'!</span>';
+welcomeTop.append(welcomeHeading,streakPill);
+greetingRow.append(
+  welcomeTop,
+  h('p',{style:{fontFamily:'"Plus Jakarta Sans",sans-serif',fontSize:'10px',color:'var(--text)',opacity:'0.45',lineHeight:'1.7'},html:'Plan: '+(p.plan||'Active')+' &nbsp;·&nbsp; Expires: '+(p.access_expires_at?new Date(p.access_expires_at).toLocaleDateString():'Active')})
 );
 container.append(greetingRow);
 if(isInTrial()){
@@ -2256,7 +2260,7 @@ const twoCol=div({cls:'df-two-col',style:{display:'grid',gridTemplateColumns:'2f
 container.append(twoCol);
 
 // LEFT — Recent Sessions
-const recentCard=div({cls:'card',style:{borderRadius:'12px',boxShadow:'0 8px 32px rgba(0,0,0,0.5),inset 0 1px 0 rgba(255,255,255,0.02)'}});
+const recentCard=div({cls:'card df-sess-card'});
 recentCard.append(
   h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'18px',marginBottom:'4px'},html:'Recent Sessions'}),
   h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'12px',color:'var(--muted)',marginBottom:'16px'},html:'your last 5 study blocks'}),
