@@ -2022,14 +2022,17 @@ page.append(container);
 
 // STAT CARD HELPER
 function statCard(title,value,barColor,subLabel=''){
-  const wrap=div({style:{position:'relative',background:'var(--card)',border:'1px solid var(--border)',borderRadius:'2px',overflow:'hidden'}});
+  const wrap=div({style:{position:'relative',background:'var(--card)',border:'1px solid var(--border)',borderRadius:'12px',overflow:'hidden',boxShadow:'0 10px 25px rgba(0,0,0,0.05),0 2px 6px rgba(0,0,0,0.03)',padding:'18px 16px'}});
+  const iconEl=div({style:{position:'absolute',top:'14px',right:'14px',width:'32px',height:'32px',borderRadius:'50%',background:'rgba(198,168,90,0.12)',display:'flex',alignItems:'center',justifyContent:'center',color:'var(--gold)'}});
+  iconEl.innerHTML=title.toLowerCase().includes('point')?ICONS.star:ICONS.target;
+  const barsEl=div({style:{display:'flex',gap:'3px',alignItems:'flex-end',marginTop:'14px',height:'24px'}});
+  [40,55,35,70,45,90,60].forEach(function(pct,i){var col=div({style:{width:'6px',borderRadius:'2px',height:pct+'%',background:i%2===0?'rgba(198,168,90,0.2)':'var(--gold)'}});barsEl.append(col);});
   wrap.append(
-    div({style:{position:'absolute',top:'0',left:'0',right:'0',height:'2px',background:barColor}}),
-    div({style:{padding:'16px'}},[
-      h('div',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'32px',color:'var(--text)',fontWeight:'700',marginBottom:'2px'},html:String(value)}),
-      h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'12px',textTransform:'uppercase',color:'var(--muted)',letterSpacing:'1px'},html:title}),
-      subLabel?h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'12px',color:'var(--teal)',marginTop:'4px'},html:subLabel}):null
-    ].filter(Boolean))
+    iconEl,
+    h('div',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'36px',color:'var(--text)',fontWeight:'700',letterSpacing:'-1px',lineHeight:'1'},html:String(value)}),
+    h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'10px',textTransform:'uppercase',color:'var(--muted)',letterSpacing:'2px',marginTop:'6px'},html:title}),
+    barsEl,
+    subLabel?h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'12px',color:'var(--teal)',marginTop:'4px'},html:subLabel}):null
   );
   return wrap;
 }
@@ -2050,18 +2053,16 @@ function actionButton(icon,label,onClick){
 }
 
 // GREETING ROW + STREAK BADGE
-const greetingRow=div({style:{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:'24px',flexWrap:'wrap',gap:'16px'}});
+const greetingRow=div({style:{marginBottom:'20px'}});
 greetingRow.append(
-  div({},[
-    h('span',{cls:'chapter',html:'Welcome Back'}),
-    h('h1',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'28px',fontWeight:'700',marginBottom:'4px',color:'var(--text)'},html:p.full_name||'Scholar'}),
-    h('p',{cls:'muted',style:{fontSize:'12px'},html:'Plan: <span style="color:var(--gold)">'+(p.plan||'Active')+'</span> · Expires: <span style="color:var(--text)">'+(p.access_expires_at?new Date(p.access_expires_at).toLocaleDateString():'Active')+'</span>'})
-  ]),
-  div({style:{background:'var(--card-alt)',border:'1px solid var(--gold-border)',padding:'8px 14px',borderRadius:'4px',display:'flex',alignItems:'center',gap:'8px',flexShrink:'0'}},[
+  h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'11px',fontWeight:'600',letterSpacing:'2px',color:'var(--gold)',marginBottom:'4px'},html:'WELCOME BACK'}),
+  h('h1',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'30px',fontWeight:'700',letterSpacing:'-0.5px',color:'var(--text)',lineHeight:'1.1',marginBottom:'5px'},html:p.full_name||'Scholar'}),
+  h('p',{style:{fontFamily:'Inter,sans-serif',fontSize:'12px',color:'var(--muted)'},html:'Plan: <span style="color:var(--gold);font-weight:500">'+(p.plan||'Active')+'</span> · Expires: '+(p.access_expires_at?new Date(p.access_expires_at).toLocaleDateString():'Active')}),
+  div({style:{display:'inline-flex',alignItems:'center',gap:'10px',background:'var(--card)',border:'1px solid var(--border)',borderRadius:'10px',padding:'10px 16px',marginTop:'14px',boxShadow:'0 2px 6px rgba(0,0,0,0.03)'}},[
     h('span',{style:{display:'flex',alignItems:'center'},html:SVG_FIRE}),
     div({},[
-      h('div',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'22px',color:'var(--gold)',fontWeight:'700',lineHeight:'1'},html:String((isFree&&!isInTrial())?Math.min(1,p.streak_count||0):(p.streak_count||0))}),
-      h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'12px',color:'var(--muted)'},html:(isFree&&!isInTrial())?'locked':'day streak'})
+      h('div',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'22px',fontWeight:'700',color:'var(--text)',lineHeight:'1'},html:String((isFree&&!isInTrial())?Math.min(1,p.streak_count||0):(p.streak_count||0))}),
+      h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'11px',color:'var(--muted)',marginTop:'2px'},html:(isFree&&!isInTrial())?'locked':'day streak'})
     ])
   ])
 );
@@ -2240,7 +2241,7 @@ const twoCol=div({cls:'df-two-col',style:{display:'grid',gridTemplateColumns:'2f
 container.append(twoCol);
 
 // LEFT — Recent Sessions
-const recentCard=div({cls:'card'});
+const recentCard=div({cls:'card',style:{borderRadius:'12px',boxShadow:'0 10px 25px rgba(0,0,0,0.05),0 2px 6px rgba(0,0,0,0.03)'}});
 recentCard.append(
   h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'18px',marginBottom:'4px'},html:'Recent Sessions'}),
   h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'12px',color:'var(--muted)',marginBottom:'16px'},html:'your last 5 study blocks'}),
@@ -2255,7 +2256,7 @@ twoCol.append(recentCard);
   const supportEmail=adminData?.support_email||'';
   const studyPartnerLink=adminData?.link_study_partner||'';
   const kahootLink=adminData?.link_kahoot||'';
-  const actionsCard=div({cls:'card'});
+  const actionsCard=div({cls:'card',style:{borderRadius:'12px',boxShadow:'0 10px 25px rgba(0,0,0,0.05),0 2px 6px rgba(0,0,0,0.03)'}});
   actionsCard.append(
     h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'18px',marginBottom:'4px'},html:'Quick Actions'}),
     h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'12px',color:'var(--muted)',marginBottom:'16px'},html:'navigate'}),
@@ -2349,19 +2350,23 @@ async function loadSess(){
   if(!data||!data.length){sl.innerHTML='<p style="font-size:14px;color:var(--dim)">No sessions yet.</p>';return;}
   sl.innerHTML='';
   data.forEach(s=>{
-    const row=div({style:{padding:'10px 0',borderBottom:'1px solid var(--border)'}});
+    const row=div({style:{padding:'10px 0',borderBottom:'1px solid var(--border)',display:'flex'}});
     const start=new Date(s.started_at);
     const end=s.ended_at?new Date(s.ended_at):null;
     const dateStr=start.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
     const startTime=start.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'});
     const endTime=end?end.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'}):'ongoing';
     const mins=s.duration_minutes||(end?Math.round((end-start)/60000):0);
+    const clockIcon=div({style:{width:'30px',height:'30px',borderRadius:'50%',border:'1.5px solid var(--gold-border)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:'0',color:'var(--gold)'}});clockIcon.innerHTML=ICONS.target;
     row.append(
-      div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'2px'}},[
-        h('span',{style:{fontSize:'13px',color:'var(--text)',fontWeight:'500'},html:dateStr}),
-        h('span',{style:{fontFamily:'Inter,sans-serif',fontSize:'13px',color:'var(--gold)',fontWeight:'600'},html:mins>0?mins+' mins':'—'})
-      ]),
-      div({style:{fontFamily:'Inter,sans-serif',fontSize:'12px',color:'#aaaaaa'},html:startTime+' \u2192 '+endTime+(s.topic?' \u00b7 '+s.topic:'')})
+      div({style:{display:'flex',alignItems:'center',gap:'12px'}},[
+        clockIcon,
+        div({style:{flex:'1',minWidth:'0'}},[
+          h('div',{style:{fontSize:'12px',fontWeight:'600',color:'var(--text)'},html:dateStr}),
+          h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'11px',color:'var(--muted)',marginTop:'1px',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'},html:startTime+' \u2192 '+endTime+(s.topic?' \u00b7 '+s.topic:'')})
+        ]),
+        h('span',{style:{fontFamily:'Inter,sans-serif',fontSize:'12px',color:'var(--gold)',fontWeight:'600',whiteSpace:'nowrap'},html:mins>0?mins+' min':'—'})
+      ])
     );
     sl.append(row);
   });
