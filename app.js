@@ -1969,9 +1969,9 @@ function collapsibleSection(title,contentBuilder){
   const iconMap={'Study Consistency':ICONS.target,'Q-Bank Performance':ICONS.question,'Flashcard Progress':ICONS.layers};
   const card=div({cls:'df-coll-row',style:{marginBottom:'8px'}});
   let loaded=false;
-  const iconEl=div({cls:'df-coll-icon'});
+  const iconEl=div({cls:'df-coll-icon'});iconEl.style.color='var(--teal)';
   iconEl.innerHTML=iconMap[title]||ICONS.target;
-  const chevron=h('span',{style:{fontSize:'14px',color:'var(--dim)',marginLeft:'auto'},html:SVG_CHEVRON_RIGHT});
+  const chevron=h('span',{style:{fontSize:'14px',color:'var(--teal)',opacity:'0.4',marginLeft:'auto'},html:SVG_CHEVRON_RIGHT});
   const titleEl=h('span',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'13px',fontWeight:'500',color:'var(--muted)',flex:'1'},html:title});
   const header=div({style:{display:'flex',alignItems:'center',gap:'12px',width:'100%',cursor:'pointer'}});
   header.append(iconEl,titleEl,chevron);
@@ -2069,21 +2069,24 @@ function actionButton(icon,label,onClick){
 
 // GREETING ROW + STREAK BADGE
 const greetingRow=div({cls:'df-welcome-card',style:{marginBottom:'16px'}});
-const streakPill=div({style:{display:'inline-flex',alignItems:'center',gap:'5px',background:'var(--bg)',border:'1px solid var(--gold-border)',borderRadius:'6px',padding:'5px 9px',flexShrink:'0'}});
+const tealSlash=div({cls:'df-teal-slash'});
+const tealLine=div({cls:'df-teal-line'});
+const streakPill=div({style:{display:'inline-flex',flexDirection:'column',alignItems:'center',gap:'2px',background:'var(--bg)',border:'1px solid rgba(184,146,46,0.35)',borderRadius:'8px',padding:'8px 12px',flexShrink:'0',boxShadow:'0 0 16px rgba(184,146,46,0.15),inset 0 1px 0 rgba(184,146,46,0.1)',position:'relative',zIndex:'2'}});
+const fireWrap=div({style:{display:'flex',alignItems:'center',justifyContent:'center'}});
+fireWrap.innerHTML=SVG_FIRE;
 streakPill.append(
-  h('span',{style:{display:'flex',alignItems:'center'},html:SVG_FIRE}),
-  div({},[
-    h('div',{style:{fontFamily:'"Plus Jakarta Sans",sans-serif',fontSize:'14px',fontWeight:'700',color:'var(--text)',lineHeight:'1'},html:String((isFree&&!isInTrial())?Math.min(1,p.streak_count||0):(p.streak_count||0))}),
-    h('div',{style:{fontFamily:'"Plus Jakarta Sans",sans-serif',fontSize:'8px',color:'var(--muted)',marginTop:'1px'},html:(isFree&&!isInTrial())?'locked':'streak'})
-  ])
+  fireWrap,
+  h('div',{style:{fontFamily:'"Plus Jakarta Sans",sans-serif',fontSize:'18px',fontWeight:'700',color:'var(--gold)',lineHeight:'1',textAlign:'center'},html:String((isFree&&!isInTrial())?Math.min(1,p.streak_count||0):(p.streak_count||0))}),
+  h('div',{style:{fontFamily:'"Plus Jakarta Sans",sans-serif',fontSize:'8px',color:'var(--muted)',letterSpacing:'1px',textTransform:'uppercase'},html:(isFree&&!isInTrial())?'locked':'day streak'})
 );
-const welcomeTop=div({style:{display:'flex',alignItems:'center',justifyContent:'space-between',gap:'8px',marginBottom:'8px'}});
-const welcomeHeading=h('h1',{style:{fontFamily:"'Playfair Display',serif",fontStyle:'italic',fontSize:'20px',fontWeight:'700',lineHeight:'1',flex:'1',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}});
+const welcomeTop=div({style:{display:'flex',alignItems:'center',justifyContent:'space-between',gap:'8px',marginBottom:'8px',position:'relative',zIndex:'1'}});
+const welcomeHeading=h('h1',{cls:'df-welcome-heading'});
 welcomeHeading.innerHTML='<em style="color:var(--gold);font-style:italic">Welcome,</em> <span style="color:var(--teal)">'+(p.full_name||'Scholar')+'!</span>';
 welcomeTop.append(welcomeHeading,streakPill);
 greetingRow.append(
+  tealSlash,tealLine,
   welcomeTop,
-  h('p',{style:{fontFamily:'"Plus Jakarta Sans",sans-serif',fontSize:'10px',color:'var(--text)',opacity:'0.45',lineHeight:'1.7'},html:'Plan: '+(p.plan||'Active')+' &nbsp;·&nbsp; Expires: '+(p.access_expires_at?new Date(p.access_expires_at).toLocaleDateString():'Active')})
+  h('p',{cls:'df-welcome-foot',html:'Plan: '+(p.plan||'Active')+' &nbsp;·&nbsp; Expires: '+(p.access_expires_at?new Date(p.access_expires_at).toLocaleDateString():'Active')})
 );
 container.append(greetingRow);
 if(isInTrial()){
