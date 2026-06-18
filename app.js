@@ -1787,7 +1787,7 @@ const fpSendBtn=btn('Send Reset Code','btn-gold',async()=>{
   const em=fpEmailI.value.trim();
   if(!em){fpErr.classList.remove('hidden');fpErr.textContent='Enter your email address.';return;}
   fpErr.classList.add('hidden');fpSendBtn.textContent='Sending...';fpSendBtn.disabled=true;
-  const{data:prof}=await sb.from('profiles').select('id,email').eq('email',em).single();
+  const{data:prof}=await sb.from('profiles').select('id,email').ilike('email',em).maybeSingle();
   if(!prof){fpErr.classList.remove('hidden');fpErr.textContent='No account found with that email.';fpSendBtn.textContent='Send Reset Code';fpSendBtn.disabled=false;return;}
   resetUserId=prof.id;
   const code=String(Math.floor(100000+Math.random()*900000));
