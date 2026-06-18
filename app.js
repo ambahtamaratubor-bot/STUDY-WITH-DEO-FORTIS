@@ -1840,7 +1840,6 @@ const newPassBtn=btn('Set New Password','btn-gold',async()=>{
   const p1=newPassI.value;const p2=newPassI2.value;
   if(p1.length<6){newPassErr.classList.remove('hidden');newPassErr.textContent='Password must be at least 6 characters.';return;}
   if(p1!==p2){newPassErr.classList.remove('hidden');newPassErr.textContent='Passwords do not match.';return;}
-  if(!resetUserId){newPassErr.classList.remove('hidden');newPassErr.textContent='Session expired. Please start again.';return;}
   newPassErr.classList.add('hidden');newPassBtn.textContent='Updating...';newPassBtn.disabled=true;
   try{
     const em=fpEmailI.value.trim().toLowerCase();
