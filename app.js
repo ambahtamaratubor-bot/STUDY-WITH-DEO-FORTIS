@@ -1790,12 +1790,9 @@ const fpSendBtn=btn('Send Reset Code','btn-gold',async()=>{
   const em=fpEmailI.value.trim();
   if(!em){fpErr.classList.remove('hidden');fpErr.textContent='Enter your email address.';return;}
   fpErr.classList.add('hidden');fpSendBtn.textContent='Sending...';fpSendBtn.disabled=true;
-  const{data:prof}=await sb.from('profiles').select('id,email').eq('email',em).single();
-  if(!prof){fpErr.classList.remove('hidden');fpErr.textContent='No account found with that email.';fpSendBtn.textContent='Send Reset Code';fpSendBtn.disabled=false;return;}
-  resetUserId=prof.id;
   const code=String(Math.floor(100000+Math.random()*900000));
   const expires=new Date(Date.now()+15*60*1000).toISOString();
-  await sb.from('reset_codes').insert({email:em,code,expires_at:expires,is_used:false,email_sent:false,attempts:0});
+  await sb.from('reset_codes').insert({email:em.toLowerCase().trim(),code,expires_at:expires,is_used:false,email_sent:false,attempts:0});
   fpSendBtn.textContent='Send Reset Code';fpSendBtn.disabled=false;
   otpLabel.textContent='We sent a 6-digit code to '+em+'. It may take up to 1 minute to arrive.';
   show('otp');
