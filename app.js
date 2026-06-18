@@ -1787,12 +1787,9 @@ const fpSendBtn=btn('Send Reset Code','btn-gold',async()=>{
   const em=fpEmailI.value.trim();
   if(!em){fpErr.classList.remove('hidden');fpErr.textContent='Enter your email address.';return;}
   fpErr.classList.add('hidden');fpSendBtn.textContent='Sending...';fpSendBtn.disabled=true;
-  const{data:prof}=await sb.from('profiles').select('id,email').ilike('email',em).maybeSingle();
-  if(!prof){fpErr.classList.remove('hidden');fpErr.textContent='No account found with that email.';fpSendBtn.textContent='Send Reset Code';fpSendBtn.disabled=false;return;}
-  resetUserId=prof.id;
   const code=String(Math.floor(100000+Math.random()*900000));
   const expires=new Date(Date.now()+15*60*1000).toISOString();
-  await sb.from('reset_codes').insert({email:em,code,expires_at:expires,is_used:false,email_sent:false,attempts:0});
+  await sb.from('reset_codes').insert({email:em.toLowerCase().trim(),code,expires_at:expires,is_used:false,email_sent:false,attempts:0});
   fpSendBtn.textContent='Send Reset Code';fpSendBtn.disabled=false;
   otpLabel.textContent='We sent a 6-digit code to '+em+'. It may take up to 1 minute to arrive.';
   show('otp');
@@ -1840,7 +1837,6 @@ const newPassBtn=btn('Set New Password','btn-gold',async()=>{
   const p1=newPassI.value;const p2=newPassI2.value;
   if(p1.length<6){newPassErr.classList.remove('hidden');newPassErr.textContent='Password must be at least 6 characters.';return;}
   if(p1!==p2){newPassErr.classList.remove('hidden');newPassErr.textContent='Passwords do not match.';return;}
-  if(!resetUserId){newPassErr.classList.remove('hidden');newPassErr.textContent='Session expired. Please start again.';return;}
   newPassErr.classList.add('hidden');newPassBtn.textContent='Updating...';newPassBtn.disabled=true;
   try{
     const res=await callAdminFn('reset_own_password',{password:p1});
