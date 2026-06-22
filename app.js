@@ -6343,7 +6343,7 @@ async function showTeamTab(){
               const newUser=await createRes.json();
               if(createRes.ok){
                 // New user created
-                userId=newUser.id;
+                userId=newUser.user?.id;
                 // Insert profile if not exists
                 const{data:existingProf}=await sb.from('profiles').select('id').eq('id',userId).single();
                 if(!existingProf){
