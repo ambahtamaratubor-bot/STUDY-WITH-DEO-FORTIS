@@ -127,7 +127,7 @@ if(data){
     }
   }
   if(requiredPage){if(S.page!==requiredPage)go(requiredPage);return;}
-  var validPages=['dashboard','study','flashcards','vignette','feynman','theory','notes','leaderboard'];
+  var validPages=['dashboard','study','flashcards','vignette','feynman','theory','notes','leaderboard','tutoring'];
   if(!validPages.includes(S.page)){go('dashboard');}
 }else{
   // No profile found — admin-only or orphaned account
@@ -471,7 +471,256 @@ footer.append(h('p',{cls:'mono',style:{color:'var(--dim)',fontSize:'11px',letter
 page.append(footer);
 return page;
 }
-const pages={landing,signup,login,pending,dashboard,study,flashcards,vignette,leaderboard,admin,feynman,theory,notes,about};
+function tutoring(){
+const page=div({});
+const nav=div({cls:'dash-nav'});
+const rightNav=div({style:{display:'flex',gap:'12px',alignItems:'center'}},[]);
+rightNav.append(btn('\u2190 Dashboard','btn-outline',()=>go('dashboard'),{style:{padding:'8px 16px'}}),makeThemeBtn());
+nav.append(dfLogo(),rightNav);
+page.append(nav);
+const inner=div({cls:'inner'});
+inner.append(
+  h('span',{cls:'chapter',html:'Tutoring Wing'},[]),
+  h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'26px',marginBottom:'8px'},html:'Tutoring Wing'},[]),
+  h('p',{cls:'muted',style:{fontSize:'14px',marginBottom:'24px'},html:'Your assigned tests, tasks and results \u2014 sit them, clear them, review them.'},[])
+);
+page.append(inner);
+
+let currentTab='tests';
+const tabBar=div({style:{display:'flex',gap:'8px',marginBottom:'20px',flexWrap:'wrap'}},[]);
+const content=div({});
+inner.append(tabBar,content);
+const TABS=[['tests','Assigned Tests'],['tasks','Tasks'],['results','My Results']];
+
+function paintTabs(){
+  tabBar.innerHTML='';
+  TABS.forEach(function(t){
+    const active=currentTab===t[0];
+    tabBar.append(btn(t[1],active?'btn-gold':'btn-outline',function(){currentTab=t[0];paintTabs();renderTab();},{style:{padding:'8px 16px',fontSize:'12px'}}));
+  });
+}
+
+let DATA={enrolled:false,assignments:[],results:[],tasks:[],counts:{}};
+
+async function loadData(){
+  const en=await sb.from('tutoring_students').select('id').eq('user_id',S.user.id).eq('active',true).maybeSingle();
+  DATA.enrolled=!!(en&&en.data);
+  if(!DATA.enrolled)return;
+  const a=await sb.from('tutoring_assignments').select('id,due_date,test_id,tutoring_tests(id,title,mode,time_limit)').eq('student_id',S.user.id).order('assigned_at',{ascending:false});
+  DATA.assignments=a.data||[];
+  const r=await sb.from('tutoring_results').select('*').eq('student_id',S.user.id).order('taken_at',{ascending:false});
+  DATA.results=r.data||[];
+  const k=await sb.from('tutoring_tasks').select('*').eq('student_id',S.user.id).order('due_date',{ascending:true});
+  DATA.tasks=k.data||[];
+  DATA.counts={};
+  const tids=DATA.assignments.map(function(x){return x.test_id;}).filter(Boolean);
+  if(tids.length){
+    const q=await sb.from('tutoring_questions').select('test_id').in('test_id',tids);
+    (q.data||[]).forEach(function(row){DATA.counts[row.test_id]=(DATA.counts[row.test_id]||0)+1;});
+  }
+}
+
+function resultsForAssignment(aid){return DATA.results.filter(function(x){return x.assignment_id===aid;});}
+function emptyCard(title,sub){return div({cls:'card',style:{textAlign:'center',padding:'40px 20px'}},[h('div',{style:{fontFamily:'Georgia,serif',fontSize:'17px',color:'var(--text)',marginBottom:'8px'}},[title]),h('div',{style:{fontSize:'13px',color:'var(--muted)'}},[sub])]);}
+function statCard(label,value){return div({cls:'card',style:{padding:'16px'}},[h('div',{cls:'mono',style:{fontSize:'10px',letterSpacing:'1px',textTransform:'uppercase',color:'var(--muted)',marginBottom:'8px'}},[label]),h('div',{style:{fontFamily:'Georgia,serif',fontStyle:'italic',fontSize:'28px',color:'var(--gold)',lineHeight:'1'}},[value])]);}
+function modeBadge(mode){const timed=mode==='timed';return h('span',{cls:'mono',style:{fontSize:'10px',letterSpacing:'1px',textTransform:'uppercase',color:timed?'var(--gold)':'var(--teal)',border:'1px solid '+(timed?'var(--border)':'rgba(126,173,168,0.4)'),borderRadius:'999px',padding:'3px 9px'}},[timed?'Timed':'Tutor']);}
+function statusPill(completed){return h('span',{cls:'mono',style:{fontSize:'10px',color:completed?'var(--teal)':'var(--gold)'}},[completed?'Completed':'Not started']);}
+function fmtDateShort(d){try{var x=new Date(d+'T00:00:00');if(isNaN(x))return String(d);return x.toLocaleDateString('en-US',{month:'short',day:'numeric'});}catch(e){return String(d);}}
+function metaLine(test,a,completed,best){var parts=[];var cnt=DATA.counts[test.id]||0;if(cnt)parts.push(cnt+' questions');if(test.mode==='timed'&&test.time_limit)parts.push(test.time_limit+' min');if(a.due_date)parts.push('Due '+fmtDateShort(a.due_date));if(completed&&best)parts.push('Latest '+best.score+'/'+best.total);return parts.join(' \u00b7 ');}
+
+function renderTab(){
+  content.innerHTML='';
+  if(!DATA.enrolled){
+    content.append(div({cls:'card',style:{textAlign:'center',padding:'40px'}},[h('p',{style:{color:'var(--muted)',fontSize:'14px'},html:'You are not enrolled in tutoring yet. Your tutor will add you when your programme begins.'},[])]));
+    return;
+  }
+  if(currentTab==='tests')renderTests();
+  else if(currentTab==='tasks')renderTasks();
+  else renderResults();
+}
+
+function renderTests(){
+  if(!DATA.assignments.length){content.append(emptyCard('No tests assigned yet','When your tutor assigns a test, it will appear here.'));return;}
+  DATA.assignments.forEach(function(a){
+    const test=a.tutoring_tests||{};
+    const res=resultsForAssignment(a.id);
+    const completed=res.length>0;
+    const best=completed?res[0]:null;
+    const card=div({cls:'card',style:{marginBottom:'12px',display:'flex',justifyContent:'space-between',alignItems:'center',gap:'16px',flexWrap:'wrap'}},[]);
+    const left=div({style:{flex:'1',minWidth:'220px'}},[]);
+    left.append(
+      div({style:{display:'flex',gap:'10px',alignItems:'center',marginBottom:'8px',flexWrap:'wrap'}},[modeBadge(test.mode),statusPill(completed)]),
+      h('div',{style:{fontFamily:'Georgia,serif',fontSize:'18px',color:'var(--text)',marginBottom:'6px'}},[test.title||'Untitled test']),
+      h('div',{cls:'mono',style:{fontSize:'11px',color:'var(--muted)'}},[metaLine(test,a,completed,best)])
+    );
+    const right=div({style:{display:'flex',gap:'6px',flexShrink:'0'}},[]);
+    if(completed){
+      right.append(
+        btn('Review','btn-outline',function(){showReview(best);},{style:{fontSize:'11px',padding:'8px 14px'}}),
+        btn('Retake','btn-gold',function(){startTest(a,test);},{style:{fontSize:'11px',padding:'8px 14px'}})
+      );
+    }else{
+      right.append(btn('Start test','btn-gold',function(){startTest(a,test);},{style:{fontSize:'11px',padding:'8px 16px'}}));
+    }
+    card.append(left,right);
+    content.append(card);
+  });
+}
+
+function renderTasks(){
+  if(!DATA.tasks.length){content.append(emptyCard('No tasks right now','Readings, recalls and watch-throughs your tutor sets will appear here.'));return;}
+  DATA.tasks.forEach(function(k){
+    const card=div({cls:'card',style:{marginBottom:'10px',display:'flex',gap:'14px',alignItems:'flex-start',opacity:k.done?'0.6':'1'}},[]);
+    const box=div({style:{marginTop:'2px',width:'22px',height:'22px',borderRadius:'4px',flexShrink:'0',cursor:'pointer',border:'1.5px solid '+(k.done?'var(--teal)':'var(--border)'),background:k.done?'var(--teal)':'transparent',display:'flex',alignItems:'center',justifyContent:'center',color:'#0F0E0A',fontSize:'14px'}},[]);
+    if(k.done)box.append(h('span',{},['\u2713']));
+    box.onclick=async function(){const nd=!k.done;const up=await sb.from('tutoring_tasks').update({done:nd,done_at:nd?new Date().toISOString():null}).eq('id',k.id);if(up&&up.error)return;k.done=nd;renderTab();};
+    const body=div({style:{flex:'1'}},[]);
+    body.append(h('div',{style:{fontSize:'14px',color:'var(--text)',textDecoration:k.done?'line-through':'none'}},[k.title]));
+    if(k.note)body.append(h('div',{style:{fontSize:'12px',color:'var(--muted)',marginTop:'4px'}},[k.note]));
+    if(k.due_date)body.append(h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--dim)',marginTop:'6px'}},['Due '+fmtDateShort(k.due_date)]));
+    card.append(box,body);
+    content.append(card);
+  });
+}
+
+function renderResults(){
+  const done=DATA.results;
+  const taken=done.length;
+  const avg=taken?Math.round(done.reduce(function(s,t){return s+(t.score/t.total)*100;},0)/taken):0;
+  const best=taken?Math.max.apply(null,done.map(function(t){return Math.round((t.score/t.total)*100);})):0;
+  const grid=div({style:{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:'12px',marginBottom:'18px'}},[]);
+  grid.append(statCard('Tests taken',String(taken)),statCard('Average score',taken?avg+'%':'\u2014'),statCard('Best score',taken?best+'%':'\u2014'));
+  content.append(grid);
+  content.append(h('span',{cls:'chapter',html:'History'},[]));
+  if(!taken){content.append(emptyCard('No completed tests yet','Finish an assigned test to start building your record.'));return;}
+  done.forEach(function(t){
+    const card=div({cls:'card',style:{marginBottom:'10px',display:'flex',justifyContent:'space-between',alignItems:'center',gap:'14px',flexWrap:'wrap'}},[]);
+    card.append(div({},[h('div',{style:{fontFamily:'Georgia,serif',fontSize:'16px',color:'var(--text)'}},[t.test_title]),h('div',{cls:'mono',style:{fontSize:'11px',color:'var(--muted)',marginTop:'4px'}},[new Date(t.taken_at).toLocaleDateString()+' \u00b7 '+(t.mode==='timed'?'Timed':'Tutor')])]));
+    const rightR=div({style:{display:'flex',alignItems:'center',gap:'16px'}},[]);
+    rightR.append(
+      div({style:{textAlign:'right'}},[h('div',{style:{fontFamily:'Georgia,serif',fontSize:'22px',color:'var(--teal)'}},[Math.round((t.score/t.total)*100)+'%']),h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--muted)'}},[t.score+'/'+t.total])]),
+      btn('Review','btn-outline',function(){showReview(t);},{style:{fontSize:'10px',padding:'6px 12px'}})
+    );
+    card.append(rightR);
+    content.append(card);
+  });
+}
+
+async function startTest(a,test){
+  content.innerHTML='';
+  content.append(skelCard([['40%'],['100%'],['100%'],['80%']]));
+  const q=await sb.from('tutoring_questions').select('*').eq('test_id',test.id).order('position',{ascending:true});
+  content.innerHTML='';
+  const questions=q.data||[];
+  if(!questions.length){content.append(emptyCard('This test has no questions yet','Check back once your tutor finishes uploading it.'));return;}
+  runQuiz(a,test,questions);
+}
+
+function runQuiz(a,test,questions){
+  let idx=0;const answers={};const isTimed=test.mode==='timed';let timeLeft=isTimed?(test.time_limit||0)*60:0;let tInterval=null;let timerEl=null;let submitted=false;
+  function clearTimer(){if(tInterval){clearInterval(tInterval);tInterval=null;}}
+  function paint(){
+    content.innerHTML='';
+    const q=questions[idx];
+    const top=div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'18px'}},[]);
+    const exitBtn=btn('\u2190 Exit','btn-outline',function(){clearTimer();renderTab();},{style:{fontSize:'11px',padding:'6px 12px'}});
+    const label=h('span',{cls:'mono',style:{fontSize:'11px',color:'var(--muted)'}},[(test.title||'')+' \u00b7 '+(isTimed?'Timed':'Tutor')]);
+    timerEl=h('span',{style:{fontFamily:'Inter,sans-serif',fontSize:'16px',color:'var(--gold)',fontWeight:'600',display:isTimed?'inline':'none'}},[isTimed?fmtMS(timeLeft):'']);
+    top.append(exitBtn,label,timerEl);
+    content.append(top);
+    content.append(h('div',{cls:'mono',style:{fontSize:'11px',color:'var(--dim)',marginBottom:'10px'}},['Question '+(idx+1)+' of '+questions.length+(q.topic?' \u00b7 '+q.topic:'')]));
+    const card=div({cls:'card',style:{marginBottom:'16px'}},[]);
+    card.append(h('p',{style:{fontSize:'15px',lineHeight:'1.6',color:'var(--text)',marginBottom:'18px'}},[q.question]));
+    const opts=div({style:{display:'grid',gap:'8px'}},[]);
+    ['A','B','C','D','E'].forEach(function(L){
+      const val=q['option_'+L.toLowerCase()];
+      if(!val)return;
+      const sel=answers[q.id]===L;
+      const reveal=test.mode==='tutor'&&!!answers[q.id];
+      const correct=L===String(q.correct_answer||'').toUpperCase();
+      let bd='var(--border)',bg='transparent';
+      if(sel){bd='var(--gold)';bg='var(--gold-subtle)';}
+      if(reveal&&correct){bd='var(--teal)';bg='rgba(126,173,168,0.12)';}
+      if(reveal&&sel&&!correct){bd='#D9755B';bg='rgba(217,117,91,0.12)';}
+      const ob=div({style:{display:'flex',gap:'12px',alignItems:'center',padding:'12px 14px',cursor:reveal?'default':'pointer',border:'1px solid '+bd,background:bg,borderRadius:'2px',color:'var(--text)',fontSize:'14px'}},[h('span',{cls:'mono',style:{color:'var(--gold)',fontSize:'12px'}},[L]),val]);
+      ob.onclick=function(){if(reveal)return;if(test.mode==='tutor'&&answers[q.id])return;answers[q.id]=L;paint();};
+      opts.append(ob);
+    });
+    card.append(opts);
+    if(test.mode==='tutor'&&answers[q.id]){
+      card.append(div({style:{marginTop:'14px',padding:'12px 14px',borderLeft:'2px solid var(--gold)',background:'var(--gold-subtle)',fontSize:'13px',color:'var(--muted)',lineHeight:'1.5'}},[h('div',{cls:'mono',style:{color:'var(--gold)',fontSize:'10px',letterSpacing:'1px',textTransform:'uppercase',marginBottom:'4px'},html:'Explanation'},[]),h('div',{},[q.explanation||''])]));
+    }
+    content.append(card);
+    const navRow=div({style:{display:'flex',justifyContent:'space-between'}},[]);
+    const prev=btn('\u2190 Prev','btn-outline',function(){if(idx>0){idx--;paint();}},{style:{fontSize:'11px',padding:'8px 14px'}});
+    if(idx===0)prev.style.opacity='0.4';
+    let nextBtn;
+    if(idx<questions.length-1)nextBtn=btn('Next \u2192','btn-gold',function(){idx++;paint();},{style:{fontSize:'11px',padding:'8px 16px'}});
+    else nextBtn=btn('Submit test','btn-gold',function(){doSubmit();},{style:{fontSize:'11px',padding:'8px 16px'}});
+    navRow.append(prev,nextBtn);
+    content.append(navRow);
+  }
+  async function doSubmit(){
+    if(submitted)return;submitted=true;clearTimer();
+    let score=0;questions.forEach(function(q){if(String(answers[q.id]||'')===String(q.correct_answer||'').toUpperCase())score++;});
+    const ins=await sb.from('tutoring_results').insert({assignment_id:a?a.id:null,test_id:test.id,student_id:S.user.id,test_title:test.title,mode:test.mode,score:score,total:questions.length,answers:answers,questions:questions});
+    await loadData();
+    content.innerHTML='';
+    const pct=Math.round((score/questions.length)*100);
+    const wrap=div({style:{maxWidth:'560px',margin:'40px auto',textAlign:'center'}},[]);
+    wrap.append(
+      h('span',{cls:'chapter',html:'Test complete'},[]),
+      h('div',{style:{fontFamily:'Georgia,serif',fontStyle:'italic',fontSize:'52px',color:'var(--teal)',lineHeight:'1',margin:'8px 0'}},[pct+'%']),
+      h('div',{cls:'mono',style:{fontSize:'12px',color:'var(--muted)',marginBottom:'24px'}},[score+' of '+questions.length+' correct \u00b7 '+(test.title||'')])
+    );
+    if(ins&&ins.error)wrap.append(h('div',{style:{fontSize:'12px',color:'#D9755B',marginBottom:'16px'}},['Your score could not be saved: '+ins.error.message]));
+    const btnRow=div({style:{display:'flex',gap:'10px',justifyContent:'center'}},[]);
+    btnRow.append(
+      btn('Review answers','btn-outline',function(){showReview({test_title:test.title,score:score,total:questions.length,answers:answers,questions:questions,taken_at:new Date().toISOString()});},{style:{fontSize:'11px',padding:'8px 16px'}}),
+      btn('Back to wing','btn-gold',function(){currentTab='tests';paintTabs();renderTab();},{style:{fontSize:'11px',padding:'8px 16px'}})
+    );
+    wrap.append(btnRow);
+    content.append(wrap);
+  }
+  paint();
+  if(isTimed&&test.time_limit){
+    tInterval=setInterval(function(){
+      timeLeft--;
+      if(timerEl){timerEl.textContent=fmtMS(timeLeft);if(timeLeft<60)timerEl.style.color='#D9755B';}
+      if(timeLeft<=0){clearTimer();doSubmit();}
+    },1000);
+  }
+}
+
+function showReview(result){
+  content.innerHTML='';
+  content.append(btn('\u2190 Back','btn-outline',function(){paintTabs();renderTab();},{style:{fontSize:'11px',padding:'6px 12px',marginBottom:'16px'}}));
+  content.append(
+    h('span',{cls:'chapter',html:'Review'},[]),
+    h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'22px',marginBottom:'4px'}},[result.test_title||'Test']),
+    h('div',{cls:'mono',style:{fontSize:'11px',color:'var(--muted)',marginBottom:'20px'}},['Scored '+result.score+'/'+result.total+' \u00b7 '+new Date(result.taken_at).toLocaleDateString()])
+  );
+  const qs=result.questions||[];const ans=result.answers||{};
+  qs.forEach(function(q,i){
+    const chosen=ans[q.id];
+    const correct=String(chosen||'')===String(q.correct_answer||'').toUpperCase();
+    const card=div({cls:'card',style:{marginBottom:'14px',borderColor:correct?'rgba(126,173,168,0.4)':'rgba(217,117,91,0.4)'}},[]);
+    card.append(div({style:{display:'flex',justifyContent:'space-between',marginBottom:'8px'}},[h('span',{cls:'mono',style:{fontSize:'11px',color:'var(--dim)'}},['Q'+(i+1)+(q.topic?' \u00b7 '+q.topic:'')]),h('span',{style:{fontSize:'12px',color:correct?'var(--teal)':'#D9755B'}},[correct?'Correct':'Incorrect'])]));
+    card.append(h('p',{style:{fontSize:'14px',lineHeight:'1.55',color:'var(--text)',marginBottom:'12px'}},[q.question]));
+    const yourTxt=chosen?(chosen+'. '+(q['option_'+String(chosen).toLowerCase()]||'')):'No answer';
+    card.append(h('div',{style:{fontSize:'13px',color:'var(--muted)',marginBottom:'4px'}},['Your answer: '+yourTxt]));
+    if(!correct){var ca=String(q.correct_answer||'').toUpperCase();card.append(h('div',{style:{fontSize:'13px',color:'var(--muted)',marginBottom:'8px'}},['Correct: '+ca+'. '+(q['option_'+ca.toLowerCase()]||'')]));}
+    if(q.explanation)card.append(div({style:{marginTop:'8px',padding:'10px 12px',borderLeft:'2px solid var(--gold)',background:'var(--gold-subtle)',fontSize:'12px',color:'var(--muted)',lineHeight:'1.5'}},[q.explanation]));
+    content.append(card);
+  });
+}
+
+paintTabs();
+content.append(skelCard([['40%'],['100%'],['80%'],['100%']]));
+(async function(){await loadData();if(!DATA.enrolled)tabBar.style.display='none';renderTab();})();
+return page;
+}
+const pages={landing,signup,login,pending,dashboard,study,flashcards,vignette,leaderboard,admin,feynman,theory,notes,about,tutoring};
 if(!window.activeSessionId||!window.pomPlan){var _ps=localStorage.getItem('pomodoroState');if(_ps){try{var _psp=JSON.parse(_ps);if(_psp.activeSessionId){window.activeSessionId=_psp.activeSessionId;window.sessionStartTime=_psp.sessionStartTime||null;if(!window.pomPlan&&_psp.segStart){var _cfg=_psp.cfg||{};window.pomPlan={topic:_cfg.topic||'General Study',totalSessions:_cfg.sessions||4,workSec:(_cfg.workMins||25)*60,breakSec:(_cfg.breakMins||5)*60,currentCycle:_psp.curSess||1,isBreakMode:_psp.isBreak||false,startedAtTimestamp:_psp.segStart};}}  }catch(e){}}}
 try{
   root.append((pages[S.page]||landing)());
@@ -2043,6 +2292,7 @@ page.append(nav);
   page.append(banner);
 })();
 const container=div({cls:'inner'});
+const tutHolder=div({});container.append(tutHolder);(async function(){const _te=await sb.from('tutoring_students').select('id').eq('user_id',S.user.id).eq('active',true).maybeSingle();if(!_te||!_te.data)return;const tw=div({cls:'card',style:{marginBottom:'16px',borderColor:'var(--gold)',cursor:'pointer',display:'flex',justifyContent:'space-between',alignItems:'center',gap:'16px',flexWrap:'wrap'}},[div({style:{flex:'1',minWidth:'200px'}},[h('div',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'17px',color:'var(--gold)',marginBottom:'4px'}},['Tutoring Wing']),h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'13px',color:'var(--muted)'}},['Your assigned tests, tasks and results'])]),h('span',{cls:'mono',style:{fontSize:'12px',color:'var(--gold)',flexShrink:'0'}},['Enter \u2192'])]);tw.onclick=function(){go('tutoring');};tutHolder.append(tw);})();
 page.append(container);
 
 // STAT CARD HELPER
@@ -4140,7 +4390,7 @@ page.append(aN);
 const tabs=div({style:{display:'none'}});
 const content=div({cls:'inner-md',style:{padding:'24px'}});
 let curTab='settings';
-const tabDefs=[['settings','⚙ Settings'],['users','Users'],['recalls','Recalls'],['flashcards','Flashcards'],['questions','Q-Bank'],['testimonials','Reviews'],['packages','Packages'],['bookings','Bookings'],['feynman','Feynman'],['riddles','Riddles'],['team','Team']];
+const tabDefs=[['settings','⚙ Settings'],['users','Users'],['recalls','Recalls'],['flashcards','Flashcards'],['questions','Q-Bank'],['testimonials','Reviews'],['packages','Packages'],['bookings','Bookings'],['feynman','Feynman'],['riddles','Riddles'],['team','Team'],['tutoring','Tutoring']];
 // role-based tab filtering for team members
 let panelTeamRole=null;
 let panelIsSuperAdmin=false;
@@ -4463,6 +4713,309 @@ function parseQBlocks(text){
     results.push(q);
   }
   return results;
+}
+if(tab==='tutoring'){
+content.innerHTML='';
+if(!panelIsSuperAdmin){content.append(h('p',{style:{textAlign:'center',padding:'40px',color:'var(--dim)',fontFamily:'Inter,sans-serif'},html:'Tutoring is restricted to the super admin.'}));return;}
+content.append(h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'22px',marginBottom:'16px'},html:'Tutoring'}));
+
+var tSub='library';
+var subNav=div({style:{display:'flex',gap:'8px',marginBottom:'20px',flexWrap:'wrap'}},[]);
+var libNavBtn=h('button',{cls:'btn btn-outline',style:{padding:'8px 16px',fontSize:'12px'}},['Test Library']);
+var stuNavBtn=h('button',{cls:'btn btn-outline',style:{padding:'8px 16px',fontSize:'12px'}},['Students']);
+subNav.append(libNavBtn,stuNavBtn);
+var tBody=div({},[]);
+content.append(subNav,tBody);
+function paintSub(){
+  libNavBtn.style.background=tSub==='library'?'var(--gold)':'transparent';libNavBtn.style.color=tSub==='library'?'var(--bg)':'var(--text)';
+  stuNavBtn.style.background=tSub==='students'?'var(--gold)':'transparent';stuNavBtn.style.color=tSub==='students'?'var(--bg)':'var(--text)';
+}
+libNavBtn.onclick=function(){tSub='library';paintSub();renderLibrary();};
+stuNavBtn.onclick=function(){tSub='students';paintSub();renderStudents();};
+
+var tSt=div({style:{display:'none',fontSize:'12px',marginBottom:'12px',fontFamily:'Inter,sans-serif'}},[]);
+function tStatus(msg,color){tSt.textContent=msg;tSt.style.color=color||'var(--muted)';tSt.style.display='block';}
+
+function parseTut(text){
+  var blocks=text.split('\n\n').filter(function(b){return b.trim();});
+  var out=[];
+  for(var bi=0;bi<blocks.length;bi++){
+    var raw=blocks[bi].split('\n').filter(function(l){return l.trim();});
+    if(raw.length<2)continue;
+    var exp=[];
+    for(var ri=0;ri<raw.length;ri++){var rl=raw[ri];var inl=/\?\s*[A-E][.)]\s.+\s[B-E][.)]\s/.test(rl);if(inl){var ps=rl.split(/\s+(?=[A-E][.)]\s)/);for(var pi=0;pi<ps.length;pi++)exp.push(ps[pi].trim());}else exp.push(rl);}
+    var lines=exp.filter(function(l){return l.trim();});
+    if(lines.length<3)continue;
+    var q={topic:'Tutoring',question:lines[0],option_a:'',option_b:'',option_c:'',option_d:'',option_e:'',correct_answer:'',explanation:''};
+    var expIdx=-1;
+    for(var li=1;li<lines.length;li++){var line=lines[li];
+      if(line.startsWith('A.')||line.startsWith('A)'))q.option_a=line.slice(2).trim();
+      else if(line.startsWith('B.')||line.startsWith('B)'))q.option_b=line.slice(2).trim();
+      else if(line.startsWith('C.')||line.startsWith('C)'))q.option_c=line.slice(2).trim();
+      else if(line.startsWith('D.')||line.startsWith('D)'))q.option_d=line.slice(2).trim();
+      else if(line.startsWith('E.')||line.startsWith('E)'))q.option_e=line.slice(2).trim();
+      else if(line.toLowerCase().startsWith('answer:'))q.correct_answer=(line.split(':')[1]||'').trim().toUpperCase();
+      else if(line.toLowerCase().startsWith('explanation:')){q.explanation=line.split(':').slice(1).join(':').trim();expIdx=li;}
+    }
+    if(expIdx>=0&&expIdx<lines.length-1){var extra=lines.slice(expIdx+1).filter(function(l){return !l.startsWith('A.')&&!l.startsWith('B.')&&!l.startsWith('C.')&&!l.startsWith('D.')&&!l.startsWith('E.')&&!l.toLowerCase().startsWith('answer:');}).join(' ');if(extra)q.explanation+=' '+extra;}
+    var missing=[];if(!q.option_a)missing.push('A');if(!q.option_b)missing.push('B');if(!q.option_c)missing.push('C');if(!q.option_d)missing.push('D');if(!q.correct_answer)missing.push('Answer');
+    q._ok=missing.length===0;q._missing=missing;
+    out.push(q);
+  }
+  return out;
+}
+
+function modeBadgeEl(mode){return h('span',{cls:'mono',style:{fontSize:'10px',letterSpacing:'1px',textTransform:'uppercase',color:mode==='timed'?'var(--gold)':'var(--teal)',border:'1px solid '+(mode==='timed'?'var(--border)':'rgba(126,173,168,0.4)'),borderRadius:'999px',padding:'3px 9px',marginRight:'8px'}},[mode==='timed'?'Timed':'Tutor']);}
+
+/* ===================== LIBRARY VIEW ===================== */
+function renderLibrary(){
+  tBody.innerHTML='';
+  var tParsed=[];
+  var tMode='timed';
+  var upCard=div({cls:'card',style:{marginBottom:'24px'}},[]);
+  upCard.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'16px',marginBottom:'14px'},html:'Upload a test'}));
+  var tTitle=h('input',{cls:'input',placeholder:'Title \u2014 e.g. Block 1 \u2014 Cardiology Diagnostic',style:{width:'100%',marginBottom:'12px'}});
+  var limitWrap=div({style:{display:'block',marginBottom:'12px'}},[]);
+  var tLimit=h('input',{cls:'input',type:'number',placeholder:'Time limit (minutes)',value:'15',style:{width:'200px'}});
+  limitWrap.append(h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--muted)',marginBottom:'6px',textTransform:'uppercase',letterSpacing:'1px'},html:'Time limit'}),tLimit);
+  var modeRow=div({style:{display:'flex',gap:'8px',marginBottom:'12px'}},[]);
+  var timedBtn=h('button',{cls:'btn btn-outline',style:{padding:'8px 18px',fontSize:'12px'}},['Timed']);
+  var tutorBtn=h('button',{cls:'btn btn-outline',style:{padding:'8px 18px',fontSize:'12px'}},['Tutor']);
+  function paintMode(){timedBtn.style.background=tMode==='timed'?'var(--gold)':'transparent';timedBtn.style.color=tMode==='timed'?'var(--bg)':'var(--text)';tutorBtn.style.background=tMode==='tutor'?'var(--gold)':'transparent';tutorBtn.style.color=tMode==='tutor'?'var(--bg)':'var(--text)';limitWrap.style.display=tMode==='timed'?'block':'none';}
+  timedBtn.onclick=function(){tMode='timed';paintMode();};tutorBtn.onclick=function(){tMode='tutor';paintMode();};
+  modeRow.append(timedBtn,tutorBtn);paintMode();
+  var tFile=h('input',{type:'file',accept:'.txt',style:{display:'block',marginBottom:'8px',fontSize:'12px',color:'var(--muted)',fontFamily:'Inter,sans-serif'}});
+  var tPaste=h('textarea',{cls:'input',placeholder:'\u2026or paste questions here (Q-Bank format: stem, A\u2013E, Answer:, Explanation:, blank line between).',style:{width:'100%',minHeight:'120px',fontFamily:'monospace',fontSize:'12px',marginBottom:'8px'}});
+  var tPreview=div({style:{marginBottom:'12px'}},[]);
+  function renderPreview(){tPreview.innerHTML='';if(!tParsed.length)return;var ok=tParsed.filter(function(q){return q._ok;}).length;var bad=tParsed.length-ok;tPreview.append(h('div',{style:{fontSize:'13px',color:bad?'var(--gold)':'var(--teal)',marginBottom:bad?'8px':'0'}},[tParsed.length+' parsed \u00b7 '+ok+' ready'+(bad?' \u00b7 '+bad+' with missing fields':'')]));if(bad){tParsed.forEach(function(q,i){if(q._ok)return;tPreview.append(h('div',{cls:'mono',style:{fontSize:'11px',color:'var(--muted)',marginBottom:'2px'}},['Q'+(i+1)+' missing: '+q._missing.join(', ')+' \u2014 '+(q.question||'').slice(0,60)]));});}}
+  var parseBtn=btn('Parse & preview','btn-outline',async function(){var text='';if(tFile.files&&tFile.files.length)text=await tFile.files[0].text();else text=tPaste.value;if(!text.trim()){tStatus('Pick a .txt file or paste questions first.','#ff4444');return;}tParsed=parseTut(text);renderPreview();if(!tParsed.length)tStatus('No questions found \u2014 check the format.','#ff4444');else tSt.style.display='none';},{style:{fontSize:'12px',padding:'8px 16px',marginRight:'8px'}});
+  var saveBtn=btn('Save to library','btn-gold',async function(){var title=tTitle.value.trim();var ok=tParsed.filter(function(q){return q._ok;});if(!title){tStatus('Add a title first.','#ff4444');return;}if(!ok.length){tStatus('Parse a valid question set first.','#ff4444');return;}var tl=tMode==='timed'?(parseInt(tLimit.value,10)||null):null;saveBtn.disabled=true;tStatus('Saving\u2026','var(--muted)');var ins=await sb.from('tutoring_tests').insert({title:title,mode:tMode,time_limit:tl,created_by:S.user.id}).select().single();if(ins.error||!ins.data){tStatus('Could not create test: '+(ins.error&&ins.error.message||'unknown'),'#ff4444');saveBtn.disabled=false;return;}var rows=ok.map(function(q,i){return{test_id:ins.data.id,position:i+1,topic:q.topic||null,question:q.question,option_a:q.option_a,option_b:q.option_b,option_c:q.option_c,option_d:q.option_d,option_e:q.option_e,correct_answer:q.correct_answer,explanation:q.explanation};});var qins=await sb.from('tutoring_questions').insert(rows);if(qins.error){tStatus('Test created, but questions failed: '+qins.error.message,'#ff4444');saveBtn.disabled=false;return;}tStatus('\u2713 Saved \u201c'+title+'\u201d \u2014 '+rows.length+' questions.','var(--teal)');tTitle.value='';tPaste.value='';tFile.value='';tParsed=[];tPreview.innerHTML='';saveBtn.disabled=false;loadLibrary();},{style:{fontSize:'12px',padding:'8px 16px'}});
+  upCard.append(tTitle,modeRow,limitWrap,tFile,tPaste,tPreview,div({style:{display:'flex',alignItems:'center',flexWrap:'wrap'}},[parseBtn,saveBtn]),tSt);
+  tBody.append(upCard);
+  var libWrap=div({},[]);
+  tBody.append(libWrap);
+  async function loadLibrary(){
+    libWrap.innerHTML='';libWrap.append(skelCard([['40%'],['80%']]));
+    var t=await sb.from('tutoring_tests').select('*').order('created_at',{ascending:false});
+    var tests=t.data||[];var counts={};
+    if(tests.length){var ids=tests.map(function(x){return x.id;});var qc=await sb.from('tutoring_questions').select('test_id').in('test_id',ids);(qc.data||[]).forEach(function(r){counts[r.test_id]=(counts[r.test_id]||0)+1;});}
+    libWrap.innerHTML='';
+    libWrap.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'16px',marginBottom:'12px'},html:'Library ('+tests.length+')'}));
+    if(!tests.length){libWrap.append(div({cls:'card',style:{textAlign:'center',padding:'30px'}},[h('p',{style:{fontSize:'13px',color:'var(--dim)'},html:'No tests yet. Upload one above.'})]));return;}
+    tests.forEach(function(t){
+      var card=div({cls:'card',style:{marginBottom:'10px',display:'flex',justifyContent:'space-between',alignItems:'center',gap:'14px',flexWrap:'wrap'}},[]);
+      card.append(div({style:{flex:'1',minWidth:'220px'}},[div({style:{display:'flex',alignItems:'center',marginBottom:'6px',flexWrap:'wrap'}},[modeBadgeEl(t.mode),h('span',{style:{fontFamily:'Georgia,serif',fontSize:'17px',color:'var(--text)'}},[t.title])]),h('div',{cls:'mono',style:{fontSize:'11px',color:'var(--muted)'}},[(counts[t.id]||0)+' questions'+(t.mode==='timed'&&t.time_limit?' \u00b7 '+t.time_limit+' min':'')+' \u00b7 '+new Date(t.created_at).toLocaleDateString()])]));
+      var btns=div({style:{display:'flex',gap:'6px',flexShrink:'0'}},[]);
+      btns.append(btn('Assign','btn-gold',function(){openAssign({testId:t.id,testTitle:t.title});},{style:{fontSize:'10px',padding:'6px 12px'}}));
+      btns.append(btn('Delete','btn-outline',async function(){if(!confirm('Delete \u201c'+t.title+'\u201d? Its questions and any current assignments are removed. Past results are preserved.'))return;var d=await sb.from('tutoring_tests').delete().eq('id',t.id);if(d&&d.error){alert('Delete failed: '+d.error.message);return;}loadLibrary();},{style:{fontSize:'10px',padding:'6px 12px',color:'#ff4444',borderColor:'#ff4444'}}));
+      card.append(btns);
+      libWrap.append(card);
+    });
+  }
+  loadLibrary();
+}
+
+/* ===================== STUDENTS VIEW ===================== */
+async function fetchEnrolled(){
+  var en=await sb.from('tutoring_students').select('*').eq('active',true).order('enrolled_at',{ascending:false});
+  var rows=en.data||[];
+  if(!rows.length)return [];
+  var ids=rows.map(function(r){return r.user_id;});
+  var pr=await sb.from('profiles').select('id,full_name,email').in('id',ids);
+  var pmap={};(pr.data||[]).forEach(function(p){pmap[p.id]=p;});
+  return rows.map(function(r){var p=pmap[r.user_id]||{};return{user_id:r.user_id,enrolled_at:r.enrolled_at,full_name:p.full_name||'(no name)',email:p.email||''};});
+}
+
+function renderStudents(){
+  tBody.innerHTML='';
+  tBody.append(btn('+ Enroll student','btn-gold',function(){openEnroll();},{style:{fontSize:'12px',padding:'8px 16px',marginBottom:'16px'}}));
+  var listWrap=div({},[]);
+  tBody.append(listWrap);
+  (async function(){
+    listWrap.append(skelCard([['40%'],['70%']]));
+    var students=await fetchEnrolled();
+    listWrap.innerHTML='';
+    listWrap.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'16px',marginBottom:'12px'},html:'Enrolled ('+students.length+')'}));
+    if(!students.length){listWrap.append(div({cls:'card',style:{textAlign:'center',padding:'30px'}},[h('p',{style:{fontSize:'13px',color:'var(--dim)'},html:'No students enrolled yet. Use \u201cEnroll student\u201d to add an existing platform user.'})]));return;}
+    students.forEach(function(s){
+      var card=div({cls:'card',style:{marginBottom:'10px',display:'flex',justifyContent:'space-between',alignItems:'center',gap:'14px',flexWrap:'wrap'}},[]);
+      card.append(div({style:{flex:'1',minWidth:'200px'}},[h('div',{style:{fontSize:'14px',color:'var(--text)',fontWeight:'500'}},[s.full_name]),h('div',{cls:'mono',style:{fontSize:'11px',color:'var(--muted)',marginTop:'2px'}},[s.email+' \u00b7 enrolled '+new Date(s.enrolled_at).toLocaleDateString()])]));
+      var btns=div({style:{display:'flex',gap:'6px',flexShrink:'0'}},[]);
+      btns.append(btn('Open','btn-outline',function(){openStudent(s);},{style:{fontSize:'10px',padding:'6px 16px'}}));
+      card.append(btns);
+      listWrap.append(card);
+    });
+  })();
+}
+
+/* ===================== ENROLL PANEL ===================== */
+function openEnroll(){
+  tBody.innerHTML='';
+  tBody.append(btn('\u2190 Back','btn-outline',function(){renderStudents();},{style:{fontSize:'11px',padding:'6px 12px',marginBottom:'16px'}}));
+  var card=div({cls:'card'},[]);
+  card.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'16px',marginBottom:'12px'},html:'Enroll an existing user'}));
+  var search=h('input',{cls:'input',placeholder:'Search by name or email',style:{width:'100%',marginBottom:'12px'}});
+  var resWrap=div({},[]);
+  var enrolledIds={};
+  card.append(search,resWrap);
+  tBody.append(card);
+  (async function(){var en=await sb.from('tutoring_students').select('user_id');(en.data||[]).forEach(function(r){enrolledIds[r.user_id]=true;});})();
+  var timer=null;
+  function doSearch(){
+    var qv=search.value.trim();
+    resWrap.innerHTML='';
+    if(qv.length<2){resWrap.append(h('div',{style:{fontSize:'12px',color:'var(--dim)',padding:'8px'},html:'Type at least 2 characters.'}));return;}
+    resWrap.append(skelCard([['60%'],['50%']]));
+    (async function(){
+      var esc=qv.replace(/,/g,' ');
+      var pr=await sb.from('profiles').select('id,full_name,email,status').or('full_name.ilike.%'+esc+'%,email.ilike.%'+esc+'%').limit(20);
+      resWrap.innerHTML='';
+      var list=(pr.data||[]).filter(function(p){return !enrolledIds[p.id];});
+      if(!list.length){resWrap.append(h('div',{style:{fontSize:'12px',color:'var(--dim)',padding:'8px'},html:'No matching users (or already enrolled).'}));return;}
+      list.forEach(function(p){
+        var row=div({cls:'card',style:{marginBottom:'8px',padding:'12px',display:'flex',justifyContent:'space-between',alignItems:'center',gap:'12px',flexWrap:'wrap'}},[]);
+        row.append(div({style:{flex:'1',minWidth:'180px'}},[h('div',{style:{fontSize:'13px',color:'var(--text)'}},[p.full_name||'(no name)']),h('div',{cls:'mono',style:{fontSize:'11px',color:'var(--muted)',marginTop:'2px'}},[p.email||''])]));
+        var addBtn=btn('Enroll','btn-gold',async function(){addBtn.disabled=true;var ins=await sb.from('tutoring_students').insert({user_id:p.id,enrolled_by:S.user.id});if(ins.error){alert('Enroll failed: '+ins.error.message);addBtn.disabled=false;return;}enrolledIds[p.id]=true;row.remove();},{style:{fontSize:'10px',padding:'6px 14px',flexShrink:'0'}});
+        row.append(addBtn);
+        resWrap.append(row);
+      });
+    })();
+  }
+  search.oninput=function(){if(timer)clearTimeout(timer);timer=setTimeout(doSearch,300);};
+}
+
+/* ===================== ASSIGN PANEL ===================== */
+function openAssign(opts){
+  opts=opts||{};
+  tBody.innerHTML='';
+  tBody.append(btn('\u2190 Back','btn-outline',function(){if(tSub==='library')renderLibrary();else renderStudents();},{style:{fontSize:'11px',padding:'6px 12px',marginBottom:'16px'}}));
+  var card=div({cls:'card'},[]);
+  card.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'16px',marginBottom:'14px'},html:'Assign a test'}));
+  var aStatus=div({style:{display:'none',fontSize:'12px',marginBottom:'12px'}},[]);
+  function aSt(m,c){aStatus.textContent=m;aStatus.style.color=c||'var(--muted)';aStatus.style.display='block';}
+
+  var testSel=h('select',{cls:'input',style:{width:'100%',marginBottom:'14px'}},[]);
+  var studWrap=div({style:{marginBottom:'14px'}},[]);
+  var pickedStudents={};
+  var dueInput=h('input',{cls:'input',type:'date',style:{width:'220px',marginBottom:'14px'}});
+  var assignBtn=btn('Assign','btn-gold',async function(){
+    var testId=testSel.value;
+    var sids=Object.keys(pickedStudents).filter(function(k){return pickedStudents[k];});
+    if(!testId){aSt('Pick a test.','#ff4444');return;}
+    if(!sids.length){aSt('Pick at least one student.','#ff4444');return;}
+    assignBtn.disabled=true;aSt('Assigning\u2026','var(--muted)');
+    var rows=sids.map(function(sid){return{test_id:testId,student_id:sid,assigned_by:S.user.id,due_date:dueInput.value||null};});
+    var ins=await sb.from('tutoring_assignments').insert(rows);
+    if(ins.error){aSt('Failed: '+ins.error.message,'#ff4444');assignBtn.disabled=false;return;}
+    aSt('\u2713 Assigned to '+sids.length+' student'+(sids.length>1?'s':'')+'.','var(--teal)');
+    assignBtn.disabled=false;
+  },{style:{fontSize:'12px',padding:'8px 16px'}});
+
+  card.append(h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--muted)',marginBottom:'6px',textTransform:'uppercase',letterSpacing:'1px'},html:'Test'}),testSel);
+  card.append(h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--muted)',marginBottom:'6px',textTransform:'uppercase',letterSpacing:'1px'},html:'Students'}),studWrap);
+  card.append(h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--muted)',marginBottom:'6px',textTransform:'uppercase',letterSpacing:'1px'},html:'Due date (optional)'}),dueInput);
+  card.append(div({},[assignBtn]),aStatus);
+  tBody.append(card);
+
+  (async function(){
+    var t=await sb.from('tutoring_tests').select('id,title,mode,time_limit').order('created_at',{ascending:false});
+    (t.data||[]).forEach(function(x){var o=h('option',{value:x.id},[x.title+' \u00b7 '+(x.mode==='timed'?'Timed':'Tutor')]);testSel.append(o);});
+    if(opts.testId){testSel.value=opts.testId;testSel.disabled=true;}
+    var students=await fetchEnrolled();
+    studWrap.innerHTML='';
+    if(!students.length){studWrap.append(h('div',{style:{fontSize:'12px',color:'var(--dim)'},html:'No enrolled students. Enroll someone first.'}));return;}
+    students.forEach(function(s){
+      var on=opts.studentId?(s.user_id===opts.studentId):false;
+      if(on)pickedStudents[s.user_id]=true;
+      var rowBtn=div({style:{display:'flex',gap:'10px',alignItems:'center',padding:'8px 10px',borderRadius:'4px',cursor:opts.studentId?'default':'pointer',border:'1px solid '+(on?'var(--gold)':'var(--border)'),background:on?'var(--gold-subtle)':'transparent',marginBottom:'6px',opacity:opts.studentId&&!on?'0.4':'1'}},[]);
+      var box=div({style:{width:'18px',height:'18px',borderRadius:'4px',flexShrink:'0',border:'1.5px solid '+(on?'var(--gold)':'var(--border)'),background:on?'var(--gold)':'transparent',display:'flex',alignItems:'center',justifyContent:'center',color:'#0F0E0A',fontSize:'12px'}},[]);
+      if(on)box.append(h('span',{},['\u2713']));
+      rowBtn.append(box,h('span',{style:{fontSize:'13px',color:'var(--text)'}},[s.full_name+'  '+(s.email?'\u00b7 '+s.email:'')]));
+      if(!opts.studentId){rowBtn.onclick=function(){var nv=!pickedStudents[s.user_id];pickedStudents[s.user_id]=nv;box.innerHTML='';if(nv)box.append(h('span',{},['\u2713']));box.style.background=nv?'var(--gold)':'transparent';box.style.borderColor=nv?'var(--gold)':'var(--border)';rowBtn.style.borderColor=nv?'var(--gold)':'var(--border)';rowBtn.style.background=nv?'var(--gold-subtle)':'transparent';};}
+      studWrap.append(rowBtn);
+    });
+  })();
+}
+
+function statBox(label,value){return div({cls:'card',style:{padding:'14px'}},[h('div',{cls:'mono',style:{fontSize:'10px',letterSpacing:'1px',textTransform:'uppercase',color:'var(--muted)',marginBottom:'6px'}},[label]),h('div',{style:{fontFamily:'Georgia,serif',fontStyle:'italic',fontSize:'26px',color:'var(--gold)',lineHeight:'1'}},[value])]);}
+
+function openStudent(s){
+  tBody.innerHTML='';
+  tBody.append(btn('\u2190 Back','btn-outline',function(){renderStudents();},{style:{fontSize:'11px',padding:'6px 12px',marginBottom:'16px'}}));
+  var head=div({style:{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:'12px',flexWrap:'wrap',marginBottom:'16px'}},[]);
+  head.append(div({},[h('div',{style:{fontFamily:'Georgia,serif',fontSize:'22px',color:'var(--text)'}},[s.full_name]),h('div',{cls:'mono',style:{fontSize:'11px',color:'var(--muted)',marginTop:'4px'}},[s.email+' \u00b7 enrolled '+new Date(s.enrolled_at).toLocaleDateString()])]));
+  var headBtns=div({style:{display:'flex',gap:'6px',flexWrap:'wrap'}},[]);
+  headBtns.append(btn('Assign test','btn-gold',function(){openAssign({studentId:s.user_id,studentName:s.full_name});},{style:{fontSize:'10px',padding:'6px 12px'}}));
+  headBtns.append(btn('Unenroll','btn-outline',async function(){if(!confirm('Remove '+s.full_name+' from tutoring? They lose access to the wing. Their tests and results are kept.'))return;var d=await sb.from('tutoring_students').delete().eq('user_id',s.user_id);if(d&&d.error){alert('Failed: '+d.error.message);return;}renderStudents();},{style:{fontSize:'10px',padding:'6px 12px',color:'#ff4444',borderColor:'#ff4444'}}));
+  head.append(headBtns);
+  tBody.append(head);
+  var body=div({},[]);
+  tBody.append(body);
+  (async function(){
+    body.append(skelCard([['40%'],['80%'],['60%']]));
+    var rRes=await sb.from('tutoring_results').select('*').eq('student_id',s.user_id).order('taken_at',{ascending:false});
+    var results=rRes.data||[];
+    var aRes=await sb.from('tutoring_assignments').select('id,due_date,test_id,tutoring_tests(title,mode)').eq('student_id',s.user_id).order('assigned_at',{ascending:false});
+    var assigns=aRes.data||[];
+    var kRes=await sb.from('tutoring_tasks').select('*').eq('student_id',s.user_id).order('due_date',{ascending:true});
+    var tasks=kRes.data||[];
+    body.innerHTML='';
+    var taken=results.length;
+    var avg=taken?Math.round(results.reduce(function(a,t){return a+(t.score/t.total)*100;},0)/taken):0;
+    var openCount=tasks.filter(function(k){return !k.done;}).length;
+    var grid=div({style:{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:'12px',marginBottom:'20px'}},[]);
+    grid.append(statBox('Tests completed',String(taken)),statBox('Average score',taken?avg+'%':'\u2014'),statBox('Tasks open',String(openCount)));
+    body.append(grid);
+
+    body.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'15px',marginBottom:'10px'},html:'Assigned tests'}));
+    if(!assigns.length)body.append(h('div',{style:{fontSize:'12px',color:'var(--dim)',marginBottom:'18px'}},['None assigned.']));
+    else assigns.forEach(function(a){
+      var done=results.filter(function(r){return r.assignment_id===a.id;});
+      var comp=done.length>0;var latest=comp?done[0]:null;var test=a.tutoring_tests||{};
+      var card=div({cls:'card',style:{marginBottom:'8px',padding:'12px',display:'flex',justifyContent:'space-between',alignItems:'center',gap:'12px',flexWrap:'wrap'}},[]);
+      card.append(div({style:{flex:'1',minWidth:'180px'}},[div({style:{display:'flex',alignItems:'center',marginBottom:'4px',flexWrap:'wrap'}},[modeBadgeEl(test.mode||'tutor'),h('span',{style:{fontFamily:'Georgia,serif',fontSize:'15px',color:'var(--text)'}},[test.title||'Test'])]),h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--muted)'}},[(a.due_date?'Due '+new Date(a.due_date+'T00:00:00').toLocaleDateString()+' \u00b7 ':'')+(comp?'Completed':'Not started')])]));
+      if(comp)card.append(h('div',{style:{fontFamily:'Georgia,serif',fontSize:'20px',color:'var(--teal)'}},[Math.round((latest.score/latest.total)*100)+'%']));
+      body.append(card);
+    });
+
+    if(results.length){
+      body.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'15px',margin:'18px 0 10px'},html:'Results history'}));
+      results.forEach(function(t){
+        var card=div({cls:'card',style:{marginBottom:'8px',padding:'12px',display:'flex',justifyContent:'space-between',alignItems:'center',gap:'12px',flexWrap:'wrap'}},[]);
+        card.append(div({},[h('div',{style:{fontSize:'14px',color:'var(--text)'}},[t.test_title]),h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--muted)',marginTop:'2px'}},[new Date(t.taken_at).toLocaleDateString()+' \u00b7 '+(t.mode==='timed'?'Timed':'Tutor')])]),h('div',{style:{fontFamily:'Georgia,serif',fontSize:'18px',color:'var(--teal)'}},[Math.round((t.score/t.total)*100)+'% ('+t.score+'/'+t.total+')']));
+        body.append(card);
+      });
+    }
+
+    body.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'15px',margin:'18px 0 10px'},html:'Tasks'}));
+    var taskList=div({},[]);
+    body.append(taskList);
+    function renderTaskList(items){
+      taskList.innerHTML='';
+      if(!items.length){taskList.append(h('div',{style:{fontSize:'12px',color:'var(--dim)',marginBottom:'10px'}},['No tasks set.']));return;}
+      items.forEach(function(k){
+        var row=div({cls:'card',style:{marginBottom:'8px',padding:'10px 12px',display:'flex',justifyContent:'space-between',alignItems:'center',gap:'12px',flexWrap:'wrap'}},[]);
+        row.append(div({style:{flex:'1',minWidth:'160px'}},[h('div',{style:{fontSize:'13px',color:'var(--text)',textDecoration:k.done?'line-through':'none',opacity:k.done?'0.6':'1'}},[k.title]),(k.note?h('div',{style:{fontSize:'11px',color:'var(--muted)',marginTop:'2px'}},[k.note]):null),(k.due_date?h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--dim)',marginTop:'3px'}},['Due '+new Date(k.due_date+'T00:00:00').toLocaleDateString()+(k.done?' \u00b7 done':'')]):null)].filter(Boolean)));
+        row.append(btn('Delete','btn-outline',async function(){if(!confirm('Delete this task?'))return;var d=await sb.from('tutoring_tasks').delete().eq('id',k.id);if(d&&d.error){alert('Failed: '+d.error.message);return;}var idx=items.indexOf(k);if(idx>=0)items.splice(idx,1);renderTaskList(items);},{style:{fontSize:'10px',padding:'5px 10px',color:'#ff4444',borderColor:'#ff4444',flexShrink:'0'}}));
+        taskList.append(row);
+      });
+    }
+    renderTaskList(tasks);
+
+    var form=div({cls:'card',style:{marginTop:'8px'}},[]);
+    form.append(h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--muted)',marginBottom:'8px',textTransform:'uppercase',letterSpacing:'1px'},html:'Assign a task'}));
+    var kTitle=h('input',{cls:'input',placeholder:'Task \u2014 e.g. Read Cardiac Cycle handout (pp. 1\u20136)',style:{width:'100%',marginBottom:'8px'}});
+    var kNote=h('input',{cls:'input',placeholder:'Note (optional)',style:{width:'100%',marginBottom:'8px'}});
+    var kDue=h('input',{cls:'input',type:'date',style:{width:'200px',marginBottom:'8px'}});
+    var kSt=div({style:{display:'none',fontSize:'12px',marginBottom:'8px'}},[]);
+    var addBtn=btn('Add task','btn-gold',async function(){var title=kTitle.value.trim();if(!title){kSt.textContent='Add a task title.';kSt.style.color='#ff4444';kSt.style.display='block';return;}addBtn.disabled=true;var ins=await sb.from('tutoring_tasks').insert({student_id:s.user_id,assigned_by:S.user.id,title:title,note:kNote.value.trim()||null,due_date:kDue.value||null}).select().single();addBtn.disabled=false;if(ins.error||!ins.data){kSt.textContent='Failed: '+(ins.error&&ins.error.message||'unknown');kSt.style.color='#ff4444';kSt.style.display='block';return;}tasks.unshift(ins.data);renderTaskList(tasks);kTitle.value='';kNote.value='';kDue.value='';kSt.textContent='\u2713 Task added.';kSt.style.color='var(--teal)';kSt.style.display='block';},{style:{fontSize:'12px',padding:'8px 16px'}});
+    form.append(kTitle,kNote,kDue,div({},[addBtn]),kSt);
+    body.append(form);
+  })();
+}
+paintSub();
+renderLibrary();
+return;
 }
 if(tab==='recalls'){
 const{data:recs}=await sb.from('recall_requests').select('*').in('status',['pending','assigned']).order('created_at',{ascending:false});
