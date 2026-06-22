@@ -210,6 +210,25 @@ var SVG_CHEVRON_DOWN='<svg xmlns="http://www.w3.org/2000/svg" width="12" height=
 var SVG_CHEVRON_RIGHT='<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 6 15 12 9 18"/></svg>';
 
 function showMaplet(pageKey,message){var storageKey="maplet_"+pageKey;if(localStorage.getItem(storageKey)==="dismissed")return null;var maplet=div({style:{background:"rgba(184,146,46,0.08)",border:"1px solid var(--gold)",borderRadius:"4px",padding:"12px 20px",marginBottom:"24px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:"16px",fontSize:"13px",fontFamily:"Plus Jakarta Sans,sans-serif",color:"var(--text)",lineHeight:"1.5"}},[h("span",{style:{flex:"1"}},[message]),btn("\u2715","",function(){localStorage.setItem(storageKey,"dismissed");maplet.style.display="none";},{style:{background:"none",border:"none",color:"var(--dim)",cursor:"pointer",fontSize:"16px",padding:"4px 8px",flexShrink:"0"}})]);return maplet;}
+function renderQuestionText(text,container){
+var LAB_INLINE_RE=/(?:(?:Laboratory|Lab) (?:studies|results|findings|data|values)[^:]*:|studies show:|results show:|values show:)\s*((?:[^;]+(?:\/[^\s;]+)?\s*\([^)]+\);\s*)+)/i;
+var LAB_ITEM_RE=/([^;:()\\/\d]+?)\s+([\d,\.]+(?:[-\u2013][\d,\.]+)?\s*(?:\/[\w\u00b5]+)?)\s+(?:U\/L|g\/dL|mg\/dL|mEq\/L|mmol\/L|\u00b5mol\/L|umol\/L|IU\/L|ng\/mL|pg\/mL|\u00b5g\/dL|ug\/dL|%|\/\u00b5L|\/uL|mm\/hr|mm Hg|cm|x10\^?\d+\/?\\w*)?\s*\((?:normal\s+)?([^)]+)\)/gi;
+var match=LAB_INLINE_RE.exec(text);
+if(!match){var p=h('p',{style:{fontSize:'15px',color:'var(--text)',lineHeight:'1.8'}},[]);p.textContent=text;container.append(p);return;}
+var matchStart=text.indexOf(match[0]);
+var before=text.slice(0,matchStart);var after=text.slice(matchStart+match[0].length);
+var labStr=match[1];var labItems=[];var m2;LAB_ITEM_RE.lastIndex=0;
+while((m2=LAB_ITEM_RE.exec(labStr))!==null){var n=m2[1].replace(/^[;\s,]+/,'').trim();n=n.charAt(0).toUpperCase()+n.slice(1);labItems.push({name:n,value:m2[2].trim(),normal:m2[3].trim()});}
+if(!labItems.length){var p2=h('p',{style:{fontSize:'15px',color:'var(--text)',lineHeight:'1.8'}},[]);p2.textContent=text;container.append(p2);return;}
+if(before.trim()){var pBefore=h('p',{style:{fontSize:'15px',color:'var(--text)',lineHeight:'1.8',marginBottom:'14px'}},[]);pBefore.textContent=before.trim();container.append(pBefore);}
+var tableWrap=div({style:{margin:'16px 0',borderRadius:'3px',border:'1px solid var(--teal-border)',overflow:'hidden'}});
+var tableHead=div({style:{background:'rgba(126,184,164,0.1)',padding:'8px 16px',borderBottom:'1px solid var(--teal-border)',display:'flex',alignItems:'center'}});
+tableHead.append(h('span',{style:{fontSize:'10px',fontWeight:'700',letterSpacing:'1.5px',textTransform:'uppercase',color:'var(--teal)'}},['Laboratory Studies']));
+tableWrap.append(tableHead);
+labItems.forEach(function(item){var row=div({style:{display:'flex',alignItems:'baseline',padding:'9px 16px',borderBottom:'1px solid var(--border)'}});var nameEl=h('span',{style:{flex:'1',fontSize:'13px',color:'var(--text)',lineHeight:'1.5'}},[]);nameEl.textContent=item.name;var valEl=h('span',{style:{fontSize:'13px',fontWeight:'400',color:'var(--text)',minWidth:'90px',textAlign:'right'}},[]);valEl.textContent=item.value;var normEl=h('span',{style:{fontSize:'11px',color:'var(--muted)',minWidth:'120px',textAlign:'right',marginLeft:'16px'}},[]);normEl.textContent='('+item.normal+')';row.append(nameEl,valEl,normEl);tableWrap.append(row);});
+container.append(tableWrap);
+if(after.trim()){var pAfter=h('p',{style:{fontSize:'15px',color:'var(--text)',lineHeight:'1.8',marginTop:'14px'}},[]);pAfter.textContent=after.replace(/^[\s.,;]+/,'');container.append(pAfter);}
+}
 async function render(){
 const root=document.getElementById('root');
 if(!S.user){
