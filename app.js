@@ -6339,17 +6339,11 @@ async function showTeamTab(){
             try{
               let userId=null;
               // Try to create new auth user
-              const createRes=await fetch(ADMIN_FN,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+(await sb.auth.getSession()).data.session?.access_token},body:JSON.stringify({action:'create_user',email,password,email_confirm:true})});
+              const createRes=await fetch(ADMIN_FN,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+(await sb.auth.getSession()).data.session?.access_token},body:JSON.stringify({action:'create_user',email,password,full_name:name,email_confirm:true})});
               const newUser=await createRes.json();
               if(createRes.ok){
-                // New user created
-                userId=newUser.user?.id;
-                // Insert profile if not exists
-                const{data:existingProf}=await sb.from('profiles').select('id').eq('id',userId).single();
-                if(!existingProf){
-                  const{error:profError}=await sb.from('profiles').insert({id:userId,full_name:name,email,status:'approved',is_free_tier:false});
-                  if(profError)throw new Error('Profile: '+profError.message);
-                }
+                // New user created — profile inserted server-side
+                userId=newUser.id;
               }else if(createRes.status===422){
                 // User already exists in auth — look them up by email in profiles
                 statusMsg.textContent='Account exists, adding team role...';
