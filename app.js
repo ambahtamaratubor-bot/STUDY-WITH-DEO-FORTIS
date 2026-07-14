@@ -498,11 +498,12 @@ rightNav.append(btn('\u2190 Dashboard','btn-outline',()=>go('dashboard'),{style:
 nav.append(dfLogo(),rightNav);
 page.append(nav);
 const inner=div({cls:'inner'});
-inner.append(
+const wingHeader=div({},[
   h('span',{cls:'chapter',html:'Tutoring Wing'},[]),
   h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'26px',marginBottom:'8px'},html:'Tutoring Wing'},[]),
   h('p',{cls:'muted',style:{fontSize:'14px',marginBottom:'24px'},html:'Your assigned tests, tasks and results \u2014 sit them, clear them, review them.'},[])
-);
+]);
+inner.append(wingHeader);
 page.append(inner);
 
 let currentTab='tests';
@@ -510,6 +511,22 @@ const tabBar=div({style:{display:'flex',gap:'8px',marginBottom:'20px',flexWrap:'
 const content=div({});
 inner.append(tabBar,content);
 const TABS=[['tests','Assigned Tests'],['tasks','Tasks'],['results','My Results'],['assessments','Assessments']];
+
+function enterFullscreen(){
+  nav.style.display='none';
+  wingHeader.style.display='none';
+  tabBar.style.display='none';
+  inner.style.maxWidth='none';
+  inner.style.padding='0';
+}
+function exitFullscreen(){
+  nav.style.display='';
+  wingHeader.style.display='';
+  tabBar.style.display='';
+  inner.style.maxWidth='';
+  inner.style.padding='';
+}
+
 
 function paintTabs(){
   tabBar.innerHTML='';
@@ -537,7 +554,7 @@ async function loadData(){
     const q=await sb.from('tutoring_questions').select('test_id').in('test_id',tids);
     (q.data||[]).forEach(function(row){DATA.counts[row.test_id]=(DATA.counts[row.test_id]||0)+1;});
   }
-  const aa=await sb.from('tutoring_assessment_assignments').select('id,due_date,assessment_id,tutoring_assessments(id,title,mode,time_limit)').eq('student_id',S.user.id).order('assigned_at',{ascending:false});
+  const aa=await sb.from('tutoring_assessment_assignments').select('id,due_date,assessment_id,tutoring_assessments(id,title,mode,time_limit,block_size,break_minutes)').eq('student_id',S.user.id).order('assigned_at',{ascending:false});
   DATA.assessAssignments=aa.data||[];
   const ar=await sb.from('tutoring_assessment_results').select('*').eq('student_id',S.user.id).order('taken_at',{ascending:false});
   DATA.assessResults=ar.data||[];
@@ -635,7 +652,7 @@ async function startAssessment(a,assessment){
   content.innerHTML='';
   const questions=q.data||[];
   if(!questions.length){content.append(emptyCard('This assessment has no questions yet','Check back once your tutor finishes uploading it.'));return;}
-  inner.style.maxWidth='none';inner.style.padding='0';
+  enterFullscreen();
   if(assessment.block_size){runBlockedAssessment(a,assessment,questions);}
   else{runAssessmentQuiz(a,assessment,questions);}
 }
@@ -687,7 +704,7 @@ async function startTest(a,test){
   content.innerHTML='';
   const questions=q.data||[];
   if(!questions.length){content.append(emptyCard('This test has no questions yet','Check back once your tutor finishes uploading it.'));return;}
-  inner.style.maxWidth='none';inner.style.padding='0';
+  enterFullscreen();
   runQuiz(a,test,questions);
 }
 
@@ -718,7 +735,7 @@ function runQuiz(a,test,questions){
   var pEl=h('span',{style:{fontFamily:'Inter,sans-serif',fontSize:'11px',color:'var(--muted)'}},[(current+1)+' / '+questions.length]);
   qNav.append(
     h('span',{style:{fontFamily:'Inter,sans-serif',fontSize:'11px',color:'var(--muted)',letterSpacing:'1px'}},[(test.title||'')+' \u00b7 '+(isTimed?'Timed':'Tutor')]),
-    div({style:{display:'flex',gap:'16px',alignItems:'center'}},[tEl,pEl,btn('\u2190 Exit','btn-outline',function(){clearTimer();inner.style.maxWidth='';inner.style.padding='';renderTab();},{style:{fontSize:'11px',padding:'6px 12px'}})])
+    div({style:{display:'flex',gap:'16px',alignItems:'center'}},[tEl,pEl,btn('\u2190 Exit','btn-outline',function(){clearTimer();exitFullscreen();renderTab();},{style:{fontSize:'11px',padding:'6px 12px'}})])
   );
   content.append(qNav);
 
@@ -888,7 +905,7 @@ function runQuiz(a,test,questions){
     var bw=div({style:{display:'grid',gap:'10px'}},[]);
     bw.append(
       btn('Review Answers \u2192','btn-gold',function(){showReview({test_title:test.title,score:score,total:questions.length,answers:answers,questions:questions,taken_at:new Date().toISOString()});}),
-      btn('Back to wing','btn-outline',function(){inner.style.maxWidth='';inner.style.padding='';currentTab='tests';paintTabs();renderTab();})
+      btn('Back to wing','btn-outline',function(){exitFullscreen();currentTab='tests';paintTabs();renderTab();})
     );
     wrap.append(bw);
     content.append(wrap);
@@ -997,7 +1014,7 @@ function runAssessmentQuiz(a,assessment,questions){
   var pEl=h('span',{style:{fontFamily:'Inter,sans-serif',fontSize:'11px',color:'var(--muted)'}},[(current+1)+' / '+questions.length]);
   qNav.append(
     h('span',{style:{fontFamily:'Inter,sans-serif',fontSize:'11px',color:'var(--muted)',letterSpacing:'1px'}},[(assessment.title||'')+' \u00b7 '+(isTimed?'Timed':'Tutor')]),
-    div({style:{display:'flex',gap:'16px',alignItems:'center'}},[tEl,pEl,btn('\u2190 Exit','btn-outline',function(){clearTimer();inner.style.maxWidth='';inner.style.padding='';renderTab();},{style:{fontSize:'11px',padding:'6px 12px'}})])
+    div({style:{display:'flex',gap:'16px',alignItems:'center'}},[tEl,pEl,btn('\u2190 Exit','btn-outline',function(){clearTimer();exitFullscreen();renderTab();},{style:{fontSize:'11px',padding:'6px 12px'}})])
   );
   content.append(qNav);
 
@@ -1171,7 +1188,7 @@ function runAssessmentQuiz(a,assessment,questions){
     bw.append(
       btn('Review Answers \u2192','btn-gold',function(){showReview({test_title:assessment.title,score:score,total:questions.length,answers:answers,questions:questions,taken_at:new Date().toISOString()});}),
       btn('Download Score Report','btn-outline',function(){downloadScoreReport(assessment.title,new Date().toLocaleDateString(),score,questions.length,questions,answers);}),
-      btn('Back to wing','btn-outline',function(){inner.style.maxWidth='';inner.style.padding='';currentTab='assessments';paintTabs();renderTab();})
+      btn('Back to wing','btn-outline',function(){exitFullscreen();currentTab='assessments';paintTabs();renderTab();})
     );
     wrap.append(bw);
     content.append(wrap);
@@ -1229,16 +1246,26 @@ function runBlockedAssessment(a,assessment,allQuestions){
   function clearBlockTimer(){if(blockTimer){clearInterval(blockTimer);blockTimer=null;}}
   function clearBreakTimer(){if(breakTimer){clearInterval(breakTimer);breakTimer=null;}}
   function corr(q){return String(q.correct_answer||'').toUpperCase();}
-  function exitToWing(){clearBlockTimer();clearBreakTimer();inner.style.maxWidth='';inner.style.padding='';renderTab();}
+  function exitToWing(){clearBlockTimer();clearBreakTimer();exitFullscreen();renderTab();}
 
   function renderIntro(){
     content.innerHTML='';
     var block=blocks[blockIdx];
-    var wrap=div({style:{maxWidth:'520px',margin:'60px auto',textAlign:'center'}},[]);
+    var wrap=div({style:{maxWidth:'560px',margin:'60px auto',textAlign:'center'}},[]);
     wrap.append(
       h('span',{cls:'chapter',html:'Exam start'},[]),
-      h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'26px',marginBottom:'10px',color:'var(--gold)'}},[assessment.title]),
-      h('p',{style:{fontSize:'14px',color:'var(--muted)',marginBottom:'6px'}},['Block 1 of '+totalBlocks+' \u00b7 '+block.length+' questions'+(perBlockLimit?' \u00b7 '+perBlockLimit+' min':'')]),
+      h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'26px',marginBottom:'16px',color:'var(--gold)'}},[assessment.title])
+    );
+    var summaryCard=div({cls:'card',style:{padding:'20px',marginBottom:'20px',textAlign:'left'}},[]);
+    summaryCard.append(
+      summaryRow('Total blocks',String(totalBlocks)),
+      summaryRow('Questions per block','Up to '+blockSize+' (last block may have fewer)'),
+      summaryRow('Time per block',perBlockLimit?perBlockLimit+' minutes':'Untimed'),
+      summaryRow('Break between blocks',breakMinutes>0?breakMinutes+' minutes (skippable)':'None \u2014 blocks run back to back')
+    );
+    wrap.append(summaryCard);
+    wrap.append(
+      h('p',{style:{fontSize:'13px',color:'var(--muted)',marginBottom:'6px'}},['Starting with Block 1 of '+totalBlocks+' \u00b7 '+block.length+' questions'+(perBlockLimit?' \u00b7 '+perBlockLimit+' min':'')]),
       h('p',{style:{fontSize:'12px',color:'var(--dim)',marginBottom:'28px'}},['Your score will not be shown until you complete every block. Answers cannot be reviewed until the exam is finished.'])
     );
     var bw=div({style:{display:'flex',gap:'12px',justifyContent:'center'}},[]);
@@ -1246,6 +1273,12 @@ function runBlockedAssessment(a,assessment,allQuestions){
     bw.append(btn('Exit','btn-outline',function(){exitToWing();},{style:{padding:'12px 20px',fontSize:'13px'}}));
     wrap.append(bw);
     content.append(wrap);
+  }
+  function summaryRow(label,value){
+    return div({style:{display:'flex',justifyContent:'space-between',padding:'8px 0',borderBottom:'1px solid var(--border)'}},[
+      h('span',{cls:'mono',style:{fontSize:'10px',color:'var(--muted)',textTransform:'uppercase',letterSpacing:'1px'}},[label]),
+      h('span',{style:{fontSize:'13px',color:'var(--text)'}},[value])
+    ]);
   }
 
   function startBlockFresh(){
@@ -1465,13 +1498,13 @@ function runBlockedAssessment(a,assessment,allQuestions){
     bw.append(
       btn('Review Answers \u2192','btn-gold',function(){showReview({test_title:assessment.title,score:score,total:allQuestions.length,answers:globalAnswers,questions:allQuestions,taken_at:new Date().toISOString()});}),
       btn('Download Score Report','btn-outline',function(){downloadScoreReport(assessment.title,new Date().toLocaleDateString(),score,allQuestions.length,allQuestions,globalAnswers);}),
-      btn('Back to wing','btn-outline',function(){inner.style.maxWidth='';inner.style.padding='';currentTab='assessments';paintTabs();renderTab();})
+      btn('Back to wing','btn-outline',function(){exitFullscreen();currentTab='assessments';paintTabs();renderTab();})
     );
     wrap.append(bw);
     content.append(wrap);
   }
 
-  inner.style.maxWidth='none';inner.style.padding='0';
+  enterFullscreen();
   if(phase==='block')renderBlock();
   else if(phase==='break')renderBreak();
   else renderIntro();
@@ -1479,7 +1512,7 @@ function runBlockedAssessment(a,assessment,allQuestions){
 
 function showReview(result){
   content.innerHTML='';
-  content.append(btn('\u2190 Back','btn-outline',function(){paintTabs();renderTab();},{style:{fontSize:'11px',padding:'6px 12px',marginBottom:'16px'}}));
+  content.append(btn('\u2190 Back','btn-outline',function(){exitFullscreen();paintTabs();renderTab();},{style:{fontSize:'11px',padding:'6px 12px',marginBottom:'16px'}}));
   content.append(
     h('span',{cls:'chapter',html:'Review'},[]),
     h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'24px',marginBottom:'4px'}},[result.test_title||'Test']),
@@ -1492,7 +1525,7 @@ function showReview(result){
       var qr=await sb.from('tutoring_questions').select('*').eq('test_id',result.test_id).order('position',{ascending:true});
       qs=(qr.data||[]);
       content.innerHTML='';
-      content.append(btn('\u2190 Back','btn-outline',function(){paintTabs();renderTab();},{style:{fontSize:'11px',padding:'6px 12px',marginBottom:'16px'}}));
+      content.append(btn('\u2190 Back','btn-outline',function(){exitFullscreen();paintTabs();renderTab();},{style:{fontSize:'11px',padding:'6px 12px',marginBottom:'16px'}}));
       content.append(h('span',{cls:'chapter',html:'Review'},[]),h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'24px',marginBottom:'4px'}},[result.test_title||'Test']),h('p',{cls:'muted',style:{fontSize:'13px',marginBottom:'24px'}},['Scored '+result.score+'/'+result.total+' \u00b7 '+new Date(result.taken_at).toLocaleDateString()]));
       if(!qs.length){content.append(h('p',{style:{color:'var(--muted)',fontSize:'13px'}},['Questions for this test could not be loaded.']));return;}
       renderReviewQuestions(qs,ans);
@@ -5818,15 +5851,40 @@ function renderAssessments(){
       if(openMediaIdx===i){
         var mForm=div({style:{marginTop:'10px',padding:'10px',border:'1px solid var(--border)',borderRadius:'4px'}},[]);
         var typeSel=h('select',{cls:'input',style:{width:'160px',marginBottom:'8px'}},[h('option',{value:'image'},['Image']),h('option',{value:'audio'},['Audio']),h('option',{value:'youtube'},['YouTube'])]);
-        var urlInput=h('input',{cls:'input',placeholder:'File URL or YouTube link',style:{width:'100%',marginBottom:'8px'}});
-        var attachBtn=btn('Attach','btn-gold',function(){
-          if(!urlInput.value.trim())return;
+        var fileInput=h('input',{type:'file',accept:'image/png,image/jpeg,image/jpg',style:{display:'block',marginBottom:'8px',fontSize:'12px',color:'var(--muted)',fontFamily:'Inter,sans-serif'}});
+        var linkInput=h('input',{cls:'input',placeholder:'YouTube link \u2014 e.g. https://youtu.be/...',style:{width:'100%',marginBottom:'8px',display:'none'}});
+        var mStatus=div({style:{fontSize:'11px',marginBottom:'8px',display:'none'}},[]);
+        function paintMediaType(){
+          var t=typeSel.value;
+          fileInput.style.display=(t==='youtube')?'none':'block';
+          fileInput.accept=(t==='audio')?'audio/mpeg,audio/wav,audio/mp4,audio/*':'image/png,image/jpeg,image/jpg';
+          linkInput.style.display=(t==='youtube')?'block':'none';
+        }
+        typeSel.onchange=paintMediaType;
+        paintMediaType();
+        var attachBtn=btn('Attach','btn-gold',async function(){
+          var t=typeSel.value;
           if(!aMediaMap[i])aMediaMap[i]=[];
           if(aMediaMap[i].length>=2)return;
-          aMediaMap[i].push({type:typeSel.value,url:urlInput.value.trim()});
+          if(t==='youtube'){
+            if(!linkInput.value.trim())return;
+            aMediaMap[i].push({type:'youtube',url:linkInput.value.trim()});
+            openMediaIdx=null;renderAPreview();
+            return;
+          }
+          if(!fileInput.files||!fileInput.files.length){mStatus.textContent='Choose a file first.';mStatus.style.color='#ff4444';mStatus.style.display='block';return;}
+          var file=fileInput.files[0];
+          attachBtn.disabled=true;mStatus.textContent='Uploading\u2026';mStatus.style.color='var(--muted)';mStatus.style.display='block';
+          var ext=(file.name.split('.').pop()||'bin').toLowerCase();
+          var path=S.user.id+'/'+Date.now()+'_'+Math.random().toString(36).slice(2)+'.'+ext;
+          var up=await sb.storage.from('assessment-media').upload(path,file,{contentType:file.type||undefined});
+          if(up.error){mStatus.textContent='Upload failed: '+up.error.message;mStatus.style.color='#ff4444';attachBtn.disabled=false;return;}
+          var pub=sb.storage.from('assessment-media').getPublicUrl(path);
+          var publicUrl=pub&&pub.data&&pub.data.publicUrl;
+          aMediaMap[i].push({type:t,url:publicUrl});
           openMediaIdx=null;renderAPreview();
         },{style:{fontSize:'11px',padding:'6px 14px'}});
-        mForm.append(typeSel,urlInput,attachBtn);
+        mForm.append(typeSel,fileInput,linkInput,mStatus,attachBtn);
         qCard.append(mForm);
       }
       aPreview.append(qCard);
