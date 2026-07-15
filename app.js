@@ -555,7 +555,7 @@ async function loadData(){
     const q=await sb.from('tutoring_questions').select('test_id').in('test_id',tids);
     (q.data||[]).forEach(function(row){DATA.counts[row.test_id]=(DATA.counts[row.test_id]||0)+1;});
   }
-  const aa=await sb.from('tutoring_assessment_assignments').select('id,due_date,assessment_id,tutoring_assessments(id,title,mode,time_limit,block_size,break_minutes,shuffle_questions)').eq('student_id',S.user.id).order('assigned_at',{ascending:false});
+  const aa=await sb.from('tutoring_assessment_assignments').select('id,due_date,unlocked,assessment_id,tutoring_assessments(id,title,mode,time_limit,block_size,break_minutes,shuffle_questions)').eq('student_id',S.user.id).order('assigned_at',{ascending:false});
   DATA.assessAssignments=aa.data||[];
   const ar=await sb.from('tutoring_assessment_results').select('*').eq('student_id',S.user.id).order('taken_at',{ascending:false});
   DATA.assessResults=ar.data||[];
@@ -617,6 +617,8 @@ function renderTests(){
 }
 
 function assessMetaLine(assessment,a,completed,best){var parts=[];var cnt=DATA.assessCounts[assessment.id]||0;if(cnt)parts.push(cnt+' questions');if(assessment.mode==='timed'&&assessment.time_limit)parts.push(assessment.time_limit+' min');if(a.due_date)parts.push('Due '+fmtDateShort(a.due_date));if(completed&&best)parts.push('Latest '+best.score+'/'+best.total);return parts.join(' \u00b7 ');}
+function todayStr(){var d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+function isAssessOpen(a){if(a.unlocked)return true;if(!a.due_date)return true;return a.due_date===todayStr();}
 
 function renderAssessTab(){
   if(!DATA.assessAssignments.length){content.append(emptyCard('No assessments assigned yet','When your tutor assigns an assessment, it will appear here.'));return;}
@@ -632,8 +634,14 @@ function renderAssessTab(){
       h('div',{style:{fontFamily:'Georgia,serif',fontSize:'18px',color:'var(--text)',marginBottom:'6px'}},[assessment.title||'Untitled assessment']),
       h('div',{cls:'mono',style:{fontSize:'11px',color:'var(--muted)'}},[assessMetaLine(assessment,a,completed,best)])
     );
+    const open=isAssessOpen(a);
+    if(!open){
+      left.append(h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--gold)',marginTop:'6px',letterSpacing:'1px',textTransform:'uppercase'}},['Locked \u00b7 opens '+(a.due_date?fmtDateShort(a.due_date):'on assigned day')]));
+    }
     const right=div({style:{display:'flex',gap:'6px',flexShrink:'0'}},[]);
-    if(completed){
+    if(!open){
+      right.append(btn('Locked','btn-outline',function(){},{style:{fontSize:'11px',padding:'8px 16px',opacity:'0.5',cursor:'not-allowed'},disabled:true}));
+    }else if(completed){
       right.append(
         btn('Review','btn-outline',function(){showReview(best);},{style:{fontSize:'11px',padding:'8px 14px'}}),
         btn('Retake','btn-gold',function(){startAssessment(a,assessment);},{style:{fontSize:'11px',padding:'8px 14px'}})
@@ -656,6 +664,7 @@ function shuffleArray(arr){
 }
 
 async function startAssessment(a,assessment){
+  if(a&&!isAssessOpen(a)){content.innerHTML='';content.append(emptyCard('This assessment is locked','It opens '+(a.due_date?fmtDateShort(a.due_date):'on the assigned day')+'. Ask your tutor to unlock it early if needed.'));return;}
   content.innerHTML='';
   content.append(skelCard([['40%'],['100%'],['100%'],['80%']]));
   const q=await sb.from('tutoring_assessment_questions').select('*').eq('assessment_id',assessment.id).order('position',{ascending:true});
@@ -977,13 +986,26 @@ function downloadScoreReport(title,dateStr,score,total,questions,answers){
   URL.revokeObjectURL(url);
 }
 
+function openImageLightbox(url){
+  var overlay=div({style:{position:'fixed',top:'0',left:'0',right:'0',bottom:'0',background:'rgba(0,0,0,0.9)',zIndex:'9999',display:'flex',alignItems:'center',justifyContent:'center',padding:'32px',cursor:'zoom-out'}},[]);
+  overlay.onclick=function(e){if(e.target===overlay)overlay.remove();};
+  var img=h('img',{src:url,style:{maxWidth:'100%',maxHeight:'100%',borderRadius:'4px',boxShadow:'0 0 40px rgba(0,0,0,0.6)',cursor:'zoom-out'}},[]);
+  img.onclick=function(){overlay.remove();};
+  var closeBtn=btn('\u2715','',function(){overlay.remove();},{style:{position:'absolute',top:'20px',right:'24px',background:'none',border:'none',color:'#fff',fontSize:'26px',cursor:'pointer',padding:'6px'}});
+  overlay.append(img,closeBtn);
+  document.body.append(overlay);
+}
 function mediaEmbed(m){
   var wrap=div({style:{marginBottom:'14px',border:'1px solid var(--teal-border)',borderRadius:'4px',padding:'14px',background:'rgba(126,173,168,0.05)'}},[]);
   var label=m.type==='image'?'Image':m.type==='audio'?'Audio':'YouTube';
   wrap.append(div({style:{fontFamily:'Inter,sans-serif',fontSize:'10px',color:'var(--teal)',letterSpacing:'2px',textTransform:'uppercase',marginBottom:'10px'},html:label+' attachment'}));
   if(m.type==='image'){
-    var img=h('img',{src:m.url,style:{maxWidth:'100%',borderRadius:'3px',display:'block'}},[]);
-    wrap.append(img);
+    var thumbWrap=div({style:{display:'inline-block',cursor:'zoom-in'}},[]);
+    var img=h('img',{src:m.url,style:{maxWidth:'100%',width:'auto',height:'auto',borderRadius:'3px',display:'block',border:'1px solid var(--teal-border)'}},[]);
+    var hint=div({style:{fontFamily:'Inter,sans-serif',fontSize:'10px',color:'var(--muted)',marginTop:'6px',textAlign:'center'}},['Click to enlarge']);
+    thumbWrap.append(img,hint);
+    thumbWrap.onclick=function(){openImageLightbox(m.url);};
+    wrap.append(thumbWrap);
   }else if(m.type==='audio'){
     var audio=h('audio',{controls:true,src:m.url,style:{width:'100%'}},[]);
     wrap.append(audio);
@@ -6024,28 +6046,65 @@ function openAssignAssessment(opts){
     if(ins.error){aaSt('Failed: '+ins.error.message,'#ff4444');assignBtn.disabled=false;return;}
     aaSt('\u2713 Assigned to '+sids.length+' student'+(sids.length>1?'s':'')+'.','var(--teal)');
     assignBtn.disabled=false;
+    refreshAssignList();
   },{style:{fontSize:'12px',padding:'8px 16px'}});
 
   card.append(h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--muted)',marginBottom:'6px',textTransform:'uppercase',letterSpacing:'1px'},html:'Assessment'}),assessSel);
   card.append(h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--muted)',marginBottom:'6px',textTransform:'uppercase',letterSpacing:'1px'},html:'Students'}),studWrap);
   card.append(h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--muted)',marginBottom:'6px',textTransform:'uppercase',letterSpacing:'1px'},html:'Due date (optional)'}),dueInput);
+  card.append(h('div',{style:{fontSize:'11px',color:'var(--dim)',marginBottom:'14px'}},['Students can only start on the due date shown above. Use \u201cUnlock now\u201d below to open it early for a specific student.']));
   card.append(div({},[assignBtn]),aaStatus);
   tBody.append(card);
+
+  var listCard=div({cls:'card',style:{marginTop:'16px'}},[]);
+  listCard.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'15px',marginBottom:'10px'},html:'Current assignments'}));
+  var listWrap=div({},[]);
+  listCard.append(listWrap);
+  tBody.append(listCard);
+
+  var studentNameMap={};
+  async function refreshAssignList(){
+    var assessmentId=assessSel.value;
+    listWrap.innerHTML='';
+    if(!assessmentId){listWrap.append(h('div',{style:{fontSize:'12px',color:'var(--dim)'},html:'Pick an assessment above to see who it\u2019s assigned to.'}));return;}
+    listWrap.append(h('div',{style:{fontSize:'12px',color:'var(--dim)'},html:'Loading\u2026'}));
+    var r=await sb.from('tutoring_assessment_assignments').select('id,student_id,due_date,unlocked').eq('assessment_id',assessmentId).order('assigned_at',{ascending:false});
+    var rows=r.data||[];
+    listWrap.innerHTML='';
+    if(!rows.length){listWrap.append(h('div',{style:{fontSize:'12px',color:'var(--dim)'},html:'No students assigned yet.'}));return;}
+    rows.forEach(function(row){
+      var name=studentNameMap[row.student_id]||row.student_id;
+      var rowDiv=div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',gap:'10px',padding:'8px 0',borderBottom:'1px solid var(--border)',flexWrap:'wrap'}},[]);
+      rowDiv.append(div({},[h('div',{style:{fontSize:'13px',color:'var(--text)'}},[name]),h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--muted)',marginTop:'2px'}},[(row.due_date?'Due '+new Date(row.due_date+'T00:00:00').toLocaleDateString():'No due date')+' \u00b7 '+(row.unlocked?'Unlocked':'Locked to due date')])]));
+      var toggleBtn=btn(row.unlocked?'Re-lock':'Unlock now',row.unlocked?'btn-outline':'btn-gold',async function(){
+        toggleBtn.disabled=true;
+        var upd=await sb.from('tutoring_assessment_assignments').update({unlocked:!row.unlocked}).eq('id',row.id);
+        if(upd.error){alert('Failed: '+upd.error.message);toggleBtn.disabled=false;return;}
+        row.unlocked=!row.unlocked;
+        refreshAssignList();
+      },{style:{fontSize:'10px',padding:'6px 12px'}});
+      rowDiv.append(toggleBtn);
+      listWrap.append(rowDiv);
+    });
+  }
+  assessSel.onchange=function(){refreshAssignList();};
 
   (async function(){
     var a=await sb.from('tutoring_assessments').select('id,title,mode,published').eq('published',true).order('created_at',{ascending:false});
     (a.data||[]).forEach(function(x){var o=h('option',{value:x.id},[x.title+' \u00b7 '+(x.mode==='timed'?'Timed':'Tutor')]);assessSel.append(o);});
     if(opts.assessmentId){assessSel.value=opts.assessmentId;assessSel.disabled=true;}
     var students=await fetchEnrolled();
+    students.forEach(function(s){studentNameMap[s.user_id]=s.full_name;});
     studWrap.innerHTML='';
-    if(!students.length){studWrap.append(h('div',{style:{fontSize:'12px',color:'var(--dim)'},html:'No enrolled students. Enroll someone first.'}));return;}
-    students.forEach(function(s){
+    if(!students.length){studWrap.append(h('div',{style:{fontSize:'12px',color:'var(--dim)'},html:'No enrolled students. Enroll someone first.'}));}
+    else students.forEach(function(s){
       var rowBtn=div({style:{display:'flex',gap:'10px',alignItems:'center',padding:'8px 10px',borderRadius:'4px',cursor:'pointer',border:'1px solid var(--border)',background:'transparent',marginBottom:'6px'}},[]);
       var box=div({style:{width:'18px',height:'18px',borderRadius:'4px',flexShrink:'0',border:'1.5px solid var(--border)',background:'transparent',display:'flex',alignItems:'center',justifyContent:'center',color:'#0F0E0A',fontSize:'12px'}},[]);
       rowBtn.append(box,h('span',{style:{fontSize:'13px',color:'var(--text)'}},[s.full_name+'  '+(s.email?'\u00b7 '+s.email:'')]));
       rowBtn.onclick=function(){var nv=!pickedStudents[s.user_id];pickedStudents[s.user_id]=nv;box.innerHTML='';if(nv)box.append(h('span',{},['\u2713']));box.style.background=nv?'var(--gold)':'transparent';box.style.borderColor=nv?'var(--gold)':'var(--border)';rowBtn.style.borderColor=nv?'var(--gold)':'var(--border)';rowBtn.style.background=nv?'var(--gold-subtle)':'transparent';};
       studWrap.append(rowBtn);
     });
+    refreshAssignList();
   })();
 }
 
