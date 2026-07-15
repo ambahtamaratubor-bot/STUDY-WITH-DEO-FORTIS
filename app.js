@@ -939,7 +939,14 @@ function runQuiz(a,test,questions){
   }
 }
 
-function buildScoreReportHtml(title,dateStr,score,total,questions,answers){
+function assessBrandHeader(){
+  var wrap=div({style:{textAlign:'center',marginBottom:'24px'}},[]);
+  var logoRow=div({style:{display:'flex',justifyContent:'center'}},[]);
+  logoRow.append(dfLogo());
+  wrap.append(logoRow,div({cls:'mono',style:{fontSize:'9px',color:'var(--muted)',letterSpacing:'3px',textTransform:'uppercase',marginTop:'6px'}},['Everyone Is Gifted']));
+  return wrap;
+}
+function buildScoreReportHtml(title,dateStr,score,total,questions,answers,timeTakenSeconds,classAverage,avgTimeTaken){
   var topicMap={};
   questions.forEach(function(q){
     var t=q.topic||'General';
@@ -948,37 +955,92 @@ function buildScoreReportHtml(title,dateStr,score,total,questions,answers){
     var corrAns=String(q.correct_answer||'').toUpperCase();
     if(answers[q.id]===corrAns)topicMap[t].correct++;
   });
-  var topics=Object.keys(topicMap).sort();
+  var topics=Object.keys(topicMap).sort(function(x,y){
+    var px=topicMap[x].total?topicMap[x].correct/topicMap[x].total:0;
+    var py=topicMap[y].total?topicMap[y].correct/topicMap[y].total:0;
+    return py-px;
+  });
   var pct=total?Math.round((score/total)*100):0;
-  var rowsHtml=topics.map(function(t){
+  var band=pct>=80?'Excellent':pct>=70?'Good':pct>=50?'Fair':'Poor';
+  var bandColor=pct>=70?'#7EADA8':(pct>=50?'#C9963A':'#ff8888');
+
+  function fmtHMSStatic(s){s=s||0;var hh=Math.floor(s/3600),mm=Math.floor((s%3600)/60),ss=s%60;var p=function(n){return n<10?'0'+n:String(n);};return hh>0?(p(hh)+':'+p(mm)+':'+p(ss)):(p(mm)+':'+p(ss));}
+
+  var statBoxesHtml='<div style="background:#1A1510;border:1px solid #2A241C;border-radius:6px;padding:16px;flex:1;min-width:130px;">'
+    +'<div style="font-family:\'Courier New\',monospace;font-size:9px;letter-spacing:1px;color:#9A8F7C;margin-bottom:6px;">PERCENTAGE</div>'
+    +'<div style="font-size:22px;font-weight:700;color:#F5E6C8;">'+pct+'%</div></div>';
+  if(timeTakenSeconds){
+    statBoxesHtml+='<div style="background:#1A1510;border:1px solid #2A241C;border-radius:6px;padding:16px;flex:1;min-width:130px;">'
+      +'<div style="font-family:\'Courier New\',monospace;font-size:9px;letter-spacing:1px;color:#9A8F7C;margin-bottom:6px;">TIME TAKEN</div>'
+      +'<div style="font-size:22px;font-weight:700;color:#F5E6C8;">'+fmtHMSStatic(timeTakenSeconds)+'</div>'
+      +(avgTimeTaken?'<div style="font-family:\'Courier New\',monospace;font-size:9px;color:#666;margin-top:2px;">Avg '+fmtHMSStatic(avgTimeTaken)+'</div>':'')
+      +'</div>';
+  }
+  if(classAverage!=null){
+    statBoxesHtml+='<div style="background:#1A1510;border:1px solid #2A241C;border-radius:6px;padding:16px;flex:1;min-width:130px;">'
+      +'<div style="font-family:\'Courier New\',monospace;font-size:9px;letter-spacing:1px;color:#9A8F7C;margin-bottom:6px;">CLASS AVERAGE</div>'
+      +'<div style="font-size:22px;font-weight:700;color:#7EADA8;">'+Math.round(classAverage)+'%</div></div>';
+  }
+
+  var topicRowsHtml=topics.map(function(t){
     var d=topicMap[t];var p=d.total?Math.round((d.correct/d.total)*100):0;
-    var color=p>=70?'#7EADA8':'#C9963A';
-    return '<tr>'
-      +'<td style="padding:12px 16px;border-bottom:1px solid #2A241C;color:#F5E6C8;font-family:Georgia,serif;font-size:14px;">'+t+'</td>'
-      +'<td style="padding:12px 16px;border-bottom:1px solid #2A241C;color:#9A8F7C;font-family:\'Courier New\',monospace;font-size:12px;text-align:right;">'+d.correct+'/'+d.total+'</td>'
-      +'<td style="padding:12px 16px;border-bottom:1px solid #2A241C;color:'+color+';font-family:\'Courier New\',monospace;font-size:13px;text-align:right;font-weight:700;">'+p+'%</td>'
-      +'</tr>';
+    var barColor=p>=80?'#7EADA8':p>=60?'#C9A84C':p>=40?'#e08a3c':'#ff6b6b';
+    return '<div style="margin-bottom:14px;">'
+      +'<div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:6px;">'
+      +'<span style="color:#F5E6C8;">'+t+'</span>'
+      +'<span style="font-family:\'Courier New\',monospace;color:#9A8F7C;font-size:11px;">'+d.correct+'/'+d.total+'  '+p+'%</span>'
+      +'</div>'
+      +'<div style="height:6px;background:#2A241C;border-radius:3px;overflow:hidden;">'
+      +'<div style="width:'+p+'%;height:100%;background:'+barColor+';border-radius:3px;"></div>'
+      +'</div></div>';
   }).join('');
+
+  var swHtml='';
+  if(topics.length){
+    var bestT=topics[0],worstT=topics[topics.length-1];
+    var bestP=topicMap[bestT].total?Math.round(topicMap[bestT].correct/topicMap[bestT].total*100):0;
+    var worstP=topicMap[worstT].total?Math.round(topicMap[worstT].correct/topicMap[worstT].total*100):0;
+    swHtml='<div style="background:rgba(126,173,168,0.08);border:1px solid rgba(126,173,168,0.3);border-radius:6px;padding:14px;margin-bottom:10px;">'
+      +'<div style="font-family:\'Courier New\',monospace;font-size:9px;letter-spacing:1px;color:#7EADA8;margin-bottom:6px;">YOUR STRENGTH</div>'
+      +'<div style="display:flex;justify-content:space-between;align-items:center;">'
+      +'<span style="color:#F5E6C8;font-size:14px;font-weight:700;">'+bestT+'</span>'
+      +'<span style="background:#7EADA8;color:#0E0B08;font-size:12px;font-weight:700;padding:2px 10px;border-radius:10px;">'+bestP+'%</span>'
+      +'</div></div>'
+      +'<div style="background:rgba(255,107,107,0.08);border:1px solid rgba(255,107,107,0.3);border-radius:6px;padding:14px;">'
+      +'<div style="font-family:\'Courier New\',monospace;font-size:9px;letter-spacing:1px;color:#ff8888;margin-bottom:6px;">NEEDS IMPROVEMENT</div>'
+      +'<div style="display:flex;justify-content:space-between;align-items:center;">'
+      +'<span style="color:#F5E6C8;font-size:14px;font-weight:700;">'+worstT+'</span>'
+      +'<span style="background:#ff6b6b;color:#0E0B08;font-size:12px;font-weight:700;padding:2px 10px;border-radius:10px;">'+worstP+'%</span>'
+      +'</div></div>';
+  }
+
   return '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Score Report \u2014 '+title+'</title></head>'
-    +'<body style="margin:0;background:#0E0B08;font-family:Georgia,serif;color:#F5E6C8;padding:40px 20px;">'
-    +'<div style="max-width:560px;margin:0 auto;">'
-    +'<div style="font-family:\'Courier New\',monospace;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#C9963A;margin-bottom:8px;">Deo Fortis &middot; Score Report</div>'
-    +'<h1 style="font-size:24px;margin:0 0 4px 0;color:#F5E6C8;">'+title+'</h1>'
-    +'<div style="font-family:\'Courier New\',monospace;font-size:11px;color:#9A8F7C;margin-bottom:28px;">'+dateStr+'</div>'
-    +'<div style="background:#1A1510;border:1px solid #2A241C;border-radius:6px;padding:24px;margin-bottom:28px;text-align:center;">'
-    +'<div style="font-size:42px;color:#C9963A;font-style:italic;">'+score+' / '+total+'</div>'
-    +'<div style="font-family:\'Courier New\',monospace;font-size:12px;color:#9A8F7C;letter-spacing:1px;margin-top:6px;">'+pct+'% OVERALL</div>'
+    +'<body style="margin:0;background:#0E0B08;font-family:Arial,sans-serif;color:#F5E6C8;padding:40px 20px;">'
+    +'<div style="max-width:620px;margin:0 auto;">'
+    +'<div style="text-align:center;margin-bottom:32px;">'
+    +'<div style="display:inline-flex;align-items:center;gap:10px;">'
+    +'<svg width="36" height="36" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="1" y="1" width="34" height="34" rx="5" fill="#14110D" stroke="#B8922E" stroke-width="1.5"/><line x1="18" y1="4" x2="18" y2="32" stroke="#B8922E" stroke-width="1" opacity="0.6"/><text x="9" y="24" font-family="Georgia,serif" font-style="italic" font-weight="700" font-size="16" fill="#B8922E">D</text><text x="20" y="24" font-family="Georgia,serif" font-style="italic" font-weight="700" font-size="16" fill="#7EB8A4">F</text></svg>'
+    +'<span style="font-family:Georgia,serif;font-style:italic;font-size:20px;font-weight:700;color:#C9963A;">Deo Fortis</span>'
     +'</div>'
-    +'<div style="font-family:\'Courier New\',monospace;font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:#9A8F7C;margin-bottom:10px;">Performance by Topic</div>'
-    +'<table style="width:100%;border-collapse:collapse;background:#1A1510;border:1px solid #2A241C;border-radius:6px;overflow:hidden;">'
-    +rowsHtml
-    +'</table>'
-    +'<div style="margin-top:28px;font-family:\'Courier New\',monospace;font-size:10px;color:#9A8F7C;text-align:center;">Everyone Is Gifted.</div>'
+    +'<div style="font-family:\'Courier New\',monospace;font-size:9px;letter-spacing:3px;text-transform:uppercase;color:#9A8F7C;margin-top:6px;">Everyone Is Gifted</div>'
+    +'</div>'
+    +'<h1 style="font-family:Georgia,serif;font-size:22px;margin:0 0 4px 0;color:#F5E6C8;text-align:center;">'+title+'</h1>'
+    +'<div style="font-family:\'Courier New\',monospace;font-size:11px;color:#9A8F7C;margin-bottom:24px;text-align:center;">'+dateStr+'</div>'
+    +'<div style="background:#1A1510;border:1px solid #2A241C;border-radius:6px;padding:24px;margin-bottom:16px;text-align:center;">'
+    +'<div style="font-family:\'Courier New\',monospace;font-size:10px;letter-spacing:1px;color:#9A8F7C;margin-bottom:8px;">OVERALL SCORE</div>'
+    +'<div style="font-size:40px;color:'+bandColor+';font-weight:700;">'+score+' <span style="font-size:20px;color:#9A8F7C;font-weight:400;">/ '+total+'</span></div>'
+    +'<div style="margin-top:8px;"><span style="background:'+bandColor+'22;color:'+bandColor+';font-size:11px;font-weight:700;padding:4px 14px;border-radius:12px;text-transform:uppercase;letter-spacing:1px;">'+band+'</span></div>'
+    +'</div>'
+    +'<div style="display:flex;gap:12px;margin-bottom:24px;flex-wrap:wrap;">'+statBoxesHtml+'</div>'
+    +'<div style="font-family:\'Courier New\',monospace;font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:#9A8F7C;margin-bottom:12px;">Performance by Topic</div>'
+    +'<div style="background:#1A1510;border:1px solid #2A241C;border-radius:6px;padding:20px;margin-bottom:24px;">'+(topicRowsHtml||'<div style="color:#9A8F7C;font-size:12px;">No topic tags on these questions.</div>')+'</div>'
+    +(swHtml?'<div style="font-family:\'Courier New\',monospace;font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:#9A8F7C;margin-bottom:12px;">Strengths &amp; Weaknesses</div>'+swHtml:'')
+    +'<div style="margin-top:32px;font-family:\'Courier New\',monospace;font-size:10px;color:#9A8F7C;text-align:center;">Everyone Is Gifted.</div>'
     +'</div></body></html>';
 }
 
-function downloadScoreReport(title,dateStr,score,total,questions,answers){
-  var html=buildScoreReportHtml(title,dateStr,score,total,questions,answers);
+function downloadScoreReport(title,dateStr,score,total,questions,answers,timeTakenSeconds,classAverage,avgTimeTaken){
+  var html=buildScoreReportHtml(title,dateStr,score,total,questions,answers,timeTakenSeconds,classAverage,avgTimeTaken);
   var blob=new Blob([html],{type:'text/html'});
   var url=URL.createObjectURL(blob);
   var a=h('a',{href:url,download:title.replace(/[^a-z0-9]+/gi,'_')+'_score_report.html'},[]);
@@ -1030,6 +1092,7 @@ async function renderAssessmentScoreReport(o){
 
   content.append(btn('\u2190 Back to wing','btn-outline',function(){exitFullscreen();currentTab='assessments';paintTabs();renderTab();},{style:{fontSize:'11px',padding:'6px 12px',marginBottom:'16px'}}));
 
+  wrap.append(assessBrandHeader());
   wrap.append(
     h('span',{cls:'chapter',html:'Assessment complete'}),
     h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'26px',marginBottom:'4px'}},[o.assessment.title]),
@@ -1062,7 +1125,6 @@ async function renderAssessmentScoreReport(o){
   );
 
   var boxes=[statBoxMini('PERCENTAGE',pct+'%','Correct')];
-  if(stats.my_rank)boxes.push(statBoxMini('RANK','#'+stats.my_rank,'of '+stats.student_count+' student'+(stats.student_count===1?'':'s')));
   if(o.timeTakenSeconds)boxes.push(statBoxMini('TIME TAKEN',fmtHMS(o.timeTakenSeconds),stats.avg_time_taken?'Avg '+fmtHMS(stats.avg_time_taken):null));
   if(stats.class_average!=null)boxes.push(statBoxMini('CLASS AVERAGE',Math.round(stats.class_average)+'%','Class average','var(--teal)'));
   var statGrid=div({style:{display:'flex',flexWrap:'wrap',gap:'12px',flex:'2 1 320px',alignContent:'flex-start'}},[]);
@@ -1153,7 +1215,7 @@ async function renderAssessmentScoreReport(o){
   var actionsRow=div({style:{display:'flex',gap:'10px',flexWrap:'wrap',marginTop:'20px'}},[]);
   actionsRow.append(
     btn('Review Answers \u2192','btn-gold',function(){showReview({test_title:o.assessment.title,score:o.score,total:o.total,answers:o.answers,questions:o.questions,taken_at:new Date().toISOString()});}),
-    btn('Download Report','btn-outline',function(){downloadScoreReport(o.assessment.title,new Date().toLocaleDateString(),o.score,o.total,o.questions,o.answers);}),
+    btn('Download Report','btn-outline',function(){downloadScoreReport(o.assessment.title,new Date().toLocaleDateString(),o.score,o.total,o.questions,o.answers,o.timeTakenSeconds,stats.class_average,stats.avg_time_taken);}),
     btn('Back to wing','btn-outline',function(){exitFullscreen();currentTab='assessments';paintTabs();renderTab();})
   );
 
@@ -1450,6 +1512,7 @@ function runBlockedAssessment(a,assessment,allQuestions){
     content.innerHTML='';
     var block=blocks[blockIdx];
     var wrap=div({style:{maxWidth:'560px',margin:'60px auto',textAlign:'center'}},[]);
+    wrap.append(assessBrandHeader());
     wrap.append(
       h('span',{cls:'chapter',html:'Exam start'},[]),
       h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'26px',marginBottom:'16px',color:'var(--gold)'}},[assessment.title])
