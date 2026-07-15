@@ -6035,6 +6035,10 @@ function openAssignAssessment(opts){
   var studWrap=div({style:{marginBottom:'14px'}},[]);
   var pickedStudents={};
   var dueInput=h('input',{cls:'input',type:'date',style:{width:'220px',marginBottom:'14px'}});
+  var timeInput=h('input',{cls:'input',type:'text',placeholder:'e.g. 10:00 AM EST',style:{width:'220px',marginBottom:'14px'}});
+  var studentInfoMap={};
+  var assessTitleMap={};
+  var GAS_URL='https://script.google.com/macros/s/AKfycbxh_qahHUtBuc3IlYDTeWPlp4GG_zksJWUA5ewLijK1mEmd5FynsttlCRJqgkhqE4QQCg/exec';
   var assignBtn=btn('Assign','btn-gold',async function(){
     var assessmentId=assessSel.value;
     var sids=Object.keys(pickedStudents).filter(function(k){return pickedStudents[k];});
@@ -6044,7 +6048,17 @@ function openAssignAssessment(opts){
     var rows=sids.map(function(sid){return{assessment_id:assessmentId,student_id:sid,due_date:dueInput.value||null};});
     var ins=await sb.from('tutoring_assessment_assignments').insert(rows);
     if(ins.error){aaSt('Failed: '+ins.error.message,'#ff4444');assignBtn.disabled=false;return;}
-    aaSt('\u2713 Assigned to '+sids.length+' student'+(sids.length>1?'s':'')+'.','var(--teal)');
+    var emailsSent=0;
+    if(dueInput.value){
+      var assessmentTitle=assessTitleMap[assessmentId]||'Assessment';
+      sids.forEach(function(sid){
+        var info=studentInfoMap[sid];
+        if(!info||!info.email)return;
+        emailsSent++;
+        fetch(GAS_URL,{method:'POST',body:JSON.stringify({action:'send_assessment_schedule',name:info.full_name,email:info.email,assessmentTitle:assessmentTitle,dueDate:dueInput.value,timeStr:timeInput.value.trim()})}).catch(function(){});
+      });
+    }
+    aaSt('\u2713 Assigned to '+sids.length+' student'+(sids.length>1?'s':'')+(emailsSent?' \u00b7 notice email sent to '+emailsSent:'')+'.','var(--teal)');
     assignBtn.disabled=false;
     refreshAssignList();
   },{style:{fontSize:'12px',padding:'8px 16px'}});
@@ -6052,7 +6066,8 @@ function openAssignAssessment(opts){
   card.append(h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--muted)',marginBottom:'6px',textTransform:'uppercase',letterSpacing:'1px'},html:'Assessment'}),assessSel);
   card.append(h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--muted)',marginBottom:'6px',textTransform:'uppercase',letterSpacing:'1px'},html:'Students'}),studWrap);
   card.append(h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--muted)',marginBottom:'6px',textTransform:'uppercase',letterSpacing:'1px'},html:'Due date (optional)'}),dueInput);
-  card.append(h('div',{style:{fontSize:'11px',color:'var(--dim)',marginBottom:'14px'}},['Students can only start on the due date shown above. Use \u201cUnlock now\u201d below to open it early for a specific student.']));
+  card.append(h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--muted)',marginBottom:'6px',textTransform:'uppercase',letterSpacing:'1px'},html:'Time (optional)'}),timeInput);
+  card.append(h('div',{style:{fontSize:'11px',color:'var(--dim)',marginBottom:'14px'}},['Students can only start on the due date shown above. If you set a due date, each assigned student is automatically emailed a scheduling notice. Use \u201cUnlock now\u201d below to open it early for a specific student.']));
   card.append(div({},[assignBtn]),aaStatus);
   tBody.append(card);
 
@@ -6091,10 +6106,10 @@ function openAssignAssessment(opts){
 
   (async function(){
     var a=await sb.from('tutoring_assessments').select('id,title,mode,published').eq('published',true).order('created_at',{ascending:false});
-    (a.data||[]).forEach(function(x){var o=h('option',{value:x.id},[x.title+' \u00b7 '+(x.mode==='timed'?'Timed':'Tutor')]);assessSel.append(o);});
+    (a.data||[]).forEach(function(x){assessTitleMap[x.id]=x.title;var o=h('option',{value:x.id},[x.title+' \u00b7 '+(x.mode==='timed'?'Timed':'Tutor')]);assessSel.append(o);});
     if(opts.assessmentId){assessSel.value=opts.assessmentId;assessSel.disabled=true;}
     var students=await fetchEnrolled();
-    students.forEach(function(s){studentNameMap[s.user_id]=s.full_name;});
+    students.forEach(function(s){studentNameMap[s.user_id]=s.full_name;studentInfoMap[s.user_id]={full_name:s.full_name,email:s.email};});
     studWrap.innerHTML='';
     if(!students.length){studWrap.append(h('div',{style:{fontSize:'12px',color:'var(--dim)'},html:'No enrolled students. Enroll someone first.'}));}
     else students.forEach(function(s){
