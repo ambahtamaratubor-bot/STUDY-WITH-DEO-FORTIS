@@ -1001,7 +1001,7 @@ function mediaEmbed(m){
   wrap.append(div({style:{fontFamily:'Inter,sans-serif',fontSize:'10px',color:'var(--teal)',letterSpacing:'2px',textTransform:'uppercase',marginBottom:'10px'},html:label+' attachment'}));
   if(m.type==='image'){
     var thumbWrap=div({style:{display:'inline-block',cursor:'zoom-in'}},[]);
-    var img=h('img',{src:m.url,style:{maxWidth:'100%',width:'auto',height:'auto',borderRadius:'3px',display:'block',border:'1px solid var(--teal-border)'}},[]);
+    var img=h('img',{src:m.url,style:{maxWidth:'340px',width:'100%',height:'auto',borderRadius:'3px',display:'block',border:'1px solid var(--teal-border)'}},[]);
     var hint=div({style:{fontFamily:'Inter,sans-serif',fontSize:'10px',color:'var(--muted)',marginTop:'6px',textAlign:'center'}},['Click to enlarge']);
     thumbWrap.append(img,hint);
     thumbWrap.onclick=function(){openImageLightbox(m.url);};
