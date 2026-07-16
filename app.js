@@ -909,6 +909,7 @@ function runQuiz(a,test,questions){
 
   async function doSubmit(){
     if(submitted)return;submitted=true;clearTimer();clearResume();
+    showSubmitLoading();
     var score=0;questions.forEach(function(q){if(answers[q.id]===corr(q))score++;});
     var ins=await sb.from('tutoring_results').insert({assignment_id:a?a.id:null,test_id:test.id,student_id:S.user.id,test_title:test.title,mode:mode,score:score,total:questions.length,answers:answers,questions:questions});
     await loadData();
