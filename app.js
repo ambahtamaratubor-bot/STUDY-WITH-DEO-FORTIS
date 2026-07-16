@@ -939,6 +939,17 @@ function runQuiz(a,test,questions){
   }
 }
 
+function showSubmitLoading(){
+  content.innerHTML='';
+  var wrap=div({style:{maxWidth:'480px',margin:'60px auto',textAlign:'center'}},[]);
+  wrap.append(
+    h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'20px',marginBottom:'8px',color:'var(--gold)'}},['Submitting\u2026']),
+    h('p',{style:{fontSize:'13px',color:'var(--muted)',marginBottom:'28px'}},['Calculating your final score.'])
+  );
+  content.append(wrap);
+  content.append(skelCard([['30%'],['100%'],['100%'],['80%']]));
+  content.append(skelCard([['40%'],['100%'],['60%']]));
+}
 function assessBrandHeader(){
   var wrap=div({style:{textAlign:'center',marginBottom:'24px'}},[]);
   var logoRow=div({style:{display:'flex',justifyContent:'center'}},[]);
@@ -946,106 +957,34 @@ function assessBrandHeader(){
   wrap.append(logoRow,div({cls:'mono',style:{fontSize:'9px',color:'var(--muted)',letterSpacing:'3px',textTransform:'uppercase',marginTop:'6px'}},['Everyone Is Gifted']));
   return wrap;
 }
-function buildScoreReportHtml(title,dateStr,score,total,questions,answers,timeTakenSeconds,classAverage,avgTimeTaken){
-  var topicMap={};
-  questions.forEach(function(q){
-    var t=q.topic||'General';
-    if(!topicMap[t])topicMap[t]={correct:0,total:0};
-    topicMap[t].total++;
-    var corrAns=String(q.correct_answer||'').toUpperCase();
-    if(answers[q.id]===corrAns)topicMap[t].correct++;
+function ensurePdfLibs(cb){
+  var need=[];
+  if(!window.html2canvas)need.push('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js');
+  if(!window.jspdf)need.push('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
+  if(!need.length){cb();return;}
+  var remaining=need.length;
+  need.forEach(function(src){
+    var s=h('script',{src:src},[]);
+    s.onload=function(){remaining--;if(remaining<=0)cb();};
+    document.head.append(s);
   });
-  var topics=Object.keys(topicMap).sort(function(x,y){
-    var px=topicMap[x].total?topicMap[x].correct/topicMap[x].total:0;
-    var py=topicMap[y].total?topicMap[y].correct/topicMap[y].total:0;
-    return py-px;
-  });
-  var pct=total?Math.round((score/total)*100):0;
-  var band=pct>=80?'Excellent':pct>=70?'Good':pct>=50?'Fair':'Poor';
-  var bandColor=pct>=70?'#7EADA8':(pct>=50?'#C9963A':'#ff8888');
-
-  function fmtHMSStatic(s){s=s||0;var hh=Math.floor(s/3600),mm=Math.floor((s%3600)/60),ss=s%60;var p=function(n){return n<10?'0'+n:String(n);};return hh>0?(p(hh)+':'+p(mm)+':'+p(ss)):(p(mm)+':'+p(ss));}
-
-  var statBoxesHtml='<div style="background:#1A1510;border:1px solid #2A241C;border-radius:6px;padding:16px;flex:1;min-width:130px;">'
-    +'<div style="font-family:\'Courier New\',monospace;font-size:9px;letter-spacing:1px;color:#9A8F7C;margin-bottom:6px;">PERCENTAGE</div>'
-    +'<div style="font-size:22px;font-weight:700;color:#F5E6C8;">'+pct+'%</div></div>';
-  if(timeTakenSeconds){
-    statBoxesHtml+='<div style="background:#1A1510;border:1px solid #2A241C;border-radius:6px;padding:16px;flex:1;min-width:130px;">'
-      +'<div style="font-family:\'Courier New\',monospace;font-size:9px;letter-spacing:1px;color:#9A8F7C;margin-bottom:6px;">TIME TAKEN</div>'
-      +'<div style="font-size:22px;font-weight:700;color:#F5E6C8;">'+fmtHMSStatic(timeTakenSeconds)+'</div>'
-      +(avgTimeTaken?'<div style="font-family:\'Courier New\',monospace;font-size:9px;color:#666;margin-top:2px;">Avg '+fmtHMSStatic(avgTimeTaken)+'</div>':'')
-      +'</div>';
-  }
-  if(classAverage!=null){
-    statBoxesHtml+='<div style="background:#1A1510;border:1px solid #2A241C;border-radius:6px;padding:16px;flex:1;min-width:130px;">'
-      +'<div style="font-family:\'Courier New\',monospace;font-size:9px;letter-spacing:1px;color:#9A8F7C;margin-bottom:6px;">CLASS AVERAGE</div>'
-      +'<div style="font-size:22px;font-weight:700;color:#7EADA8;">'+Math.round(classAverage)+'%</div></div>';
-  }
-
-  var topicRowsHtml=topics.map(function(t){
-    var d=topicMap[t];var p=d.total?Math.round((d.correct/d.total)*100):0;
-    var barColor=p>=80?'#7EADA8':p>=60?'#C9A84C':p>=40?'#e08a3c':'#ff6b6b';
-    return '<div style="margin-bottom:14px;">'
-      +'<div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:6px;">'
-      +'<span style="color:#F5E6C8;">'+t+'</span>'
-      +'<span style="font-family:\'Courier New\',monospace;color:#9A8F7C;font-size:11px;">'+d.correct+'/'+d.total+'  '+p+'%</span>'
-      +'</div>'
-      +'<div style="height:6px;background:#2A241C;border-radius:3px;overflow:hidden;">'
-      +'<div style="width:'+p+'%;height:100%;background:'+barColor+';border-radius:3px;"></div>'
-      +'</div></div>';
-  }).join('');
-
-  var swHtml='';
-  if(topics.length){
-    var bestT=topics[0],worstT=topics[topics.length-1];
-    var bestP=topicMap[bestT].total?Math.round(topicMap[bestT].correct/topicMap[bestT].total*100):0;
-    var worstP=topicMap[worstT].total?Math.round(topicMap[worstT].correct/topicMap[worstT].total*100):0;
-    swHtml='<div style="background:rgba(126,173,168,0.08);border:1px solid rgba(126,173,168,0.3);border-radius:6px;padding:14px;margin-bottom:10px;">'
-      +'<div style="font-family:\'Courier New\',monospace;font-size:9px;letter-spacing:1px;color:#7EADA8;margin-bottom:6px;">YOUR STRENGTH</div>'
-      +'<div style="display:flex;justify-content:space-between;align-items:center;">'
-      +'<span style="color:#F5E6C8;font-size:14px;font-weight:700;">'+bestT+'</span>'
-      +'<span style="background:#7EADA8;color:#0E0B08;font-size:12px;font-weight:700;padding:2px 10px;border-radius:10px;">'+bestP+'%</span>'
-      +'</div></div>'
-      +'<div style="background:rgba(255,107,107,0.08);border:1px solid rgba(255,107,107,0.3);border-radius:6px;padding:14px;">'
-      +'<div style="font-family:\'Courier New\',monospace;font-size:9px;letter-spacing:1px;color:#ff8888;margin-bottom:6px;">NEEDS IMPROVEMENT</div>'
-      +'<div style="display:flex;justify-content:space-between;align-items:center;">'
-      +'<span style="color:#F5E6C8;font-size:14px;font-weight:700;">'+worstT+'</span>'
-      +'<span style="background:#ff6b6b;color:#0E0B08;font-size:12px;font-weight:700;padding:2px 10px;border-radius:10px;">'+worstP+'%</span>'
-      +'</div></div>';
-  }
-
-  return '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Score Report \u2014 '+title+'</title></head>'
-    +'<body style="margin:0;background:#0E0B08;font-family:Arial,sans-serif;color:#F5E6C8;padding:40px 20px;">'
-    +'<div style="max-width:620px;margin:0 auto;">'
-    +'<div style="text-align:center;margin-bottom:32px;">'
-    +'<div style="display:inline-flex;align-items:center;gap:10px;">'
-    +'<svg width="36" height="36" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="1" y="1" width="34" height="34" rx="5" fill="#14110D" stroke="#B8922E" stroke-width="1.5"/><line x1="18" y1="4" x2="18" y2="32" stroke="#B8922E" stroke-width="1" opacity="0.6"/><text x="9" y="24" font-family="Georgia,serif" font-style="italic" font-weight="700" font-size="16" fill="#B8922E">D</text><text x="20" y="24" font-family="Georgia,serif" font-style="italic" font-weight="700" font-size="16" fill="#7EB8A4">F</text></svg>'
-    +'<span style="font-family:Georgia,serif;font-style:italic;font-size:20px;font-weight:700;color:#C9963A;">Deo Fortis</span>'
-    +'</div>'
-    +'<div style="font-family:\'Courier New\',monospace;font-size:9px;letter-spacing:3px;text-transform:uppercase;color:#9A8F7C;margin-top:6px;">Everyone Is Gifted</div>'
-    +'</div>'
-    +'<h1 style="font-family:Georgia,serif;font-size:22px;margin:0 0 4px 0;color:#F5E6C8;text-align:center;">'+title+'</h1>'
-    +'<div style="font-family:\'Courier New\',monospace;font-size:11px;color:#9A8F7C;margin-bottom:24px;text-align:center;">'+dateStr+'</div>'
-    +'<div style="background:#1A1510;border:1px solid #2A241C;border-radius:6px;padding:24px;margin-bottom:16px;text-align:center;">'
-    +'<div style="font-family:\'Courier New\',monospace;font-size:10px;letter-spacing:1px;color:#9A8F7C;margin-bottom:8px;">OVERALL SCORE</div>'
-    +'<div style="font-size:40px;color:'+bandColor+';font-weight:700;">'+score+' <span style="font-size:20px;color:#9A8F7C;font-weight:400;">/ '+total+'</span></div>'
-    +'<div style="margin-top:8px;"><span style="background:'+bandColor+'22;color:'+bandColor+';font-size:11px;font-weight:700;padding:4px 14px;border-radius:12px;text-transform:uppercase;letter-spacing:1px;">'+band+'</span></div>'
-    +'</div>'
-    +'<div style="display:flex;gap:12px;margin-bottom:24px;flex-wrap:wrap;">'+statBoxesHtml+'</div>'
-    +'<div style="font-family:\'Courier New\',monospace;font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:#9A8F7C;margin-bottom:12px;">Performance by Topic</div>'
-    +'<div style="background:#1A1510;border:1px solid #2A241C;border-radius:6px;padding:20px;margin-bottom:24px;">'+(topicRowsHtml||'<div style="color:#9A8F7C;font-size:12px;">No topic tags on these questions.</div>')+'</div>'
-    +(swHtml?'<div style="font-family:\'Courier New\',monospace;font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:#9A8F7C;margin-bottom:12px;">Strengths &amp; Weaknesses</div>'+swHtml:'')
-    +'<div style="margin-top:32px;font-family:\'Courier New\',monospace;font-size:10px;color:#9A8F7C;text-align:center;">Everyone Is Gifted.</div>'
-    +'</div></body></html>';
 }
-
-function downloadScoreReport(title,dateStr,score,total,questions,answers,timeTakenSeconds,classAverage,avgTimeTaken){
-  var html=buildScoreReportHtml(title,dateStr,score,total,questions,answers,timeTakenSeconds,classAverage,avgTimeTaken);
-  var blob=new Blob([html],{type:'text/html'});
-  var url=URL.createObjectURL(blob);
-  var a=h('a',{href:url,download:title.replace(/[^a-z0-9]+/gi,'_')+'_score_report.html'},[]);
-  a.click();
-  URL.revokeObjectURL(url);
+function downloadScoreReportPdf(reportEl,filename,onDone){
+  ensurePdfLibs(function(){
+    window.html2canvas(reportEl,{backgroundColor:'#0E0B08',scale:2,useCORS:true}).then(function(canvas){
+      var imgData=canvas.toDataURL('image/png');
+      var JsPDFCtor=window.jspdf.jsPDF;
+      var pxToMm=0.264583;
+      var pageW=canvas.width*pxToMm/2;
+      var pageH=canvas.height*pxToMm/2;
+      var pdf=new JsPDFCtor({orientation:pageH>pageW?'portrait':'landscape',unit:'mm',format:[pageW,pageH]});
+      pdf.addImage(imgData,'PNG',0,0,pageW,pageH);
+      pdf.save(filename);
+      if(onDone)onDone();
+    }).catch(function(err){
+      if(onDone)onDone((err&&err.message)||'Could not generate PDF.');
+    });
+  });
 }
 
 async function renderAssessmentScoreReport(o){
@@ -1076,7 +1015,18 @@ async function renderAssessmentScoreReport(o){
     return py-px;
   });
 
-  var trendResults=(DATA.assessResults||[]).filter(function(r){return r.assessment_id===o.assessment.id;}).slice().sort(function(a,b){return new Date(a.taken_at)-new Date(b.taken_at);});
+  var passesCumulative=pct>=70;
+  var passesAllTopics=topics.length?topics.every(function(t){var d=topicMap[t];var tp=d.total?(d.correct/d.total*100):0;return tp>=70;}):true;
+  var overallPass=passesCumulative&&passesAllTopics;
+
+  // Cross-assessment trend: one point per assessment (latest attempt), in chronological order.
+  var byAssessment={};
+  (DATA.assessResults||[]).forEach(function(rr){
+    var key=rr.assessment_id;
+    if(!byAssessment[key]||new Date(rr.taken_at)>new Date(byAssessment[key].taken_at))byAssessment[key]=rr;
+  });
+  if(o.resultId||o.assessment.id)byAssessment[o.assessment.id]={assessment_id:o.assessment.id,assessment_title:o.assessment.title,score:o.score,total:o.total,taken_at:new Date().toISOString()};
+  var trendList=Object.keys(byAssessment).map(function(k){return byAssessment[k];}).sort(function(x,y){return new Date(x.taken_at)-new Date(y.taken_at);});
 
   function statBoxMini(label,value,sub,color){
     var b=div({cls:'card',style:{padding:'16px',flex:'1 1 130px',minWidth:'130px'}},[]);
@@ -1089,20 +1039,22 @@ async function renderAssessmentScoreReport(o){
 
   content.innerHTML='';
   var wrap=div({style:{maxWidth:'900px',margin:'0 auto'}},[]);
+  var reportBody=div({style:{background:'var(--bg)'}},[]);
 
   content.append(btn('\u2190 Back to wing','btn-outline',function(){exitFullscreen();currentTab='assessments';paintTabs();renderTab();},{style:{fontSize:'11px',padding:'6px 12px',marginBottom:'16px'}}));
 
-  wrap.append(assessBrandHeader());
-  wrap.append(
+  reportBody.append(assessBrandHeader());
+  reportBody.append(
     h('span',{cls:'chapter',html:'Assessment complete'}),
     h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'26px',marginBottom:'4px'}},[o.assessment.title]),
     h('p',{cls:'muted',style:{fontSize:'13px',marginBottom:'20px'}},[(topics.join(' \u00b7 ')||'')+' \u00b7 '+new Date().toLocaleDateString()+(o.timeTakenSeconds?' \u00b7 '+fmtHMS(o.timeTakenSeconds):'')])
   );
 
-  if(o.insertError)wrap.append(h('div',{style:{fontSize:'12px',color:'#ff8888',marginBottom:'16px'}},['Your score could not be saved: '+o.insertError]));
+  if(o.insertError)reportBody.append(h('div',{style:{fontSize:'12px',color:'#ff8888',marginBottom:'16px'}},['Your score could not be saved: '+o.insertError]));
 
-  var ringColor=pct>=70?'var(--teal)':(pct>=50?'var(--gold)':'#ff8888');
-  var band=pct>=80?'Excellent':pct>=70?'Good':pct>=50?'Fair':'Poor';
+  var ringColor=overallPass?'var(--teal)':'var(--gold)';
+  var band=overallPass?'Pass':'Needs Review';
+  var encourageMsg=overallPass?'Great work \u2014 you\u2019ve met the pass mark overall and in every topic.':'You\u2019re building real progress. Review the topics below \u2014 you\u2019ll get there.';
   var r=70,circ=2*Math.PI*r;
   var svgNS='http://www.w3.org/2000/svg';
   var ringSvg=document.createElementNS(svgNS,'svg');ringSvg.setAttribute('width','170');ringSvg.setAttribute('height','170');ringSvg.style.transform='rotate(-90deg)';
@@ -1121,7 +1073,8 @@ async function renderAssessmentScoreReport(o){
   scoreCard.append(
     div({cls:'mono',style:{fontSize:'10px',color:'var(--muted)',marginBottom:'8px',letterSpacing:'1px'}},['OVERALL SCORE']),
     ringWrap,
-    div({style:{textAlign:'center',marginTop:'12px'}},[h('span',{style:{background:ringColor+'22',color:ringColor,fontSize:'11px',fontWeight:'700',padding:'4px 12px',borderRadius:'12px',textTransform:'uppercase',letterSpacing:'1px'}},[band])])
+    div({style:{textAlign:'center',marginTop:'12px'}},[h('span',{style:{background:ringColor+'22',color:ringColor,fontSize:'11px',fontWeight:'700',padding:'4px 12px',borderRadius:'12px',textTransform:'uppercase',letterSpacing:'1px'}},[band])]),
+    h('p',{style:{fontSize:'11px',color:'var(--muted)',marginTop:'10px',lineHeight:'1.5'}},[encourageMsg])
   );
 
   var boxes=[statBoxMini('PERCENTAGE',pct+'%','Correct')];
@@ -1183,11 +1136,11 @@ async function renderAssessmentScoreReport(o){
   row2.append(topicsCard,swCard);
 
   var trendCard=null;
-  if(trendResults.length>1){
+  if(trendList.length>1){
     trendCard=div({cls:'card',style:{padding:'20px',marginTop:'16px'}},[]);
-    trendCard.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'15px',marginBottom:'14px'}},['Score Trend']));
-    var cw=560,ch=160,pad=30;
-    var pts=trendResults.map(function(rr){return rr.total?Math.round((rr.score/rr.total)*100):0;});
+    trendCard.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'15px',marginBottom:'14px'}},['Score Trend']),h('p',{style:{fontSize:'11px',color:'var(--muted)',marginTop:'-8px',marginBottom:'14px'}},['Across assessments, in the order you took them']));
+    var cw=560,ch=180,pad=34;
+    var pts=trendList.map(function(rr){return rr.total?Math.round((rr.score/rr.total)*100):0;});
     var stepX=(cw-pad*2)/Math.max(1,pts.length-1);
     var chartSvg=document.createElementNS(svgNS,'svg');chartSvg.setAttribute('viewBox','0 0 '+cw+' '+ch);chartSvg.setAttribute('width','100%');chartSvg.setAttribute('height',String(ch));
     [0,25,50,75,100].forEach(function(gv){
@@ -1206,22 +1159,39 @@ async function renderAssessmentScoreReport(o){
       chartSvg.append(c);
       var t=document.createElementNS(svgNS,'text');t.setAttribute('x',String(x));t.setAttribute('y',String(y-10));t.setAttribute('fill','var(--gold)');t.setAttribute('font-size','10');t.setAttribute('text-anchor','middle');t.textContent=String(v);
       chartSvg.append(t);
+      var rawLabel=trendList[i].assessment_title||'Assessment';
+      var shortLabel=rawLabel.length>16?rawLabel.slice(0,15)+'\u2026':rawLabel;
+      var xl=document.createElementNS(svgNS,'text');xl.setAttribute('x',String(x));xl.setAttribute('y',String(ch-10));xl.setAttribute('fill','var(--muted)');xl.setAttribute('font-size','9');xl.setAttribute('text-anchor','middle');xl.textContent=shortLabel;
+      chartSvg.append(xl);
     });
     trendCard.append(chartSvg);
     var improving=pts[pts.length-1]>pts[0];
     trendCard.append(h('p',{style:{fontSize:'12px',color:improving?'var(--teal)':'var(--muted)',marginTop:'8px',textAlign:'center'}},[improving?'You\u2019re improving! Keep going.':'Keep practicing to build consistency.']));
   }
 
-  var actionsRow=div({style:{display:'flex',gap:'10px',flexWrap:'wrap',marginTop:'20px'}},[]);
+  reportBody.append(topRow,row2);
+  if(trendCard)reportBody.append(trendCard);
+  wrap.append(reportBody);
+
+  var pdfStatus=div({style:{fontSize:'11px',color:'var(--muted)',marginTop:'8px'}},[]);
+  var downloadBtn=btn('Download Report (PDF)','btn-outline',function(){
+    downloadBtn.disabled=true;
+    var origText=downloadBtn.textContent;
+    downloadBtn.textContent='Preparing PDF\u2026';
+    pdfStatus.textContent='';
+    downloadScoreReportPdf(reportBody,(o.assessment.title||'assessment').replace(/[^a-z0-9]+/gi,'_')+'_score_report.pdf',function(errMsg){
+      downloadBtn.disabled=false;
+      downloadBtn.textContent=origText;
+      if(errMsg)pdfStatus.textContent=errMsg;
+    });
+  },{style:{fontSize:'12px'}});
+  var actionsRow=div({style:{display:'flex',gap:'10px',flexWrap:'wrap',marginTop:'20px',alignItems:'center'}},[]);
   actionsRow.append(
     btn('Review Answers \u2192','btn-gold',function(){showReview({test_title:o.assessment.title,score:o.score,total:o.total,answers:o.answers,questions:o.questions,taken_at:new Date().toISOString()});}),
-    btn('Download Report','btn-outline',function(){downloadScoreReport(o.assessment.title,new Date().toLocaleDateString(),o.score,o.total,o.questions,o.answers,o.timeTakenSeconds,stats.class_average,stats.avg_time_taken);}),
+    downloadBtn,
     btn('Back to wing','btn-outline',function(){exitFullscreen();currentTab='assessments';paintTabs();renderTab();})
   );
-
-  wrap.append(topRow,row2);
-  if(trendCard)wrap.append(trendCard);
-  wrap.append(actionsRow);
+  wrap.append(actionsRow,pdfStatus);
   content.append(wrap);
 }
 
@@ -1446,6 +1416,7 @@ function runAssessmentQuiz(a,assessment,questions){
 
   async function doSubmit(){
     if(submitted)return;submitted=true;clearTimer();clearResume();
+    showSubmitLoading();
     var score=0;questions.forEach(function(q){if(answers[q.id]===corr(q))score++;});
     var timeTakenSeconds=Math.round((Date.now()-examStartedAt)/1000);
     var ins=await sb.from('tutoring_assessment_results').insert({assignment_id:a?a.id:null,assessment_id:assessment.id,student_id:S.user.id,assessment_title:assessment.title,mode:mode,score:score,total:questions.length,answers:answers,questions:questions,time_taken_seconds:timeTakenSeconds}).select('id').single();
@@ -1741,6 +1712,7 @@ function runBlockedAssessment(a,assessment,allQuestions){
 
   async function finalize(){
     phase='done';clearResume();
+    showSubmitLoading();
     var score=0;
     allQuestions.forEach(function(q){if(globalAnswers[q.id]===corr(q))score++;});
     var timeTakenSeconds=Math.round((Date.now()-examStartedAt)/1000);
