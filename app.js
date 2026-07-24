@@ -6575,7 +6575,8 @@ const hdr2=div({style:{display:'flex',justifyContent:'space-between',alignItems:
 const nameDiv=div({style:{fontSize:'15px',color:'var(--text)',marginBottom:'4px'}});
 nameDiv.innerHTML=sani(r.user_name||'—');
 if(r.is_free_tier===true){const badge=h('span',{style:{background:'#8B0000',color:'white',fontSize:'9px',fontWeight:'600',letterSpacing:'0.5px',textTransform:'uppercase',padding:'2px 8px',borderRadius:'2px',marginLeft:'8px',display:'inline-block'}},['DO NOT FULFIL']);nameDiv.append(badge);}
-hdr2.append(div({},[nameDiv,div({style:{fontSize:'12px',color:'var(--muted)'},html:r.user_email||''})]),h('span',{style:{fontFamily:"Inter,sans-serif",fontSize:'10px',letterSpacing:'1px',textTransform:'uppercase',color:r.status==='pending'?'var(--gold)':'var(--teal)'},html:r.status}));
+var dispStatus=r.in_progress_at?'in progress':r.status;
+hdr2.append(div({},[nameDiv,div({style:{fontSize:'12px',color:'var(--muted)'},html:r.user_email||''})]),h('span',{style:{fontFamily:"Inter,sans-serif",fontSize:'10px',letterSpacing:'1px',textTransform:'uppercase',color:r.in_progress_at?'var(--teal)':(r.status==='pending'?'var(--gold)':'var(--teal)')},html:dispStatus}));
 card.append(hdr2);
 const dg=div({style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'12px',marginBottom:'12px'}});
 [[r.topic,'Topic'],[r.style,'Style']].forEach(([v,l])=>{const d=div({});d.append(div({cls:'mono',style:{marginBottom:'4px'},html:l}),div({style:{fontSize:'14px',color:l==='Style'?'var(--gold)':'var(--text)'},html:v||'—'}));dg.append(d);});
@@ -6703,6 +6704,7 @@ reader.readAsDataURL(file);
 };
 br2.append(div({},[h('label',{cls:'label',html:'Upload Theory PDF'}),fi]));
 }
+if(!r.in_progress_at){br2.append(btn('Mark In Progress','btn-outline',async()=>{await sb.from('recall_requests').update({in_progress_at:new Date().toISOString(),in_progress_by:S.user?.id||null}).eq('id',r.id);loadTab('recalls');},{style:{padding:'8px 16px',fontSize:'11px',color:'var(--teal)',borderColor:'var(--teal)'}}));}
 br2.append(btn('Reject','btn-outline',async()=>{await sb.from('recall_requests').update({status:'rejected',updated_at:new Date().toISOString()}).eq('id',r.id);loadTab('recalls');},{style:{padding:'8px 16px',fontSize:'11px',color:'#ff4444',borderColor:'#ff4444'}}));
 br2.append(btn('Mark Done','btn-teal',async()=>{await callAdminFn('mark_recall_done',{recall_id:r.id,user_id:r.user_id,fulfilled_by:S.user?.id||null});loadTab('recalls');},{style:{padding:'8px 16px',fontSize:'11px'}}));
 card.append(br2);
@@ -7623,6 +7625,7 @@ async function showTeamTab(){
         card.append(headerRow);
         const badge=div({style:{display:'inline-block',fontSize:'11px',padding:'2px 8px',borderRadius:'3px',marginBottom:'8px',background:isMyRecall?'rgba(201,150,58,0.15)':'rgba(126,173,168,0.1)',color:isMyRecall?'var(--gold)':'var(--teal)',border:'1px solid '+(isMyRecall?'rgba(201,150,58,0.3)':'rgba(126,173,168,0.2)')}},[document.createTextNode('Assigned to: '+displayNames+(isMyRecall?' (you)':''))]);
         card.append(badge);
+        if(recall.in_progress_at){card.append(div({style:{display:'inline-block',fontSize:'10px',padding:'2px 8px',borderRadius:'3px',marginBottom:'8px',marginLeft:'6px',background:'rgba(126,173,168,0.15)',color:'var(--teal)',border:'1px solid rgba(126,173,168,0.3)'}},[document.createTextNode('IN PROGRESS')]));}
         if(canWrite){
           const assignRow=div({style:{display:'flex',gap:'8px',alignItems:'center',marginTop:'8px'}});
           const sel=h('select',{style:{padding:'6px',fontSize:'12px',background:'var(--bg)',border:'1px solid var(--border)',borderRadius:'2px',color:'var(--text)'}});
