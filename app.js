@@ -3890,10 +3890,12 @@ function updatePriorityDiv(){
 }
 ro.append(styleGrid,priorityDiv);
 const qtyI=inp('e.g. 20','number','');qtyI.min='1';qtyI.max='200';
-ro.append(h('label',{cls:'label',html:'How many questions / cards do you want?'}),qtyI);
+ro.append(h('label',{cls:'label',html:'How many questions / cards do you want? *'}),qtyI);
 const detI=h('textarea',{cls:'input',placeholder:'e.g. Focus on gram positive bacteria, NBME style...',style:{minHeight:'80px',resize:'vertical',marginBottom:'20px'}});
 detI.value=cfg.recallDetails;detI.oninput=e=>cfg.recallDetails=e.target.value;
-ro.append(h('label',{cls:'label',html:'Be Specific (optional)'}),detI);
+ro.append(h('label',{cls:'label',html:'Be Specific *'}),detI);
+const reqValidationMsg=div({style:{fontFamily:"Inter,sans-serif",fontSize:'12px',color:'#ff4444',marginTop:'-8px',marginBottom:'12px',display:'none'}});
+ro.append(reqValidationMsg);
 const attachLabel=h('label',{cls:'label',html:'Attach Study Material (optional)'});
 const attachNote=div({style:{fontSize:'11px',color:'var(--dim)',marginBottom:'8px',lineHeight:'1.6'}},['Upload only the specific pages or topic you need help with. Avoid uploading entire textbooks. If it is a small amount of text, paste it into a .txt or Word doc instead.']);
 const attachI=h('input',{type:'file',accept:'.pdf,.pptx,.txt,.png,.jpg,.jpeg',style:{color:'var(--muted)',fontSize:'12px',marginBottom:'8px',display:'block'}});
@@ -3914,7 +3916,16 @@ if(isInTrial()){
     return;
   }
 }
-if(!cfg.recallStyles.length)return;
+const topicVal=(topI.value||cfg.topic||'').trim();
+const detailsVal=detI.value.trim();
+const qtyVal=parseInt(qtyI.value)||0;
+if(!cfg.recallStyles.length||!topicVal||!detailsVal||qtyVal<1){
+  reqValidationMsg.style.display='block';
+  reqValidationMsg.textContent='Topic, quantity, and "Be Specific" details are all required — no blank requests.';
+  return;
+}
+reqValidationMsg.style.display='none';
+cfg.topic=topicVal;
 let attachmentData=null;let attachmentName=null;
 if(attachI.files[0]){
 const file=attachI.files[0];
