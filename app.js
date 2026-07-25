@@ -5669,21 +5669,65 @@ async function renderTutoringPaymentsSection(content){
     if(!rows.length){listWrap.append(div({cls:'card',style:{textAlign:'center',padding:'30px'}},[h('p',{style:{fontSize:'13px',color:'var(--dim)'},html:'No payments tracked yet. Add one above.'})]));return;}
     var today=todayStr();
     rows.forEach(function(r){
-      var overdue=r.status!=='paid'&&r.due_date&&r.due_date<today;
-      var row=div({cls:'card',style:{marginBottom:'10px',padding:'14px',borderLeft:'2px solid '+(r.status==='paid'?'var(--teal)':overdue?'#ff4444':'var(--gold)')}});
+      var status=r.status||'unpaid';
+      var amtPaid=Number(r.amount_paid||0);
+      var amtDue=Number(r.amount_due||0);
+      var balance=amtDue-amtPaid;
+      var overdue=status!=='paid'&&r.due_date&&r.due_date<today;
+      var borderColor=status==='paid'?'var(--teal)':status==='partial'?'var(--gold)':overdue?'#ff4444':'var(--border)';
+      var row=div({cls:'card',style:{marginBottom:'10px',padding:'14px',borderLeft:'2px solid '+borderColor}});
       var top=div({style:{display:'flex',justifyContent:'space-between',alignItems:'flex-start',flexWrap:'wrap',gap:'10px'}});
       var info=div({});
-      info.append(h('div',{style:{fontSize:'14px',color:'var(--text)',fontWeight:'500'}},[r.full_name]),h('div',{cls:'mono',style:{fontSize:'11px',color:'var(--muted)',marginTop:'2px'}},['$'+Number(r.amount_due).toLocaleString()+' due'+(r.due_date?' · '+fmtDateShort(r.due_date):' · no due date')+(overdue?' · OVERDUE':'')]));
+      info.append(h('div',{style:{fontSize:'14px',color:'var(--text)',fontWeight:'500'}},[r.full_name]),h('div',{cls:'mono',style:{fontSize:'11px',color:'var(--muted)',marginTop:'2px'}},['$'+amtDue.toLocaleString()+' due'+(r.due_date?' · '+fmtDateShort(r.due_date):' · no due date')+(overdue?' · OVERDUE':'')]));
+      if(status==='partial'){
+        info.append(h('div',{cls:'mono',style:{fontSize:'11px',color:'var(--gold)',marginTop:'2px'}},['Paid $'+amtPaid.toLocaleString()+' · Balance $'+balance.toLocaleString()]));
+      }
+      if(status==='paid'&&amtPaid){
+        info.append(h('div',{cls:'mono',style:{fontSize:'11px',color:'var(--teal)',marginTop:'2px'}},['Paid $'+amtPaid.toLocaleString()+(r.paid_at?' on '+fmtDateShort(String(r.paid_at).slice(0,10)):'')]));
+      }
       if(r.note)info.append(h('div',{style:{fontSize:'12px',color:'var(--dim)',fontStyle:'italic',marginTop:'4px'}},[r.note]));
-      var pill=h('span',{cls:'mono',style:{fontSize:'10px',letterSpacing:'1px',textTransform:'uppercase',color:r.status==='paid'?'var(--teal)':overdue?'#ff4444':'var(--gold)'}},[r.status]);
+      var pillColor=status==='paid'?'var(--teal)':status==='partial'?'var(--gold)':overdue?'#ff4444':'var(--dim)';
+      var pill=h('span',{cls:'mono',style:{fontSize:'10px',letterSpacing:'1px',textTransform:'uppercase',color:pillColor}},[status]);
       top.append(info,pill);
       row.append(top);
+
+      var editWrap=div({style:{display:'none',marginTop:'10px',padding:'10px',background:'var(--bg)',borderRadius:'4px'}});
+      function closeEdit(){editWrap.innerHTML='';editWrap.style.display='none';}
+      function openPartialEdit(){
+        editWrap.innerHTML='';
+        var paidInp=inp('Amount paid so far','number',amtPaid||'');
+        var dueInp2=inp('Total amount due','number',amtDue||'');
+        var saveMsg=div({style:{fontSize:'11px',marginTop:'6px',display:'none'}});
+        var saveBtn2=btn('Save','btn-teal',async function(){
+          var p=parseFloat(paidInp.value);var d=parseFloat(dueInp2.value);
+          if(isNaN(p)||p<0){saveMsg.textContent='Enter a valid amount paid.';saveMsg.style.color='#ff4444';saveMsg.style.display='block';return;}
+          if(isNaN(d)||d<=0){saveMsg.textContent='Enter a valid amount due.';saveMsg.style.color='#ff4444';saveMsg.style.display='block';return;}
+          var newStatus=p<=0?'unpaid':p>=d?'paid':'partial';
+          await sb.from('tutoring_payments').update({status:newStatus,amount_paid:p,amount_due:d,paid_at:newStatus==='paid'?new Date().toISOString():null}).eq('id',r.id);
+          renderPaymentsList();
+        },{style:{fontSize:'10px',padding:'6px 12px'}});
+        var cancelBtn=btn('Cancel','btn-outline',closeEdit,{style:{fontSize:'10px',padding:'6px 12px'}});
+        editWrap.append(
+          div({style:{display:'flex',gap:'10px',flexWrap:'wrap'}},[
+            div({style:{flex:'1',minWidth:'120px'}},[h('label',{cls:'label',html:'Amount Paid'}),paidInp]),
+            div({style:{flex:'1',minWidth:'120px'}},[h('label',{cls:'label',html:'Amount Due'}),dueInp2])
+          ]),
+          div({style:{display:'flex',gap:'6px',marginTop:'8px'}},[saveBtn2,cancelBtn]),
+          saveMsg
+        );
+        editWrap.style.display='block';
+      }
+
       var btnRow=div({style:{display:'flex',gap:'6px',marginTop:'10px',flexWrap:'wrap'}});
-      if(r.status!=='paid'){
-        btnRow.append(btn('Mark Paid','btn-teal',async function(){await sb.from('tutoring_payments').update({status:'paid',amount_paid:r.amount_due,paid_at:new Date().toISOString()}).eq('id',r.id);renderPaymentsList();},{style:{fontSize:'10px',padding:'6px 12px'}}));
+      if(status!=='paid'){
+        btnRow.append(btn('Mark Paid','btn-teal',async function(){await sb.from('tutoring_payments').update({status:'paid',amount_paid:amtDue,paid_at:new Date().toISOString()}).eq('id',r.id);renderPaymentsList();},{style:{fontSize:'10px',padding:'6px 12px'}}));
+        btnRow.append(btn(status==='partial'?'Update Amount':'Mark Partial','btn-outline',openPartialEdit,{style:{fontSize:'10px',padding:'6px 12px'}}));
+      }
+      if(status!=='unpaid'){
+        btnRow.append(btn('Mark Unpaid','btn-outline',async function(){await sb.from('tutoring_payments').update({status:'unpaid',amount_paid:0,paid_at:null}).eq('id',r.id);renderPaymentsList();},{style:{fontSize:'10px',padding:'6px 12px'}}));
       }
       btnRow.append(btn('Delete','btn-outline',async function(){if(!confirm('Delete this payment record?'))return;await sb.from('tutoring_payments').delete().eq('id',r.id);renderPaymentsList();},{style:{fontSize:'10px',padding:'6px 12px',color:'#ff4444',borderColor:'#ff4444'}}));
-      row.append(btnRow);
+      row.append(btnRow,editWrap);
       listWrap.append(row);
     });
   }
