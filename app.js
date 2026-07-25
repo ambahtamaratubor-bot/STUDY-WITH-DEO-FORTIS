@@ -5600,6 +5600,95 @@ page.append(adminLayout);
 let currentFilter='pending';
 async function loadTab(tab){
 content.innerHTML='';content.append(skelCard([['40%'],['70%'],['50%']]),skelCard([['60%'],['80%'],['45%']]));
+async function fetchEnrolled(){
+  var en=await sb.from('tutoring_students').select('*').eq('active',true).order('enrolled_at',{ascending:false});
+  var rows=en.data||[];
+  if(!rows.length)return [];
+  var ids=rows.map(function(r){return r.user_id;});
+  var pr=await sb.from('profiles').select('id,full_name,email').in('id',ids);
+  var pmap={};(pr.data||[]).forEach(function(p){pmap[p.id]=p;});
+  return rows.map(function(r){var p=pmap[r.user_id]||{};return{user_id:r.user_id,enrolled_at:r.enrolled_at,full_name:p.full_name||'(no name)',email:p.email||''};});
+}
+async function fetchPayments(){
+  var pr=await sb.from('tutoring_payments').select('*').order('due_date',{ascending:true});
+  var rows=pr.data||[];
+  if(!rows.length)return [];
+  var ids=rows.map(function(r){return r.student_id;});
+  var pf=await sb.from('profiles').select('id,full_name,email').in('id',ids);
+  var pmap={};(pf.data||[]).forEach(function(p){pmap[p.id]=p;});
+  return rows.map(function(r){var p=pmap[r.student_id]||{};return Object.assign({},r,{full_name:p.full_name||'(unknown)',email:p.email||''});});
+}
+async function renderTutoringPaymentsSection(content){
+  var payCard=div({cls:'card fade',style:{marginTop:'24px'}});
+  payCard.append(h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'22px',marginBottom:'8px'},html:'Tutoring Payments'}),h('p',{cls:'muted',style:{fontSize:'13px',marginBottom:'20px'},html:'Track what each enrolled student owes and when it is due.'}));
+  var studentSel=h('select',{cls:'input'},[h('option',{value:''},['Select enrolled student…'])]);
+  var amountInp=inp('e.g. 50000','number','');
+  var dueInp=inp('','date','');
+  var noteInp=inp('e.g. Month 2 fee (optional)','text','');
+  var statusMsg=div({style:{fontSize:'12px',marginTop:'10px',display:'none'}});
+  var addRow=div({style:{marginBottom:'8px'}},[
+    h('label',{cls:'label',html:'Student'}),studentSel,
+    div({style:{display:'flex',gap:'10px',flexWrap:'wrap',marginTop:'12px'}},[
+      div({style:{flex:'1',minWidth:'140px'}},[h('label',{cls:'label',html:'Amount Due ($)'}),amountInp]),
+      div({style:{flex:'1',minWidth:'140px'}},[h('label',{cls:'label',html:'Due Date'}),dueInp])
+    ]),
+    div({style:{marginTop:'12px'}},[h('label',{cls:'label',html:'Note'}),noteInp])
+  ]);
+  var saveBtn=btn('+ Add Payment','btn-gold',null,{style:{fontSize:'12px',padding:'8px 16px',marginTop:'14px'}});
+  payCard.append(addRow,saveBtn,statusMsg,h('hr',{style:{border:'none',borderTop:'1px solid var(--border)',margin:'22px 0'}}));
+  var listWrap=div({},[]);
+  payCard.append(listWrap);
+  content.append(payCard);
+
+  (async function(){
+    var students=await fetchEnrolled();
+    students.forEach(function(s){studentSel.append(h('option',{value:s.user_id},[s.full_name+(s.email?' · '+s.email:'')]));});
+    if(!students.length){studentSel.disabled=true;saveBtn.disabled=true;}
+  })();
+
+  saveBtn.onclick=async function(){
+    statusMsg.style.display='none';
+    if(!studentSel.value){statusMsg.textContent='Select a student.';statusMsg.style.color='#ff4444';statusMsg.style.display='block';return;}
+    var amt=parseFloat(amountInp.value);
+    if(!amountInp.value||isNaN(amt)||amt<=0){statusMsg.textContent='Enter a valid amount due.';statusMsg.style.color='#ff4444';statusMsg.style.display='block';return;}
+    saveBtn.disabled=true;
+    var ins=await sb.from('tutoring_payments').insert({student_id:studentSel.value,amount_due:amt,due_date:dueInp.value||null,note:noteInp.value.trim()||null,created_by:S.user.id});
+    saveBtn.disabled=false;
+    if(ins.error){statusMsg.textContent='Failed: '+ins.error.message;statusMsg.style.color='#ff4444';statusMsg.style.display='block';return;}
+    statusMsg.textContent='✓ Payment added.';statusMsg.style.color='var(--teal)';statusMsg.style.display='block';
+    amountInp.value='';dueInp.value='';noteInp.value='';studentSel.value='';
+    renderPaymentsList();
+  };
+
+  async function renderPaymentsList(){
+    listWrap.innerHTML='';
+    listWrap.append(skelCard([['40%'],['70%']]));
+    var rows=await fetchPayments();
+    listWrap.innerHTML='';
+    listWrap.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'16px',marginBottom:'12px'},html:'Payment Records ('+rows.length+')'}));
+    if(!rows.length){listWrap.append(div({cls:'card',style:{textAlign:'center',padding:'30px'}},[h('p',{style:{fontSize:'13px',color:'var(--dim)'},html:'No payments tracked yet. Add one above.'})]));return;}
+    var today=todayStr();
+    rows.forEach(function(r){
+      var overdue=r.status!=='paid'&&r.due_date&&r.due_date<today;
+      var row=div({cls:'card',style:{marginBottom:'10px',padding:'14px',borderLeft:'2px solid '+(r.status==='paid'?'var(--teal)':overdue?'#ff4444':'var(--gold)')}});
+      var top=div({style:{display:'flex',justifyContent:'space-between',alignItems:'flex-start',flexWrap:'wrap',gap:'10px'}});
+      var info=div({});
+      info.append(h('div',{style:{fontSize:'14px',color:'var(--text)',fontWeight:'500'}},[r.full_name]),h('div',{cls:'mono',style:{fontSize:'11px',color:'var(--muted)',marginTop:'2px'}},['$'+Number(r.amount_due).toLocaleString()+' due'+(r.due_date?' · '+fmtDateShort(r.due_date):' · no due date')+(overdue?' · OVERDUE':'')]));
+      if(r.note)info.append(h('div',{style:{fontSize:'12px',color:'var(--dim)',fontStyle:'italic',marginTop:'4px'}},[r.note]));
+      var pill=h('span',{cls:'mono',style:{fontSize:'10px',letterSpacing:'1px',textTransform:'uppercase',color:r.status==='paid'?'var(--teal)':overdue?'#ff4444':'var(--gold)'}},[r.status]);
+      top.append(info,pill);
+      row.append(top);
+      var btnRow=div({style:{display:'flex',gap:'6px',marginTop:'10px',flexWrap:'wrap'}});
+      if(r.status!=='paid'){
+        btnRow.append(btn('Mark Paid','btn-teal',async function(){await sb.from('tutoring_payments').update({status:'paid',amount_paid:r.amount_due,paid_at:new Date().toISOString()}).eq('id',r.id);renderPaymentsList();},{style:{fontSize:'10px',padding:'6px 12px'}}));
+      }
+      btnRow.append(btn('Delete','btn-outline',async function(){if(!confirm('Delete this payment record?'))return;await sb.from('tutoring_payments').delete().eq('id',r.id);renderPaymentsList();},{style:{fontSize:'10px',padding:'6px 12px',color:'#ff4444',borderColor:'#ff4444'}}));
+      row.append(btnRow);
+      listWrap.append(row);
+    });
+  }
+  await renderPaymentsList();
+}
 if(tab==='settings'){
 const{data:s}=await sb.from('admin_settings').select('*').single();
 const set=s||{};
@@ -6302,16 +6391,6 @@ function openAssignAssessment(opts){
 }
 
 /* ===================== STUDENTS VIEW ===================== */
-async function fetchEnrolled(){
-  var en=await sb.from('tutoring_students').select('*').eq('active',true).order('enrolled_at',{ascending:false});
-  var rows=en.data||[];
-  if(!rows.length)return [];
-  var ids=rows.map(function(r){return r.user_id;});
-  var pr=await sb.from('profiles').select('id,full_name,email').in('id',ids);
-  var pmap={};(pr.data||[]).forEach(function(p){pmap[p.id]=p;});
-  return rows.map(function(r){var p=pmap[r.user_id]||{};return{user_id:r.user_id,enrolled_at:r.enrolled_at,full_name:p.full_name||'(no name)',email:p.email||''};});
-}
-
 function renderStudents(){
   tBody.innerHTML='';
   tBody.append(btn('+ Enroll student','btn-gold',function(){openEnroll();},{style:{fontSize:'12px',padding:'8px 16px',marginBottom:'16px'}}));
@@ -6332,88 +6411,6 @@ function renderStudents(){
       listWrap.append(card);
     });
   })();
-}
-
-/* ===================== TUTORING PAYMENTS ===================== */
-async function fetchPayments(){
-  var pr=await sb.from('tutoring_payments').select('*').order('due_date',{ascending:true});
-  var rows=pr.data||[];
-  if(!rows.length)return [];
-  var ids=rows.map(function(r){return r.student_id;});
-  var pf=await sb.from('profiles').select('id,full_name,email').in('id',ids);
-  var pmap={};(pf.data||[]).forEach(function(p){pmap[p.id]=p;});
-  return rows.map(function(r){var p=pmap[r.student_id]||{};return Object.assign({},r,{full_name:p.full_name||'(unknown)',email:p.email||''});});
-}
-async function renderTutoringPaymentsSection(content){
-  var payCard=div({cls:'card fade',style:{marginTop:'24px'}});
-  payCard.append(h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'22px',marginBottom:'8px'},html:'Tutoring Payments'}),h('p',{cls:'muted',style:{fontSize:'13px',marginBottom:'20px'},html:'Track what each enrolled student owes and when it is due.'}));
-  var studentSel=h('select',{cls:'input'},[h('option',{value:''},['Select enrolled student…'])]);
-  var amountInp=inp('e.g. 50000','number','');
-  var dueInp=inp('','date','');
-  var noteInp=inp('e.g. Month 2 fee (optional)','text','');
-  var statusMsg=div({style:{fontSize:'12px',marginTop:'10px',display:'none'}});
-  var addRow=div({style:{marginBottom:'8px'}},[
-    h('label',{cls:'label',html:'Student'}),studentSel,
-    div({style:{display:'flex',gap:'10px',flexWrap:'wrap',marginTop:'12px'}},[
-      div({style:{flex:'1',minWidth:'140px'}},[h('label',{cls:'label',html:'Amount Due ($)'}),amountInp]),
-      div({style:{flex:'1',minWidth:'140px'}},[h('label',{cls:'label',html:'Due Date'}),dueInp])
-    ]),
-    div({style:{marginTop:'12px'}},[h('label',{cls:'label',html:'Note'}),noteInp])
-  ]);
-  var saveBtn=btn('+ Add Payment','btn-gold',null,{style:{fontSize:'12px',padding:'8px 16px',marginTop:'14px'}});
-  payCard.append(addRow,saveBtn,statusMsg,h('hr',{style:{border:'none',borderTop:'1px solid var(--border)',margin:'22px 0'}}));
-  var listWrap=div({},[]);
-  payCard.append(listWrap);
-  content.append(payCard);
-
-  (async function(){
-    var students=await fetchEnrolled();
-    students.forEach(function(s){studentSel.append(h('option',{value:s.user_id},[s.full_name+(s.email?' · '+s.email:'')]));});
-    if(!students.length){studentSel.disabled=true;saveBtn.disabled=true;}
-  })();
-
-  saveBtn.onclick=async function(){
-    statusMsg.style.display='none';
-    if(!studentSel.value){statusMsg.textContent='Select a student.';statusMsg.style.color='#ff4444';statusMsg.style.display='block';return;}
-    var amt=parseFloat(amountInp.value);
-    if(!amountInp.value||isNaN(amt)||amt<=0){statusMsg.textContent='Enter a valid amount due.';statusMsg.style.color='#ff4444';statusMsg.style.display='block';return;}
-    saveBtn.disabled=true;
-    var ins=await sb.from('tutoring_payments').insert({student_id:studentSel.value,amount_due:amt,due_date:dueInp.value||null,note:noteInp.value.trim()||null,created_by:S.user.id});
-    saveBtn.disabled=false;
-    if(ins.error){statusMsg.textContent='Failed: '+ins.error.message;statusMsg.style.color='#ff4444';statusMsg.style.display='block';return;}
-    statusMsg.textContent='✓ Payment added.';statusMsg.style.color='var(--teal)';statusMsg.style.display='block';
-    amountInp.value='';dueInp.value='';noteInp.value='';studentSel.value='';
-    renderPaymentsList();
-  };
-
-  async function renderPaymentsList(){
-    listWrap.innerHTML='';
-    listWrap.append(skelCard([['40%'],['70%']]));
-    var rows=await fetchPayments();
-    listWrap.innerHTML='';
-    listWrap.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'16px',marginBottom:'12px'},html:'Payment Records ('+rows.length+')'}));
-    if(!rows.length){listWrap.append(div({cls:'card',style:{textAlign:'center',padding:'30px'}},[h('p',{style:{fontSize:'13px',color:'var(--dim)'},html:'No payments tracked yet. Add one above.'})]));return;}
-    var today=todayStr();
-    rows.forEach(function(r){
-      var overdue=r.status!=='paid'&&r.due_date&&r.due_date<today;
-      var row=div({cls:'card',style:{marginBottom:'10px',padding:'14px',borderLeft:'2px solid '+(r.status==='paid'?'var(--teal)':overdue?'#ff4444':'var(--gold)')}});
-      var top=div({style:{display:'flex',justifyContent:'space-between',alignItems:'flex-start',flexWrap:'wrap',gap:'10px'}});
-      var info=div({});
-      info.append(h('div',{style:{fontSize:'14px',color:'var(--text)',fontWeight:'500'}},[r.full_name]),h('div',{cls:'mono',style:{fontSize:'11px',color:'var(--muted)',marginTop:'2px'}},['$'+Number(r.amount_due).toLocaleString()+' due'+(r.due_date?' · '+fmtDateShort(r.due_date):' · no due date')+(overdue?' · OVERDUE':'')]));
-      if(r.note)info.append(h('div',{style:{fontSize:'12px',color:'var(--dim)',fontStyle:'italic',marginTop:'4px'}},[r.note]));
-      var pill=h('span',{cls:'mono',style:{fontSize:'10px',letterSpacing:'1px',textTransform:'uppercase',color:r.status==='paid'?'var(--teal)':overdue?'#ff4444':'var(--gold)'}},[r.status]);
-      top.append(info,pill);
-      row.append(top);
-      var btnRow=div({style:{display:'flex',gap:'6px',marginTop:'10px',flexWrap:'wrap'}});
-      if(r.status!=='paid'){
-        btnRow.append(btn('Mark Paid','btn-teal',async function(){await sb.from('tutoring_payments').update({status:'paid',amount_paid:r.amount_due,paid_at:new Date().toISOString()}).eq('id',r.id);renderPaymentsList();},{style:{fontSize:'10px',padding:'6px 12px'}}));
-      }
-      btnRow.append(btn('Delete','btn-outline',async function(){if(!confirm('Delete this payment record?'))return;await sb.from('tutoring_payments').delete().eq('id',r.id);renderPaymentsList();},{style:{fontSize:'10px',padding:'6px 12px',color:'#ff4444',borderColor:'#ff4444'}}));
-      row.append(btnRow);
-      listWrap.append(row);
-    });
-  }
-  await renderPaymentsList();
 }
 
 /* ===================== ENROLL PANEL ===================== */
