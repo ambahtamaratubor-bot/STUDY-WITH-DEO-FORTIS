@@ -5619,6 +5619,13 @@ async function fetchPayments(){
   return rows.map(function(r){var p=pmap[r.student_id]||{};return Object.assign({},r,{full_name:p.full_name||'(unknown)',email:p.email||''});});
 }
 function fmtDateShortPay(d){try{var x=new Date(d+'T00:00:00');if(isNaN(x))return String(d);return x.toLocaleDateString('en-US',{month:'short',day:'numeric'});}catch(e){return String(d);}}
+function addOneMonthPay(dstr){
+  var parts=dstr.split('-');var y=+parts[0],m=+parts[1],d=+parts[2];
+  var nm=m+1,ny=y;if(nm>12){nm=1;ny++;}
+  var lastDay=new Date(ny,nm,0).getDate();
+  var nd=Math.min(d,lastDay);
+  return ny+'-'+String(nm).padStart(2,'0')+'-'+String(nd).padStart(2,'0');
+}
 async function renderTutoringPaymentsSection(content){
   var payCard=div({cls:'card fade',style:{marginTop:'24px'}});
   payCard.append(h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'22px',marginBottom:'8px'},html:'Tutoring Payments'}),h('p',{cls:'muted',style:{fontSize:'13px',marginBottom:'20px'},html:'Track what each enrolled student owes and when it is due.'}));
@@ -5626,6 +5633,8 @@ async function renderTutoringPaymentsSection(content){
   var amountInp=inp('e.g. 50000','number','');
   var dueInp=inp('','date','');
   var noteInp=inp('e.g. Month 2 fee (optional)','text','');
+  var recurCheck=h('input',{type:'checkbox',style:{marginRight:'8px',verticalAlign:'middle'}});
+  var recurLabel=h('label',{style:{fontSize:'12px',color:'var(--muted)',display:'flex',alignItems:'center',marginTop:'12px',cursor:'pointer'}},[recurCheck,'Recurring — repeats monthly on this due date until stopped']);
   var statusMsg=div({style:{fontSize:'12px',marginTop:'10px',display:'none'}});
   var addRow=div({style:{marginBottom:'8px'}},[
     h('label',{cls:'label',html:'Student'}),studentSel,
@@ -5633,7 +5642,8 @@ async function renderTutoringPaymentsSection(content){
       div({style:{flex:'1',minWidth:'140px'}},[h('label',{cls:'label',html:'Amount Due ($)'}),amountInp]),
       div({style:{flex:'1',minWidth:'140px'}},[h('label',{cls:'label',html:'Due Date'}),dueInp])
     ]),
-    div({style:{marginTop:'12px'}},[h('label',{cls:'label',html:'Note'}),noteInp])
+    div({style:{marginTop:'12px'}},[h('label',{cls:'label',html:'Note'}),noteInp]),
+    recurLabel
   ]);
   var saveBtn=btn('+ Add Payment','btn-gold',null,{style:{fontSize:'12px',padding:'8px 16px',marginTop:'14px'}});
   payCard.append(addRow,saveBtn,statusMsg,h('hr',{style:{border:'none',borderTop:'1px solid var(--border)',margin:'22px 0'}}));
@@ -5653,11 +5663,11 @@ async function renderTutoringPaymentsSection(content){
     var amt=parseFloat(amountInp.value);
     if(!amountInp.value||isNaN(amt)||amt<=0){statusMsg.textContent='Enter a valid amount due.';statusMsg.style.color='#ff4444';statusMsg.style.display='block';return;}
     saveBtn.disabled=true;
-    var ins=await sb.from('tutoring_payments').insert({student_id:studentSel.value,amount_due:amt,due_date:dueInp.value||null,note:noteInp.value.trim()||null,created_by:S.user.id});
+    var ins=await sb.from('tutoring_payments').insert({student_id:studentSel.value,amount_due:amt,due_date:dueInp.value||null,note:noteInp.value.trim()||null,is_recurring:recurCheck.checked,created_by:S.user.id});
     saveBtn.disabled=false;
     if(ins.error){statusMsg.textContent='Failed: '+ins.error.message;statusMsg.style.color='#ff4444';statusMsg.style.display='block';return;}
     statusMsg.textContent='✓ Payment added.';statusMsg.style.color='var(--teal)';statusMsg.style.display='block';
-    amountInp.value='';dueInp.value='';noteInp.value='';studentSel.value='';
+    amountInp.value='';dueInp.value='';noteInp.value='';studentSel.value='';recurCheck.checked=false;
     renderPaymentsList();
   };
 
@@ -5680,12 +5690,15 @@ async function renderTutoringPaymentsSection(content){
       var row=div({cls:'card',style:{marginBottom:'10px',padding:'14px',borderLeft:'2px solid '+borderColor}});
       var top=div({style:{display:'flex',justifyContent:'space-between',alignItems:'flex-start',flexWrap:'wrap',gap:'10px'}});
       var info=div({});
-      info.append(h('div',{style:{fontSize:'14px',color:'var(--text)',fontWeight:'500'}},[r.full_name]),h('div',{cls:'mono',style:{fontSize:'11px',color:'var(--muted)',marginTop:'2px'}},['$'+amtDue.toLocaleString()+' due'+(r.due_date?' · '+fmtDateShortPay(r.due_date):' · no due date')+(overdue?' · OVERDUE':'')]));
+      info.append(h('div',{style:{fontSize:'14px',color:'var(--text)',fontWeight:'500'}},[r.full_name+(r.is_recurring?'  🔁':'')]),h('div',{cls:'mono',style:{fontSize:'11px',color:'var(--muted)',marginTop:'2px'}},['$'+amtDue.toLocaleString()+' due'+(r.due_date?' · '+fmtDateShortPay(r.due_date):' · no due date')+(overdue?' · OVERDUE':'')+(r.is_recurring?' · recurring monthly':'')]));
       if(status==='partial'){
         info.append(h('div',{cls:'mono',style:{fontSize:'11px',color:'var(--gold)',marginTop:'2px'}},['Paid $'+amtPaid.toLocaleString()+' · Balance $'+balance.toLocaleString()]));
       }
       if(status==='paid'&&amtPaid){
         info.append(h('div',{cls:'mono',style:{fontSize:'11px',color:'var(--teal)',marginTop:'2px'}},['Paid $'+amtPaid.toLocaleString()+(r.paid_at?' on '+fmtDateShortPay(String(r.paid_at).slice(0,10)):'')]));
+      }
+      if(r.is_recurring&&status!=='paid'&&r.paid_at){
+        info.append(h('div',{cls:'mono',style:{fontSize:'11px',color:'var(--dim)',marginTop:'2px'}},['Last paid '+fmtDateShortPay(String(r.paid_at).slice(0,10))]));
       }
       if(r.note)info.append(h('div',{style:{fontSize:'12px',color:'var(--dim)',fontStyle:'italic',marginTop:'4px'}},[r.note]));
       var pillColor=status==='paid'?'var(--teal)':status==='partial'?'var(--gold)':overdue?'#ff4444':'var(--dim)';
@@ -5705,7 +5718,13 @@ async function renderTutoringPaymentsSection(content){
           if(isNaN(p)||p<0){saveMsg.textContent='Enter a valid amount paid.';saveMsg.style.color='#ff4444';saveMsg.style.display='block';return;}
           if(isNaN(d)||d<=0){saveMsg.textContent='Enter a valid amount due.';saveMsg.style.color='#ff4444';saveMsg.style.display='block';return;}
           var newStatus=p<=0?'unpaid':p>=d?'paid':'partial';
-          await sb.from('tutoring_payments').update({status:newStatus,amount_paid:p,amount_due:d,paid_at:newStatus==='paid'?new Date().toISOString():null}).eq('id',r.id);
+          var upd={amount_paid:p,amount_due:d};
+          if(newStatus==='paid'&&r.is_recurring){
+            upd.status='unpaid';upd.amount_paid=0;upd.paid_at=new Date().toISOString();upd.due_date=r.due_date?addOneMonthPay(r.due_date):r.due_date;
+          }else{
+            upd.status=newStatus;upd.paid_at=newStatus==='paid'?new Date().toISOString():null;
+          }
+          await sb.from('tutoring_payments').update(upd).eq('id',r.id);
           renderPaymentsList();
         },{style:{fontSize:'10px',padding:'6px 12px'}});
         var cancelBtn=btn('Cancel','btn-outline',closeEdit,{style:{fontSize:'10px',padding:'6px 12px'}});
@@ -5722,12 +5741,19 @@ async function renderTutoringPaymentsSection(content){
 
       var btnRow=div({style:{display:'flex',gap:'6px',marginTop:'10px',flexWrap:'wrap'}});
       if(status!=='paid'){
-        btnRow.append(btn('Mark Paid','btn-teal',async function(){await sb.from('tutoring_payments').update({status:'paid',amount_paid:amtDue,paid_at:new Date().toISOString()}).eq('id',r.id);renderPaymentsList();},{style:{fontSize:'10px',padding:'6px 12px'}}));
+        btnRow.append(btn('Mark Paid','btn-teal',async function(){
+          var upd=r.is_recurring
+            ?{status:'unpaid',amount_paid:0,paid_at:new Date().toISOString(),due_date:r.due_date?addOneMonthPay(r.due_date):r.due_date}
+            :{status:'paid',amount_paid:amtDue,paid_at:new Date().toISOString()};
+          await sb.from('tutoring_payments').update(upd).eq('id',r.id);
+          renderPaymentsList();
+        },{style:{fontSize:'10px',padding:'6px 12px'}}));
         btnRow.append(btn(status==='partial'?'Update Amount':'Mark Partial','btn-outline',openPartialEdit,{style:{fontSize:'10px',padding:'6px 12px'}}));
       }
       if(status!=='unpaid'){
         btnRow.append(btn('Mark Unpaid','btn-outline',async function(){await sb.from('tutoring_payments').update({status:'unpaid',amount_paid:0,paid_at:null}).eq('id',r.id);renderPaymentsList();},{style:{fontSize:'10px',padding:'6px 12px'}}));
       }
+      btnRow.append(btn(r.is_recurring?'Stop Recurring':'Make Recurring','btn-outline',async function(){await sb.from('tutoring_payments').update({is_recurring:!r.is_recurring}).eq('id',r.id);renderPaymentsList();},{style:{fontSize:'10px',padding:'6px 12px'}}));
       btnRow.append(btn('Delete','btn-outline',async function(){if(!confirm('Delete this payment record?'))return;await sb.from('tutoring_payments').delete().eq('id',r.id);renderPaymentsList();},{style:{fontSize:'10px',padding:'6px 12px',color:'#ff4444',borderColor:'#ff4444'}}));
       row.append(btnRow,editWrap);
       listWrap.append(row);
