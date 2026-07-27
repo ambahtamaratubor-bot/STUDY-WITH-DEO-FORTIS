@@ -1,24 +1,16 @@
 {
   "name": "Study with Deo Fortis",
   "short_name": "Deo Fortis",
-  "description": "A premium medical study platform built for results.",
+  "description": "Evidence-based USMLE study platform with Q-Bank, flashcards, active recall, and Feynman Arena.",
+  "id": "/",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
-  "background_color": "#0F0E0A",
-  "theme_color": "#C8A96E",
   "orientation": "portrait-primary",
+  "background_color": "#0F0E0A",
+  "theme_color": "#B8922E",
   "icons": [
-    {
-      "src": "/icon-192.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "/icon-512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any maskable"
-    }
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
   ]
 }

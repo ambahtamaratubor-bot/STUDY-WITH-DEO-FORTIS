@@ -10,6 +10,7 @@
 <meta name="theme-color" content="#B8922E"/>
 <link rel="manifest" href="/manifest.json"/>
 <link rel="icon" type="image/png" href="/icon-512.png">
+<link rel="apple-touch-icon" href="/icon-512.png"/>
 <title>Study with Deo Fortis</title>
 <meta name="description" content="Evidence-based USMLE study platform with Q-Bank, flashcards, active recall, and Feynman Arena. Built for medical students who are serious. Everyone Is Gifted."/>
 <link rel="canonical" href="https://deofortis.work"/>
@@ -170,6 +171,15 @@ h2.big{font-family:'Playfair Display',serif;font-size:clamp(32px,5vw,56px);font-
 <div id="root"></div>
 <script src="https://cdn.jsdelivr.net/npm/twemoji@14.0.2/dist/twemoji.min.js" crossorigin="anonymous"></script>
 <script src="app.js"></script>
+<script>
+if('serviceWorker' in navigator){
+  window.addEventListener('load',function(){
+    navigator.serviceWorker.register('/sw.js').catch(function(err){
+      console.warn('Service worker registration failed:',err);
+    });
+  });
+}
+</script>
 <script>
 // Twemoji scoped to emoji-bitz deck content only
 function parseTwemoji(el){if(el&&typeof twemoji!=='undefined')twemoji.parse(el);}
