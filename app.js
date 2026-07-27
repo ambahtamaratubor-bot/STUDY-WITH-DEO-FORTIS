@@ -211,6 +211,120 @@ var SVG_CHEVRON_RIGHT='<svg xmlns="http://www.w3.org/2000/svg" width="12" height
 var FLAG_STAR_FILLED='<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>';
 
 function showMaplet(pageKey,message){var storageKey="maplet_"+pageKey;if(localStorage.getItem(storageKey)==="dismissed")return null;var maplet=div({style:{background:"rgba(184,146,46,0.08)",border:"1px solid var(--gold)",borderRadius:"4px",padding:"12px 20px",marginBottom:"24px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:"16px",fontSize:"13px",fontFamily:"Plus Jakarta Sans,sans-serif",color:"var(--text)",lineHeight:"1.5"}},[h("span",{style:{flex:"1"}},[message]),btn("\u2715","",function(){localStorage.setItem(storageKey,"dismissed");maplet.style.display="none";},{style:{background:"none",border:"none",color:"var(--dim)",cursor:"pointer",fontSize:"16px",padding:"4px 8px",flexShrink:"0"}})]);return maplet;}
+// ═══════════════════════════════
+// SHARED HIGHLIGHT ENGINE
+// Robust to overlapping selections, selections spanning multiple
+// nodes/paragraphs, and highlighting text that partially overlaps
+// an existing highlight. Replaces the old per-screen implementations
+// which broke after the first highlight because they walked a stale
+// snapshot of text nodes.
+// ═══════════════════════════════
+function dfHlTextNodes(container){
+  var nodes=[];
+  (function walk(n){
+    for(var i=0;i<n.childNodes.length;i++){
+      var c=n.childNodes[i];
+      if(c.nodeType===3)nodes.push(c);
+      else if(c.nodeType===1)walk(c);
+    }
+  })(container);
+  return nodes;
+}
+function dfHlFindSpans(container){
+  var spans=[];
+  (function walk(n){
+    for(var i=0;i<n.childNodes.length;i++){
+      var c=n.childNodes[i];
+      if(c.nodeType===1){
+        if(c.className==='highlight-text')spans.push(c);
+        else walk(c);
+      }
+    }
+  })(container);
+  return spans;
+}
+function dfHlUnwrap(container){
+  var spans=dfHlFindSpans(container);
+  spans.forEach(function(sp){
+    var parent=sp.parentNode;if(!parent)return;
+    while(sp.firstChild)parent.insertBefore(sp.firstChild,sp);
+    parent.removeChild(sp);
+  });
+  try{container.normalize();}catch(e){}
+}
+function dfHlOffset(container,node,offset){
+  var pre=document.createRange();pre.selectNodeContents(container);
+  try{pre.setEnd(node,offset);}catch(e){return container.textContent.length;}
+  return pre.toString().length;
+}
+// Saves a new highlight for question `qid` in `store`, merging it with any
+// existing highlight it overlaps or touches so you never get broken/nested
+// fragments, then re-paints immediately (no full re-render needed).
+function dfHlMergeAndSave(container,store,qid,range,persistFn){
+  var selectedText=range.toString();
+  if(!selectedText||!selectedText.trim().length)return false;
+  var start=dfHlOffset(container,range.startContainer,range.startOffset);
+  var end=start+selectedText.length;
+  if(!store[qid])store[qid]=[];
+  var mStart=start,mEnd=end,kept=[];
+  store[qid].forEach(function(hl){
+    var hStart=hl.start,hEnd=hl.start+hl.text.length;
+    if(hEnd<mStart||hStart>mEnd){kept.push(hl);}
+    else{mStart=Math.min(mStart,hStart);mEnd=Math.max(mEnd,hEnd);}
+  });
+  var fullText=container.textContent;
+  var mergedText=fullText.slice(mStart,mEnd);
+  if(!mergedText)return false;
+  kept.push({start:mStart,text:mergedText});
+  kept.sort(function(a,b){return a.start-b.start;});
+  store[qid]=kept;
+  if(persistFn)persistFn();
+  dfHlApply(container,store,qid);
+  return true;
+}
+// Removes the highlight whose recorded start matches the clicked span's
+// data-hl-start, then re-paints.
+function dfHlRemove(container,store,qid,startVal,persistFn){
+  if(!store[qid])return;
+  store[qid]=store[qid].filter(function(hl){return hl.start!==startVal;});
+  if(persistFn)persistFn();
+  dfHlApply(container,store,qid);
+}
+// Repaints all saved highlights for `qid` onto the live DOM of `container`.
+// Rebuilds the text-node walk fresh for every single highlight (instead of
+// once up front) so that inserting one highlight span never corrupts the
+// offsets/targets used for the next one — this was the root cause of
+// highlights breaking as soon as you tried to mark a second portion of text.
+function dfHlApply(container,store,qid){
+  dfHlUnwrap(container);
+  var list=store&&store[qid];
+  if(!list||!list.length)return;
+  list.forEach(function(hl){
+    try{
+      var textNodes=dfHlTextNodes(container);
+      var remaining=hl.start,startNode=null,startOff=0,si=-1;
+      for(var i=0;i<textNodes.length;i++){
+        var len=textNodes[i].nodeValue.length;
+        if(remaining<len){startNode=textNodes[i];startOff=remaining;si=i;break;}
+        remaining-=len;
+      }
+      if(!startNode)return;
+      var needLen=hl.text.length,avail=startNode.nodeValue.length-startOff,endNode=startNode,endOff=startOff+needLen;
+      if(avail<needLen){
+        var acc=avail,j=si+1;
+        while(j<textNodes.length){
+          var l2=textNodes[j].nodeValue.length;
+          if(acc+l2>=needLen){endNode=textNodes[j];endOff=needLen-acc;break;}
+          acc+=l2;j++;
+        }
+      }
+      var rng=document.createRange();
+      rng.setStart(startNode,startOff);rng.setEnd(endNode,endOff);
+      var span=document.createElement('span');span.className='highlight-text';span.dataset.hlStart=String(hl.start);
+      var frag=rng.extractContents();span.appendChild(frag);rng.insertNode(span);
+    }catch(err){}
+  });
+}
 function renderQuestionText(text,container){
 var LAB_INLINE_RE=/(?:(?:Laboratory|Lab) (?:studies|results|findings|data|values)[^:]*:|studies show:|results show:|values show:)\s*((?:[^;]+(?:\/[^\s;]+)?\s*\([^)]+\);\s*)+)/i;
 var LAB_ITEM_RE=/([^;:()\\/\d]+?)\s+([\d,\.]+(?:[-\u2013][\d,\.]+)?\s*(?:\/[\w\u00b5]+)?)\s+(?:U\/L|g\/dL|mg\/dL|mEq\/L|mmol\/L|\u00b5mol\/L|umol\/L|IU\/L|ng\/mL|pg\/mL|\u00b5g\/dL|ug\/dL|%|\/\u00b5L|\/uL|mm\/hr|mm Hg|cm|x10\^?\d+\/?\\w*)?\s*\((?:normal\s+)?([^)]+)\)/gi;
@@ -845,41 +959,22 @@ function runQuiz(a,test,questions){
     renderQuestionText(q.question,qCard);
     mainArea.append(qCard);
 
-    function saveHighlight(range,selectedText){
-      if(!highlights[q.id])highlights[q.id]=[];
-      var preRange=document.createRange();preRange.selectNodeContents(qCard);
-      preRange.setEnd(range.startContainer,range.startOffset);var startOffset=preRange.toString().length;
-      highlights[q.id].push({start:startOffset,text:selectedText});
-      persist();updateQ();
-    }
-    function applyHighlights(){
-      if(!highlights[q.id]||!highlights[q.id].length)return;
-      var walker=document.createTreeWalker(qCard,NodeFilter.SHOW_TEXT,null,false);
-      var textNodes=[];while(walker.nextNode())textNodes.push(walker.currentNode);
-      highlights[q.id].forEach(function(hl){
-        var remaining=hl.start;var targetNode=null;var targetStart=0;
-        for(var ni=0;ni<textNodes.length;ni++){var node=textNodes[ni];var len=node.nodeValue.length;if(remaining<len){targetNode=node;targetStart=remaining;break;}remaining-=len;}
-        if(targetNode&&targetStart+hl.text.length<=targetNode.nodeValue.length){
-          var rng=document.createRange();rng.setStart(targetNode,targetStart);rng.setEnd(targetNode,targetStart+hl.text.length);
-          var span=document.createElement('span');span.className='highlight-text';span.textContent=hl.text;rng.deleteContents();rng.insertNode(span);
-        }
-      });
-    }
     qCard.onmouseup=function(e){
       if(submitted)return;
       var sel=window.getSelection();if(!sel||sel.isCollapsed)return;
-      var rng=sel.getRangeAt(0);var selectedText=rng.toString().trim();
-      if(!selectedText||selectedText.length<3)return;
-      saveHighlight(rng,selectedText);sel.removeAllRanges();
+      var rng=sel.getRangeAt(0);
+      if(rng.toString().trim().length<1){sel.removeAllRanges();return;}
+      dfHlMergeAndSave(qCard,highlights,q.id,rng,persist);
+      sel.removeAllRanges();
     };
     qCard.onclick=function(e){
       var target=e.target;
       if(target.classList&&target.classList.contains('highlight-text')){
-        e.preventDefault();var text=target.textContent;
-        if(highlights[q.id]){highlights[q.id]=highlights[q.id].filter(function(hl){return hl.text!==text;});persist();updateQ();}
+        e.preventDefault();
+        dfHlRemove(qCard,highlights,q.id,parseInt(target.dataset.hlStart,10),persist);
       }
     };
-    applyHighlights();
+    dfHlApply(qCard,highlights,q.id);
 
     ['a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p','q'].forEach(function(opt){
       var val=q['option_'+opt];if(!val)return;
@@ -1353,41 +1448,22 @@ function runAssessmentQuiz(a,assessment,questions){
     renderQuestionText(q.question,qCard);
     mainArea.append(qCard);
 
-    function saveHighlight(range,selectedText){
-      if(!highlights[q.id])highlights[q.id]=[];
-      var preRange=document.createRange();preRange.selectNodeContents(qCard);
-      preRange.setEnd(range.startContainer,range.startOffset);var startOffset=preRange.toString().length;
-      highlights[q.id].push({start:startOffset,text:selectedText});
-      persist();updateQ();
-    }
-    function applyHighlights(){
-      if(!highlights[q.id]||!highlights[q.id].length)return;
-      var walker=document.createTreeWalker(qCard,NodeFilter.SHOW_TEXT,null,false);
-      var textNodes=[];while(walker.nextNode())textNodes.push(walker.currentNode);
-      highlights[q.id].forEach(function(hl){
-        var remaining=hl.start;var targetNode=null;var targetStart=0;
-        for(var ni=0;ni<textNodes.length;ni++){var node=textNodes[ni];var len=node.nodeValue.length;if(remaining<len){targetNode=node;targetStart=remaining;break;}remaining-=len;}
-        if(targetNode&&targetStart+hl.text.length<=targetNode.nodeValue.length){
-          var rng=document.createRange();rng.setStart(targetNode,targetStart);rng.setEnd(targetNode,targetStart+hl.text.length);
-          var span=document.createElement('span');span.className='highlight-text';span.textContent=hl.text;rng.deleteContents();rng.insertNode(span);
-        }
-      });
-    }
     qCard.onmouseup=function(e){
       if(submitted)return;
       var sel=window.getSelection();if(!sel||sel.isCollapsed)return;
-      var rng=sel.getRangeAt(0);var selectedText=rng.toString().trim();
-      if(!selectedText||selectedText.length<3)return;
-      saveHighlight(rng,selectedText);sel.removeAllRanges();
+      var rng=sel.getRangeAt(0);
+      if(rng.toString().trim().length<1){sel.removeAllRanges();return;}
+      dfHlMergeAndSave(qCard,highlights,q.id,rng,persist);
+      sel.removeAllRanges();
     };
     qCard.onclick=function(e){
       var target=e.target;
       if(target.classList&&target.classList.contains('highlight-text')){
-        e.preventDefault();var text=target.textContent;
-        if(highlights[q.id]){highlights[q.id]=highlights[q.id].filter(function(hl){return hl.text!==text;});persist();updateQ();}
+        e.preventDefault();
+        dfHlRemove(qCard,highlights,q.id,parseInt(target.dataset.hlStart,10),persist);
       }
     };
-    applyHighlights();
+    dfHlApply(qCard,highlights,q.id);
 
     ['a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p','q'].forEach(function(opt){
       var val=q['option_'+opt];if(!val)return;
@@ -1644,40 +1720,21 @@ function runBlockedAssessment(a,assessment,allQuestions){
       renderQuestionText(q.question,qCard);
       mainArea.append(qCard);
 
-      function saveHighlight(range,selectedText){
-        if(!globalHighlights[q.id])globalHighlights[q.id]=[];
-        var preRange=document.createRange();preRange.selectNodeContents(qCard);
-        preRange.setEnd(range.startContainer,range.startOffset);var startOffset=preRange.toString().length;
-        globalHighlights[q.id].push({start:startOffset,text:selectedText});
-        persist();updateQ();
-      }
-      function applyHighlights(){
-        if(!globalHighlights[q.id]||!globalHighlights[q.id].length)return;
-        var walker=document.createTreeWalker(qCard,NodeFilter.SHOW_TEXT,null,false);
-        var textNodes=[];while(walker.nextNode())textNodes.push(walker.currentNode);
-        globalHighlights[q.id].forEach(function(hl){
-          var remaining=hl.start;var targetNode=null;var targetStart=0;
-          for(var ni=0;ni<textNodes.length;ni++){var node=textNodes[ni];var len=node.nodeValue.length;if(remaining<len){targetNode=node;targetStart=remaining;break;}remaining-=len;}
-          if(targetNode&&targetStart+hl.text.length<=targetNode.nodeValue.length){
-            var rng=document.createRange();rng.setStart(targetNode,targetStart);rng.setEnd(targetNode,targetStart+hl.text.length);
-            var span=document.createElement('span');span.className='highlight-text';span.textContent=hl.text;rng.deleteContents();rng.insertNode(span);
-          }
-        });
-      }
       qCard.onmouseup=function(e){
         var sel=window.getSelection();if(!sel||sel.isCollapsed)return;
-        var rng=sel.getRangeAt(0);var selectedText=rng.toString().trim();
-        if(!selectedText||selectedText.length<3)return;
-        saveHighlight(rng,selectedText);sel.removeAllRanges();
+        var rng=sel.getRangeAt(0);
+        if(rng.toString().trim().length<1){sel.removeAllRanges();return;}
+        dfHlMergeAndSave(qCard,globalHighlights,q.id,rng,persist);
+        sel.removeAllRanges();
       };
       qCard.onclick=function(e){
         var target=e.target;
         if(target.classList&&target.classList.contains('highlight-text')){
-          e.preventDefault();var text=target.textContent;
-          if(globalHighlights[q.id]){globalHighlights[q.id]=globalHighlights[q.id].filter(function(hl){return hl.text!==text;});persist();updateQ();}
+          e.preventDefault();
+          dfHlRemove(qCard,globalHighlights,q.id,parseInt(target.dataset.hlStart,10),persist);
         }
       };
-      applyHighlights();
+      dfHlApply(qCard,globalHighlights,q.id);
 
       ['a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p','q'].forEach(function(opt){
         var val=q['option_'+opt];if(!val)return;
@@ -1855,7 +1912,7 @@ document.body.style.paddingBottom='0';
 function showTimerBar(){
 if(document.getElementById('timer-bar'))return;
 const bar=document.createElement('div');bar.id='timer-bar';
-bar.style.cssText='position:fixed;top:0;left:0;right:0;background:var(--nav-bg);border-bottom:1px solid var(--border);padding:6px 24px;display:flex;align-items:center;justify-content:space-between;z-index:9999;cursor:pointer;';
+bar.style.cssText='position:fixed;top:0;left:0;right:0;background:var(--nav-bg);border-bottom:1px solid var(--border);padding:6px 24px;display:flex;align-items:center;justify-content:space-between;z-index:2147483000;cursor:pointer;';
 bar.onclick=()=>go('study');
 const left=document.createElement('div');left.style.cssText="display:flex;align-items:center;gap:12px;";
 const label=document.createElement('span');label.style.cssText="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2px;color:var(--dim);text-transform:uppercase;";label.textContent='Study Session Active';
@@ -1902,6 +1959,22 @@ if(bar)bar.remove();
 if(window._timerBarInterval)clearInterval(window._timerBarInterval);
 document.body.style.paddingTop='0';
 }
+// Self-healing watcher: guarantees the study-session timer bar stays on
+// screen everywhere in the app (dashboard, tutoring wing, fullscreen
+// tests/assessments, modals, etc.) for as long as a session is active,
+// and only ever disappears once the session is actually ended. This runs
+// independently of page navigation, so it doesn't matter whether a given
+// screen change goes through the normal render() path or not.
+function dfEnsureTimerBar(){
+try{
+  if(window.activeSessionId){
+    if(!document.getElementById('timer-bar'))showTimerBar();
+  }else{
+    if(document.getElementById('timer-bar'))removeTimerBar();
+  }
+}catch(e){}
+}
+if(!window._dfTimerWatcher){window._dfTimerWatcher=setInterval(dfEnsureTimerBar,1000);dfEnsureTimerBar();}
 // ═══════════════════════════════
 // STREAK
 // ═══════════════════════════════
@@ -4226,6 +4299,68 @@ showSetup();return page;
 // ═══════════════════════════════
 // FLASHCARDS
 // ═══════════════════════════════
+// ═══════════════════════════════
+// OFFLINE FLASHCARD CACHE
+// Caches every deck the user can see (in the background, not just ones
+// they open) so flashcards keep working with no connection. Also queues
+// progress writes (Easy/Iffy/Hard grading) made while offline and flushes
+// them the next time the app is back online.
+// ═══════════════════════════════
+var DF_OFFLINE_KEY='df_offline_flashcards_v1';
+var DF_OFFLINE_QUEUE_KEY='df_offline_queue_v1';
+function dfOfflineLoad(){
+  try{var raw=localStorage.getItem(DF_OFFLINE_KEY);return raw?JSON.parse(raw):{decks:[],cardsByDeck:{},cachedAt:0};}catch(e){return{decks:[],cardsByDeck:{},cachedAt:0};}
+}
+function dfOfflineSaveDecks(decks){
+  try{var c=dfOfflineLoad();c.decks=decks;c.cachedAt=Date.now();localStorage.setItem(DF_OFFLINE_KEY,JSON.stringify(c));}catch(e){}
+}
+function dfOfflineSaveCards(deckId,cards){
+  try{
+    var c=dfOfflineLoad();if(!c.cardsByDeck)c.cardsByDeck={};c.cardsByDeck[deckId]=cards;
+    localStorage.setItem(DF_OFFLINE_KEY,JSON.stringify(c));
+  }catch(e){
+    // Likely storage quota exceeded — drop the oldest cached deck and retry once.
+    try{
+      var c2=dfOfflineLoad();var keys=Object.keys(c2.cardsByDeck||{});
+      if(keys.length){delete c2.cardsByDeck[keys[0]];c2.cardsByDeck[deckId]=cards;localStorage.setItem(DF_OFFLINE_KEY,JSON.stringify(c2));}
+    }catch(e2){}
+  }
+}
+function dfOfflineGetDecks(){return dfOfflineLoad().decks||[];}
+function dfOfflineGetCards(deckId){var c=dfOfflineLoad();return(c.cardsByDeck&&c.cardsByDeck[deckId])||null;}
+// Silently fetches & stores cards for every visible deck so ALL decks are
+// available offline, not only ones the user has opened before.
+async function dfOfflineBackgroundCache(decks){
+  if(!navigator.onLine)return;
+  for(var i=0;i<decks.length;i++){
+    var d=decks[i];
+    try{
+      var{data:cards}=await sb.from('flashcards').select('*').eq('deck_id',d.id);
+      if(cards)dfOfflineSaveCards(d.id,cards);
+    }catch(e){}
+  }
+}
+function dfQueueLoad(){try{var raw=localStorage.getItem(DF_OFFLINE_QUEUE_KEY);return raw?JSON.parse(raw):[];}catch(e){return[];}}
+function dfQueueSave(q){try{localStorage.setItem(DF_OFFLINE_QUEUE_KEY,JSON.stringify(q));}catch(e){}}
+function dfQueuePush(item){var q=dfQueueLoad();q.push(item);dfQueueSave(q);}
+async function dfQueueFlush(){
+  if(!navigator.onLine)return;
+  var q=dfQueueLoad();if(!q.length)return;
+  var remaining=[];
+  for(var i=0;i<q.length;i++){
+    try{
+      var item=q[i];
+      if(item.type==='flashcard_progress'){await sb.from('flashcard_progress').upsert(item.payload,{onConflict:'user_id,flashcard_id'});}
+      else if(item.type==='deck_progress'){await sb.from('flashcard_progress').upsert(item.payload);}
+    }catch(e){remaining.push(q[i]);}
+  }
+  dfQueueSave(remaining);
+}
+if(!window._dfQueueFlushBound){
+  window._dfQueueFlushBound=true;
+  window.addEventListener('online',dfQueueFlush);
+  dfQueueFlush();
+}
 function flashcards(){
 const page=div({});
 const isFree=S.profile?.is_free_tier===true;
@@ -4299,8 +4434,22 @@ if(_drs&&_drs.deckId&&_drs.currentIndex>0){
   );
   inner.append(resumeBanner);
 }
-const{data}=await ((isFree&&!isInTrial())?sb.from('flashcard_decks').select('*').eq('type','flashcard').eq('is_global',true).is('user_id',null).order('created_at',{ascending:false}):sb.from('flashcard_decks').select('*').or('user_id.eq.'+S.user.id+',user_id.is.null').neq('type','riddle').neq('type','emoji').order('created_at',{ascending:false}));
-deckSkel.remove();decks=data||[];
+var offlineMode=false;
+try{
+  if(!navigator.onLine)throw new Error('offline');
+  const{data,error}=await ((isFree&&!isInTrial())?sb.from('flashcard_decks').select('*').eq('type','flashcard').eq('is_global',true).is('user_id',null).order('created_at',{ascending:false}):sb.from('flashcard_decks').select('*').or('user_id.eq.'+S.user.id+',user_id.is.null').neq('type','riddle').neq('type','emoji').order('created_at',{ascending:false}));
+  if(error)throw error;
+  decks=data||[];
+  dfOfflineSaveDecks(decks);
+  dfOfflineBackgroundCache(decks);
+}catch(e){
+  decks=dfOfflineGetDecks();
+  offlineMode=true;
+}
+deckSkel.remove();
+if(offlineMode){
+  inner.append(div({cls:'card',style:{marginBottom:'16px',padding:'12px 16px',border:'1px solid var(--gold)',background:'rgba(184,146,46,0.08)'}},[h('span',{style:{fontFamily:"Inter,sans-serif",fontSize:'12px',color:'var(--gold)'},html:'⚠ Offline — showing your saved decks. New results will sync once you\'re back online.'})]));
+}
 if(!decks.length){inner.append(div({cls:'card',style:{textAlign:'center',padding:'48px'}},[div({style:{fontSize:'40px',marginBottom:'16px'},html:' '}),h('p',{style:{fontSize:'14px',color:'var(--dim)'},html:'No flashcard decks yet.'})]));return;}
 const grid=div({style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(240px,1fr))',gap:'16px'}});
 decks.forEach(deck=>{
@@ -4372,23 +4521,39 @@ inner.append(hCard);
 }
 }
 async function loadDeck(deck){
-if(S.profile?.is_free_tier&&!deck.user_id){
-  const{data:attempts}=await sb.from('flashcard_progress').select('id').eq('user_id',S.user.id).limit(1);
-  if(attempts&&attempts.length>0){
-    inner.innerHTML='';
-    inner.append(div({cls:'card',style:{textAlign:'center',padding:'40px 20px'}},[
-      h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'14px',color:'var(--dim)',marginBottom:'20px'},html:'Free tier allows 1 deck only.'}),
-      btn('Upgrade →','btn-gold',()=>showUpgradeModal())
-    ]));
-    return;
-  }
+if(S.profile?.is_free_tier&&!deck.user_id&&navigator.onLine){
+  try{
+    const{data:attempts}=await sb.from('flashcard_progress').select('id').eq('user_id',S.user.id).limit(1);
+    if(attempts&&attempts.length>0){
+      inner.innerHTML='';
+      inner.append(div({cls:'card',style:{textAlign:'center',padding:'40px 20px'}},[
+        h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'14px',color:'var(--dim)',marginBottom:'20px'},html:'Free tier allows 1 deck only.'}),
+        btn('Upgrade →','btn-gold',()=>showUpgradeModal())
+      ]));
+      return;
+    }
+  }catch(e){}
 }
 selDeck=deck;
-const{data:allCards}=await sb.from('flashcards').select('*').eq('deck_id',deck.id);
-if(!allCards||!allCards.length){alert('No cards in this deck yet.');return;}
-const{data:progressData}=await sb.from('flashcard_progress').select('*').eq('user_id',S.user.id);
-const progressMap={};
-(progressData||[]).forEach(p=>{progressMap[p.flashcard_id]=p.difficulty;});
+var allCards=null,deckOffline=false;
+try{
+  if(!navigator.onLine)throw new Error('offline');
+  const{data,error}=await sb.from('flashcards').select('*').eq('deck_id',deck.id);
+  if(error)throw error;
+  allCards=data;
+  if(allCards)dfOfflineSaveCards(deck.id,allCards);
+}catch(e){
+  allCards=dfOfflineGetCards(deck.id);
+  deckOffline=true;
+}
+if(!allCards||!allCards.length){alert(deckOffline?'This deck isn\'t saved for offline use yet — connect once to cache it.':'No cards in this deck yet.');return;}
+var progressMap={};
+try{
+  if(navigator.onLine){
+    const{data:progressData}=await sb.from('flashcard_progress').select('*').eq('user_id',S.user.id);
+    (progressData||[]).forEach(p=>{progressMap[p.flashcard_id]=p.difficulty;});
+  }
+}catch(e){}
 const hardCount=allCards.filter(c=>progressMap[c.id]==='Hard').length;
 const iffy2Count=allCards.filter(c=>progressMap[c.id]==='Iffy').length;
 const unseenCount=allCards.filter(c=>!progressMap[c.id]).length;
@@ -4491,7 +4656,14 @@ if(prev==='none'){
   if(d==='easy'){nq.splice(curIdx,1);}
   else if(d==='iffy'){nq.splice(curIdx,1);nq.push(cur);}
   else{nq.splice(curIdx,1);nq.splice(Math.min(curIdx+2,nq.length),0,cur);}
-  (async()=>{await sb.from('flashcard_progress').upsert({user_id:S.user.id,flashcard_id:cur.id,difficulty:d.charAt(0).toUpperCase()+d.slice(1),updated_at:new Date().toISOString()},{onConflict:'user_id,flashcard_id'});})();
+  (async()=>{
+    var payload={user_id:S.user.id,flashcard_id:cur.id,difficulty:d.charAt(0).toUpperCase()+d.slice(1),updated_at:new Date().toISOString()};
+    try{
+      if(!navigator.onLine)throw new Error('offline');
+      const{error}=await sb.from('flashcard_progress').upsert(payload,{onConflict:'user_id,flashcard_id'});
+      if(error)throw error;
+    }catch(e){dfQueuePush({type:'flashcard_progress',payload:payload});}
+  })();
 } else if(prev==='hard'){
   if(d==='hard'){nq.splice(curIdx,1);nq.splice(Math.min(curIdx+2,nq.length),0,cur);}
   else{prog.hard=Math.max(0,prog.hard-1);prog.iffy++;cur._state='iffy';nq.splice(curIdx,1);nq.push(cur);}
@@ -4900,47 +5072,27 @@ qHeader.append(flagBtn);
 qCard.append(qHeader);renderQuestionText(q.question,qCard);
 mainArea.append(qCard);
 // Highlight functionality
-function removeHighlightBtn(){if(activeHighlightBtn){activeHighlightBtn.remove();activeHighlightBtn=null;}}
-function saveHighlight(range,selectedText){
-  if(!highlights[q.id])highlights[q.id]=[];
-  const preRange=document.createRange();preRange.selectNodeContents(qCard);
-  preRange.setEnd(range.startContainer,range.startOffset);const startOffset=preRange.toString().length;
-  highlights[q.id].push({start:startOffset,text:selectedText});
+function dfHlPersistVignette(){
   const sv=sessionStorage.getItem('vignette_resume');
   if(sv){const st=JSON.parse(sv);st.highlights=highlights;sessionStorage.setItem('vignette_resume',JSON.stringify(st));}
-  updateQ();
-}
-function applyHighlights(){
-  if(!highlights[q.id]||!highlights[q.id].length)return;
-  const walker=document.createTreeWalker(qCard,NodeFilter.SHOW_TEXT,null,false);
-  const textNodes=[];while(walker.nextNode())textNodes.push(walker.currentNode);
-  highlights[q.id].forEach(hl=>{
-    let remaining=hl.start;let targetNode=null;let targetStart=0;
-    for(let node of textNodes){const len=node.nodeValue.length;if(remaining<len){targetNode=node;targetStart=remaining;break;}remaining-=len;}
-    if(targetNode&&targetStart+hl.text.length<=targetNode.nodeValue.length){
-      const rng=document.createRange();rng.setStart(targetNode,targetStart);rng.setEnd(targetNode,targetStart+hl.text.length);
-      const span=document.createElement('span');span.className='highlight-text';span.textContent=hl.text;rng.deleteContents();rng.insertNode(span);
-    }
-  });
 }
 qCard.onmouseup=(e)=>{
   if(submitted)return;
   const sel=window.getSelection();
   if(!sel||sel.isCollapsed)return;
-  const rng=sel.getRangeAt(0);const selectedText=rng.toString().trim();
-  if(!selectedText||selectedText.length<3)return;
-  saveHighlight(rng,selectedText);
+  const rng=sel.getRangeAt(0);
+  if(rng.toString().trim().length<1){sel.removeAllRanges();return;}
+  dfHlMergeAndSave(qCard,highlights,q.id,rng,dfHlPersistVignette);
   sel.removeAllRanges();
 };
 qCard.onclick=(e)=>{
   const target=e.target;
   if(target.classList&&target.classList.contains('highlight-text')){
-    e.preventDefault();const text=target.textContent;
-    if(highlights[q.id]){highlights[q.id]=highlights[q.id].filter(hl=>hl.text!==text);
-    const sv=sessionStorage.getItem('vignette_resume');if(sv){const st=JSON.parse(sv);st.highlights=highlights;sessionStorage.setItem('vignette_resume',JSON.stringify(st));}updateQ();}
+    e.preventDefault();
+    dfHlRemove(qCard,highlights,q.id,parseInt(target.dataset.hlStart,10),dfHlPersistVignette);
   }
 };
-applyHighlights();
+dfHlApply(qCard,highlights,q.id);
 ['a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p','q'].forEach(opt=>{
 const val=q['option_'+opt];if(!val)return;
 const ob=h('button',{cls:'option-btn'});
@@ -5284,9 +5436,15 @@ async function showDeckPlayer(deck,type){
     var total=deckCards.length;var score=Math.round((gotIt/total)*100);var passed=score>=65;
     modal.innerHTML='';
     if(passed){
-      await sb.from('flashcard_progress').upsert({user_id:S.user.id,deck_id:deck.id,completed:true,completed_at:new Date().toISOString()});
-      if(S.profile?.is_free_tier!==true||isInTrial()){await sb.from('profiles').update({total_points:(S.profile?.total_points||0)+20}).eq('id',S.user.id);if(S.profile)S.profile.total_points=(S.profile.total_points||0)+20;}
-      var{data:nextDeck}=await sb.from('flashcard_decks').select('id').eq('type',type).eq('unlock_order',deck.unlock_order+1).maybeSingle();
+      var completionPayload={user_id:S.user.id,deck_id:deck.id,completed:true,completed_at:new Date().toISOString()};
+      var nextDeck=null;
+      try{
+        if(!navigator.onLine)throw new Error('offline');
+        await sb.from('flashcard_progress').upsert(completionPayload);
+        if(S.profile?.is_free_tier!==true||isInTrial()){await sb.from('profiles').update({total_points:(S.profile?.total_points||0)+20}).eq('id',S.user.id);if(S.profile)S.profile.total_points=(S.profile.total_points||0)+20;}
+        var{data:nd}=await sb.from('flashcard_decks').select('id').eq('type',type).eq('unlock_order',deck.unlock_order+1).maybeSingle();
+        nextDeck=nd;
+      }catch(e){dfQueuePush({type:'deck_progress',payload:completionPayload});}
       modal.append(h('div',{style:{fontSize:'48px',textAlign:'center',marginBottom:'16px'},html:ICONS.sparkles}),h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'24px',color:'var(--gold)',textAlign:'center',marginBottom:'8px'},html:'Level '+deck.unlock_order+' Complete!'}),h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'16px',color:'var(--teal)',textAlign:'center',marginBottom:'8px'},html:'You scored '+score+'%'}),nextDeck?h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'13px',color:'var(--teal)',textAlign:'center',marginBottom:'24px'},html:'Next Level Unlocked!'}):h('div',{style:{marginBottom:'24px'}},[]),btn('Close','btn-gold',function(){overlay.style.display='none';},{style:{width:'100%'}}));
     }else{
       modal.append(h('div',{style:{fontSize:'48px',textAlign:'center',marginBottom:'16px'},html:ICONS.zap}),h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'24px',color:'var(--gold)',textAlign:'center',marginBottom:'8px'},html:'So Close!'}),h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'16px',color:'var(--dim)',textAlign:'center',marginBottom:'8px'},html:'You scored '+score+'% — you need 65% to unlock the next level.'}),h('div',{style:{marginBottom:'24px'}},[]),btn('Try Again →','btn-gold',function(){currentIndex=0;gotIt=0;revealed=false;renderCard();},{style:{width:'100%',marginBottom:'12px'}}),btn('Exit','btn-outline',function(){overlay.style.display='none';},{style:{width:'100%'}}));
