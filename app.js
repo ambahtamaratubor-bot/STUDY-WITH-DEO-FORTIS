@@ -344,6 +344,278 @@ labItems.forEach(function(item){var row=div({style:{display:'flex',alignItems:'b
 container.append(tableWrap);
 if(after.trim()){var pAfter=h('p',{style:{fontSize:'15px',color:'var(--text)',lineHeight:'1.8',marginTop:'14px'}},[]);pAfter.textContent=after.replace(/^[\s.,;]+/,'');container.append(pAfter);}
 }
+function assessBrandHeader(){
+  var wrap=div({style:{textAlign:'center',marginBottom:'24px'}},[]);
+  var logoRow=div({style:{display:'flex',justifyContent:'center'}},[]);
+  logoRow.append(dfLogo());
+  wrap.append(logoRow,div({cls:'mono',style:{fontSize:'9px',color:'var(--muted)',letterSpacing:'3px',textTransform:'uppercase',marginTop:'6px'}},['Everyone Is Gifted']));
+  return wrap;
+}
+function ensurePdfLibs(cb){
+  var need=[];
+  if(!window.html2canvas)need.push('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js');
+  if(!window.jspdf)need.push('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
+  if(!need.length){cb();return;}
+  var remaining=need.length;
+  need.forEach(function(src){
+    var s=h('script',{src:src},[]);
+    s.onload=function(){remaining--;if(remaining<=0)cb();};
+    document.head.append(s);
+  });
+}
+function downloadScoreReportPdf(reportEl,filename,onDone){
+  ensurePdfLibs(function(){
+    window.html2canvas(reportEl,{backgroundColor:'#0E0B08',scale:2,useCORS:true}).then(function(canvas){
+      var imgData=canvas.toDataURL('image/png');
+      var JsPDFCtor=window.jspdf.jsPDF;
+      var pxToMm=0.264583;
+      var pageW=canvas.width*pxToMm/2;
+      var pageH=canvas.height*pxToMm/2;
+      var pdf=new JsPDFCtor({orientation:pageH>pageW?'portrait':'landscape',unit:'mm',format:[pageW,pageH]});
+      pdf.addImage(imgData,'PNG',0,0,pageW,pageH);
+      pdf.save(filename);
+      if(onDone)onDone();
+    }).catch(function(err){
+      if(onDone)onDone((err&&err.message)||'Could not generate PDF.');
+    });
+  });
+}
+
+
+async function buildScoreReportBody(o){
+  // o: {resultId, assessment, score, total, questions, answers, timeTakenSeconds, insertError, trendList}
+  var pct=o.total?Math.round((o.score/o.total)*100):0;
+  var stats={};
+  if(o.resultId){
+    try{
+      var statsRes=await sb.rpc('get_assessment_stats',{p_assessment_id:o.assessment.id,p_result_id:o.resultId});
+      if(!statsRes.error&&statsRes.data&&statsRes.data[0])stats=statsRes.data[0];
+    }catch(e){}
+  }
+
+  var topicMap={};
+  o.questions.forEach(function(q){
+    var t=q.topic||'General';
+    if(!topicMap[t])topicMap[t]={correct:0,total:0};
+    topicMap[t].total++;
+    var corrAns=String(q.correct_answer||'').toUpperCase();
+    if(o.answers[q.id]===corrAns)topicMap[t].correct++;
+  });
+  var topics=Object.keys(topicMap).sort(function(x,y){
+    var px=topicMap[x].total?topicMap[x].correct/topicMap[x].total:0;
+    var py=topicMap[y].total?topicMap[y].correct/topicMap[y].total:0;
+    return py-px;
+  });
+
+  var passesCumulative=pct>=70;
+  var passesAllTopics=topics.length?topics.every(function(t){var d=topicMap[t];var tp=d.total?(d.correct/d.total*100):0;return tp>=70;}):true;
+  var overallPass=passesCumulative&&passesAllTopics;
+
+  // Cross-assessment trend: one point per assessment (latest attempt), in chronological order.
+  // Callers can pass o.trendList directly (e.g. admin viewing another student's history);
+  // otherwise it falls back to the current session's own DATA.assessResults.
+  var trendList=o.trendList;
+  if(!trendList){
+    var byAssessment={};
+    (DATA.assessResults||[]).forEach(function(rr){
+      var key=rr.assessment_id;
+      if(!byAssessment[key]||new Date(rr.taken_at)>new Date(byAssessment[key].taken_at))byAssessment[key]=rr;
+    });
+    if(o.resultId||o.assessment.id)byAssessment[o.assessment.id]={assessment_id:o.assessment.id,assessment_title:o.assessment.title,score:o.score,total:o.total,taken_at:new Date().toISOString()};
+    trendList=Object.keys(byAssessment).map(function(k){return byAssessment[k];}).sort(function(x,y){return new Date(x.taken_at)-new Date(y.taken_at);});
+  }
+
+  function statBoxMini(label,value,sub,color){
+    var b=div({cls:'card',style:{padding:'16px',flex:'1 1 130px',minWidth:'130px'}},[]);
+    var kids=[div({cls:'mono',style:{fontSize:'9px',color:'var(--muted)',marginBottom:'6px',letterSpacing:'1px'}},[label]),
+      div({style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'22px',color:color||'var(--text)',fontWeight:'700'}},[value])];
+    if(sub)kids.push(div({cls:'mono',style:{fontSize:'9px',color:'var(--dim)',marginTop:'2px'}},[sub]));
+    b.append.apply(b,kids);
+    return b;
+  }
+
+  var reportBody=div({style:{background:'var(--bg)'}},[]);
+
+  reportBody.append(assessBrandHeader());
+  reportBody.append(
+    h('span',{cls:'chapter',html:'Assessment complete'}),
+    h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'26px',marginBottom:'4px'}},[o.assessment.title]),
+    h('p',{cls:'muted',style:{fontSize:'13px',marginBottom:'20px'}},[(topics.join(' \u00b7 ')||'')+' \u00b7 '+new Date().toLocaleDateString()+(o.timeTakenSeconds?' \u00b7 '+fmtHMS(o.timeTakenSeconds):'')])
+  );
+
+  if(o.insertError)reportBody.append(h('div',{style:{fontSize:'12px',color:'#ff8888',marginBottom:'16px'}},['Your score could not be saved: '+o.insertError]));
+
+  var ringColor=overallPass?'var(--teal)':'var(--gold)';
+  var band=overallPass?'Pass':'Needs Review';
+  var encourageMsg=overallPass?'Great work \u2014 you\u2019ve met the pass mark overall and in every topic.':'You\u2019re building real progress. Review the topics below \u2014 you\u2019ll get there.';
+  var r=70,circ=2*Math.PI*r;
+  var svgNS='http://www.w3.org/2000/svg';
+  var ringSvg=document.createElementNS(svgNS,'svg');ringSvg.setAttribute('width','170');ringSvg.setAttribute('height','170');ringSvg.style.transform='rotate(-90deg)';
+  var bgC=document.createElementNS(svgNS,'circle');bgC.setAttribute('cx','85');bgC.setAttribute('cy','85');bgC.setAttribute('r',String(r));bgC.setAttribute('fill','none');bgC.setAttribute('stroke','var(--border)');bgC.setAttribute('stroke-width','10');
+  var fgC=document.createElementNS(svgNS,'circle');fgC.setAttribute('cx','85');fgC.setAttribute('cy','85');fgC.setAttribute('r',String(r));fgC.setAttribute('fill','none');fgC.setAttribute('stroke',ringColor);fgC.setAttribute('stroke-width','10');fgC.setAttribute('stroke-dasharray',String(circ));fgC.setAttribute('stroke-dashoffset',String(circ-(pct/100)*circ));fgC.setAttribute('stroke-linecap','round');
+  ringSvg.append(bgC,fgC);
+  var ringWrap=div({style:{position:'relative',width:'170px',height:'170px',margin:'0 auto'}},[]);
+  ringWrap.append(ringSvg);
+  var ringCenter=div({style:{position:'absolute',inset:'0',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center'}},[]);
+  ringCenter.append(
+    div({style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'30px',color:ringColor,fontWeight:'700'}},[String(o.score)]),
+    div({cls:'mono',style:{fontSize:'10px',color:'var(--muted)'}},['/ '+o.total])
+  );
+  ringWrap.append(ringCenter);
+  var scoreCard=div({cls:'card',style:{textAlign:'center',padding:'24px',flex:'1 1 220px',minWidth:'220px'}},[]);
+  scoreCard.append(
+    div({cls:'mono',style:{fontSize:'10px',color:'var(--muted)',marginBottom:'8px',letterSpacing:'1px'}},['OVERALL SCORE']),
+    ringWrap,
+    div({style:{textAlign:'center',marginTop:'12px'}},[h('span',{style:{background:ringColor+'22',color:ringColor,fontSize:'11px',fontWeight:'700',padding:'4px 12px',borderRadius:'12px',textTransform:'uppercase',letterSpacing:'1px'}},[band])]),
+    h('p',{style:{fontSize:'11px',color:'var(--muted)',marginTop:'10px',lineHeight:'1.5'}},[encourageMsg])
+  );
+
+  var boxes=[statBoxMini('PERCENTAGE',pct+'%','Correct')];
+  if(o.timeTakenSeconds)boxes.push(statBoxMini('TIME TAKEN',fmtHMS(o.timeTakenSeconds),stats.avg_time_taken?'Avg '+fmtHMS(stats.avg_time_taken):null));
+  if(stats.class_average!=null)boxes.push(statBoxMini('CLASS AVERAGE',Math.round(stats.class_average)+'%','Class average','var(--teal)'));
+  var statGrid=div({style:{display:'flex',flexWrap:'wrap',gap:'12px',flex:'2 1 320px',alignContent:'flex-start'}},[]);
+  statGrid.append.apply(statGrid,boxes);
+
+  var topRow=div({style:{display:'flex',flexWrap:'wrap',gap:'16px'}},[]);
+  topRow.append(scoreCard,statGrid);
+
+  var topicsCard=div({cls:'card',style:{flex:'1 1 380px',padding:'20px'}},[]);
+  topicsCard.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'15px',marginBottom:'14px'}},['Performance by Topic']));
+  if(!topics.length)topicsCard.append(h('p',{style:{fontSize:'12px',color:'var(--muted)'}},['No topic tags on these questions.']));
+  topics.forEach(function(t){
+    var d=topicMap[t];var p=d.total?Math.round((d.correct/d.total)*100):0;
+    var barColor=p>=80?'#7EADA8':p>=60?'#C9A84C':p>=40?'#e08a3c':'#ff6b6b';
+    var row=div({style:{marginBottom:'14px'}},[]);
+    row.append(
+      div({style:{display:'flex',justifyContent:'space-between',fontSize:'13px',marginBottom:'6px'}},[
+        h('span',{style:{color:'var(--text)'}},[t]),
+        h('span',{cls:'mono',style:{color:'var(--muted)',fontSize:'11px'}},[d.correct+'/'+d.total+'  '+p+'%'])
+      ]),
+      div({style:{height:'6px',background:'var(--border)',borderRadius:'3px',overflow:'hidden'}},[
+        div({style:{width:p+'%',height:'100%',background:barColor,borderRadius:'3px'}},[])
+      ])
+    );
+    topicsCard.append(row);
+  });
+
+  var swCard=div({cls:'card',style:{flex:'1 1 300px',padding:'20px'}},[]);
+  swCard.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'15px',marginBottom:'14px'}},['Strengths & Weaknesses']));
+  if(topics.length){
+    var bestT=topics[0],worstT=topics[topics.length-1];
+    var bestP=topicMap[bestT].total?Math.round(topicMap[bestT].correct/topicMap[bestT].total*100):0;
+    var worstP=topicMap[worstT].total?Math.round(topicMap[worstT].correct/topicMap[worstT].total*100):0;
+    var strengthBox=div({style:{background:'rgba(126,173,168,0.08)',border:'1px solid var(--teal-border)',borderRadius:'4px',padding:'14px',marginBottom:'10px'}},[]);
+    strengthBox.append(
+      div({cls:'mono',style:{fontSize:'9px',color:'var(--teal)',letterSpacing:'1px',marginBottom:'6px'}},['YOUR STRENGTH']),
+      div({style:{display:'flex',justifyContent:'space-between',alignItems:'center'}},[
+        h('span',{style:{fontSize:'14px',color:'var(--text)',fontWeight:'600'}},['\u2713 '+bestT]),
+        h('span',{style:{background:'var(--teal)',color:'#0E0B08',fontSize:'12px',fontWeight:'700',padding:'2px 10px',borderRadius:'10px'}},[bestP+'%'])
+      ])
+    );
+    var weakBox=div({style:{background:'rgba(255,107,107,0.08)',border:'1px solid rgba(255,107,107,0.3)',borderRadius:'4px',padding:'14px'}},[]);
+    weakBox.append(
+      div({cls:'mono',style:{fontSize:'9px',color:'#ff8888',letterSpacing:'1px',marginBottom:'6px'}},['NEEDS IMPROVEMENT']),
+      div({style:{display:'flex',justifyContent:'space-between',alignItems:'center'}},[
+        h('span',{style:{fontSize:'14px',color:'var(--text)',fontWeight:'600'}},['\u26a0 '+worstT]),
+        h('span',{style:{background:'#ff6b6b',color:'#0E0B08',fontSize:'12px',fontWeight:'700',padding:'2px 10px',borderRadius:'10px'}},[worstP+'%'])
+      ])
+    );
+    swCard.append(strengthBox,weakBox);
+  }else{
+    swCard.append(h('p',{style:{fontSize:'12px',color:'var(--muted)'}},['Not enough topic data yet.']));
+  }
+
+  var row2=div({style:{display:'flex',flexWrap:'wrap',gap:'16px',marginTop:'16px'}},[]);
+  row2.append(topicsCard,swCard);
+
+  var trendCard=null;
+  if(trendList.length>1){
+    trendCard=div({cls:'card',style:{padding:'20px',marginTop:'16px'}},[]);
+    trendCard.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'15px',marginBottom:'14px'}},['Score Trend']),h('p',{style:{fontSize:'11px',color:'var(--muted)',marginTop:'-8px',marginBottom:'14px'}},['Across assessments, in the order you took them']));
+    var cw=560,ch=180,pad=34;
+    var pts=trendList.map(function(rr){return rr.total?Math.round((rr.score/rr.total)*100):0;});
+    var stepX=(cw-pad*2)/Math.max(1,pts.length-1);
+    var chartSvg=document.createElementNS(svgNS,'svg');chartSvg.setAttribute('viewBox','0 0 '+cw+' '+ch);chartSvg.setAttribute('width','100%');chartSvg.setAttribute('height',String(ch));
+    [0,25,50,75,100].forEach(function(gv){
+      var y=ch-pad-(gv/100)*(ch-pad*2);
+      var line=document.createElementNS(svgNS,'line');line.setAttribute('x1',String(pad));line.setAttribute('x2',String(cw-pad));line.setAttribute('y1',String(y));line.setAttribute('y2',String(y));line.setAttribute('stroke','var(--border)');line.setAttribute('stroke-width','1');
+      chartSvg.append(line);
+      var lbl=document.createElementNS(svgNS,'text');lbl.setAttribute('x','4');lbl.setAttribute('y',String(y+4));lbl.setAttribute('fill','var(--muted)');lbl.setAttribute('font-size','9');lbl.textContent=String(gv);
+      chartSvg.append(lbl);
+    });
+    var pathPts=pts.map(function(v,i){var x=pad+i*stepX;var y=ch-pad-(v/100)*(ch-pad*2);return x+','+y;});
+    var polyline=document.createElementNS(svgNS,'polyline');polyline.setAttribute('points',pathPts.join(' '));polyline.setAttribute('fill','none');polyline.setAttribute('stroke','var(--gold)');polyline.setAttribute('stroke-width','2');
+    chartSvg.append(polyline);
+    pts.forEach(function(v,i){
+      var x=pad+i*stepX;var y=ch-pad-(v/100)*(ch-pad*2);
+      var c=document.createElementNS(svgNS,'circle');c.setAttribute('cx',String(x));c.setAttribute('cy',String(y));c.setAttribute('r','4');c.setAttribute('fill','var(--gold)');
+      chartSvg.append(c);
+      var t=document.createElementNS(svgNS,'text');t.setAttribute('x',String(x));t.setAttribute('y',String(y-10));t.setAttribute('fill','var(--gold)');t.setAttribute('font-size','10');t.setAttribute('text-anchor','middle');t.textContent=String(v);
+      chartSvg.append(t);
+      var rawLabel=trendList[i].assessment_title||'Assessment';
+      var shortLabel=rawLabel.length>16?rawLabel.slice(0,15)+'\u2026':rawLabel;
+      var xl=document.createElementNS(svgNS,'text');xl.setAttribute('x',String(x));xl.setAttribute('y',String(ch-10));xl.setAttribute('fill','var(--muted)');xl.setAttribute('font-size','9');xl.setAttribute('text-anchor','middle');xl.textContent=shortLabel;
+      chartSvg.append(xl);
+    });
+    trendCard.append(chartSvg);
+    var improving=pts[pts.length-1]>pts[0];
+    trendCard.append(h('p',{style:{fontSize:'12px',color:improving?'var(--teal)':'var(--muted)',marginTop:'8px',textAlign:'center'}},[improving?'You\u2019re improving! Keep going.':'Keep practicing to build consistency.']));
+  }
+
+  reportBody.append(topRow,row2);
+  if(trendCard)reportBody.append(trendCard);
+  return reportBody;
+}
+
+
+async function downloadStudentScoreReportSnapshot(result,studentName,onStatus){
+  // Admin-side: builds the exact same branded score-report snapshot students see on
+  // submission, for a given result row from tutoring_assessment_results, and downloads it as PDF.
+  try{
+    if(onStatus)onStatus('Loading student history\u2026');
+    var trendList=[];
+    if(result.student_id){
+      var histRes=await sb.from('tutoring_assessment_results').select('assessment_id,assessment_title,score,total,taken_at').eq('student_id',result.student_id).order('taken_at',{ascending:true});
+      var hist=histRes.data||[];
+      var byAssessment={};
+      hist.forEach(function(rr){
+        var key=rr.assessment_id;
+        if(!byAssessment[key]||new Date(rr.taken_at)>new Date(byAssessment[key].taken_at))byAssessment[key]=rr;
+      });
+      trendList=Object.keys(byAssessment).map(function(k){return byAssessment[k];}).sort(function(x,y){return new Date(x.taken_at)-new Date(y.taken_at);});
+    }
+
+    if(onStatus)onStatus('Building report\u2026');
+    var reportBody=await buildScoreReportBody({
+      resultId:result.id,
+      assessment:{id:result.assessment_id,title:result.assessment_title||'Assessment'},
+      score:result.score,
+      total:result.total,
+      questions:result.questions||[],
+      answers:result.answers||{},
+      timeTakenSeconds:result.time_taken_seconds,
+      trendList:trendList
+    });
+
+    // html2canvas needs the element laid out in the DOM; render off-screen at the same
+    // width the student-facing report uses, then remove it once the PDF is generated.
+    var offscreen=div({style:{position:'fixed',top:'0',left:'-99999px',width:'860px',background:'var(--bg)'}},[]);
+    offscreen.append(reportBody);
+    document.body.append(offscreen);
+
+    if(onStatus)onStatus('Generating PDF\u2026');
+    var fname=(studentName?studentName.replace(/[^a-z0-9]+/gi,'_')+'_':'')+(result.assessment_title||'assessment').replace(/[^a-z0-9]+/gi,'_')+'_score_report.pdf';
+    downloadScoreReportPdf(reportBody,fname,function(errMsg){
+      offscreen.remove();
+      if(onStatus)onStatus(errMsg?('Could not generate PDF: '+errMsg):'\u2713 Downloaded.');
+    });
+  }catch(e){
+    if(onStatus)onStatus('Could not generate PDF: '+((e&&e.message)||'unknown error'));
+  }
+}
+
+
+
 async function render(){
 const root=document.getElementById('root');
 if(!S.user){
@@ -1046,228 +1318,6 @@ function showSubmitLoading(){
   content.append(skelCard([['30%'],['100%'],['100%'],['80%']]));
   content.append(skelCard([['40%'],['100%'],['60%']]));
 }
-function assessBrandHeader(){
-  var wrap=div({style:{textAlign:'center',marginBottom:'24px'}},[]);
-  var logoRow=div({style:{display:'flex',justifyContent:'center'}},[]);
-  logoRow.append(dfLogo());
-  wrap.append(logoRow,div({cls:'mono',style:{fontSize:'9px',color:'var(--muted)',letterSpacing:'3px',textTransform:'uppercase',marginTop:'6px'}},['Everyone Is Gifted']));
-  return wrap;
-}
-function ensurePdfLibs(cb){
-  var need=[];
-  if(!window.html2canvas)need.push('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js');
-  if(!window.jspdf)need.push('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
-  if(!need.length){cb();return;}
-  var remaining=need.length;
-  need.forEach(function(src){
-    var s=h('script',{src:src},[]);
-    s.onload=function(){remaining--;if(remaining<=0)cb();};
-    document.head.append(s);
-  });
-}
-function downloadScoreReportPdf(reportEl,filename,onDone){
-  ensurePdfLibs(function(){
-    window.html2canvas(reportEl,{backgroundColor:'#0E0B08',scale:2,useCORS:true}).then(function(canvas){
-      var imgData=canvas.toDataURL('image/png');
-      var JsPDFCtor=window.jspdf.jsPDF;
-      var pxToMm=0.264583;
-      var pageW=canvas.width*pxToMm/2;
-      var pageH=canvas.height*pxToMm/2;
-      var pdf=new JsPDFCtor({orientation:pageH>pageW?'portrait':'landscape',unit:'mm',format:[pageW,pageH]});
-      pdf.addImage(imgData,'PNG',0,0,pageW,pageH);
-      pdf.save(filename);
-      if(onDone)onDone();
-    }).catch(function(err){
-      if(onDone)onDone((err&&err.message)||'Could not generate PDF.');
-    });
-  });
-}
-
-async function buildScoreReportBody(o){
-  // o: {resultId, assessment, score, total, questions, answers, timeTakenSeconds, insertError, trendList}
-  var pct=o.total?Math.round((o.score/o.total)*100):0;
-  var stats={};
-  if(o.resultId){
-    try{
-      var statsRes=await sb.rpc('get_assessment_stats',{p_assessment_id:o.assessment.id,p_result_id:o.resultId});
-      if(!statsRes.error&&statsRes.data&&statsRes.data[0])stats=statsRes.data[0];
-    }catch(e){}
-  }
-
-  var topicMap={};
-  o.questions.forEach(function(q){
-    var t=q.topic||'General';
-    if(!topicMap[t])topicMap[t]={correct:0,total:0};
-    topicMap[t].total++;
-    var corrAns=String(q.correct_answer||'').toUpperCase();
-    if(o.answers[q.id]===corrAns)topicMap[t].correct++;
-  });
-  var topics=Object.keys(topicMap).sort(function(x,y){
-    var px=topicMap[x].total?topicMap[x].correct/topicMap[x].total:0;
-    var py=topicMap[y].total?topicMap[y].correct/topicMap[y].total:0;
-    return py-px;
-  });
-
-  var passesCumulative=pct>=70;
-  var passesAllTopics=topics.length?topics.every(function(t){var d=topicMap[t];var tp=d.total?(d.correct/d.total*100):0;return tp>=70;}):true;
-  var overallPass=passesCumulative&&passesAllTopics;
-
-  // Cross-assessment trend: one point per assessment (latest attempt), in chronological order.
-  // Callers can pass o.trendList directly (e.g. admin viewing another student's history);
-  // otherwise it falls back to the current session's own DATA.assessResults.
-  var trendList=o.trendList;
-  if(!trendList){
-    var byAssessment={};
-    (DATA.assessResults||[]).forEach(function(rr){
-      var key=rr.assessment_id;
-      if(!byAssessment[key]||new Date(rr.taken_at)>new Date(byAssessment[key].taken_at))byAssessment[key]=rr;
-    });
-    if(o.resultId||o.assessment.id)byAssessment[o.assessment.id]={assessment_id:o.assessment.id,assessment_title:o.assessment.title,score:o.score,total:o.total,taken_at:new Date().toISOString()};
-    trendList=Object.keys(byAssessment).map(function(k){return byAssessment[k];}).sort(function(x,y){return new Date(x.taken_at)-new Date(y.taken_at);});
-  }
-
-  function statBoxMini(label,value,sub,color){
-    var b=div({cls:'card',style:{padding:'16px',flex:'1 1 130px',minWidth:'130px'}},[]);
-    var kids=[div({cls:'mono',style:{fontSize:'9px',color:'var(--muted)',marginBottom:'6px',letterSpacing:'1px'}},[label]),
-      div({style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'22px',color:color||'var(--text)',fontWeight:'700'}},[value])];
-    if(sub)kids.push(div({cls:'mono',style:{fontSize:'9px',color:'var(--dim)',marginTop:'2px'}},[sub]));
-    b.append.apply(b,kids);
-    return b;
-  }
-
-  var reportBody=div({style:{background:'var(--bg)'}},[]);
-
-  reportBody.append(assessBrandHeader());
-  reportBody.append(
-    h('span',{cls:'chapter',html:'Assessment complete'}),
-    h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'26px',marginBottom:'4px'}},[o.assessment.title]),
-    h('p',{cls:'muted',style:{fontSize:'13px',marginBottom:'20px'}},[(topics.join(' \u00b7 ')||'')+' \u00b7 '+new Date().toLocaleDateString()+(o.timeTakenSeconds?' \u00b7 '+fmtHMS(o.timeTakenSeconds):'')])
-  );
-
-  if(o.insertError)reportBody.append(h('div',{style:{fontSize:'12px',color:'#ff8888',marginBottom:'16px'}},['Your score could not be saved: '+o.insertError]));
-
-  var ringColor=overallPass?'var(--teal)':'var(--gold)';
-  var band=overallPass?'Pass':'Needs Review';
-  var encourageMsg=overallPass?'Great work \u2014 you\u2019ve met the pass mark overall and in every topic.':'You\u2019re building real progress. Review the topics below \u2014 you\u2019ll get there.';
-  var r=70,circ=2*Math.PI*r;
-  var svgNS='http://www.w3.org/2000/svg';
-  var ringSvg=document.createElementNS(svgNS,'svg');ringSvg.setAttribute('width','170');ringSvg.setAttribute('height','170');ringSvg.style.transform='rotate(-90deg)';
-  var bgC=document.createElementNS(svgNS,'circle');bgC.setAttribute('cx','85');bgC.setAttribute('cy','85');bgC.setAttribute('r',String(r));bgC.setAttribute('fill','none');bgC.setAttribute('stroke','var(--border)');bgC.setAttribute('stroke-width','10');
-  var fgC=document.createElementNS(svgNS,'circle');fgC.setAttribute('cx','85');fgC.setAttribute('cy','85');fgC.setAttribute('r',String(r));fgC.setAttribute('fill','none');fgC.setAttribute('stroke',ringColor);fgC.setAttribute('stroke-width','10');fgC.setAttribute('stroke-dasharray',String(circ));fgC.setAttribute('stroke-dashoffset',String(circ-(pct/100)*circ));fgC.setAttribute('stroke-linecap','round');
-  ringSvg.append(bgC,fgC);
-  var ringWrap=div({style:{position:'relative',width:'170px',height:'170px',margin:'0 auto'}},[]);
-  ringWrap.append(ringSvg);
-  var ringCenter=div({style:{position:'absolute',inset:'0',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center'}},[]);
-  ringCenter.append(
-    div({style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'30px',color:ringColor,fontWeight:'700'}},[String(o.score)]),
-    div({cls:'mono',style:{fontSize:'10px',color:'var(--muted)'}},['/ '+o.total])
-  );
-  ringWrap.append(ringCenter);
-  var scoreCard=div({cls:'card',style:{textAlign:'center',padding:'24px',flex:'1 1 220px',minWidth:'220px'}},[]);
-  scoreCard.append(
-    div({cls:'mono',style:{fontSize:'10px',color:'var(--muted)',marginBottom:'8px',letterSpacing:'1px'}},['OVERALL SCORE']),
-    ringWrap,
-    div({style:{textAlign:'center',marginTop:'12px'}},[h('span',{style:{background:ringColor+'22',color:ringColor,fontSize:'11px',fontWeight:'700',padding:'4px 12px',borderRadius:'12px',textTransform:'uppercase',letterSpacing:'1px'}},[band])]),
-    h('p',{style:{fontSize:'11px',color:'var(--muted)',marginTop:'10px',lineHeight:'1.5'}},[encourageMsg])
-  );
-
-  var boxes=[statBoxMini('PERCENTAGE',pct+'%','Correct')];
-  if(o.timeTakenSeconds)boxes.push(statBoxMini('TIME TAKEN',fmtHMS(o.timeTakenSeconds),stats.avg_time_taken?'Avg '+fmtHMS(stats.avg_time_taken):null));
-  if(stats.class_average!=null)boxes.push(statBoxMini('CLASS AVERAGE',Math.round(stats.class_average)+'%','Class average','var(--teal)'));
-  var statGrid=div({style:{display:'flex',flexWrap:'wrap',gap:'12px',flex:'2 1 320px',alignContent:'flex-start'}},[]);
-  statGrid.append.apply(statGrid,boxes);
-
-  var topRow=div({style:{display:'flex',flexWrap:'wrap',gap:'16px'}},[]);
-  topRow.append(scoreCard,statGrid);
-
-  var topicsCard=div({cls:'card',style:{flex:'1 1 380px',padding:'20px'}},[]);
-  topicsCard.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'15px',marginBottom:'14px'}},['Performance by Topic']));
-  if(!topics.length)topicsCard.append(h('p',{style:{fontSize:'12px',color:'var(--muted)'}},['No topic tags on these questions.']));
-  topics.forEach(function(t){
-    var d=topicMap[t];var p=d.total?Math.round((d.correct/d.total)*100):0;
-    var barColor=p>=80?'#7EADA8':p>=60?'#C9A84C':p>=40?'#e08a3c':'#ff6b6b';
-    var row=div({style:{marginBottom:'14px'}},[]);
-    row.append(
-      div({style:{display:'flex',justifyContent:'space-between',fontSize:'13px',marginBottom:'6px'}},[
-        h('span',{style:{color:'var(--text)'}},[t]),
-        h('span',{cls:'mono',style:{color:'var(--muted)',fontSize:'11px'}},[d.correct+'/'+d.total+'  '+p+'%'])
-      ]),
-      div({style:{height:'6px',background:'var(--border)',borderRadius:'3px',overflow:'hidden'}},[
-        div({style:{width:p+'%',height:'100%',background:barColor,borderRadius:'3px'}},[])
-      ])
-    );
-    topicsCard.append(row);
-  });
-
-  var swCard=div({cls:'card',style:{flex:'1 1 300px',padding:'20px'}},[]);
-  swCard.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'15px',marginBottom:'14px'}},['Strengths & Weaknesses']));
-  if(topics.length){
-    var bestT=topics[0],worstT=topics[topics.length-1];
-    var bestP=topicMap[bestT].total?Math.round(topicMap[bestT].correct/topicMap[bestT].total*100):0;
-    var worstP=topicMap[worstT].total?Math.round(topicMap[worstT].correct/topicMap[worstT].total*100):0;
-    var strengthBox=div({style:{background:'rgba(126,173,168,0.08)',border:'1px solid var(--teal-border)',borderRadius:'4px',padding:'14px',marginBottom:'10px'}},[]);
-    strengthBox.append(
-      div({cls:'mono',style:{fontSize:'9px',color:'var(--teal)',letterSpacing:'1px',marginBottom:'6px'}},['YOUR STRENGTH']),
-      div({style:{display:'flex',justifyContent:'space-between',alignItems:'center'}},[
-        h('span',{style:{fontSize:'14px',color:'var(--text)',fontWeight:'600'}},['\u2713 '+bestT]),
-        h('span',{style:{background:'var(--teal)',color:'#0E0B08',fontSize:'12px',fontWeight:'700',padding:'2px 10px',borderRadius:'10px'}},[bestP+'%'])
-      ])
-    );
-    var weakBox=div({style:{background:'rgba(255,107,107,0.08)',border:'1px solid rgba(255,107,107,0.3)',borderRadius:'4px',padding:'14px'}},[]);
-    weakBox.append(
-      div({cls:'mono',style:{fontSize:'9px',color:'#ff8888',letterSpacing:'1px',marginBottom:'6px'}},['NEEDS IMPROVEMENT']),
-      div({style:{display:'flex',justifyContent:'space-between',alignItems:'center'}},[
-        h('span',{style:{fontSize:'14px',color:'var(--text)',fontWeight:'600'}},['\u26a0 '+worstT]),
-        h('span',{style:{background:'#ff6b6b',color:'#0E0B08',fontSize:'12px',fontWeight:'700',padding:'2px 10px',borderRadius:'10px'}},[worstP+'%'])
-      ])
-    );
-    swCard.append(strengthBox,weakBox);
-  }else{
-    swCard.append(h('p',{style:{fontSize:'12px',color:'var(--muted)'}},['Not enough topic data yet.']));
-  }
-
-  var row2=div({style:{display:'flex',flexWrap:'wrap',gap:'16px',marginTop:'16px'}},[]);
-  row2.append(topicsCard,swCard);
-
-  var trendCard=null;
-  if(trendList.length>1){
-    trendCard=div({cls:'card',style:{padding:'20px',marginTop:'16px'}},[]);
-    trendCard.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'15px',marginBottom:'14px'}},['Score Trend']),h('p',{style:{fontSize:'11px',color:'var(--muted)',marginTop:'-8px',marginBottom:'14px'}},['Across assessments, in the order you took them']));
-    var cw=560,ch=180,pad=34;
-    var pts=trendList.map(function(rr){return rr.total?Math.round((rr.score/rr.total)*100):0;});
-    var stepX=(cw-pad*2)/Math.max(1,pts.length-1);
-    var chartSvg=document.createElementNS(svgNS,'svg');chartSvg.setAttribute('viewBox','0 0 '+cw+' '+ch);chartSvg.setAttribute('width','100%');chartSvg.setAttribute('height',String(ch));
-    [0,25,50,75,100].forEach(function(gv){
-      var y=ch-pad-(gv/100)*(ch-pad*2);
-      var line=document.createElementNS(svgNS,'line');line.setAttribute('x1',String(pad));line.setAttribute('x2',String(cw-pad));line.setAttribute('y1',String(y));line.setAttribute('y2',String(y));line.setAttribute('stroke','var(--border)');line.setAttribute('stroke-width','1');
-      chartSvg.append(line);
-      var lbl=document.createElementNS(svgNS,'text');lbl.setAttribute('x','4');lbl.setAttribute('y',String(y+4));lbl.setAttribute('fill','var(--muted)');lbl.setAttribute('font-size','9');lbl.textContent=String(gv);
-      chartSvg.append(lbl);
-    });
-    var pathPts=pts.map(function(v,i){var x=pad+i*stepX;var y=ch-pad-(v/100)*(ch-pad*2);return x+','+y;});
-    var polyline=document.createElementNS(svgNS,'polyline');polyline.setAttribute('points',pathPts.join(' '));polyline.setAttribute('fill','none');polyline.setAttribute('stroke','var(--gold)');polyline.setAttribute('stroke-width','2');
-    chartSvg.append(polyline);
-    pts.forEach(function(v,i){
-      var x=pad+i*stepX;var y=ch-pad-(v/100)*(ch-pad*2);
-      var c=document.createElementNS(svgNS,'circle');c.setAttribute('cx',String(x));c.setAttribute('cy',String(y));c.setAttribute('r','4');c.setAttribute('fill','var(--gold)');
-      chartSvg.append(c);
-      var t=document.createElementNS(svgNS,'text');t.setAttribute('x',String(x));t.setAttribute('y',String(y-10));t.setAttribute('fill','var(--gold)');t.setAttribute('font-size','10');t.setAttribute('text-anchor','middle');t.textContent=String(v);
-      chartSvg.append(t);
-      var rawLabel=trendList[i].assessment_title||'Assessment';
-      var shortLabel=rawLabel.length>16?rawLabel.slice(0,15)+'\u2026':rawLabel;
-      var xl=document.createElementNS(svgNS,'text');xl.setAttribute('x',String(x));xl.setAttribute('y',String(ch-10));xl.setAttribute('fill','var(--muted)');xl.setAttribute('font-size','9');xl.setAttribute('text-anchor','middle');xl.textContent=shortLabel;
-      chartSvg.append(xl);
-    });
-    trendCard.append(chartSvg);
-    var improving=pts[pts.length-1]>pts[0];
-    trendCard.append(h('p',{style:{fontSize:'12px',color:improving?'var(--teal)':'var(--muted)',marginTop:'8px',textAlign:'center'}},[improving?'You\u2019re improving! Keep going.':'Keep practicing to build consistency.']));
-  }
-
-  reportBody.append(topRow,row2);
-  if(trendCard)reportBody.append(trendCard);
-  return reportBody;
-}
-
 async function renderAssessmentScoreReport(o){
   // o: {resultId, assessment, score, total, questions, answers, timeTakenSeconds, insertError}
   content.innerHTML='';
@@ -1302,52 +1352,6 @@ async function renderAssessmentScoreReport(o){
   );
   wrap.append(actionsRow,pdfStatus);
   content.append(wrap);
-}
-
-async function downloadStudentScoreReportSnapshot(result,studentName,onStatus){
-  // Admin-side: builds the exact same branded score-report snapshot students see on
-  // submission, for a given result row from tutoring_assessment_results, and downloads it as PDF.
-  try{
-    if(onStatus)onStatus('Loading student history\u2026');
-    var trendList=[];
-    if(result.student_id){
-      var histRes=await sb.from('tutoring_assessment_results').select('assessment_id,assessment_title,score,total,taken_at').eq('student_id',result.student_id).order('taken_at',{ascending:true});
-      var hist=histRes.data||[];
-      var byAssessment={};
-      hist.forEach(function(rr){
-        var key=rr.assessment_id;
-        if(!byAssessment[key]||new Date(rr.taken_at)>new Date(byAssessment[key].taken_at))byAssessment[key]=rr;
-      });
-      trendList=Object.keys(byAssessment).map(function(k){return byAssessment[k];}).sort(function(x,y){return new Date(x.taken_at)-new Date(y.taken_at);});
-    }
-
-    if(onStatus)onStatus('Building report\u2026');
-    var reportBody=await buildScoreReportBody({
-      resultId:result.id,
-      assessment:{id:result.assessment_id,title:result.assessment_title||'Assessment'},
-      score:result.score,
-      total:result.total,
-      questions:result.questions||[],
-      answers:result.answers||{},
-      timeTakenSeconds:result.time_taken_seconds,
-      trendList:trendList
-    });
-
-    // html2canvas needs the element laid out in the DOM; render off-screen at the same
-    // width the student-facing report uses, then remove it once the PDF is generated.
-    var offscreen=div({style:{position:'fixed',top:'0',left:'-99999px',width:'860px',background:'var(--bg)'}},[]);
-    offscreen.append(reportBody);
-    document.body.append(offscreen);
-
-    if(onStatus)onStatus('Generating PDF\u2026');
-    var fname=(studentName?studentName.replace(/[^a-z0-9]+/gi,'_')+'_':'')+(result.assessment_title||'assessment').replace(/[^a-z0-9]+/gi,'_')+'_score_report.pdf';
-    downloadScoreReportPdf(reportBody,fname,function(errMsg){
-      offscreen.remove();
-      if(onStatus)onStatus(errMsg?('Could not generate PDF: '+errMsg):'\u2713 Downloaded.');
-    });
-  }catch(e){
-    if(onStatus)onStatus('Could not generate PDF: '+((e&&e.message)||'unknown error'));
-  }
 }
 
 
