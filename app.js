@@ -6180,17 +6180,20 @@ var subNav=div({style:{display:'flex',gap:'8px',marginBottom:'20px',flexWrap:'wr
 var libNavBtn=h('button',{cls:'btn btn-outline',style:{padding:'8px 16px',fontSize:'12px'}},['Test Library']);
 var stuNavBtn=h('button',{cls:'btn btn-outline',style:{padding:'8px 16px',fontSize:'12px'}},['Students']);
 var assNavBtn=h('button',{cls:'btn btn-outline',style:{padding:'8px 16px',fontSize:'12px'}},['Assessments']);
-subNav.append(libNavBtn,stuNavBtn,assNavBtn);
+var resNavBtn=h('button',{cls:'btn btn-outline',style:{padding:'8px 16px',fontSize:'12px'}},['Results']);
+subNav.append(libNavBtn,stuNavBtn,assNavBtn,resNavBtn);
 var tBody=div({},[]);
 content.append(subNav,tBody);
 function paintSub(){
   libNavBtn.style.background=tSub==='library'?'var(--gold)':'transparent';libNavBtn.style.color=tSub==='library'?'var(--bg)':'var(--text)';
   stuNavBtn.style.background=tSub==='students'?'var(--gold)':'transparent';stuNavBtn.style.color=tSub==='students'?'var(--bg)':'var(--text)';
   assNavBtn.style.background=tSub==='assessments'?'var(--gold)':'transparent';assNavBtn.style.color=tSub==='assessments'?'var(--bg)':'var(--text)';
+  resNavBtn.style.background=tSub==='results'?'var(--gold)':'transparent';resNavBtn.style.color=tSub==='results'?'var(--bg)':'var(--text)';
 }
 libNavBtn.onclick=function(){tSub='library';paintSub();renderLibrary();};
 stuNavBtn.onclick=function(){tSub='students';paintSub();renderStudents();};
 assNavBtn.onclick=function(){tSub='assessments';paintSub();renderAssessments();};
+resNavBtn.onclick=function(){tSub='results';paintSub();renderResults();};
 
 var tSt=div({style:{display:'none',fontSize:'12px',marginBottom:'12px',fontFamily:'Inter,sans-serif'}},[]);
 function tStatus(msg,color){tSt.textContent=msg;tSt.style.color=color||'var(--muted)';tSt.style.display='block';}
@@ -6620,6 +6623,161 @@ function openAssignAssessment(opts){
   })();
 }
 
+/* ===================== ADMIN RESULT REVIEW MODAL ===================== */
+function openAdminResultReview(result,opts){
+  opts=opts||{};
+  var title=result.test_title||result.assessment_title||'Assessment';
+  var overlay=div({style:{position:'fixed',top:'0',left:'0',width:'100%',height:'100%',background:'rgba(0,0,0,0.72)',zIndex:'1000',display:'flex',alignItems:'flex-start',justifyContent:'center',overflowY:'auto',padding:'32px 16px',boxSizing:'border-box'}},[]);
+  var modal=div({style:{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:'6px',padding:'28px',width:'100%',maxWidth:'740px',position:'relative',boxSizing:'border-box'}},[]);
+  var closeBtn=btn('\u2715 Close','btn-outline',function(){overlay.remove();},{style:{position:'absolute',top:'16px',right:'16px',fontSize:'11px',padding:'5px 12px'}});
+  modal.append(closeBtn);
+  modal.append(h('span',{cls:'chapter',html:'Admin Review'},[]));
+  modal.append(h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'20px',marginBottom:'4px'}},[title]));
+  var pct=result.total?Math.round((result.score/result.total)*100):0;
+  var subLine=(opts.studentName?opts.studentName+' \u00b7 ':'')+'Scored '+result.score+'/'+result.total+' ('+pct+'%) \u00b7 '+new Date(result.taken_at).toLocaleString()+' \u00b7 '+(result.mode==='timed'?'Timed':'Tutor');
+  modal.append(h('p',{cls:'muted',style:{fontSize:'12px',marginBottom:'14px'}},[subLine]));
+  var pdfStatus=div({style:{fontSize:'11px',marginBottom:'12px',display:'none'}},[]);
+  var dlBtn=btn('Download PDF','btn-gold',function(){
+    dlBtn.disabled=true;pdfStatus.style.display='block';pdfStatus.textContent='Generating PDF\u2026';pdfStatus.style.color='var(--muted)';
+    var fname=(opts.studentName?opts.studentName.replace(/[^a-z0-9]+/gi,'_')+'_':'')+title.replace(/[^a-z0-9]+/gi,'_')+'_score_report.pdf';
+    downloadScoreReportPdf(modal,fname,function(err){
+      dlBtn.disabled=false;
+      if(err){pdfStatus.textContent='Could not generate PDF.';pdfStatus.style.color='#ff4444';}
+      else{pdfStatus.textContent='\u2713 Downloaded.';pdfStatus.style.color='var(--teal)';}
+    });
+  },{style:{fontSize:'11px',padding:'6px 14px'}});
+  modal.append(dlBtn,pdfStatus);
+  var reviewBody=div({},[]);
+  modal.append(reviewBody);
+  overlay.append(modal);
+  document.body.append(overlay);
+  overlay.onclick=function(e){if(e.target===overlay)overlay.remove();};
+  function renderAdminReviewQuestions(qs,ans){
+    qs.forEach(function(q,i){
+      var userAns=ans[q.id];
+      var correct=String(q.correct_answer||'').toUpperCase();
+      var isCorrect=userAns===correct;
+      var qCard=div({style:{background:'var(--card)',border:'1px solid '+(isCorrect?'var(--teal)':'#8B000066'),borderRadius:'4px',padding:'18px',marginBottom:'14px'}},[]);
+      var qTextDiv=div({style:{marginBottom:'14px'}},[]);
+      renderQuestionText(q.question,qTextDiv);
+      qCard.append(div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'10px'}},[div({cls:'mono',style:{fontSize:'9px'},html:'Question '+(i+1)}),h('span',{style:{fontFamily:'Inter,sans-serif',fontSize:'11px',color:isCorrect?'var(--teal)':'#ff8888',fontWeight:'700'},html:isCorrect?'\u2713 Correct':'\u2717 Incorrect'})]),qTextDiv);
+      ['a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p','q'].forEach(function(opt){
+        var val=q['option_'+opt];if(!val)return;
+        var isUser=userAns===opt.toUpperCase();var isCorr=correct===opt.toUpperCase();
+        var bg=isCorr?'var(--correct-bg)':(isUser&&!isCorr?'var(--wrong-bg)':'transparent');
+        var color=isCorr?'var(--teal)':(isUser&&!isCorr?'#ff8888':'var(--muted)');
+        var border=isCorr?'1px solid var(--teal)':(isUser&&!isCorr?'1px solid #ff8888':'1px solid var(--border)');
+        var row=div({style:{background:bg,border:border,borderRadius:'2px',padding:'9px 12px',marginBottom:'5px',display:'flex',gap:'10px'}},[]);
+        row.append(h('strong',{style:{color:color,flexShrink:'0'},html:opt.toUpperCase()+'.'}),div({style:{fontSize:'13px',color:color,lineHeight:'1.6'},html:val}));
+        if(isCorr)row.append(h('span',{style:{marginLeft:'auto',color:'var(--teal)',fontSize:'11px'},html:'\u2713 Correct'}));
+        if(isUser&&!isCorr)row.append(h('span',{style:{marginLeft:'auto',color:'#ff8888',fontSize:'11px'},html:'Student answer'}));
+        qCard.append(row);
+      });
+      if(q.explanation){
+        var expWrap=div({style:{background:'var(--correct-bg)',border:'1px solid var(--teal-border)',borderRadius:'2px',padding:'12px',marginTop:'10px'}},[]);
+        expWrap.append(div({style:{fontFamily:'Inter,sans-serif',fontSize:'9px',color:'var(--teal)',letterSpacing:'2px',textTransform:'uppercase',marginBottom:'6px'},html:'Explanation'}));
+        var chunks=q.explanation.split(/(?=\b[A-Q]\s*[\(\-])/);
+        for(var ci=0;ci<chunks.length;ci++){
+          var chunk=chunks[ci].trim();if(!chunk)continue;
+          var optMatch=chunk.match(/^([A-Q])\s*[\(\-]/);
+          if(optMatch){
+            var letter=optMatch[1];var isCorrectOpt=(letter===correct);
+            var optBox=div({style:{border:isCorrectOpt?'1px solid var(--teal)':'1px solid var(--border)',borderRadius:'2px',padding:'9px 11px',marginBottom:'7px',background:isCorrectOpt?'rgba(126,184,164,0.08)':'transparent'}},[]);
+            optBox.append(h('span',{style:{fontWeight:'700',color:isCorrectOpt?'var(--teal)':'var(--muted)',marginRight:'8px',fontSize:'12px'}},[(isCorrectOpt?letter+' \u2713':letter+' -')]));
+            optBox.append(h('span',{style:{color:'var(--muted)',fontSize:'13px',lineHeight:'1.7'}},[chunk.replace(/^[A-Q]\s*[\(\-]\s*/,'')]));
+            expWrap.append(optBox);
+          }else{
+            expWrap.append(h('p',{style:{fontSize:'13px',color:'var(--muted)',lineHeight:'1.7',marginBottom:'7px'}},[chunk]));
+          }
+        }
+        qCard.append(expWrap);
+      }
+      reviewBody.append(qCard);
+    });
+  }
+  var qs=result.questions||[];var ans=result.answers||{};
+  if(qs.length){renderAdminReviewQuestions(qs,ans);}
+  else{reviewBody.append(h('p',{style:{color:'var(--muted)',fontSize:'13px'}},['No question detail available for this result.']));}
+}
+
+/* ===================== ASSESSMENT RESULTS (ADMIN, ALL STUDENTS) ===================== */
+function renderResults(){
+  tBody.innerHTML='';
+  var head=div({style:{display:'flex',gap:'10px',flexWrap:'wrap',alignItems:'flex-end',marginBottom:'16px'}},[]);
+  var assessFilter=h('select',{cls:'input',style:{minWidth:'220px'}},[h('option',{value:''},['All assessments'])]);
+  var studFilter=h('input',{cls:'input',placeholder:'Filter by student name or email',style:{minWidth:'220px',flex:'1'}});
+  head.append(
+    div({},[h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--muted)',marginBottom:'6px',textTransform:'uppercase',letterSpacing:'1px'},html:'Assessment'}),assessFilter]),
+    div({style:{flex:'1',minWidth:'220px'}},[h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--muted)',marginBottom:'6px',textTransform:'uppercase',letterSpacing:'1px'},html:'Student'}),studFilter])
+  );
+  tBody.append(head);
+  var statsRow=div({style:{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:'12px',marginBottom:'20px'}},[]);
+  tBody.append(statsRow);
+  var listWrap=div({},[]);
+  tBody.append(listWrap);
+  listWrap.append(skelCard([['40%'],['80%'],['60%']]));
+
+  var allResults=[];var profileMap={};
+
+  function renderStats(){
+    var n=allResults.length;
+    var avg=n?Math.round(allResults.reduce(function(a,r){return a+(r.total?(r.score/r.total)*100:0);},0)/n):0;
+    var uniqueStudents=new Set(allResults.map(function(r){return r.student_id;})).size;
+    statsRow.innerHTML='';
+    statsRow.append(statBox('Attempts',String(n)),statBox('Avg score',n?avg+'%':'\u2014'),statBox('Students',String(uniqueStudents)));
+  }
+
+  function renderList(){
+    listWrap.innerHTML='';
+    var assessmentId=assessFilter.value;
+    var qv=studFilter.value.trim().toLowerCase();
+    var filtered=allResults.filter(function(r){
+      if(assessmentId&&r.assessment_id!==assessmentId)return false;
+      if(qv){
+        var p=profileMap[r.student_id];
+        var hay=((p&&p.full_name)||'')+' '+((p&&p.email)||'');
+        if(hay.toLowerCase().indexOf(qv)===-1)return false;
+      }
+      return true;
+    });
+    if(!filtered.length){listWrap.append(div({cls:'card',style:{textAlign:'center',padding:'30px'}},[h('p',{style:{fontSize:'13px',color:'var(--dim)'},html:'No completed assessments match.'})]));return;}
+    filtered.forEach(function(r){
+      var p=profileMap[r.student_id];
+      var name=(p&&p.full_name)||'Unknown student';
+      var email=(p&&p.email)||'';
+      var pct=r.total?Math.round((r.score/r.total)*100):0;
+      var card=div({cls:'card',style:{marginBottom:'8px',padding:'12px',display:'flex',justifyContent:'space-between',alignItems:'center',gap:'12px',flexWrap:'wrap'}},[]);
+      card.append(div({style:{flex:'1',minWidth:'220px'}},[
+        div({style:{display:'flex',alignItems:'center',flexWrap:'wrap',marginBottom:'4px'}},[modeBadgeEl(r.mode||'tutor'),h('span',{style:{fontFamily:'Georgia,serif',fontSize:'15px',color:'var(--text)'}},[r.assessment_title||'Assessment'])]),
+        h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--muted)'}},[name+(email?' \u00b7 '+email:'')+' \u00b7 '+new Date(r.taken_at).toLocaleString()])
+      ]));
+      var rightSide=div({style:{display:'flex',alignItems:'center',gap:'12px',flexShrink:'0'}},[]);
+      rightSide.append(h('div',{style:{fontFamily:'Georgia,serif',fontSize:'18px',color:'var(--teal)'}},[pct+'% ('+r.score+'/'+r.total+')']));
+      rightSide.append(btn('Review','btn-outline',function(){openAdminResultReview(r,{studentName:name});},{style:{fontSize:'10px',padding:'5px 12px'}}));
+      card.append(rightSide);
+      listWrap.append(card);
+    });
+  }
+
+  assessFilter.onchange=function(){renderList();};
+  var studTimer=null;
+  studFilter.oninput=function(){if(studTimer)clearTimeout(studTimer);studTimer=setTimeout(renderList,250);};
+
+  (async function(){
+    var rRes=await sb.from('tutoring_assessment_results').select('*').order('taken_at',{ascending:false});
+    allResults=rRes.data||[];
+    var ids=Array.from(new Set(allResults.map(function(r){return r.student_id;}).filter(Boolean)));
+    if(ids.length){
+      var pr=await sb.from('profiles').select('id,full_name,email').in('id',ids);
+      (pr.data||[]).forEach(function(p){profileMap[p.id]=p;});
+    }
+    var aRes=await sb.from('tutoring_assessments').select('id,title').order('created_at',{ascending:false});
+    (aRes.data||[]).forEach(function(a){assessFilter.append(h('option',{value:a.id},[a.title]));});
+    renderStats();
+    renderList();
+  })();
+}
+
 /* ===================== STUDENTS VIEW ===================== */
 function renderStudents(){
   tBody.innerHTML='';
@@ -6750,6 +6908,8 @@ function openStudent(s){
     body.append(skelCard([['40%'],['80%'],['60%']]));
     var rRes=await sb.from('tutoring_results').select('*').eq('student_id',s.user_id).order('taken_at',{ascending:false});
     var results=rRes.data||[];
+    var arRes=await sb.from('tutoring_assessment_results').select('*').eq('student_id',s.user_id).order('taken_at',{ascending:false});
+    var assessResults=arRes.data||[];
     var aRes=await sb.from('tutoring_assignments').select('id,due_date,test_id,tutoring_tests(title,mode)').eq('student_id',s.user_id).order('assigned_at',{ascending:false});
     var assigns=aRes.data||[];
     var kRes=await sb.from('tutoring_tasks').select('*').eq('student_id',s.user_id).order('due_date',{ascending:true});
@@ -6758,8 +6918,8 @@ function openStudent(s){
     var taken=results.length;
     var avg=taken?Math.round(results.reduce(function(a,t){return a+(t.score/t.total)*100;},0)/taken):0;
     var openCount=tasks.filter(function(k){return !k.done;}).length;
-    var grid=div({style:{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:'12px',marginBottom:'20px'}},[]);
-    grid.append(statBox('Tests completed',String(taken)),statBox('Average score',taken?avg+'%':'\u2014'),statBox('Tasks open',String(openCount)));
+    var grid=div({style:{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:'12px',marginBottom:'20px'}},[]);
+    grid.append(statBox('Tests completed',String(taken)),statBox('Average score',taken?avg+'%':'\u2014'),statBox('Assessments completed',String(assessResults.length)),statBox('Tasks open',String(openCount)));
     body.append(grid);
 
     body.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'15px',marginBottom:'10px'},html:'Assigned tests'}));
@@ -6781,6 +6941,18 @@ function openStudent(s){
         rightSide.append(h('div',{style:{fontFamily:'Georgia,serif',fontSize:'18px',color:'var(--teal)'}},[Math.round((t.score/t.total)*100)+'% ('+t.score+'/'+t.total+')']));
         rightSide.append(btn('Review','btn-outline',function(){showAdminReview(t);},{style:{fontSize:'10px',padding:'5px 12px'}}));
         card.append(div({},[h('div',{style:{fontSize:'14px',color:'var(--text)'}},[t.test_title]),h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--muted)',marginTop:'2px'}},[new Date(t.taken_at).toLocaleDateString()+' \u00b7 '+(t.mode==='timed'?'Timed':'Tutor')])]),rightSide);
+        body.append(card);
+      });
+    }
+
+    if(assessResults.length){
+      body.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'15px',margin:'18px 0 10px'},html:'Assessment results history'}));
+      assessResults.forEach(function(t){
+        var card=div({cls:'card',style:{marginBottom:'8px',padding:'12px',display:'flex',justifyContent:'space-between',alignItems:'center',gap:'12px',flexWrap:'wrap'}},[]);
+        var rightSide=div({style:{display:'flex',alignItems:'center',gap:'12px',flexShrink:'0'}},[]);
+        rightSide.append(h('div',{style:{fontFamily:'Georgia,serif',fontSize:'18px',color:'var(--teal)'}},[Math.round((t.score/t.total)*100)+'% ('+t.score+'/'+t.total+')']));
+        rightSide.append(btn('Review','btn-outline',function(){openAdminResultReview(t,{studentName:s.full_name});},{style:{fontSize:'10px',padding:'5px 12px'}}));
+        card.append(div({},[h('div',{style:{fontSize:'14px',color:'var(--text)'}},[t.assessment_title]),h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--muted)',marginTop:'2px'}},[new Date(t.taken_at).toLocaleDateString()+' \u00b7 '+(t.mode==='timed'?'Timed':'Tutor')])]),rightSide);
         body.append(card);
       });
     }
