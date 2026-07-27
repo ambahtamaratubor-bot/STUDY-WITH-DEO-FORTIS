@@ -1083,11 +1083,8 @@ function downloadScoreReportPdf(reportEl,filename,onDone){
   });
 }
 
-async function renderAssessmentScoreReport(o){
-  // o: {resultId, assessment, score, total, questions, answers, timeTakenSeconds, insertError}
-  content.innerHTML='';
-  content.append(skelCard([['30%'],['100%'],['100%'],['100%']]));
-
+async function buildScoreReportBody(o){
+  // o: {resultId, assessment, score, total, questions, answers, timeTakenSeconds, insertError, trendList}
   var pct=o.total?Math.round((o.score/o.total)*100):0;
   var stats={};
   if(o.resultId){
@@ -1116,13 +1113,18 @@ async function renderAssessmentScoreReport(o){
   var overallPass=passesCumulative&&passesAllTopics;
 
   // Cross-assessment trend: one point per assessment (latest attempt), in chronological order.
-  var byAssessment={};
-  (DATA.assessResults||[]).forEach(function(rr){
-    var key=rr.assessment_id;
-    if(!byAssessment[key]||new Date(rr.taken_at)>new Date(byAssessment[key].taken_at))byAssessment[key]=rr;
-  });
-  if(o.resultId||o.assessment.id)byAssessment[o.assessment.id]={assessment_id:o.assessment.id,assessment_title:o.assessment.title,score:o.score,total:o.total,taken_at:new Date().toISOString()};
-  var trendList=Object.keys(byAssessment).map(function(k){return byAssessment[k];}).sort(function(x,y){return new Date(x.taken_at)-new Date(y.taken_at);});
+  // Callers can pass o.trendList directly (e.g. admin viewing another student's history);
+  // otherwise it falls back to the current session's own DATA.assessResults.
+  var trendList=o.trendList;
+  if(!trendList){
+    var byAssessment={};
+    (DATA.assessResults||[]).forEach(function(rr){
+      var key=rr.assessment_id;
+      if(!byAssessment[key]||new Date(rr.taken_at)>new Date(byAssessment[key].taken_at))byAssessment[key]=rr;
+    });
+    if(o.resultId||o.assessment.id)byAssessment[o.assessment.id]={assessment_id:o.assessment.id,assessment_title:o.assessment.title,score:o.score,total:o.total,taken_at:new Date().toISOString()};
+    trendList=Object.keys(byAssessment).map(function(k){return byAssessment[k];}).sort(function(x,y){return new Date(x.taken_at)-new Date(y.taken_at);});
+  }
 
   function statBoxMini(label,value,sub,color){
     var b=div({cls:'card',style:{padding:'16px',flex:'1 1 130px',minWidth:'130px'}},[]);
@@ -1133,11 +1135,7 @@ async function renderAssessmentScoreReport(o){
     return b;
   }
 
-  content.innerHTML='';
-  var wrap=div({style:{maxWidth:'900px',margin:'0 auto'}},[]);
   var reportBody=div({style:{background:'var(--bg)'}},[]);
-
-  content.append(btn('\u2190 Back to wing','btn-outline',function(){exitFullscreen();currentTab='assessments';paintTabs();renderTab();},{style:{fontSize:'11px',padding:'6px 12px',marginBottom:'16px'}}));
 
   reportBody.append(assessBrandHeader());
   reportBody.append(
@@ -1267,6 +1265,21 @@ async function renderAssessmentScoreReport(o){
 
   reportBody.append(topRow,row2);
   if(trendCard)reportBody.append(trendCard);
+  return reportBody;
+}
+
+async function renderAssessmentScoreReport(o){
+  // o: {resultId, assessment, score, total, questions, answers, timeTakenSeconds, insertError}
+  content.innerHTML='';
+  content.append(skelCard([['30%'],['100%'],['100%'],['100%']]));
+
+  var reportBody=await buildScoreReportBody(o);
+
+  content.innerHTML='';
+  var wrap=div({style:{maxWidth:'900px',margin:'0 auto'}},[]);
+
+  content.append(btn('\u2190 Back to wing','btn-outline',function(){exitFullscreen();currentTab='assessments';paintTabs();renderTab();},{style:{fontSize:'11px',padding:'6px 12px',marginBottom:'16px'}}));
+
   wrap.append(reportBody);
 
   var pdfStatus=div({style:{fontSize:'11px',color:'var(--muted)',marginTop:'8px'}},[]);
@@ -1289,6 +1302,52 @@ async function renderAssessmentScoreReport(o){
   );
   wrap.append(actionsRow,pdfStatus);
   content.append(wrap);
+}
+
+async function downloadStudentScoreReportSnapshot(result,studentName,onStatus){
+  // Admin-side: builds the exact same branded score-report snapshot students see on
+  // submission, for a given result row from tutoring_assessment_results, and downloads it as PDF.
+  try{
+    if(onStatus)onStatus('Loading student history\u2026');
+    var trendList=[];
+    if(result.student_id){
+      var histRes=await sb.from('tutoring_assessment_results').select('assessment_id,assessment_title,score,total,taken_at').eq('student_id',result.student_id).order('taken_at',{ascending:true});
+      var hist=histRes.data||[];
+      var byAssessment={};
+      hist.forEach(function(rr){
+        var key=rr.assessment_id;
+        if(!byAssessment[key]||new Date(rr.taken_at)>new Date(byAssessment[key].taken_at))byAssessment[key]=rr;
+      });
+      trendList=Object.keys(byAssessment).map(function(k){return byAssessment[k];}).sort(function(x,y){return new Date(x.taken_at)-new Date(y.taken_at);});
+    }
+
+    if(onStatus)onStatus('Building report\u2026');
+    var reportBody=await buildScoreReportBody({
+      resultId:result.id,
+      assessment:{id:result.assessment_id,title:result.assessment_title||'Assessment'},
+      score:result.score,
+      total:result.total,
+      questions:result.questions||[],
+      answers:result.answers||{},
+      timeTakenSeconds:result.time_taken_seconds,
+      trendList:trendList
+    });
+
+    // html2canvas needs the element laid out in the DOM; render off-screen at the same
+    // width the student-facing report uses, then remove it once the PDF is generated.
+    var offscreen=div({style:{position:'fixed',top:'0',left:'-99999px',width:'860px',background:'var(--bg)'}},[]);
+    offscreen.append(reportBody);
+    document.body.append(offscreen);
+
+    if(onStatus)onStatus('Generating PDF\u2026');
+    var fname=(studentName?studentName.replace(/[^a-z0-9]+/gi,'_')+'_':'')+(result.assessment_title||'assessment').replace(/[^a-z0-9]+/gi,'_')+'_score_report.pdf';
+    downloadScoreReportPdf(reportBody,fname,function(errMsg){
+      offscreen.remove();
+      if(onStatus)onStatus(errMsg?('Could not generate PDF: '+errMsg):'\u2713 Downloaded.');
+    });
+  }catch(e){
+    if(onStatus)onStatus('Could not generate PDF: '+((e&&e.message)||'unknown error'));
+  }
 }
 
 
@@ -6637,16 +6696,25 @@ function openAdminResultReview(result,opts){
   var subLine=(opts.studentName?opts.studentName+' \u00b7 ':'')+'Scored '+result.score+'/'+result.total+' ('+pct+'%) \u00b7 '+new Date(result.taken_at).toLocaleString()+' \u00b7 '+(result.mode==='timed'?'Timed':'Tutor');
   modal.append(h('p',{cls:'muted',style:{fontSize:'12px',marginBottom:'14px'}},[subLine]));
   var pdfStatus=div({style:{fontSize:'11px',marginBottom:'12px',display:'none'}},[]);
-  var dlBtn=btn('Download PDF','btn-gold',function(){
-    dlBtn.disabled=true;pdfStatus.style.display='block';pdfStatus.textContent='Generating PDF\u2026';pdfStatus.style.color='var(--muted)';
-    var fname=(opts.studentName?opts.studentName.replace(/[^a-z0-9]+/gi,'_')+'_':'')+title.replace(/[^a-z0-9]+/gi,'_')+'_score_report.pdf';
+  var snapshotBtn=btn('Download Score Report (PDF)','btn-gold',function(){
+    snapshotBtn.disabled=true;dlBtn.disabled=true;pdfStatus.style.display='block';pdfStatus.style.color='var(--muted)';
+    downloadStudentScoreReportSnapshot(result,opts.studentName,function(msg){
+      pdfStatus.textContent=msg;
+      if(msg.indexOf('Could not')===0)pdfStatus.style.color='#ff4444';
+      if(/^\u2713/.test(msg)){pdfStatus.style.color='var(--teal)';snapshotBtn.disabled=false;dlBtn.disabled=false;}
+      if(msg.indexOf('Could not')===0){snapshotBtn.disabled=false;dlBtn.disabled=false;}
+    });
+  },{style:{fontSize:'11px',padding:'6px 14px'}});
+  var dlBtn=btn('Download Detailed Review (PDF)','btn-outline',function(){
+    dlBtn.disabled=true;snapshotBtn.disabled=true;pdfStatus.style.display='block';pdfStatus.textContent='Generating PDF\u2026';pdfStatus.style.color='var(--muted)';
+    var fname=(opts.studentName?opts.studentName.replace(/[^a-z0-9]+/gi,'_')+'_':'')+title.replace(/[^a-z0-9]+/gi,'_')+'_detailed_review.pdf';
     downloadScoreReportPdf(modal,fname,function(err){
-      dlBtn.disabled=false;
+      dlBtn.disabled=false;snapshotBtn.disabled=false;
       if(err){pdfStatus.textContent='Could not generate PDF.';pdfStatus.style.color='#ff4444';}
       else{pdfStatus.textContent='\u2713 Downloaded.';pdfStatus.style.color='var(--teal)';}
     });
   },{style:{fontSize:'11px',padding:'6px 14px'}});
-  modal.append(dlBtn,pdfStatus);
+  modal.append(div({style:{display:'flex',gap:'8px',flexWrap:'wrap'}},[snapshotBtn,dlBtn]),pdfStatus);
   var reviewBody=div({},[]);
   modal.append(reviewBody);
   overlay.append(modal);
