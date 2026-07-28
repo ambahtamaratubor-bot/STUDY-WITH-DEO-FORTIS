@@ -489,11 +489,14 @@ async function buildScoreReportBody(o){
 
   // Cross-assessment trend: one point per assessment (latest attempt), in chronological order.
   // Callers can pass o.trendList directly (e.g. admin viewing another student's history);
-  // otherwise it falls back to the current session's own DATA.assessResults.
+  // otherwise it falls back to the current session's own DATA.assessResults, if that global
+  // happens to be in scope (it's declared inside tutoring(), so callers outside that closure
+  // won't have it — guard with typeof so this never throws).
   var trendList=o.trendList;
   if(!trendList){
     var byAssessment={};
-    (DATA.assessResults||[]).forEach(function(rr){
+    var sessionResults=(typeof DATA!=='undefined'&&DATA.assessResults)||[];
+    sessionResults.forEach(function(rr){
       var key=rr.assessment_id;
       if(!byAssessment[key]||new Date(rr.taken_at)>new Date(byAssessment[key].taken_at))byAssessment[key]=rr;
     });
@@ -1735,7 +1738,10 @@ function runAssessmentQuiz(a,assessment,questions){
     var questionTimesSeconds={};Object.keys(questionTimeMs).forEach(function(k){questionTimesSeconds[k]=Math.round(questionTimeMs[k]/1000);});
     var ins=await sb.from('tutoring_assessment_results').insert({assignment_id:a?a.id:null,assessment_id:assessment.id,student_id:S.user.id,assessment_title:assessment.title,mode:mode,score:score,total:questions.length,answers:answers,questions:questions,time_taken_seconds:timeTakenSeconds,question_times:questionTimesSeconds,answer_changes:answerChanges}).select('id').single();
     await loadData();
-    renderAssessmentScoreReport({resultId:ins.data&&ins.data.id,assessment:assessment,score:score,total:questions.length,questions:questions,answers:answers,timeTakenSeconds:timeTakenSeconds,questionTimes:questionTimesSeconds,answerChanges:answerChanges,insertError:ins.error&&ins.error.message});
+    var byAssessment1={};
+    (DATA.assessResults||[]).forEach(function(rr){var key=rr.assessment_id;if(!byAssessment1[key]||new Date(rr.taken_at)>new Date(byAssessment1[key].taken_at))byAssessment1[key]=rr;});
+    var trendList1=Object.keys(byAssessment1).map(function(k){return byAssessment1[k];}).sort(function(x,y){return new Date(x.taken_at)-new Date(y.taken_at);});
+    renderAssessmentScoreReport({resultId:ins.data&&ins.data.id,assessment:assessment,score:score,total:questions.length,questions:questions,answers:answers,timeTakenSeconds:timeTakenSeconds,questionTimes:questionTimesSeconds,answerChanges:answerChanges,trendList:trendList1,insertError:ins.error&&ins.error.message});
   }
 
   updateQ();
@@ -2025,7 +2031,10 @@ function runBlockedAssessment(a,assessment,allQuestions){
     var blockScores=blocks.map(function(blk,i){var c=0;blk.forEach(function(q){if(globalAnswers[q.id]===corr(q))c++;});return{block:i+1,correct:c,total:blk.length};});
     var ins=await sb.from('tutoring_assessment_results').insert({assignment_id:a?a.id:null,assessment_id:assessment.id,student_id:S.user.id,assessment_title:assessment.title,mode:assessment.mode,score:score,total:allQuestions.length,answers:globalAnswers,questions:allQuestions,time_taken_seconds:timeTakenSeconds,question_times:questionTimesSeconds,answer_changes:globalAnswerChanges,block_scores:blockScores}).select('id').single();
     await loadData();
-    renderAssessmentScoreReport({resultId:ins.data&&ins.data.id,assessment:assessment,score:score,total:allQuestions.length,questions:allQuestions,answers:globalAnswers,timeTakenSeconds:timeTakenSeconds,questionTimes:questionTimesSeconds,answerChanges:globalAnswerChanges,blockScores:blockScores,insertError:ins.error&&ins.error.message});
+    var byAssessment2={};
+    (DATA.assessResults||[]).forEach(function(rr){var key=rr.assessment_id;if(!byAssessment2[key]||new Date(rr.taken_at)>new Date(byAssessment2[key].taken_at))byAssessment2[key]=rr;});
+    var trendList2=Object.keys(byAssessment2).map(function(k){return byAssessment2[k];}).sort(function(x,y){return new Date(x.taken_at)-new Date(y.taken_at);});
+    renderAssessmentScoreReport({resultId:ins.data&&ins.data.id,assessment:assessment,score:score,total:allQuestions.length,questions:allQuestions,answers:globalAnswers,timeTakenSeconds:timeTakenSeconds,questionTimes:questionTimesSeconds,answerChanges:globalAnswerChanges,blockScores:blockScores,trendList:trendList2,insertError:ins.error&&ins.error.message});
   }
 
   enterFullscreen();
