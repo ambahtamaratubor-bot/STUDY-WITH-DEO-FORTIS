@@ -7147,34 +7147,123 @@ function openAssignAssessment(opts){
 
 /* ===================== TEST / ASSESSMENT PREVIEW (ADMIN, NO ASSIGNMENT NEEDED) ===================== */
 function openLibraryPreview(kind,item){
-  var title=item.title||'Untitled';
-  var overlay=div({style:{position:'fixed',top:'0',left:'0',width:'100%',height:'100%',background:'rgba(0,0,0,0.72)',zIndex:'1000',display:'flex',alignItems:'flex-start',justifyContent:'center',overflowY:'auto',padding:'32px 16px',boxSizing:'border-box'}},[]);
-  var modal=div({style:{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:'6px',padding:'28px',width:'100%',maxWidth:'740px',position:'relative',boxSizing:'border-box'}},[]);
-  var closeBtn=btn('\u2715 Close','btn-outline',function(){overlay.remove();},{style:{position:'absolute',top:'16px',right:'16px',fontSize:'11px',padding:'5px 12px'}});
-  modal.append(closeBtn);
-  modal.append(h('span',{cls:'chapter',html:'Preview'},[]));
-  modal.append(h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'20px',marginBottom:'4px'}},[title]));
-  var subParts=[];
-  subParts.push(item.mode==='timed'?'Timed':'Tutor');
-  if(item.mode==='timed'&&item.time_limit)subParts.push(item.time_limit+' min'+(item.block_size?' per block':''));
-  if(item.block_size)subParts.push(item.block_size+' Q/block');
-  modal.append(h('p',{cls:'muted',style:{fontSize:'12px',marginBottom:'16px'}},[subParts.join(' \u00b7 ')+' \u2014 answer key visible, nothing is recorded']));
-  var body=div({},[]);
-  body.append(skelCard([['40%'],['100%'],['100%'],['80%']]));
-  modal.append(body);
-  overlay.append(modal);
-  document.body.append(overlay);
-  overlay.onclick=function(e){if(e.target===overlay)overlay.remove();};
+  tBody.innerHTML='';
+  tBody.append(skelCard([['40%'],['100%'],['100%'],['80%']]));
   (async function(){
     var q=kind==='test'
       ?await sb.from('tutoring_questions').select('*').eq('test_id',item.id).order('position',{ascending:true})
       :await sb.from('tutoring_assessment_questions').select('*').eq('assessment_id',item.id).order('position',{ascending:true});
+    if(q.error){
+      tBody.innerHTML='';
+      tBody.append(div({cls:'card',style:{textAlign:'center',padding:'30px'}},[
+        h('p',{style:{fontSize:'13px',color:'#ff8888',marginBottom:'12px'}},['Could not load questions: '+q.error.message]),
+        btn('\u2190 Back','btn-outline',function(){kind==='test'?renderLibrary():renderAssessments();})
+      ]));
+      return;
+    }
     var qs=q.data||[];
-    body.innerHTML='';
-    if(!qs.length){body.append(h('p',{style:{color:'var(--muted)',fontSize:'13px'}},['No questions in this '+(kind==='test'?'test':'assessment')+' yet.']));return;}
-    body.append(h('p',{cls:'mono',style:{fontSize:'11px',color:'var(--dim)',marginBottom:'14px',textTransform:'uppercase',letterSpacing:'1px'}},[qs.length+' question'+(qs.length!==1?'s':'')]));
-    buildReviewQuestionCards(qs,{},{previewMode:true}).forEach(function(c){body.append(c);});
+    if(!qs.length){
+      tBody.innerHTML='';
+      tBody.append(div({cls:'card',style:{textAlign:'center',padding:'30px'}},[
+        h('p',{style:{fontSize:'13px',color:'var(--dim)',marginBottom:'12px'}},['No questions in this '+(kind==='test'?'test':'assessment')+' yet.']),
+        btn('\u2190 Back','btn-outline',function(){kind==='test'?renderLibrary():renderAssessments();})
+      ]));
+      return;
+    }
+    renderExamStylePreview(kind,item,qs);
   })();
+}
+
+function renderExamStylePreview(kind,item,questions){
+  tBody.innerHTML='';
+  var current=0;
+  function corr(q){return String(q.correct_answer||'').toUpperCase();}
+
+  var qNav=div({style:{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'12px 0',borderBottom:'1px solid var(--border)',marginBottom:'16px',flexWrap:'wrap',gap:'12px'}},[]);
+  var pEl=h('span',{style:{fontFamily:'Inter,sans-serif',fontSize:'11px',color:'var(--muted)'}},[(current+1)+' / '+questions.length]);
+  var previewBadge=h('span',{style:{fontFamily:'Inter,sans-serif',fontSize:'10px',color:'var(--gold)',border:'1px solid var(--gold)',borderRadius:'999px',padding:'3px 10px',letterSpacing:'1px',textTransform:'uppercase',whiteSpace:'nowrap'}},['Preview \u2014 nothing recorded']);
+  qNav.append(
+    h('span',{style:{fontFamily:'Inter,sans-serif',fontSize:'11px',color:'var(--muted)',letterSpacing:'1px'}},[(item.title||'')+' \u00b7 '+(item.mode==='timed'?'Timed':'Tutor')]),
+    div({style:{display:'flex',gap:'16px',alignItems:'center',flexWrap:'wrap'}},[previewBadge,pEl,btn('\u2190 Exit Preview','btn-outline',function(){kind==='test'?renderLibrary():renderAssessments();},{style:{fontSize:'11px',padding:'6px 12px'}})])
+  );
+  tBody.append(qNav);
+
+  var grid=div({style:{display:'grid',gridTemplateColumns:'180px 1fr',gap:'20px',alignItems:'start'}},[]);
+  var sidebar=div({},[]);
+  sidebar.append(div({cls:'mono',style:{marginBottom:'12px',fontSize:'10px',letterSpacing:'1px',textTransform:'uppercase',color:'var(--muted)'}},['Questions']));
+  var ng=div({style:{display:'flex',flexDirection:'column',gap:'4px',maxHeight:'480px',overflowY:'auto'}},[]);
+  var navBtns=[];
+  questions.forEach(function(q,i){
+    var nb=h('button',{style:{width:'100%',height:'32px',border:'1px solid var(--border)',background:'transparent',color:'var(--muted)',fontFamily:'Inter,sans-serif',fontSize:'11px',cursor:'pointer',borderRadius:'2px',display:'flex',alignItems:'center',padding:'0 10px'}},['Q'+(i+1)]);
+    nb.onclick=function(){current=i;updateQ();};
+    navBtns.push(nb);ng.append(nb);
+  });
+  sidebar.append(ng);
+  var mainArea=div({},[]);
+  grid.append(sidebar,mainArea);
+  tBody.append(grid);
+
+  function updateNavColors(){
+    questions.forEach(function(qq,i){
+      var nb=navBtns[i];if(!nb)return;
+      if(i===current){nb.style.border='1px solid var(--gold)';nb.style.background='var(--gold-subtle)';nb.style.color='var(--gold)';}
+      else{nb.style.border='1px solid var(--teal)';nb.style.background='var(--correct-bg)';nb.style.color='var(--teal)';}
+    });
+  }
+
+  function buildExplanation(q){
+    var exp=div({style:{background:'var(--correct-bg)',border:'1px solid var(--teal-border)',borderRadius:'2px',padding:'16px',marginTop:'16px'}},[]);
+    exp.append(div({style:{fontFamily:'Inter,sans-serif',fontSize:'10px',color:'var(--teal)',letterSpacing:'2px',textTransform:'uppercase',marginBottom:'12px'},html:'Explanation'}));
+    var splitExp=(q.explanation||'').split(/(?=\b[A-Q]\s*[\(\-]\s)/);
+    splitExp.forEach(function(chunk){
+      chunk=chunk.trim();if(!chunk)return;
+      var isOption=/^[A-Q]\s*[\(\-]/.test(chunk);
+      var isCorrect=isOption&&!!q.correct_answer&&chunk.toUpperCase().indexOf(corr(q))===0;
+      var block=div({style:{marginBottom:'12px',padding:'12px',borderRadius:'2px',background:isCorrect?'rgba(126,184,164,0.08)':'var(--bg)',border:'1px solid '+(isCorrect?'var(--teal)':'var(--border)')}},[]);
+      var label=chunk.match(/^([A-Q]\s*[\(\-][^:)]+[:\)]?)/);
+      if(label&&isOption){
+        var labelStr=label[0];var rest=chunk.slice(labelStr.length).trim().replace(/^[:\s]+/,'');
+        block.append(h('div',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'12px',fontWeight:'700',color:isCorrect?'var(--teal)':'var(--muted)',marginBottom:'4px'},html:labelStr+(isCorrect?' \u2713':'')}),h('p',{style:{fontSize:'13px',color:'var(--muted)',lineHeight:'1.7'},html:rest}));
+      }else{
+        block.append(h('p',{style:{fontSize:'13px',color:'var(--muted)',lineHeight:'1.7'},html:chunk}));
+      }
+      exp.append(block);
+    });
+    return exp;
+  }
+
+  function updateQ(){
+    mainArea.innerHTML='';
+    pEl.textContent=(current+1)+' / '+questions.length;
+    updateNavColors();
+    var q=questions[current];
+    var qCard=div({cls:'card',style:{marginBottom:'16px'}},[]);
+    qCard.append(div({cls:'mono',style:{marginBottom:'12px'},html:'Question '+(current+1)}));
+    var media=q.media;
+    if(typeof media==='string'){try{media=JSON.parse(media);}catch(e){media=[];}}
+    if(media&&media.length)media.forEach(function(m){qCard.append(mediaEmbed(m));});
+    var qTextDiv=div({},[]);
+    renderQuestionText(q.question,qTextDiv);
+    qCard.append(qTextDiv);
+    mainArea.append(qCard);
+
+    ['a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p','q'].forEach(function(opt){
+      var val=q['option_'+opt];if(!val)return;
+      var ob=h('button',{cls:'option-btn',style:{cursor:'default'}},[]);
+      if(corr(q)===opt.toUpperCase())ob.classList.add('correct');
+      ob.append(h('strong',{style:{marginRight:'12px'},html:opt.toUpperCase()+'.'}),document.createTextNode(val));
+      ob.onclick=function(e){e.preventDefault();};
+      mainArea.append(ob);
+    });
+
+    if(q.explanation)mainArea.append(buildExplanation(q));
+
+    var nr=div({style:{display:'flex',gap:'12px',marginTop:'16px'}},[]);
+    if(current>0)nr.append(btn('\u2190 Prev','btn-outline',function(){current--;updateQ();}));
+    if(current<questions.length-1)nr.append(btn('Next \u2192','btn-gold',function(){current++;updateQ();}));
+    mainArea.append(nr);
+  }
+  updateQ();
 }
 
 /* ===================== ADMIN RESULT REVIEW MODAL ===================== */
