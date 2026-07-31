@@ -540,9 +540,17 @@ async function buildScoreReportBody(o){
     return py-px;
   });
 
-  var passesCumulative=pct>=70;
-  var passesAllTopics=topics.length?topics.every(function(t){var d=topicMap[t];var tp=d.total?(d.correct/d.total*100):0;return tp>=70;}):true;
-  var overallPass=passesCumulative&&passesAllTopics;
+  var band,ringColor,encourageMsg;
+  if(pct>=70){
+    band='Pass';ringColor='var(--teal)';
+    encourageMsg='Great work \u2014 you\u2019ve met the pass mark.';
+  }else if(pct>=60){
+    band='Almost Passed';ringColor='var(--gold)';
+    encourageMsg='So close! You\u2019re just a few points from passing \u2014 a little more review and you\u2019ll get there next time.';
+  }else{
+    band='Needs Review';ringColor='#ff6b6b';
+    encourageMsg='You\u2019re building real progress. Review the topics below \u2014 you\u2019ll get there.';
+  }
 
   // Cross-assessment trend: one point per assessment (latest attempt), in chronological order.
   // Callers can pass o.trendList directly (e.g. admin viewing another student's history);
@@ -581,9 +589,6 @@ async function buildScoreReportBody(o){
 
   if(o.insertError)reportBody.append(h('div',{style:{fontSize:'12px',color:'#ff8888',marginBottom:'16px'}},['Your score could not be saved: '+o.insertError]));
 
-  var ringColor=overallPass?'var(--teal)':'var(--gold)';
-  var band=overallPass?'Pass':'Needs Review';
-  var encourageMsg=overallPass?'Great work \u2014 you\u2019ve met the pass mark overall and in every topic.':'You\u2019re building real progress. Review the topics below \u2014 you\u2019ll get there.';
   var r=70,circ=2*Math.PI*r;
   var svgNS='http://www.w3.org/2000/svg';
   var ringSvg=document.createElementNS(svgNS,'svg');ringSvg.setAttribute('width','170');ringSvg.setAttribute('height','170');ringSvg.style.transform='rotate(-90deg)';
