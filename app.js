@@ -392,6 +392,9 @@ function buildReviewQuestionCards(qs,ans,opts){
     var isCorrect=userAns===correct;
     var qCard=div({style:{background:'var(--card)',border:'1px solid '+(opts.previewMode?'var(--border)':(isCorrect?'var(--teal)':'#8B000066')),borderRadius:'4px',padding:'18px',marginBottom:'14px'}},[]);
     var qTextDiv=div({style:{marginBottom:'14px'}},[]);
+    var media=q.media;
+    if(typeof media==='string'){try{media=JSON.parse(media);}catch(e){media=[];}}
+    if(media&&media.length)media.forEach(function(m){qCard.append(mediaEmbed(m));});
     renderQuestionText(q.question,qTextDiv);
     var headerRow=div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'10px'}},[div({cls:'mono',style:{fontSize:'9px'},html:'Question '+(i+1)})]);
     if(!opts.previewMode)headerRow.append(h('span',{style:{fontFamily:'Inter,sans-serif',fontSize:'11px',color:isCorrect?'var(--teal)':'#ff8888',fontWeight:'700'},html:isCorrect?'\u2713 Correct':'\u2717 Incorrect'}));
@@ -6778,6 +6781,7 @@ function renderAssessments(){
   var aMediaMap={};
   var aTopicMap={};
   var openMediaIdx=null;
+  var editingAssessmentId=null;
   function fieldHint(text){
     return h('span',{title:text,style:{display:'inline-flex',alignItems:'center',justifyContent:'center',width:'14px',height:'14px',borderRadius:'50%',border:'1px solid var(--dim)',color:'var(--dim)',fontSize:'9px',fontFamily:'Inter,sans-serif',lineHeight:'1',cursor:'help',flexShrink:'0'}},['?']);
   }
@@ -6788,7 +6792,8 @@ function renderAssessments(){
     ]);
   }
   var upCard=div({cls:'card',style:{marginBottom:'24px'}},[]);
-  upCard.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'16px',marginBottom:'14px'},html:'Create an assessment'}));
+  var upCardHeading=h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'16px',marginBottom:'14px'},html:'Create an assessment'});
+  upCard.append(upCardHeading);
   var aTitleLabelRow=fieldLabelRow('Title','Shown to students on their assessment list and results. Keep it short and specific, e.g. "Block 1 Comprehensive Exam".');
   var aTitle=h('input',{cls:'input',placeholder:'Title \u2014 e.g. Block 1 Comprehensive Exam',style:{width:'100%',marginBottom:'12px'}});
   var aModeLabelRow=fieldLabelRow('Mode','Timed: one countdown for the whole assessment (or per block, if blocks are enabled). Tutor: no timer, students can check answers as they go.');
@@ -6925,7 +6930,23 @@ function renderAssessments(){
     });
   }
 
-  var parseBtn=btn('Parse & preview','btn-outline',async function(){var text='';if(aFile.files&&aFile.files.length)text=await aFile.files[0].text();else text=aPaste.value;if(!text.trim()){aStatus('Pick a .txt file or paste questions first.','#ff4444');return;}aParsed=parseAssessmentTut(text);aMediaMap={};aTopicMap={};aParsed.forEach(function(q,i){if(q.topic)aTopicMap[i]=q.topic;});openMediaIdx=null;renderAPreview();if(!aParsed.length)aStatus('No questions found \u2014 check the format.','#ff4444');else aSt.style.display='none';},{style:{fontSize:'12px',padding:'8px 16px',marginRight:'8px'}});
+  var parseBtn=btn('Parse & preview','btn-outline',async function(){
+    var text='';if(aFile.files&&aFile.files.length)text=await aFile.files[0].text();else text=aPaste.value;
+    if(!text.trim()){aStatus('Pick a .txt file or paste questions first.','#ff4444');return;}
+    var newQs=parseAssessmentTut(text);
+    if(editingAssessmentId){
+      var startIdx=aParsed.length;
+      newQs.forEach(function(q,j){aParsed.push(q);if(q.topic)aTopicMap[startIdx+j]=q.topic;});
+      if(newQs.length){aPaste.value='';aFile.value='';}
+    }else{
+      aParsed=newQs;aMediaMap={};aTopicMap={};
+      aParsed.forEach(function(q,i){if(q.topic)aTopicMap[i]=q.topic;});
+    }
+    openMediaIdx=null;renderAPreview();
+    if(!newQs.length)aStatus('No questions found \u2014 check the format.','#ff4444');
+    else aSt.style.display='none';
+  },{style:{fontSize:'12px',padding:'8px 16px',marginRight:'8px'}});
+  var cancelEditBtn=btn('Cancel edit','btn-outline',function(){resetForm();},{style:{fontSize:'12px',padding:'8px 16px',display:'none'}});
   var saveBtn=btn('Save as draft','btn-gold',async function(){
     var title=aTitle.value.trim();
     var ok=aParsed.filter(function(q){return q._ok;});
@@ -6934,16 +6955,69 @@ function renderAssessments(){
     var tl=aMode==='timed'?(parseInt(aLimit.value,10)||null):null;
     var blockSize=aUseBlocks?(parseInt(aBlockSize.value,10)||null):null;
     var breakMinutes=aUseBlocks?(parseInt(aBreak.value,10)||null):null;
-    saveBtn.disabled=true;aStatus('Saving\u2026','var(--muted)');
+    saveBtn.disabled=true;
+    if(editingAssessmentId){
+      aStatus('Saving changes\u2026','var(--muted)');
+      var upd=await sb.from('tutoring_assessments').update({title:title,mode:aMode,time_limit:tl,block_size:blockSize,break_minutes:breakMinutes,shuffle_questions:aShuffle}).eq('id',editingAssessmentId);
+      if(upd.error){aStatus('Could not update assessment: '+upd.error.message,'#ff4444');saveBtn.disabled=false;return;}
+      var delQ=await sb.from('tutoring_assessment_questions').delete().eq('assessment_id',editingAssessmentId);
+      if(delQ.error){aStatus('Could not update questions: '+delQ.error.message,'#ff4444');saveBtn.disabled=false;return;}
+      var rowsU=ok.map(function(q){var i=aParsed.indexOf(q);return{assessment_id:editingAssessmentId,position:i+1,question:q.question,option_a:q.option_a,option_b:q.option_b,option_c:q.option_c,option_d:q.option_d,option_e:q.option_e,option_f:q.option_f,option_g:q.option_g,option_h:q.option_h,option_i:q.option_i,option_j:q.option_j,option_k:q.option_k,option_l:q.option_l,option_m:q.option_m,option_n:q.option_n,option_o:q.option_o,option_p:q.option_p,option_q:q.option_q,correct_answer:q.correct_answer,explanation:q.explanation,media:aMediaMap[i]||[],topic:aTopicMap[i]||'General'};});
+      var qinsU=await sb.from('tutoring_assessment_questions').insert(rowsU);
+      if(qinsU.error){aStatus('Assessment updated, but questions failed to save: '+qinsU.error.message,'#ff4444');saveBtn.disabled=false;return;}
+      aStatus('\u2713 Saved changes to \u201c'+title+'\u201d \u2014 '+rowsU.length+' questions.','var(--teal)');
+      resetForm();saveBtn.disabled=false;loadAssessments();
+      return;
+    }
+    aStatus('Saving\u2026','var(--muted)');
     var ins=await sb.from('tutoring_assessments').insert({title:title,mode:aMode,time_limit:tl,block_size:blockSize,break_minutes:breakMinutes,shuffle_questions:aShuffle,published:false,created_by:S.user.id}).select().single();
     if(ins.error||!ins.data){aStatus('Could not create assessment: '+(ins.error&&ins.error.message||'unknown'),'#ff4444');saveBtn.disabled=false;return;}
     var rows=ok.map(function(q){var i=aParsed.indexOf(q);return{assessment_id:ins.data.id,position:i+1,question:q.question,option_a:q.option_a,option_b:q.option_b,option_c:q.option_c,option_d:q.option_d,option_e:q.option_e,option_f:q.option_f,option_g:q.option_g,option_h:q.option_h,option_i:q.option_i,option_j:q.option_j,option_k:q.option_k,option_l:q.option_l,option_m:q.option_m,option_n:q.option_n,option_o:q.option_o,option_p:q.option_p,option_q:q.option_q,correct_answer:q.correct_answer,explanation:q.explanation,media:aMediaMap[i]||[],topic:aTopicMap[i]||'General'};});
     var qins=await sb.from('tutoring_assessment_questions').insert(rows);
     if(qins.error){aStatus('Assessment created, but questions failed: '+qins.error.message,'#ff4444');saveBtn.disabled=false;return;}
     aStatus('\u2713 Saved \u201c'+title+'\u201d as draft \u2014 '+rows.length+' questions.','var(--teal)');
-    aTitle.value='';aPaste.value='';aFile.value='';aParsed=[];aMediaMap={};aTopicMap={};aPreview.innerHTML='';aUseBlocks=false;aBlockSize.value='40';aBreak.value='10';paintBlockToggle();saveBtn.disabled=false;loadAssessments();
+    resetForm();saveBtn.disabled=false;loadAssessments();
   },{style:{fontSize:'12px',padding:'8px 16px'}});
-  upCard.append(aTitleLabelRow,aTitle,aModeLabelRow,aModeRow,aLimitWrap,aBlockToggleRow,aBlockWrap,aShuffleRow,aFileLabelRow,aFile,aPasteLabelRow,aPaste,aPreview,div({style:{display:'flex',alignItems:'center',flexWrap:'wrap'}},[parseBtn,saveBtn]),aSt);
+
+  function resetForm(){
+    editingAssessmentId=null;
+    upCardHeading.textContent='Create an assessment';
+    saveBtn.textContent='Save as draft';
+    cancelEditBtn.style.display='none';
+    aTitle.value='';aPaste.value='';aFile.value='';aParsed=[];aMediaMap={};aTopicMap={};aPreview.innerHTML='';
+    aMode='timed';paintAMode();
+    aUseBlocks=false;aBlockSize.value='40';aBreak.value='10';paintBlockToggle();
+    aShuffle=false;paintAShuffle();
+    aLimit.value='60';
+  }
+
+  async function startEditAssessment(a){
+    var qr=await sb.from('tutoring_assessment_questions').select('*').eq('assessment_id',a.id).order('position',{ascending:true});
+    var existing=qr.data||[];
+    editingAssessmentId=a.id;
+    upCardHeading.textContent='Editing \u201c'+a.title+'\u201d';
+    saveBtn.textContent='Save changes';
+    cancelEditBtn.style.display='inline-block';
+    aTitle.value=a.title||'';
+    aMode=a.mode||'timed';paintAMode();
+    aLimit.value=a.time_limit||60;
+    aUseBlocks=!!a.block_size;paintBlockToggle();
+    aBlockSize.value=a.block_size||40;
+    aBreak.value=a.break_minutes||10;
+    aShuffle=!!a.shuffle_questions;paintAShuffle();
+    aParsed=existing.map(function(q){return Object.assign({},q,{_ok:true,_missing:[]});});
+    aTopicMap={};aMediaMap={};
+    aParsed.forEach(function(q,i){
+      if(q.topic)aTopicMap[i]=q.topic;
+      var m=q.media;if(typeof m==='string'){try{m=JSON.parse(m);}catch(e){m=[];}}
+      if(m&&m.length)aMediaMap[i]=m;
+    });
+    openMediaIdx=null;renderAPreview();
+    aSt.style.display='none';
+    upCard.scrollIntoView({behavior:'smooth',block:'start'});
+  }
+
+  upCard.append(aTitleLabelRow,aTitle,aModeLabelRow,aModeRow,aLimitWrap,aBlockToggleRow,aBlockWrap,aShuffleRow,aFileLabelRow,aFile,aPasteLabelRow,aPaste,aPreview,div({style:{display:'flex',alignItems:'center',flexWrap:'wrap',gap:'8px'}},[parseBtn,saveBtn,cancelEditBtn]),aSt);
   tBody.append(upCard);
 
   var listWrap=div({},[]);
@@ -6963,7 +7037,17 @@ function renderAssessments(){
       var blockInfo=a.block_size?(' \u00b7 '+Math.ceil(qCount/a.block_size)+' blocks of '+a.block_size+(a.break_minutes?' \u00b7 '+a.break_minutes+' min break':'')):'';
       card.append(div({style:{flex:'1',minWidth:'220px'}},[div({style:{display:'flex',alignItems:'center',marginBottom:'6px',flexWrap:'wrap'}},[statusPillEl,modeBadgeEl(a.mode),h('span',{style:{fontFamily:'Georgia,serif',fontSize:'17px',color:'var(--text)'}},[a.title])]),h('div',{cls:'mono',style:{fontSize:'11px',color:'var(--muted)'}},[qCount+' questions'+(a.mode==='timed'&&a.time_limit?' \u00b7 '+a.time_limit+' min'+(a.block_size?'/block':''):'')+blockInfo+' \u00b7 '+new Date(a.created_at).toLocaleDateString()])]));
       var btns=div({style:{display:'flex',gap:'6px',flexShrink:'0'}},[]);
-      if(!a.published)btns.append(btn('Publish','btn-outline',async function(){var up=await sb.from('tutoring_assessments').update({published:true}).eq('id',a.id);if(up&&up.error){alert('Failed: '+up.error.message);return;}loadAssessments();},{style:{fontSize:'10px',padding:'6px 12px'}}));
+      if(!a.published){
+        btns.append(btn('Edit','btn-outline',function(){startEditAssessment(a);},{style:{fontSize:'10px',padding:'6px 12px'}}));
+        btns.append(btn('Publish','btn-outline',async function(){var up=await sb.from('tutoring_assessments').update({published:true}).eq('id',a.id);if(up&&up.error){alert('Failed: '+up.error.message);return;}loadAssessments();},{style:{fontSize:'10px',padding:'6px 12px'}}));
+      }else{
+        btns.append(btn('Unpublish','btn-outline',async function(){
+          if(!confirm('Unpublish \u201c'+a.title+'\u201d? It moves back to Draft so you can edit it. Existing assignments and past results are unaffected.'))return;
+          var up=await sb.from('tutoring_assessments').update({published:false}).eq('id',a.id);
+          if(up&&up.error){alert('Failed: '+up.error.message);return;}
+          loadAssessments();
+        },{style:{fontSize:'10px',padding:'6px 12px'}}));
+      }
       btns.append(btn('Preview','btn-outline',function(){openLibraryPreview('assessment',a);},{style:{fontSize:'10px',padding:'6px 12px'}}));
       btns.append(btn('Assign','btn-gold',function(){openAssignAssessment({assessmentId:a.id,assessmentTitle:a.title});},{style:{fontSize:'10px',padding:'6px 12px'}}));
       btns.append(btn('Delete','btn-outline',async function(){if(!confirm('Delete \u201c'+a.title+'\u201d? Its questions and any current assignments are removed. Past results are preserved.'))return;var d=await sb.from('tutoring_assessments').delete().eq('id',a.id);if(d&&d.error){alert('Delete failed: '+d.error.message);return;}loadAssessments();},{style:{fontSize:'10px',padding:'6px 12px',color:'#ff4444',borderColor:'#ff4444'}}));
