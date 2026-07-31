@@ -408,7 +408,7 @@ function buildReviewQuestionCards(qs,ans){
     if(q.explanation){
       var expWrap=div({style:{background:'var(--correct-bg)',border:'1px solid var(--teal-border)',borderRadius:'2px',padding:'12px',marginTop:'10px'}},[]);
       expWrap.append(div({style:{fontFamily:'Inter,sans-serif',fontSize:'9px',color:'var(--teal)',letterSpacing:'2px',textTransform:'uppercase',marginBottom:'6px'},html:'Explanation'}));
-      var chunks=q.explanation.split(/(?=\b[A-Q]\s*[\(\-])/);
+      var chunks=q.explanation.split(/(?=\b[A-Q]\s*[\(\-]\s)/);
       for(var ci=0;ci<chunks.length;ci++){
         var chunk=chunks[ci].trim();if(!chunk)continue;
         var optMatch=chunk.match(/^([A-Q])\s*[\(\-]/);
@@ -1363,7 +1363,7 @@ function runQuiz(a,test,questions){
   function buildExplanation(q){
     var exp=div({style:{background:'var(--correct-bg)',border:'1px solid var(--teal-border)',borderRadius:'2px',padding:'16px',marginTop:'16px'}},[]);
     exp.append(div({style:{fontFamily:'Inter,sans-serif',fontSize:'10px',color:'var(--teal)',letterSpacing:'2px',textTransform:'uppercase',marginBottom:'12px'},html:'Explanation'}));
-    var splitExp=(q.explanation||'').split(/(?=\b[A-Q]\s*[\(\-])/);
+    var splitExp=(q.explanation||'').split(/(?=\b[A-Q]\s*[\(\-]\s)/);
     splitExp.forEach(function(chunk){
       chunk=chunk.trim();if(!chunk)return;
       var isOption=/^[A-Q]\s*[\(\-]/.test(chunk);
@@ -1645,7 +1645,7 @@ function runAssessmentQuiz(a,assessment,questions){
   function buildExplanation(q){
     var exp=div({style:{background:'var(--correct-bg)',border:'1px solid var(--teal-border)',borderRadius:'2px',padding:'16px',marginTop:'16px'}},[]);
     exp.append(div({style:{fontFamily:'Inter,sans-serif',fontSize:'10px',color:'var(--teal)',letterSpacing:'2px',textTransform:'uppercase',marginBottom:'12px'},html:'Explanation'}));
-    var splitExp=(q.explanation||'').split(/(?=\b[A-Q]\s*[\(\-])/);
+    var splitExp=(q.explanation||'').split(/(?=\b[A-Q]\s*[\(\-]\s)/);
     splitExp.forEach(function(chunk){
       chunk=chunk.trim();if(!chunk)return;
       var isOption=/^[A-Q]\s*[\(\-]/.test(chunk);
@@ -2107,7 +2107,7 @@ function showReview(result){
     if(q.explanation){
       var expWrap=div({style:{background:'var(--correct-bg)',border:'1px solid var(--teal-border)',borderRadius:'2px',padding:'14px',marginTop:'12px'}},[]);
       expWrap.append(div({style:{fontFamily:'Inter,sans-serif',fontSize:'9px',color:'var(--teal)',letterSpacing:'2px',textTransform:'uppercase',marginBottom:'6px'},html:'Explanation'}));
-      var chunks=q.explanation.split(/(?=\b[A-Q]\s*[\(\-])/);
+      var chunks=q.explanation.split(/(?=\b[A-Q]\s*[\(\-]\s)/);
       for(var ci=0;ci<chunks.length;ci++){
         var chunk=chunks[ci].trim();if(!chunk)continue;
         var optMatch=chunk.match(/^([A-Q])\s*[\(\-]/);
@@ -5401,7 +5401,7 @@ if((revealed[q.id]||submitted)&&q.explanation){
 const exp=div({style:{background:'var(--correct-bg)',border:'1px solid var(--teal-border)',borderRadius:'2px',padding:'16px',marginTop:'16px'}});
 exp.append(div({style:{fontFamily:"Inter,sans-serif",fontSize:'10px',color:'var(--teal)',letterSpacing:'2px',textTransform:'uppercase',marginBottom:'12px'},html:'Explanation'}));
 const rawExp=q.explanation;
-const splitExp=rawExp.split(/(?=\b[A-Q]\s*[\(\-])/);
+const splitExp=rawExp.split(/(?=\b[A-Q]\s*[\(\-]\s)/);
 splitExp.forEach(function(chunk){
   chunk=chunk.trim();
   if(!chunk)return;
@@ -5497,7 +5497,7 @@ qCard.append(
 if(q.explanation){
   var expWrap=div({style:{background:'var(--correct-bg)',border:'1px solid var(--teal-border)',borderRadius:'2px',padding:'14px',marginTop:'12px'}});
   expWrap.append(div({style:{fontFamily:"Inter,sans-serif",fontSize:'9px',color:'var(--teal)',letterSpacing:'2px',textTransform:'uppercase',marginBottom:'6px'},html:'Explanation'}));
-  var chunks=q.explanation.split(/(?=\b[A-Q]\s*[\(\-])/);
+  var chunks=q.explanation.split(/(?=\b[A-Q]\s*[\(\-]\s)/);
   for(var ci=0;ci<chunks.length;ci++){
     var chunk=chunks[ci].trim();if(!chunk)continue;
     var optMatch=chunk.match(/^([A-Q])\s*[\(\-]/);
