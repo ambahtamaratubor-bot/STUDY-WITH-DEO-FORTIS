@@ -381,6 +381,59 @@ function downloadScoreReportPdf(reportEl,filename,onDone){
   });
 }
 
+function openImageLightbox(url){
+  var overlay=div({style:{position:'fixed',top:'0',left:'0',right:'0',bottom:'0',background:'rgba(0,0,0,0.9)',zIndex:'9999',display:'flex',alignItems:'center',justifyContent:'center',padding:'32px',cursor:'zoom-out'}},[]);
+  overlay.onclick=function(e){if(e.target===overlay)overlay.remove();};
+  var img=h('img',{src:url,style:{maxWidth:'100%',maxHeight:'100%',borderRadius:'4px',boxShadow:'0 0 40px rgba(0,0,0,0.6)',cursor:'zoom-out'}},[]);
+  img.onclick=function(){overlay.remove();};
+  var closeBtn=btn('\u2715','',function(){overlay.remove();},{style:{position:'absolute',top:'20px',right:'24px',background:'none',border:'none',color:'#fff',fontSize:'26px',cursor:'pointer',padding:'6px'}});
+  overlay.append(img,closeBtn);
+  document.body.append(overlay);
+}
+function normalizeMedia(media){
+  if(typeof media==='string'){try{media=JSON.parse(media);}catch(e){return [];}}
+  if(!media||!Array.isArray(media))return [];
+  return media;
+}
+function appendMediaSafely(container,media){
+  normalizeMedia(media).forEach(function(m){
+    try{container.append(mediaEmbed(m));}catch(e){
+      container.append(div({style:{fontSize:'11px',color:'#ff8888',marginBottom:'10px'}},['An attachment on this question could not be displayed.']));
+    }
+  });
+}
+function mediaEmbed(m){
+  var wrap=div({style:{marginBottom:'14px',border:'1px solid var(--teal-border)',borderRadius:'4px',padding:'14px',background:'rgba(126,173,168,0.05)'}},[]);
+  if(!m||!m.type){wrap.append(h('div',{style:{fontSize:'11px',color:'var(--muted)'}},['Attachment could not be displayed.']));return wrap;}
+  var label=m.type==='image'?'Image':m.type==='audio'?'Audio':'YouTube';
+  wrap.append(div({style:{fontFamily:'Inter,sans-serif',fontSize:'10px',color:'var(--teal)',letterSpacing:'2px',textTransform:'uppercase',marginBottom:'10px'},html:label+' attachment'}));
+  if(!m.url){wrap.append(h('div',{style:{fontSize:'11px',color:'#ff8888'}},['Missing file URL \u2014 try re-attaching this '+label.toLowerCase()+'.']));return wrap;}
+  if(m.type==='image'){
+    var thumbWrap=div({style:{display:'inline-block',cursor:'zoom-in'}},[]);
+    var errNote=div({style:{fontSize:'11px',color:'#ff8888',display:'none',marginTop:'6px'}},['Could not load this image \u2014 the link may be broken or the storage bucket may not be public.']);
+    var img=h('img',{src:m.url,style:{maxWidth:'340px',width:'100%',height:'auto',borderRadius:'3px',display:'block',border:'1px solid var(--teal-border)'}},[]);
+    img.onerror=function(){img.style.display='none';hint.style.display='none';errNote.style.display='block';};
+    var hint=div({style:{fontFamily:'Inter,sans-serif',fontSize:'10px',color:'var(--muted)',marginTop:'6px',textAlign:'center'}},['Click to enlarge']);
+    thumbWrap.append(img,hint,errNote);
+    thumbWrap.onclick=function(){if(img.style.display!=='none')openImageLightbox(m.url);};
+    wrap.append(thumbWrap);
+  }else if(m.type==='audio'){
+    var audio=h('audio',{controls:true,src:m.url,style:{width:'100%'}},[]);
+    var audioErr=div({style:{fontSize:'11px',color:'#ff8888',display:'none',marginTop:'6px'}},['Could not load this audio file.']);
+    audio.onerror=function(){audio.style.display='none';audioErr.style.display='block';};
+    wrap.append(audio,audioErr);
+  }else if(m.type==='youtube'){
+    var ytId=(function(u){var mt=String(u||'').match(/(?:youtu\.be\/|v=|embed\/)([A-Za-z0-9_-]{6,})/);return mt?mt[1]:'';})(m.url);
+    if(ytId){
+      var iframe=h('iframe',{src:'https://www.youtube.com/embed/'+ytId,style:{width:'100%',aspectRatio:'16/9',border:'none',borderRadius:'3px'},allowfullscreen:true},[]);
+      wrap.append(iframe);
+    }else{
+      wrap.append(h('div',{style:{fontSize:'12px',color:'var(--muted)'}},[m.url]));
+    }
+  }
+  return wrap;
+}
+
 // Builds the per-question review cards (question text, options colored by correctness,
 // explanation) shared by both the student-facing review screen and the admin review modal.
 function buildReviewQuestionCards(qs,ans,opts){
@@ -1536,59 +1589,6 @@ async function renderAssessmentScoreReport(o){
   content.append(wrap);
 }
 
-
-function openImageLightbox(url){
-  var overlay=div({style:{position:'fixed',top:'0',left:'0',right:'0',bottom:'0',background:'rgba(0,0,0,0.9)',zIndex:'9999',display:'flex',alignItems:'center',justifyContent:'center',padding:'32px',cursor:'zoom-out'}},[]);
-  overlay.onclick=function(e){if(e.target===overlay)overlay.remove();};
-  var img=h('img',{src:url,style:{maxWidth:'100%',maxHeight:'100%',borderRadius:'4px',boxShadow:'0 0 40px rgba(0,0,0,0.6)',cursor:'zoom-out'}},[]);
-  img.onclick=function(){overlay.remove();};
-  var closeBtn=btn('\u2715','',function(){overlay.remove();},{style:{position:'absolute',top:'20px',right:'24px',background:'none',border:'none',color:'#fff',fontSize:'26px',cursor:'pointer',padding:'6px'}});
-  overlay.append(img,closeBtn);
-  document.body.append(overlay);
-}
-function normalizeMedia(media){
-  if(typeof media==='string'){try{media=JSON.parse(media);}catch(e){return [];}}
-  if(!media||!Array.isArray(media))return [];
-  return media;
-}
-function appendMediaSafely(container,media){
-  normalizeMedia(media).forEach(function(m){
-    try{container.append(mediaEmbed(m));}catch(e){
-      container.append(div({style:{fontSize:'11px',color:'#ff8888',marginBottom:'10px'}},['An attachment on this question could not be displayed.']));
-    }
-  });
-}
-function mediaEmbed(m){
-  var wrap=div({style:{marginBottom:'14px',border:'1px solid var(--teal-border)',borderRadius:'4px',padding:'14px',background:'rgba(126,173,168,0.05)'}},[]);
-  if(!m||!m.type){wrap.append(h('div',{style:{fontSize:'11px',color:'var(--muted)'}},['Attachment could not be displayed.']));return wrap;}
-  var label=m.type==='image'?'Image':m.type==='audio'?'Audio':'YouTube';
-  wrap.append(div({style:{fontFamily:'Inter,sans-serif',fontSize:'10px',color:'var(--teal)',letterSpacing:'2px',textTransform:'uppercase',marginBottom:'10px'},html:label+' attachment'}));
-  if(!m.url){wrap.append(h('div',{style:{fontSize:'11px',color:'#ff8888'}},['Missing file URL \u2014 try re-attaching this '+label.toLowerCase()+'.']));return wrap;}
-  if(m.type==='image'){
-    var thumbWrap=div({style:{display:'inline-block',cursor:'zoom-in'}},[]);
-    var errNote=div({style:{fontSize:'11px',color:'#ff8888',display:'none',marginTop:'6px'}},['Could not load this image \u2014 the link may be broken or the storage bucket may not be public.']);
-    var img=h('img',{src:m.url,style:{maxWidth:'340px',width:'100%',height:'auto',borderRadius:'3px',display:'block',border:'1px solid var(--teal-border)'}},[]);
-    img.onerror=function(){img.style.display='none';hint.style.display='none';errNote.style.display='block';};
-    var hint=div({style:{fontFamily:'Inter,sans-serif',fontSize:'10px',color:'var(--muted)',marginTop:'6px',textAlign:'center'}},['Click to enlarge']);
-    thumbWrap.append(img,hint,errNote);
-    thumbWrap.onclick=function(){if(img.style.display!=='none')openImageLightbox(m.url);};
-    wrap.append(thumbWrap);
-  }else if(m.type==='audio'){
-    var audio=h('audio',{controls:true,src:m.url,style:{width:'100%'}},[]);
-    var audioErr=div({style:{fontSize:'11px',color:'#ff8888',display:'none',marginTop:'6px'}},['Could not load this audio file.']);
-    audio.onerror=function(){audio.style.display='none';audioErr.style.display='block';};
-    wrap.append(audio,audioErr);
-  }else if(m.type==='youtube'){
-    var ytId=(function(u){var mt=String(u||'').match(/(?:youtu\.be\/|v=|embed\/)([A-Za-z0-9_-]{6,})/);return mt?mt[1]:'';})(m.url);
-    if(ytId){
-      var iframe=h('iframe',{src:'https://www.youtube.com/embed/'+ytId,style:{width:'100%',aspectRatio:'16/9',border:'none',borderRadius:'3px'},allowfullscreen:true},[]);
-      wrap.append(iframe);
-    }else{
-      wrap.append(h('div',{style:{fontSize:'12px',color:'var(--muted)'}},[m.url]));
-    }
-  }
-  return wrap;
-}
 
 function runAssessmentQuiz(a,assessment,questions){
   var mode=assessment.mode;
