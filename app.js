@@ -383,19 +383,22 @@ function downloadScoreReportPdf(reportEl,filename,onDone){
 
 // Builds the per-question review cards (question text, options colored by correctness,
 // explanation) shared by both the student-facing review screen and the admin review modal.
-function buildReviewQuestionCards(qs,ans){
+function buildReviewQuestionCards(qs,ans,opts){
+  opts=opts||{};
   var cards=[];
   qs.forEach(function(q,i){
     var userAns=ans[q.id];
     var correct=String(q.correct_answer||'').toUpperCase();
     var isCorrect=userAns===correct;
-    var qCard=div({style:{background:'var(--card)',border:'1px solid '+(isCorrect?'var(--teal)':'#8B000066'),borderRadius:'4px',padding:'18px',marginBottom:'14px'}},[]);
+    var qCard=div({style:{background:'var(--card)',border:'1px solid '+(opts.previewMode?'var(--border)':(isCorrect?'var(--teal)':'#8B000066')),borderRadius:'4px',padding:'18px',marginBottom:'14px'}},[]);
     var qTextDiv=div({style:{marginBottom:'14px'}},[]);
     renderQuestionText(q.question,qTextDiv);
-    qCard.append(div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'10px'}},[div({cls:'mono',style:{fontSize:'9px'},html:'Question '+(i+1)}),h('span',{style:{fontFamily:'Inter,sans-serif',fontSize:'11px',color:isCorrect?'var(--teal)':'#ff8888',fontWeight:'700'},html:isCorrect?'\u2713 Correct':'\u2717 Incorrect'})]),qTextDiv);
+    var headerRow=div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'10px'}},[div({cls:'mono',style:{fontSize:'9px'},html:'Question '+(i+1)})]);
+    if(!opts.previewMode)headerRow.append(h('span',{style:{fontFamily:'Inter,sans-serif',fontSize:'11px',color:isCorrect?'var(--teal)':'#ff8888',fontWeight:'700'},html:isCorrect?'\u2713 Correct':'\u2717 Incorrect'}));
+    qCard.append(headerRow,qTextDiv);
     ['a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p','q'].forEach(function(opt){
       var val=q['option_'+opt];if(!val)return;
-      var isUser=userAns===opt.toUpperCase();var isCorr=correct===opt.toUpperCase();
+      var isUser=!opts.previewMode&&userAns===opt.toUpperCase();var isCorr=correct===opt.toUpperCase();
       var bg=isCorr?'var(--correct-bg)':(isUser&&!isCorr?'var(--wrong-bg)':'transparent');
       var color=isCorr?'var(--teal)':(isUser&&!isCorr?'#ff8888':'var(--muted)');
       var border=isCorr?'1px solid var(--teal)':(isUser&&!isCorr?'1px solid #ff8888':'1px solid var(--border)');
@@ -6601,26 +6604,80 @@ function renderLibrary(){
   upCard.append(tTitle,modeRow,limitWrap,tFile,tPaste,tPreview,div({style:{display:'flex',alignItems:'center',flexWrap:'wrap'}},[parseBtn,saveBtn]),tSt);
   tBody.append(upCard);
 
-  var folderCard=div({cls:'card',style:{marginBottom:'20px'}},[]);
-  folderCard.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'15px',marginBottom:'12px'},html:'Folders'}));
-  var folderListWrap=div({style:{display:'flex',flexWrap:'wrap',gap:'8px',marginBottom:'12px'}},[]);
-  var newFolderInput=h('input',{cls:'input',placeholder:'New folder name \u2014 e.g. Pathology',style:{width:'220px'}});
-  var createFolderBtn=btn('+ Create folder','btn-outline',async function(){
+  var FOLDER_ICON='<svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4.2l1.8 2H19a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"/></svg>';
+  var KEBAB_ICON='<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg>';
+  if(!window._dfFolderMenuListenerBound){
+    window._dfFolderMenuState={open:null};
+    document.addEventListener('click',function(){var st=window._dfFolderMenuState;if(st.open){st.open.style.display='none';st.open=null;}});
+    window._dfFolderMenuListenerBound=true;
+  }
+
+  var folderCard=div({cls:'card',style:{marginBottom:'20px',padding:'16px'}},[]);
+  var addFolderBtn=btn('+ New Folder','btn-outline',function(){addFolderForm.style.display=addFolderForm.style.display==='none'?'flex':'none';if(addFolderForm.style.display==='flex')newFolderInput.focus();},{style:{fontSize:'12px',padding:'8px 16px'}});
+  var newFolderInput=h('input',{cls:'input',placeholder:'Folder name \u2014 e.g. Hematology',style:{width:'220px',marginBottom:'0'}});
+  var confirmFolderBtn=btn('Create','btn-gold',async function(){
     var name=newFolderInput.value.trim();
     if(!name)return;
-    createFolderBtn.disabled=true;
+    confirmFolderBtn.disabled=true;
     var ins=await sb.from('tutoring_test_folders').insert({name:name,created_by:S.user.id}).select().single();
-    createFolderBtn.disabled=false;
+    confirmFolderBtn.disabled=false;
     if(ins.error){alert('Could not create folder: '+ins.error.message);return;}
-    newFolderInput.value='';
+    newFolderInput.value='';addFolderForm.style.display='none';
     loadLibrary();
-  },{style:{fontSize:'11px',padding:'6px 14px'}});
-  newFolderInput.onkeydown=function(e){if(e.key==='Enter')createFolderBtn.click();};
-  folderCard.append(folderListWrap,div({style:{display:'flex',gap:'8px',flexWrap:'wrap'}},[newFolderInput,createFolderBtn]));
+  },{style:{fontSize:'11px',padding:'8px 16px'}});
+  var cancelFolderBtn=btn('Cancel','btn-outline',function(){addFolderForm.style.display='none';newFolderInput.value='';},{style:{fontSize:'11px',padding:'8px 16px'}});
+  newFolderInput.onkeydown=function(e){if(e.key==='Enter')confirmFolderBtn.click();if(e.key==='Escape')cancelFolderBtn.click();};
+  var addFolderForm=div({style:{display:'none',gap:'8px',marginTop:'10px',flexWrap:'wrap',alignItems:'center'}},[newFolderInput,confirmFolderBtn,cancelFolderBtn]);
+  folderCard.append(addFolderBtn,addFolderForm);
   tBody.append(folderCard);
 
   var libWrap=div({},[]);
   tBody.append(libWrap);
+
+  function folderBlock(title,count,isRealFolder,actions){
+    var open=false;
+    var block=div({cls:'card',style:{padding:'0',marginBottom:'10px',overflow:'visible'}});
+    var header=div({style:{display:'flex',alignItems:'center',gap:'10px',padding:'14px 16px',cursor:'pointer'}});
+    var iconEl=h('span',{style:{color:isRealFolder?'var(--gold)':'var(--muted)',display:'flex',flexShrink:'0'},html:FOLDER_ICON});
+    var nameEl=h('span',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'14px',fontWeight:'600',color:'var(--text)',flex:'1'}},[title]);
+    var countEl=h('span',{cls:'mono',style:{fontSize:'10px',color:'var(--dim)',background:'var(--card2)',border:'1px solid var(--border)',borderRadius:'999px',padding:'2px 9px'}},[String(count)]);
+    var chevron=h('span',{style:{color:'var(--muted)',display:'flex',transition:'transform .2s',flexShrink:'0'},html:SVG_CHEVRON_RIGHT});
+    var rightControls=div({style:{display:'flex',alignItems:'center',gap:'8px',flexShrink:'0'}},[]);
+    if(actions&&actions.length){
+      var menuWrap=div({style:{position:'relative'}},[]);
+      var kebabBtn=h('button',{cls:'btn btn-outline',style:{padding:'5px 8px',fontSize:'12px',lineHeight:'1'},html:KEBAB_ICON});
+      var menu=div({style:{position:'absolute',top:'110%',right:'0',background:'var(--card)',border:'1px solid var(--border)',borderRadius:'8px',boxShadow:'0 8px 24px rgba(0,0,0,0.3)',padding:'4px',display:'none',zIndex:'30',minWidth:'150px'}},[]);
+      actions.forEach(function(a){
+        var item=h('button',{style:{display:'block',width:'100%',textAlign:'left',background:'transparent',border:'none',padding:'9px 12px',fontSize:'12px',fontFamily:'Inter,sans-serif',color:a.danger?'#ff4444':'var(--text)',cursor:'pointer',borderRadius:'5px'}},[a.label]);
+        item.onmouseenter=function(){item.style.background='var(--card2)';};
+        item.onmouseleave=function(){item.style.background='transparent';};
+        item.onclick=function(e){e.stopPropagation();menu.style.display='none';window._dfFolderMenuState.open=null;a.onClick();};
+        menu.append(item);
+      });
+      kebabBtn.onclick=function(e){
+        e.stopPropagation();
+        var st=window._dfFolderMenuState;
+        if(st.open===menu){menu.style.display='none';st.open=null;return;}
+        if(st.open)st.open.style.display='none';
+        menu.style.display='block';st.open=menu;
+      };
+      menuWrap.append(kebabBtn,menu);
+      rightControls.append(menuWrap);
+    }
+    rightControls.append(chevron);
+    header.append(iconEl,nameEl,countEl,rightControls);
+    var contentDiv=div({style:{display:'none',padding:'0 16px 14px'}},[]);
+    header.onclick=function(){
+      open=!open;
+      contentDiv.style.display=open?'block':'none';
+      chevron.style.transform=open?'rotate(90deg)':'rotate(0deg)';
+      header.style.borderBottom=open?'1px solid var(--border)':'none';
+      header.style.paddingBottom=open?'13px':'14px';
+    };
+    block.append(header,contentDiv);
+    return{block:block,contentDiv:contentDiv};
+  }
+
   async function loadLibrary(){
     libWrap.innerHTML='';libWrap.append(skelCard([['40%'],['80%']]));
     var tRes=await sb.from('tutoring_tests').select('*').order('created_at',{ascending:false});
@@ -6628,35 +6685,9 @@ function renderLibrary(){
     var tests=tRes.data||[];var folders=fRes.data||[];var counts={};
     if(tests.length){var ids=tests.map(function(x){return x.id;});var qc=await sb.from('tutoring_questions').select('test_id').in('test_id',ids);(qc.data||[]).forEach(function(r){counts[r.test_id]=(counts[r.test_id]||0)+1;});}
 
-    folderListWrap.innerHTML='';
-    if(!folders.length){
-      folderListWrap.append(h('div',{style:{fontSize:'12px',color:'var(--dim)'}},['No folders yet \u2014 create one below, then move tests into it from the library list.']));
-    }
-    folders.forEach(function(f){
-      var pill=div({style:{display:'flex',alignItems:'center',gap:'6px',border:'1px solid var(--border)',borderRadius:'999px',padding:'4px 6px 4px 12px',fontSize:'12px'}},[]);
-      pill.append(h('span',{style:{fontFamily:'Inter,sans-serif',color:'var(--text)'}},[f.name]));
-      pill.append(btn('Rename','btn-outline',async function(){
-        var nn=prompt('Rename folder',f.name);
-        if(nn===null)return;
-        nn=nn.trim();
-        if(!nn||nn===f.name)return;
-        var up=await sb.from('tutoring_test_folders').update({name:nn}).eq('id',f.id);
-        if(up.error){alert('Rename failed: '+up.error.message);return;}
-        loadLibrary();
-      },{style:{fontSize:'9px',padding:'3px 8px'}}));
-      pill.append(btn('\u00d7','btn-outline',async function(){
-        if(!confirm('Delete folder \u201c'+f.name+'\u201d? Tests inside it become ungrouped \u2014 they are not deleted.'))return;
-        await sb.from('tutoring_tests').update({folder_id:null}).eq('folder_id',f.id);
-        var d=await sb.from('tutoring_test_folders').delete().eq('id',f.id);
-        if(d.error){alert('Delete failed: '+d.error.message);return;}
-        loadLibrary();
-      },{style:{fontSize:'11px',padding:'3px 8px',color:'#ff4444',borderColor:'#ff4444'}}));
-      folderListWrap.append(pill);
-    });
-
     libWrap.innerHTML='';
     libWrap.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'16px',marginBottom:'12px'},html:'Library ('+tests.length+')'}));
-    if(!tests.length){libWrap.append(div({cls:'card',style:{textAlign:'center',padding:'30px'}},[h('p',{style:{fontSize:'13px',color:'var(--dim)'},html:'No tests yet. Upload one above.'})]));return;}
+    if(!tests.length&&!folders.length){libWrap.append(div({cls:'card',style:{textAlign:'center',padding:'30px'}},[h('p',{style:{fontSize:'13px',color:'var(--dim)'},html:'No tests yet. Upload one above.'})]));return;}
 
     function renderTestCard(t){
       var card=div({cls:'card',style:{marginBottom:'10px',display:'flex',justifyContent:'space-between',alignItems:'center',gap:'14px',flexWrap:'wrap'}},[]);
@@ -6669,6 +6700,7 @@ function renderLibrary(){
         if(t.folder_id===f.id)opt.selected=true;
         folderSel.append(opt);
       });
+      folderSel.onclick=function(e){e.stopPropagation();};
       folderSel.onchange=async function(){
         var prev=t.folder_id||'';
         var newId=folderSel.value||null;
@@ -6677,6 +6709,7 @@ function renderLibrary(){
         loadLibrary();
       };
       btns.append(folderSel);
+      btns.append(btn('Preview','btn-outline',function(){openLibraryPreview('test',t);},{style:{fontSize:'10px',padding:'6px 12px'}}));
       btns.append(btn('Assign','btn-gold',function(){openAssign({testId:t.id,testTitle:t.title});},{style:{fontSize:'10px',padding:'6px 12px'}}));
       btns.append(btn('Delete','btn-outline',async function(){if(!confirm('Delete \u201c'+t.title+'\u201d? Its questions and any current assignments are removed. Past results are preserved.'))return;var d=await sb.from('tutoring_tests').delete().eq('id',t.id);if(d&&d.error){alert('Delete failed: '+d.error.message);return;}loadLibrary();},{style:{fontSize:'10px',padding:'6px 12px',color:'#ff4444',borderColor:'#ff4444'}}));
       card.append(btns);
@@ -6689,16 +6722,40 @@ function renderLibrary(){
       if(!byFolder[key])byFolder[key]=[];
       byFolder[key].push(t);
     });
+
     folders.forEach(function(f){
-      var group=byFolder[f.id];
-      if(!group||!group.length)return;
-      libWrap.append(h('div',{cls:'mono',style:{fontSize:'11px',color:'var(--gold)',textTransform:'uppercase',letterSpacing:'1px',margin:'16px 0 8px'}},[f.name+' ('+group.length+')']));
-      group.forEach(function(t){libWrap.append(renderTestCard(t));});
+      var group=byFolder[f.id]||[];
+      var fb=folderBlock(f.name,group.length,true,[
+        {label:'Rename folder',onClick:async function(){
+          var nn=prompt('Rename folder',f.name);
+          if(nn===null)return;
+          nn=nn.trim();
+          if(!nn||nn===f.name)return;
+          var up=await sb.from('tutoring_test_folders').update({name:nn}).eq('id',f.id);
+          if(up.error){alert('Rename failed: '+up.error.message);return;}
+          loadLibrary();
+        }},
+        {label:'Delete folder',danger:true,onClick:async function(){
+          if(!confirm('Delete \u201c'+f.name+'\u201d? Tests inside it become ungrouped \u2014 they are not deleted.'))return;
+          await sb.from('tutoring_tests').update({folder_id:null}).eq('folder_id',f.id);
+          var d=await sb.from('tutoring_test_folders').delete().eq('id',f.id);
+          if(d.error){alert('Delete failed: '+d.error.message);return;}
+          loadLibrary();
+        }}
+      ]);
+      if(!group.length){
+        fb.contentDiv.append(h('div',{style:{fontSize:'12px',color:'var(--dim)',padding:'10px 0'}},['No tests in this folder yet \u2014 move one in using the folder dropdown on any test below.']));
+      }else{
+        group.forEach(function(t){fb.contentDiv.append(renderTestCard(t));});
+      }
+      libWrap.append(fb.block);
     });
+
     var ungrouped=byFolder['__none__']||[];
     if(ungrouped.length){
-      if(folders.length){libWrap.append(h('div',{cls:'mono',style:{fontSize:'11px',color:'var(--muted)',textTransform:'uppercase',letterSpacing:'1px',margin:'16px 0 8px'}},['Ungrouped ('+ungrouped.length+')']));}
-      ungrouped.forEach(function(t){libWrap.append(renderTestCard(t));});
+      var ub=folderBlock('Ungrouped',ungrouped.length,false,null);
+      ungrouped.forEach(function(t){ub.contentDiv.append(renderTestCard(t));});
+      libWrap.append(ub.block);
     }
   }
   loadLibrary();
@@ -6907,6 +6964,7 @@ function renderAssessments(){
       card.append(div({style:{flex:'1',minWidth:'220px'}},[div({style:{display:'flex',alignItems:'center',marginBottom:'6px',flexWrap:'wrap'}},[statusPillEl,modeBadgeEl(a.mode),h('span',{style:{fontFamily:'Georgia,serif',fontSize:'17px',color:'var(--text)'}},[a.title])]),h('div',{cls:'mono',style:{fontSize:'11px',color:'var(--muted)'}},[qCount+' questions'+(a.mode==='timed'&&a.time_limit?' \u00b7 '+a.time_limit+' min'+(a.block_size?'/block':''):'')+blockInfo+' \u00b7 '+new Date(a.created_at).toLocaleDateString()])]));
       var btns=div({style:{display:'flex',gap:'6px',flexShrink:'0'}},[]);
       if(!a.published)btns.append(btn('Publish','btn-outline',async function(){var up=await sb.from('tutoring_assessments').update({published:true}).eq('id',a.id);if(up&&up.error){alert('Failed: '+up.error.message);return;}loadAssessments();},{style:{fontSize:'10px',padding:'6px 12px'}}));
+      btns.append(btn('Preview','btn-outline',function(){openLibraryPreview('assessment',a);},{style:{fontSize:'10px',padding:'6px 12px'}}));
       btns.append(btn('Assign','btn-gold',function(){openAssignAssessment({assessmentId:a.id,assessmentTitle:a.title});},{style:{fontSize:'10px',padding:'6px 12px'}}));
       btns.append(btn('Delete','btn-outline',async function(){if(!confirm('Delete \u201c'+a.title+'\u201d? Its questions and any current assignments are removed. Past results are preserved.'))return;var d=await sb.from('tutoring_assessments').delete().eq('id',a.id);if(d&&d.error){alert('Delete failed: '+d.error.message);return;}loadAssessments();},{style:{fontSize:'10px',padding:'6px 12px',color:'#ff4444',borderColor:'#ff4444'}}));
       card.append(btns);
@@ -7000,6 +7058,38 @@ function openAssignAssessment(opts){
       studWrap.append(rowBtn);
     });
     refreshAssignList();
+  })();
+}
+
+/* ===================== TEST / ASSESSMENT PREVIEW (ADMIN, NO ASSIGNMENT NEEDED) ===================== */
+function openLibraryPreview(kind,item){
+  var title=item.title||'Untitled';
+  var overlay=div({style:{position:'fixed',top:'0',left:'0',width:'100%',height:'100%',background:'rgba(0,0,0,0.72)',zIndex:'1000',display:'flex',alignItems:'flex-start',justifyContent:'center',overflowY:'auto',padding:'32px 16px',boxSizing:'border-box'}},[]);
+  var modal=div({style:{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:'6px',padding:'28px',width:'100%',maxWidth:'740px',position:'relative',boxSizing:'border-box'}},[]);
+  var closeBtn=btn('\u2715 Close','btn-outline',function(){overlay.remove();},{style:{position:'absolute',top:'16px',right:'16px',fontSize:'11px',padding:'5px 12px'}});
+  modal.append(closeBtn);
+  modal.append(h('span',{cls:'chapter',html:'Preview'},[]));
+  modal.append(h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'20px',marginBottom:'4px'}},[title]));
+  var subParts=[];
+  subParts.push(item.mode==='timed'?'Timed':'Tutor');
+  if(item.mode==='timed'&&item.time_limit)subParts.push(item.time_limit+' min'+(item.block_size?' per block':''));
+  if(item.block_size)subParts.push(item.block_size+' Q/block');
+  modal.append(h('p',{cls:'muted',style:{fontSize:'12px',marginBottom:'16px'}},[subParts.join(' \u00b7 ')+' \u2014 answer key visible, nothing is recorded']));
+  var body=div({},[]);
+  body.append(skelCard([['40%'],['100%'],['100%'],['80%']]));
+  modal.append(body);
+  overlay.append(modal);
+  document.body.append(overlay);
+  overlay.onclick=function(e){if(e.target===overlay)overlay.remove();};
+  (async function(){
+    var q=kind==='test'
+      ?await sb.from('tutoring_questions').select('*').eq('test_id',item.id).order('position',{ascending:true})
+      :await sb.from('tutoring_assessment_questions').select('*').eq('assessment_id',item.id).order('position',{ascending:true});
+    var qs=q.data||[];
+    body.innerHTML='';
+    if(!qs.length){body.append(h('p',{style:{color:'var(--muted)',fontSize:'13px'}},['No questions in this '+(kind==='test'?'test':'assessment')+' yet.']));return;}
+    body.append(h('p',{cls:'mono',style:{fontSize:'11px',color:'var(--dim)',marginBottom:'14px',textTransform:'uppercase',letterSpacing:'1px'}},[qs.length+' question'+(qs.length!==1?'s':'')]));
+    buildReviewQuestionCards(qs,{},{previewMode:true}).forEach(function(c){body.append(c);});
   })();
 }
 
