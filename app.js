@@ -392,9 +392,7 @@ function buildReviewQuestionCards(qs,ans,opts){
     var isCorrect=userAns===correct;
     var qCard=div({style:{background:'var(--card)',border:'1px solid '+(opts.previewMode?'var(--border)':(isCorrect?'var(--teal)':'#8B000066')),borderRadius:'4px',padding:'18px',marginBottom:'14px'}},[]);
     var qTextDiv=div({style:{marginBottom:'14px'}},[]);
-    var media=q.media;
-    if(typeof media==='string'){try{media=JSON.parse(media);}catch(e){media=[];}}
-    if(media&&media.length)media.forEach(function(m){qCard.append(mediaEmbed(m));});
+    appendMediaSafely(qCard,q.media);
     renderQuestionText(q.question,qTextDiv);
     var headerRow=div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'10px'}},[div({cls:'mono',style:{fontSize:'9px'},html:'Question '+(i+1)})]);
     if(!opts.previewMode)headerRow.append(h('span',{style:{fontFamily:'Inter,sans-serif',fontSize:'11px',color:isCorrect?'var(--teal)':'#ff8888',fontWeight:'700'},html:isCorrect?'\u2713 Correct':'\u2717 Incorrect'}));
@@ -1548,20 +1546,38 @@ function openImageLightbox(url){
   overlay.append(img,closeBtn);
   document.body.append(overlay);
 }
+function normalizeMedia(media){
+  if(typeof media==='string'){try{media=JSON.parse(media);}catch(e){return [];}}
+  if(!media||!Array.isArray(media))return [];
+  return media;
+}
+function appendMediaSafely(container,media){
+  normalizeMedia(media).forEach(function(m){
+    try{container.append(mediaEmbed(m));}catch(e){
+      container.append(div({style:{fontSize:'11px',color:'#ff8888',marginBottom:'10px'}},['An attachment on this question could not be displayed.']));
+    }
+  });
+}
 function mediaEmbed(m){
   var wrap=div({style:{marginBottom:'14px',border:'1px solid var(--teal-border)',borderRadius:'4px',padding:'14px',background:'rgba(126,173,168,0.05)'}},[]);
+  if(!m||!m.type){wrap.append(h('div',{style:{fontSize:'11px',color:'var(--muted)'}},['Attachment could not be displayed.']));return wrap;}
   var label=m.type==='image'?'Image':m.type==='audio'?'Audio':'YouTube';
   wrap.append(div({style:{fontFamily:'Inter,sans-serif',fontSize:'10px',color:'var(--teal)',letterSpacing:'2px',textTransform:'uppercase',marginBottom:'10px'},html:label+' attachment'}));
+  if(!m.url){wrap.append(h('div',{style:{fontSize:'11px',color:'#ff8888'}},['Missing file URL \u2014 try re-attaching this '+label.toLowerCase()+'.']));return wrap;}
   if(m.type==='image'){
     var thumbWrap=div({style:{display:'inline-block',cursor:'zoom-in'}},[]);
+    var errNote=div({style:{fontSize:'11px',color:'#ff8888',display:'none',marginTop:'6px'}},['Could not load this image \u2014 the link may be broken or the storage bucket may not be public.']);
     var img=h('img',{src:m.url,style:{maxWidth:'340px',width:'100%',height:'auto',borderRadius:'3px',display:'block',border:'1px solid var(--teal-border)'}},[]);
+    img.onerror=function(){img.style.display='none';hint.style.display='none';errNote.style.display='block';};
     var hint=div({style:{fontFamily:'Inter,sans-serif',fontSize:'10px',color:'var(--muted)',marginTop:'6px',textAlign:'center'}},['Click to enlarge']);
-    thumbWrap.append(img,hint);
-    thumbWrap.onclick=function(){openImageLightbox(m.url);};
+    thumbWrap.append(img,hint,errNote);
+    thumbWrap.onclick=function(){if(img.style.display!=='none')openImageLightbox(m.url);};
     wrap.append(thumbWrap);
   }else if(m.type==='audio'){
     var audio=h('audio',{controls:true,src:m.url,style:{width:'100%'}},[]);
-    wrap.append(audio);
+    var audioErr=div({style:{fontSize:'11px',color:'#ff8888',display:'none',marginTop:'6px'}},['Could not load this audio file.']);
+    audio.onerror=function(){audio.style.display='none';audioErr.style.display='block';};
+    wrap.append(audio,audioErr);
   }else if(m.type==='youtube'){
     var ytId=(function(u){var mt=String(u||'').match(/(?:youtu\.be\/|v=|embed\/)([A-Za-z0-9_-]{6,})/);return mt?mt[1]:'';})(m.url);
     if(ytId){
@@ -1696,9 +1712,7 @@ function runAssessmentQuiz(a,assessment,questions){
     },{style:{fontSize:'10px',padding:'4px 10px',color:flagged[q.id]?'var(--gold)':'var(--muted)',borderColor:flagged[q.id]?'var(--gold)':'var(--border)'}});
     qHeader.append(flagBtn);
     qCard.append(qHeader);
-    var media=q.media;
-    if(typeof media==='string'){try{media=JSON.parse(media);}catch(e){media=[];}}
-    if(media&&media.length){media.forEach(function(m){qCard.append(mediaEmbed(m));});}
+    appendMediaSafely(qCard,q.media);
     renderQuestionText(q.question,qCard);
     mainArea.append(qCard);
 
@@ -1983,9 +1997,7 @@ function runBlockedAssessment(a,assessment,allQuestions){
       },{style:{fontSize:'10px',padding:'4px 10px',color:globalFlagged[q.id]?'var(--gold)':'var(--muted)',borderColor:globalFlagged[q.id]?'var(--gold)':'var(--border)'}});
       qHeader.append(flagBtn);
       qCard.append(qHeader);
-      var media=q.media;
-      if(typeof media==='string'){try{media=JSON.parse(media);}catch(e){media=[];}}
-      if(media&&media.length){media.forEach(function(m){qCard.append(mediaEmbed(m));});}
+      appendMediaSafely(qCard,q.media);
       renderQuestionText(q.question,qCard);
       mainArea.append(qCard);
 
@@ -7239,9 +7251,7 @@ function renderExamStylePreview(kind,item,questions){
     var q=questions[current];
     var qCard=div({cls:'card',style:{marginBottom:'16px'}},[]);
     qCard.append(div({cls:'mono',style:{marginBottom:'12px'},html:'Question '+(current+1)}));
-    var media=q.media;
-    if(typeof media==='string'){try{media=JSON.parse(media);}catch(e){media=[];}}
-    if(media&&media.length)media.forEach(function(m){qCard.append(mediaEmbed(m));});
+    appendMediaSafely(qCard,q.media);
     var qTextDiv=div({},[]);
     renderQuestionText(q.question,qTextDiv);
     qCard.append(qTextDiv);
