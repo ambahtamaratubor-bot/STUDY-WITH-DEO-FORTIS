@@ -327,7 +327,7 @@ function dfHlApply(container,store,qid){
 }
 function renderQuestionText(text,container){
 var LAB_INLINE_RE=/(?:(?:Laboratory|Lab) (?:studies|results|findings|data|values)[^:]*:|studies show:|results show:|values show:)\s*((?:[^;]+(?:\/[^\s;]+)?\s*\([^)]+\);\s*)+)/i;
-var LAB_ITEM_RE=/([^;:()\\/\d]+?)\s+([\d,\.]+(?:[-\u2013][\d,\.]+)?\s*(?:\/[\w\u00b5]+)?)\s+(?:U\/L|g\/dL|mg\/dL|mEq\/L|mmol\/L|\u00b5mol\/L|umol\/L|IU\/L|ng\/mL|pg\/mL|\u00b5g\/dL|ug\/dL|%|\/\u00b5L|\/uL|mm\/hr|mm Hg|cm|x10\^?\d+\/?\\w*)?\s*\((?:normal\s+)?([^)]+)\)/gi;
+var LAB_ITEM_RE=/([^;:()\\/\d]+?)\s+([\d,\.]+(?:[-\u2013][\d,\.]+)?(?:\s*[x\u00d7]\s*10\^?\d+)?\s*(?:\/[\w\u00b5]+)?)\s*(?:U\/L|g\/dL|mg\/dL|mEq\/L|mmol\/L|\u00b5mol\/L|umol\/L|IU\/L|ng\/mL|pg\/mL|\u00b5g\/dL|ug\/dL|%|\/\u00b5L|\/uL|mm\/hr|mm Hg|cm|x10\^?\d+\/?\\w*)?\s*\((?:normal\s+)?([^)]+)\)/gi;
 var match=LAB_INLINE_RE.exec(text);
 if(!match){var p=h('p',{style:{fontSize:'15px',color:'var(--text)',lineHeight:'1.8'}},[]);p.textContent=text;container.append(p);return;}
 var matchStart=text.indexOf(match[0]);
@@ -5298,7 +5298,7 @@ inner.append(hCard);
 }
 function renderQuestionText(text,container){
 var LAB_INLINE_RE=/(?:(?:Laboratory|Lab) (?:studies|results|findings|data|values)[^:]*:|studies show:|results show:|values show:)\s*((?:[^;]+(?:\/[^\s;]+)?\s*\([^)]+\);\s*)+)/i;
-var LAB_ITEM_RE=/([^;:()\\/\d]+?)\s+([\d,\.]+(?:[-\u2013][\d,\.]+)?\s*(?:\/[\w\u00b5]+)?)\s+(?:U\/L|g\/dL|mg\/dL|mEq\/L|mmol\/L|\u00b5mol\/L|umol\/L|IU\/L|ng\/mL|pg\/mL|\u00b5g\/dL|ug\/dL|%|\/\u00b5L|\/uL|mm\/hr|mm Hg|cm|x10\^?\d+\/?\\w*)?\s*\((?:normal\s+)?([^)]+)\)/gi;
+var LAB_ITEM_RE=/([^;:()\\/\d]+?)\s+([\d,\.]+(?:[-\u2013][\d,\.]+)?(?:\s*[x\u00d7]\s*10\^?\d+)?\s*(?:\/[\w\u00b5]+)?)\s*(?:U\/L|g\/dL|mg\/dL|mEq\/L|mmol\/L|\u00b5mol\/L|umol\/L|IU\/L|ng\/mL|pg\/mL|\u00b5g\/dL|ug\/dL|%|\/\u00b5L|\/uL|mm\/hr|mm Hg|cm|x10\^?\d+\/?\\w*)?\s*\((?:normal\s+)?([^)]+)\)/gi;
 var match=LAB_INLINE_RE.exec(text);
 if(!match){var p=h('p',{style:{fontSize:'15px',color:'var(--text)',lineHeight:'1.8'}},[]);p.textContent=text;container.append(p);return;}
 var matchStart=text.indexOf(match[0]);
