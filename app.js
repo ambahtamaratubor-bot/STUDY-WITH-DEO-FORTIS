@@ -2,6 +2,8 @@ const SURL='https://yygjkqkzbdjnyyrrhdku.supabase.co';
 const SKEY='sb_publishable_b83FyTbx9QbFYiJQNQE2Cg_ZnWFoN9F';
 const ADMIN_EMAIL='deofortistutors@gmail.com';
 const sb=window.supabase.createClient(SURL,SKEY,{auth:{persistSession:true,autoRefreshToken:true,storageKey:'df-auth',detectSessionInUrl:false,storage:window.localStorage},global:{headers:{'apikey':SKEY}}});
+// Apps Script web app URL for tutor payout notifications — deploy Payout_Notify.gs and paste the /exec URL here.
+const PAYOUT_NOTIFY_URL='PASTE_YOUR_PAYOUT_NOTIFY_SCRIPT_URL_HERE';
 function sani(html){return DOMPurify.sanitize(html||'',{USE_PROFILES:{html:true}});}
 function dfLogo(){
   var wrap=document.createElement('div');
@@ -5977,7 +5979,7 @@ page.append(aN);
 const tabs=div({style:{display:'none'}});
 const content=div({cls:'inner-md',style:{padding:'24px'}});
 let curTab='settings';
-const tabDefs=[['settings','⚙ Settings'],['users','Users'],['recalls','Recalls'],['flashcards','Flashcards'],['questions','Q-Bank'],['testimonials','Reviews'],['packages','Packages'],['bookings','Bookings'],['feynman','Feynman'],['riddles','Riddles'],['team','Team'],['tutoring','Tutoring']];
+const tabDefs=[['settings','⚙ Settings'],['users','Users'],['recalls','Recalls'],['flashcards','Flashcards'],['questions','Q-Bank'],['testimonials','Reviews'],['packages','Packages'],['bookings','Bookings'],['payouts','Payouts'],['feynman','Feynman'],['riddles','Riddles'],['team','Team'],['tutoring','Tutoring']];
 // role-based tab filtering for team members
 let panelTeamRole=null;
 let panelIsSuperAdmin=false;
@@ -6021,7 +6023,7 @@ function setActiveTab(tabId){
   });
 }
 
-const tabIconMap={settings:ICONS.target,users:ICONS.layers,recalls:ICONS.pencil,flashcards:ICONS.book,questions:ICONS.question,testimonials:ICONS.star,packages:ICONS.zap,bookings:ICONS.mail,feynman:ICONS.brain};
+const tabIconMap={settings:ICONS.target,users:ICONS.layers,recalls:ICONS.pencil,flashcards:ICONS.book,questions:ICONS.question,testimonials:ICONS.star,packages:ICONS.zap,bookings:ICONS.mail,payouts:ICONS.chart,feynman:ICONS.brain};
 
 // Build sidebar
 const sidebar=div({cls:'df-admin-sidebar',style:{width:'220px',flexShrink:'0',background:'var(--card)',borderRight:'1px solid var(--border)',minHeight:'calc(100vh - 57px)',overflowY:'auto',position:'sticky',top:'57px',paddingTop:'8px'}});
@@ -8283,6 +8285,131 @@ row.append(inner2);card.append(row);
 });
 content.innerHTML='';content.append(card);
 await renderTutoringPaymentsSection(content);
+}
+if(tab==='payouts'){
+content.innerHTML='';
+if(!panelIsSuperAdmin){content.append(h('p',{style:{textAlign:'center',padding:'40px',color:'var(--dim)',fontFamily:'Inter,sans-serif'},html:'Payouts is restricted to super admins.'}));return;}
+content.append(h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'22px',marginBottom:'8px'},html:'Tutor Payouts'}),h('p',{cls:'muted',style:{fontSize:'13px',marginBottom:'20px'},html:'Put a tutor on payroll, attach students to them with what each is owed in ₦, and mark payments as made.'}));
+
+var payoutsListWrap=div({},[]);
+content.append(payoutsListWrap);
+
+function fmtNaira(n){return '₦'+Number(n||0).toLocaleString();}
+
+async function fetchTutorsList(){
+  var tr=await sb.from('admin_roles').select('user_id,profiles(full_name,email)').eq('is_tutor',true);
+  return (tr.data||[]).filter(function(t){return t.profiles;}).map(function(t){return{user_id:t.user_id,full_name:t.profiles.full_name||'(no name)',email:t.profiles.email||''};});
+}
+
+async function fetchPayoutRows(){
+  var pr=await sb.from('tutor_payouts').select('*').order('created_at',{ascending:false});
+  var rows=pr.data||[];
+  if(!rows.length)return [];
+  var studentIds=rows.map(function(r){return r.student_id;});
+  var pf=await sb.from('profiles').select('id,full_name,email').in('id',studentIds);
+  var pmap={};(pf.data||[]).forEach(function(p){pmap[p.id]=p;});
+  return rows.map(function(r){var p=pmap[r.student_id]||{};return Object.assign({},r,{student_name:p.full_name||'(unknown)',student_email:p.email||''});});
+}
+
+async function notifyTutorPaid(row,tutor){
+  try{
+    await fetch(PAYOUT_NOTIFY_URL,{method:'POST',body:JSON.stringify({action:'tutor_payout_paid',tutor_email:tutor.email,tutor_name:tutor.full_name,student_name:row.student_name,amount:row.amount_naira,date:new Date().toISOString(),note:row.note||''})});
+  }catch(e){}
+}
+
+async function renderPayoutsBody(){
+  payoutsListWrap.innerHTML='';
+  payoutsListWrap.append(skelCard([['40%'],['70%'],['50%']]));
+  var tutors=await fetchTutorsList();
+  var allRows=await fetchPayoutRows();
+  payoutsListWrap.innerHTML='';
+  if(!tutors.length){
+    payoutsListWrap.append(div({cls:'card',style:{textAlign:'center',padding:'30px'}},[h('p',{style:{fontSize:'13px',color:'var(--dim)'},html:'No one has tutoring access yet. Enable "Tutoring" for a team member in Team → Team Admin first, then they will show up here to put on payroll.'})]));
+    return;
+  }
+  var rowsByTutor={};
+  allRows.forEach(function(r){(rowsByTutor[r.tutor_id]=rowsByTutor[r.tutor_id]||[]).push(r);});
+
+  tutors.forEach(function(t){
+    var tCard=div({cls:'card fade',style:{marginBottom:'18px'}});
+    var tRows=rowsByTutor[t.user_id]||[];
+    var totalOwed=tRows.filter(function(r){return r.status==='unpaid';}).reduce(function(s,r){return s+Number(r.amount_naira||0);},0);
+    var hdr=div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:'8px',marginBottom:'14px'}});
+    hdr.append(
+      div({},[h('div',{style:{fontSize:'16px',color:'var(--text)',fontWeight:'600'}},[t.full_name]),h('div',{style:{fontSize:'12px',color:'var(--muted)'}},[t.email])]),
+      h('div',{cls:'mono',style:{fontSize:'13px',color:totalOwed>0?'var(--gold)':'var(--dim)'}},[totalOwed>0?fmtNaira(totalOwed)+' owed':'All settled'])
+    );
+    tCard.append(hdr);
+
+    var stuSel=h('select',{cls:'input'},[h('option',{value:''},['Select student…'])]);
+    var amtInp=inp('e.g. 15000','number','');
+    var noteInp2=inp('Note (optional)','text','');
+    var addBtn2=btn('+ Add Student','btn-gold',null,{style:{fontSize:'11px',padding:'7px 14px'}});
+    var statusM=div({style:{fontSize:'11px',marginTop:'8px',display:'none'}});
+    tCard.append(div({style:{display:'flex',gap:'8px',flexWrap:'wrap',alignItems:'flex-end'}},[
+      div({style:{flex:'2',minWidth:'160px'}},[h('label',{cls:'label',html:'Student'}),stuSel]),
+      div({style:{flex:'1',minWidth:'110px'}},[h('label',{cls:'label',html:'Amount (₦)'}),amtInp]),
+      div({style:{flex:'1',minWidth:'140px'}},[h('label',{cls:'label',html:'Note'}),noteInp2]),
+      addBtn2
+    ]),statusM);
+
+    (async function(){
+      var students=await fetchEnrolled();
+      students.forEach(function(s){stuSel.append(h('option',{value:s.user_id},[s.full_name+(s.email?' · '+s.email:'')]));});
+    })();
+
+    addBtn2.onclick=async function(){
+      statusM.style.display='none';
+      if(!stuSel.value){statusM.textContent='Select a student.';statusM.style.color='#ff4444';statusM.style.display='block';return;}
+      var amt=parseFloat(amtInp.value);
+      if(!amtInp.value||isNaN(amt)||amt<=0){statusM.textContent='Enter a valid amount.';statusM.style.color='#ff4444';statusM.style.display='block';return;}
+      addBtn2.disabled=true;
+      var ins=await sb.from('tutor_payouts').insert({tutor_id:t.user_id,student_id:stuSel.value,amount_naira:amt,note:noteInp2.value.trim()||null,created_by:S.user.id});
+      addBtn2.disabled=false;
+      if(ins.error){statusM.textContent='Failed: '+ins.error.message;statusM.style.color='#ff4444';statusM.style.display='block';return;}
+      statusM.textContent='✓ Added.';statusM.style.color='var(--teal)';statusM.style.display='block';
+      stuSel.value='';amtInp.value='';noteInp2.value='';
+      renderPayoutsBody();
+    };
+
+    tCard.append(h('hr',{style:{border:'none',borderTop:'1px solid var(--border)',margin:'16px 0'}}));
+
+    if(!tRows.length){
+      tCard.append(h('p',{style:{fontSize:'12px',color:'var(--dim)',textAlign:'center',padding:'10px'},html:'No students attached yet.'}));
+    }else{
+      tRows.forEach(function(r){
+        var rowEl=div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:'10px',padding:'10px 0',borderBottom:'1px solid var(--border)'}});
+        var left=div({});
+        left.append(h('div',{style:{fontSize:'13px',color:'var(--text)'}},[r.student_name]),h('div',{cls:'mono',style:{fontSize:'12px',color:'var(--muted)',marginTop:'2px'}},[fmtNaira(r.amount_naira)+(r.status==='paid'&&r.paid_at?' · paid '+new Date(r.paid_at).toLocaleDateString():'')]));
+        if(r.note)left.append(h('div',{style:{fontSize:'11px',color:'var(--dim)',fontStyle:'italic',marginTop:'2px'}},[r.note]));
+        var right=div({style:{display:'flex',gap:'6px',alignItems:'center',flexWrap:'wrap'}});
+        right.append(h('span',{cls:'mono',style:{fontSize:'10px',letterSpacing:'1px',textTransform:'uppercase',color:r.status==='paid'?'var(--teal)':'var(--gold)'}},[r.status]));
+        if(r.status!=='paid'){
+          right.append(btn('Mark Paid','btn-teal',async function(){
+            var upd={status:'paid',paid_at:new Date().toISOString()};
+            await sb.from('tutor_payouts').update(upd).eq('id',r.id);
+            notifyTutorPaid(r,t);
+            renderPayoutsBody();
+          },{style:{fontSize:'10px',padding:'6px 12px'}}));
+        }else{
+          right.append(btn('Mark Unpaid','btn-outline',async function(){
+            await sb.from('tutor_payouts').update({status:'unpaid',paid_at:null}).eq('id',r.id);
+            renderPayoutsBody();
+          },{style:{fontSize:'10px',padding:'6px 12px'}}));
+        }
+        right.append(btn('Delete','btn-outline',async function(){
+          if(!confirm('Remove '+r.student_name+' from '+t.full_name+"'s payouts?"))return;
+          await sb.from('tutor_payouts').delete().eq('id',r.id);
+          renderPayoutsBody();
+        },{style:{fontSize:'10px',padding:'6px 12px',color:'#ff4444',borderColor:'#ff4444'}}));
+        rowEl.append(left,right);
+        tCard.append(rowEl);
+      });
+    }
+    payoutsListWrap.append(tCard);
+  });
+}
+await renderPayoutsBody();
 }
 if(tab==='feynman'){
 content.innerHTML='';
