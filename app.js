@@ -8432,10 +8432,16 @@ async function renderPayoutsBody(){
         if(r.receipt_url)right.append(h('a',{href:r.receipt_url,target:'_blank',rel:'noopener',cls:'mono',style:{fontSize:'10px',color:'var(--teal)',textDecoration:'underline'}},['View Receipt']));
         var nextPayBtn=btn('Next Payment','btn-outline',async function(){
           nextPayBtn.disabled=true;
-          await sb.from('tutor_payouts').update({archived:true}).eq('id',r.id);
-          var ins=await sb.from('tutor_payouts').insert({tutor_id:t.user_id,student_id:r.student_id,amount_naira:r.amount_naira,note:r.note||null,created_by:S.user.id});
-          if(ins.error){alert('Archived, but failed to create the next payment: '+ins.error.message);}
-          renderPayoutsBody();
+          try{
+            var ins=await sb.from('tutor_payouts').insert({tutor_id:t.user_id,student_id:r.student_id,amount_naira:r.amount_naira,note:r.note||null,created_by:S.user.id});
+            if(ins.error){alert('Failed to create the next payment: '+ins.error.message);nextPayBtn.disabled=false;return;}
+            var arch=await sb.from('tutor_payouts').update({archived:true}).eq('id',r.id);
+            if(arch.error){alert('Next payment created, but failed to archive this one: '+arch.error.message+'\n\nYou can delete this old row manually if needed.');}
+            renderPayoutsBody();
+          }catch(e){
+            alert('Network error — could not reach the server. Check your connection and try again.\n\n'+(e&&e.message||e));
+            nextPayBtn.disabled=false;
+          }
         },{style:{fontSize:'10px',padding:'6px 12px'}});
         right.append(nextPayBtn);
       }
