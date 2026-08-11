@@ -8382,57 +8382,93 @@ async function renderPayoutsBody(){
 
     tCard.append(h('hr',{style:{border:'none',borderTop:'1px solid var(--border)',margin:'16px 0'}}));
 
-    if(!tRows.length){
-      tCard.append(h('p',{style:{fontSize:'12px',color:'var(--dim)',textAlign:'center',padding:'10px'},html:'No students attached yet.'}));
-    }else{
-      tRows.forEach(function(r){
-        var rowEl=div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:'10px',padding:'10px 0',borderBottom:'1px solid var(--border)'}});
-        var left=div({});
-        left.append(h('div',{style:{fontSize:'13px',color:'var(--text)'}},[r.student_name]),h('div',{cls:'mono',style:{fontSize:'12px',color:'var(--muted)',marginTop:'2px'}},[fmtNaira(r.amount_naira)+(r.status==='paid'&&r.paid_at?' · paid '+new Date(r.paid_at).toLocaleDateString():'')]));
-        if(r.note)left.append(h('div',{style:{fontSize:'11px',color:'var(--dim)',fontStyle:'italic',marginTop:'2px'}},[r.note]));
-        var right=div({style:{display:'flex',gap:'6px',alignItems:'center',flexWrap:'wrap'}});
-        right.append(h('span',{cls:'mono',style:{fontSize:'10px',letterSpacing:'1px',textTransform:'uppercase',color:r.status==='paid'?'var(--teal)':'var(--gold)'}},[r.status]));
-        if(r.status!=='paid'){
-          var receiptInp=h('input',{type:'file',accept:'image/*,.pdf',style:{fontSize:'10px',maxWidth:'150px',color:'var(--dim)'}});
-          var payStatus=div({style:{fontSize:'10px',marginTop:'4px',display:'none'}});
-          var markPaidBtn=btn('Mark Paid','btn-teal',async function(){
-            markPaidBtn.disabled=true;
-            var receiptUrl=null;
-            var file=receiptInp.files&&receiptInp.files[0];
-            if(file){
-              payStatus.style.display='block';payStatus.style.color='var(--dim)';payStatus.textContent='Uploading receipt\u2026';
-              var ext=(file.name.split('.').pop()||'file').toLowerCase();
-              var path=r.id+'-'+Date.now()+'.'+ext;
-              var up=await sb.storage.from('payout-receipts').upload(path,file,{contentType:file.type||undefined});
-              if(up.error){payStatus.textContent='Receipt upload failed: '+up.error.message;payStatus.style.color='#ff4444';markPaidBtn.disabled=false;return;}
-              var pub=sb.storage.from('payout-receipts').getPublicUrl(path);
-              receiptUrl=pub.data.publicUrl;
-            }
-            var upd={status:'paid',paid_at:new Date().toISOString()};
-            if(receiptUrl)upd.receipt_url=receiptUrl;
-            await sb.from('tutor_payouts').update(upd).eq('id',r.id);
-            notifyTutorPaid(Object.assign({},r,upd),t);
-            renderPayoutsBody();
-          },{style:{fontSize:'10px',padding:'6px 12px'}});
-          right.append(div({style:{display:'flex',flexDirection:'column',alignItems:'flex-end',gap:'4px'}},[
-            div({style:{display:'flex',gap:'6px',alignItems:'center'}},[receiptInp,markPaidBtn]),
-            payStatus
-          ]));
-        }else{
-          if(r.receipt_url)right.append(h('a',{href:r.receipt_url,target:'_blank',rel:'noopener',cls:'mono',style:{fontSize:'10px',color:'var(--teal)',textDecoration:'underline'}},['View Receipt']));
-          right.append(btn('Mark Unpaid','btn-outline',async function(){
-            await sb.from('tutor_payouts').update({status:'unpaid',paid_at:null,receipt_url:null}).eq('id',r.id);
-            renderPayoutsBody();
-          },{style:{fontSize:'10px',padding:'6px 12px'}}));
-        }
+    var activeRows=tRows.filter(function(r){return !r.archived;});
+    var historyRows=tRows.filter(function(r){return r.archived;}).sort(function(a,b){return new Date(b.paid_at||b.created_at)-new Date(a.paid_at||a.created_at);});
+
+    function buildPayoutRow(r,isHistory){
+      var rowEl=div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:'10px',padding:'10px 0',borderBottom:'1px solid var(--border)'}});
+      var left=div({});
+      left.append(h('div',{style:{fontSize:'13px',color:'var(--text)'}},[r.student_name]),h('div',{cls:'mono',style:{fontSize:'12px',color:'var(--muted)',marginTop:'2px'}},[fmtNaira(r.amount_naira)+(r.status==='paid'&&r.paid_at?' · paid '+new Date(r.paid_at).toLocaleDateString():'')]));
+      if(r.note)left.append(h('div',{style:{fontSize:'11px',color:'var(--dim)',fontStyle:'italic',marginTop:'2px'}},[r.note]));
+      var right=div({style:{display:'flex',gap:'6px',alignItems:'center',flexWrap:'wrap'}});
+      right.append(h('span',{cls:'mono',style:{fontSize:'10px',letterSpacing:'1px',textTransform:'uppercase',color:r.status==='paid'?'var(--teal)':'var(--gold)'}},[r.status]));
+      if(isHistory){
+        if(r.receipt_url)right.append(h('a',{href:r.receipt_url,target:'_blank',rel:'noopener',cls:'mono',style:{fontSize:'10px',color:'var(--teal)',textDecoration:'underline'}},['View Receipt']));
         right.append(btn('Delete','btn-outline',async function(){
-          if(!confirm('Remove '+r.student_name+' from '+t.full_name+"'s payouts?"))return;
+          if(!confirm('Permanently delete this payout record?'))return;
           await sb.from('tutor_payouts').delete().eq('id',r.id);
           renderPayoutsBody();
         },{style:{fontSize:'10px',padding:'6px 12px',color:'#ff4444',borderColor:'#ff4444'}}));
         rowEl.append(left,right);
-        tCard.append(rowEl);
-      });
+        return rowEl;
+      }
+      if(r.status!=='paid'){
+        var receiptInp=h('input',{type:'file',accept:'image/*,.pdf',style:{fontSize:'10px',maxWidth:'150px',color:'var(--dim)'}});
+        var payStatus=div({style:{fontSize:'10px',marginTop:'4px',display:'none'}});
+        var markPaidBtn=btn('Mark Paid','btn-teal',async function(){
+          markPaidBtn.disabled=true;
+          var receiptUrl=null;
+          var file=receiptInp.files&&receiptInp.files[0];
+          if(file){
+            payStatus.style.display='block';payStatus.style.color='var(--dim)';payStatus.textContent='Uploading receipt\u2026';
+            var ext=(file.name.split('.').pop()||'file').toLowerCase();
+            var path=r.id+'-'+Date.now()+'.'+ext;
+            var up=await sb.storage.from('payout-receipts').upload(path,file,{contentType:file.type||undefined});
+            if(up.error){payStatus.textContent='Receipt upload failed: '+up.error.message;payStatus.style.color='#ff4444';markPaidBtn.disabled=false;return;}
+            var pub=sb.storage.from('payout-receipts').getPublicUrl(path);
+            receiptUrl=pub.data.publicUrl;
+          }
+          var upd={status:'paid',paid_at:new Date().toISOString()};
+          if(receiptUrl)upd.receipt_url=receiptUrl;
+          await sb.from('tutor_payouts').update(upd).eq('id',r.id);
+          notifyTutorPaid(Object.assign({},r,upd),t);
+          renderPayoutsBody();
+        },{style:{fontSize:'10px',padding:'6px 12px'}});
+        right.append(div({style:{display:'flex',flexDirection:'column',alignItems:'flex-end',gap:'4px'}},[
+          div({style:{display:'flex',gap:'6px',alignItems:'center'}},[receiptInp,markPaidBtn]),
+          payStatus
+        ]));
+      }else{
+        if(r.receipt_url)right.append(h('a',{href:r.receipt_url,target:'_blank',rel:'noopener',cls:'mono',style:{fontSize:'10px',color:'var(--teal)',textDecoration:'underline'}},['View Receipt']));
+        var nextPayBtn=btn('Next Payment','btn-outline',async function(){
+          nextPayBtn.disabled=true;
+          await sb.from('tutor_payouts').update({archived:true}).eq('id',r.id);
+          var ins=await sb.from('tutor_payouts').insert({tutor_id:t.user_id,student_id:r.student_id,amount_naira:r.amount_naira,note:r.note||null,created_by:S.user.id});
+          if(ins.error){alert('Archived, but failed to create the next payment: '+ins.error.message);}
+          renderPayoutsBody();
+        },{style:{fontSize:'10px',padding:'6px 12px'}});
+        right.append(nextPayBtn);
+      }
+      right.append(btn('Delete','btn-outline',async function(){
+        if(!confirm('Remove '+r.student_name+' from '+t.full_name+"'s payouts?"))return;
+        await sb.from('tutor_payouts').delete().eq('id',r.id);
+        renderPayoutsBody();
+      },{style:{fontSize:'10px',padding:'6px 12px',color:'#ff4444',borderColor:'#ff4444'}}));
+      rowEl.append(left,right);
+      return rowEl;
+    }
+
+    if(!activeRows.length){
+      tCard.append(h('p',{style:{fontSize:'12px',color:'var(--dim)',textAlign:'center',padding:'10px'},html:'No students attached yet.'}));
+    }else{
+      activeRows.forEach(function(r){tCard.append(buildPayoutRow(r,false));});
+    }
+
+    if(historyRows.length){
+      var histOpen=false;
+      var histWrap=div({style:{marginTop:'12px'}});
+      var histHeader=div({style:{display:'flex',alignItems:'center',gap:'8px',cursor:'pointer',padding:'8px 0',borderTop:'1px solid var(--border)'}});
+      var histChevron=h('span',{style:{fontSize:'11px',color:'var(--dim)',transition:'transform 0.15s',display:'inline-block'}},['\u25b6']);
+      histHeader.append(histChevron,h('span',{cls:'mono',style:{fontSize:'11px',letterSpacing:'1px',textTransform:'uppercase',color:'var(--dim)'}},['History ('+historyRows.length+')']));
+      var histBody=div({style:{display:'none'}});
+      historyRows.forEach(function(r){histBody.append(buildPayoutRow(r,true));});
+      histHeader.onclick=function(){
+        histOpen=!histOpen;
+        histBody.style.display=histOpen?'block':'none';
+        histChevron.style.transform=histOpen?'rotate(90deg)':'rotate(0deg)';
+      };
+      histWrap.append(histHeader,histBody);
+      tCard.append(histWrap);
     }
     payoutsListWrap.append(tCard);
   });
