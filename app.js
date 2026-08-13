@@ -857,8 +857,40 @@ async function downloadStudentScoreReportSnapshot(result,studentName,onStatus){
 
 
 
+// ═══════════════════════════════
+// ANNOUNCEMENT BANNER (persistent, app-wide — like a push notification bar)
+// ═══════════════════════════════
+function ensureAnnouncementBanner(){
+  if(!S.user)return;
+  if(document.getElementById('df-announce-banner'))return;
+  (async function(){
+    const{data:ann}=await sb.from('announcements').select('id,body,created_at').order('created_at',{ascending:false}).limit(1);
+    if(!ann||!ann.length)return;
+    if(document.getElementById('df-announce-banner'))return; // avoid a race if render() fired twice
+    const dismissed=localStorage.getItem('ann_dismissed_'+ann[0].id);
+    if(dismissed)return;
+    const banner=div({id:'df-announce-banner',style:{position:'fixed',top:'0',left:'0',width:'100%',zIndex:'9999',background:'linear-gradient(90deg, rgba(201,150,58,0.18), rgba(201,150,58,0.10))',borderBottom:'1px solid rgba(201,150,58,0.35)',padding:'10px 20px',display:'flex',alignItems:'center',justifyContent:'center',gap:'12px',fontFamily:'Inter,sans-serif',fontSize:'13px',color:'var(--gold)',boxSizing:'border-box',flexWrap:'wrap',boxShadow:'0 2px 12px rgba(0,0,0,0.25)'}});
+    banner.append(
+      h('span',{style:{fontSize:'16px',flexShrink:'0'}},['\uD83D\uDD14']),
+      h('span',{style:{fontWeight:'700',flexShrink:'0',whiteSpace:'nowrap'}},['New update:']),
+      div({style:{flex:'1',minWidth:'160px',maxWidth:'720px',lineHeight:'1.5',textAlign:'left'}},[document.createTextNode(ann[0].body)]),
+      btn('Dismiss','btn-outline',function(){
+        localStorage.setItem('ann_dismissed_'+ann[0].id,'1');
+        banner.remove();
+        var root=document.getElementById('root');if(root)root.style.marginTop='0px';
+      },{style:{padding:'4px 12px',fontSize:'11px',flexShrink:'0'}})
+    );
+    document.body.prepend(banner);
+    var root=document.getElementById('root');
+    if(root){
+      requestAnimationFrame(function(){root.style.marginTop=banner.offsetHeight+'px';root.style.transition='margin-top 0.2s ease';});
+    }
+  })();
+}
+
 async function render(){
 const root=document.getElementById('root');
+ensureAnnouncementBanner();
 if(!S.user){
   var _rs=await sb.auth.getSession();
   var _rsess=_rs&&_rs.data&&_rs.data.session;
@@ -3820,19 +3852,6 @@ nav.append(
 );
 page.append(nav);
 
-// ANNOUNCEMENT BANNER
-(async()=>{
-  const{data:ann}=await sb.from('announcements').select('id,body').order('created_at',{ascending:false}).limit(1);
-  if(!ann||!ann.length)return;
-  const dismissed=localStorage.getItem('ann_dismissed_'+ann[0].id);
-  if(dismissed)return;
-  const banner=div({style:{background:'rgba(201,150,58,0.12)',borderBottom:'1px solid rgba(201,150,58,0.3)',padding:'10px 24px',display:'flex',alignItems:'center',justifyContent:'space-between',gap:'16px',fontFamily:'Inter,sans-serif',fontSize:'13px',color:'var(--gold)'}});
-  banner.append(
-    div({style:{flex:'1',lineHeight:'1.5'}},[document.createTextNode(ann[0].body)]),
-    btn('×','btn-outline',()=>{localStorage.setItem('ann_dismissed_'+ann[0].id,'1');banner.style.display='none';},{style:{padding:'2px 8px',fontSize:'14px',flexShrink:'0',lineHeight:'1'}})
-  );
-  page.append(banner);
-})();
 const container=div({cls:'inner'});
 const tutHolder=div({});container.append(tutHolder);(async function(){const _te=await sb.from('tutoring_students').select('id').eq('user_id',S.user.id).eq('active',true).maybeSingle();if(!_te||!_te.data)return;const tw=div({cls:'card',style:{marginBottom:'16px',borderColor:'var(--gold)',cursor:'pointer',display:'flex',justifyContent:'space-between',alignItems:'center',gap:'16px',flexWrap:'wrap'}},[div({style:{flex:'1',minWidth:'200px'}},[h('div',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'17px',color:'var(--gold)',marginBottom:'4px'}},['Tutoring Wing']),h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'13px',color:'var(--muted)'}},['Your assigned tests, tasks and results'])]),h('span',{cls:'mono',style:{fontSize:'12px',color:'var(--gold)',flexShrink:'0'}},['Enter →'])]);tw.onclick=function(){go('tutoring');};tutHolder.append(tw);})();
 page.append(container);
