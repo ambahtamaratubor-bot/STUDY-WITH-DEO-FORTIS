@@ -544,13 +544,19 @@ async function buildScoreReportBody(o){
     return py-px;
   });
 
+  var minTopicPct=topics.length?Math.min.apply(null,topics.map(function(t){return topicMap[t].total?(topicMap[t].correct/topicMap[t].total*100):0;})):pct;
+  var everyTopicAtLeast70=minTopicPct>=70;
+
   var band,ringColor,encourageMsg;
   if(pct>=80){
     band='Excellent';ringColor='var(--teal)';
     encourageMsg='Excellent! You\u2019ve truly mastered this material.';
-  }else if(pct>=70){
+  }else if(pct>=70&&everyTopicAtLeast70){
     band='High Pass';ringColor='var(--teal)';
-    encourageMsg='High Pass! You went above and beyond.';
+    encourageMsg='High Pass! You scored 70% or better in every topic \u2014 you went above and beyond.';
+  }else if(pct>=70){
+    band='Pass';ringColor='var(--teal)';
+    encourageMsg='Great work \u2014 you\u2019ve met the pass mark. Shore up your weaker topics below and you\u2019ll be at High Pass next time.';
   }else if(pct>=60){
     band='Almost Passed';ringColor='var(--gold)';
     encourageMsg='So close! You\u2019re just a few points from passing \u2014 a little more review and you\u2019ll get there next time.';
