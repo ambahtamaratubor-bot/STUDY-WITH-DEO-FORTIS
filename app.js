@@ -523,7 +523,9 @@ async function buildScoreReportBody(o){
   var stats={};
   if(o.resultId){
     try{
-      var statsRes=await sb.rpc('get_assessment_stats',{p_assessment_id:o.assessment.id,p_result_id:o.resultId});
+      var rpcName=o.statsRpcName||'get_assessment_stats';
+      var rpcParams=o.statsRpcParams||{p_assessment_id:o.assessment.id,p_result_id:o.resultId};
+      var statsRes=await sb.rpc(rpcName,rpcParams);
       if(!statsRes.error&&statsRes.data&&statsRes.data[0])stats=statsRes.data[0];
     }catch(e){}
   }
@@ -543,9 +545,12 @@ async function buildScoreReportBody(o){
   });
 
   var band,ringColor,encourageMsg;
-  if(pct>=70){
-    band='Pass';ringColor='var(--teal)';
-    encourageMsg='Great work \u2014 you\u2019ve met the pass mark.';
+  if(pct>=80){
+    band='Excellent';ringColor='var(--teal)';
+    encourageMsg='Excellent! You\u2019ve truly mastered this material.';
+  }else if(pct>=70){
+    band='High Pass';ringColor='var(--teal)';
+    encourageMsg='High Pass! You went above and beyond.';
   }else if(pct>=60){
     band='Almost Passed';ringColor='var(--gold)';
     encourageMsg='So close! You\u2019re just a few points from passing \u2014 a little more review and you\u2019ll get there next time.';
@@ -584,7 +589,7 @@ async function buildScoreReportBody(o){
 
   reportBody.append(assessBrandHeader());
   reportBody.append(
-    h('span',{cls:'chapter',html:'Assessment complete'}),
+    h('span',{cls:'chapter',html:o.completeLabel||'Assessment complete'}),
     h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'26px',marginBottom:'4px'}},[o.assessment.title]),
     h('p',{cls:'muted',style:{fontSize:'13px',marginBottom:'20px'}},[(topics.join(' \u00b7 ')||'')+' \u00b7 '+new Date().toLocaleDateString()+(o.timeTakenSeconds?' \u00b7 '+fmtHMS(o.timeTakenSeconds):'')])
   );
@@ -674,7 +679,7 @@ async function buildScoreReportBody(o){
   var trendCard=null;
   if(trendList.length>1){
     trendCard=div({cls:'card',style:{padding:'20px',marginTop:'16px'}},[]);
-    trendCard.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'15px',marginBottom:'14px'}},['Score Trend']),h('p',{style:{fontSize:'11px',color:'var(--muted)',marginTop:'-8px',marginBottom:'14px'}},['Across assessments, in the order you took them']));
+    trendCard.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'15px',marginBottom:'14px'}},['Score Trend']),h('p',{style:{fontSize:'11px',color:'var(--muted)',marginTop:'-8px',marginBottom:'14px'}},[o.trendLabel||'Across assessments, in the order you took them']));
     var cw=560,ch=180,pad=34;
     var pts=trendList.map(function(rr){return rr.total?Math.round((rr.score/rr.total)*100):0;});
     var stepX=(cw-pad*2)/Math.max(1,pts.length-1);
@@ -1377,10 +1382,16 @@ function runQuiz(a,test,questions){
   var timeLeft=isTimed?(test.time_limit||0)*60:0;
   var tInterval=null;
   var RKEY='tutoring_resume_'+test.id;
+  var examStartedAt=Date.now();
+  var questionTimeMs={};
+  var answerChanges=[];
+  var activeQId=null;
+  var activeEnteredAt=null;
+  function flushActiveTime(){if(activeQId&&activeEnteredAt){questionTimeMs[activeQId]=(questionTimeMs[activeQId]||0)+(Date.now()-activeEnteredAt);}activeQId=null;activeEnteredAt=null;}
 
-  try{var _sv=sessionStorage.getItem(RKEY);if(_sv){var _st=JSON.parse(_sv);if(_st&&_st.testId===test.id){current=_st.current||0;answers=_st.answers||{};revealed=_st.revealed||{};ruledOut=_st.ruledOut||{};highlights=_st.highlights||{};flagged=_st.flagged||{};if(isTimed&&typeof _st.timeLeft==='number')timeLeft=_st.timeLeft;}}}catch(e){}
+  try{var _sv=sessionStorage.getItem(RKEY);if(_sv){var _st=JSON.parse(_sv);if(_st&&_st.testId===test.id){current=_st.current||0;answers=_st.answers||{};revealed=_st.revealed||{};ruledOut=_st.ruledOut||{};highlights=_st.highlights||{};flagged=_st.flagged||{};questionTimeMs=_st.questionTimeMs||{};answerChanges=_st.answerChanges||[];if(isTimed&&typeof _st.timeLeft==='number')timeLeft=_st.timeLeft;}}}catch(e){}
 
-  function persist(){try{sessionStorage.setItem(RKEY,JSON.stringify({testId:test.id,current:current,answers:answers,revealed:revealed,ruledOut:ruledOut,highlights:highlights,flagged:flagged,timeLeft:timeLeft}));}catch(e){}}
+  function persist(){try{sessionStorage.setItem(RKEY,JSON.stringify({testId:test.id,current:current,answers:answers,revealed:revealed,ruledOut:ruledOut,highlights:highlights,flagged:flagged,timeLeft:timeLeft,questionTimeMs:questionTimeMs,answerChanges:answerChanges}));}catch(e){}}
   function clearResume(){try{sessionStorage.removeItem(RKEY);}catch(e){}}
   function clearTimer(){if(tInterval){clearInterval(tInterval);tInterval=null;}}
   function corr(q){return String(q.correct_answer||'').toUpperCase();}
@@ -1464,7 +1475,9 @@ function runQuiz(a,test,questions){
   }
 
   function updateQ(){
+    flushActiveTime();
     var q=questions[current];
+    activeQId=q.id;activeEnteredAt=Date.now();
     mainArea.innerHTML='';
     pEl.textContent=(current+1)+' / '+questions.length;
     updateNavColors();
@@ -1510,7 +1523,7 @@ function runQuiz(a,test,questions){
       else if(isSel)ob.classList.add('selected');
       if(isRuledOut)ob.classList.add('ruled-out');
       ob.append(h('strong',{style:{marginRight:'12px'},html:opt.toUpperCase()+'.'}),document.createTextNode(val));
-      ob.onclick=function(){if(submitted)return;answers[q.id]=opt.toUpperCase();if(mode==='tutor')revealed[q.id]=true;persist();updateQ();};
+      ob.onclick=function(){if(submitted)return;var newVal=opt.toUpperCase();var prevVal=answers[q.id];if(prevVal&&prevVal!==newVal){answerChanges.push({question_id:q.id,from:prevVal,to:newVal,from_correct:prevVal===corr(q),to_correct:newVal===corr(q)});}answers[q.id]=newVal;if(mode==='tutor')revealed[q.id]=true;persist();updateQ();};
       ob.oncontextmenu=function(e){e.preventDefault();if(submitted)return;if(!ruledOut[q.id])ruledOut[q.id]=[];var idx=ruledOut[q.id].indexOf(opt.toUpperCase());if(idx===-1)ruledOut[q.id].push(opt.toUpperCase());else ruledOut[q.id].splice(idx,1);persist();updateQ();};
       mainArea.append(ob);
     });
@@ -1526,28 +1539,17 @@ function runQuiz(a,test,questions){
 
   async function doSubmit(){
     if(submitted)return;submitted=true;clearTimer();clearResume();
+    flushActiveTime();
     showSubmitLoading();
     var score=0;questions.forEach(function(q){if(answers[q.id]===corr(q))score++;});
-    var ins=await sb.from('tutoring_results').insert({assignment_id:a?a.id:null,test_id:test.id,student_id:S.user.id,test_title:test.title,mode:mode,score:score,total:questions.length,answers:answers,questions:questions});
+    var timeTakenSeconds=Math.round((Date.now()-examStartedAt)/1000);
+    var questionTimesSeconds={};Object.keys(questionTimeMs).forEach(function(k){questionTimesSeconds[k]=Math.round(questionTimeMs[k]/1000);});
+    var ins=await sb.from('tutoring_results').insert({assignment_id:a?a.id:null,test_id:test.id,student_id:S.user.id,test_title:test.title,mode:mode,score:score,total:questions.length,answers:answers,questions:questions,time_taken_seconds:timeTakenSeconds,question_times:questionTimesSeconds,answer_changes:answerChanges}).select('id').single();
     await loadData();
-    content.innerHTML='';
-    var pct=Math.round((score/questions.length)*100);
-    var wrap=div({style:{maxWidth:'520px',margin:'40px auto',textAlign:'center'}},[]);
-    wrap.append(
-      h('span',{cls:'chapter',html:'Test complete'},[]),
-      div({style:{fontSize:'56px',margin:'16px 0'},html:pct>=70?ICONS.sparkles:ICONS.book}),
-      h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'34px',marginBottom:'4px',color:'var(--gold)'}},[score+' / '+questions.length]),
-      div({cls:'mono',style:{marginBottom:'8px'},html:pct+'% correct'}),
-      h('p',{style:{fontFamily:'Inter,sans-serif',fontSize:'11px',color:'var(--muted)',marginBottom:'24px'}},[(test.title||'')+' \u00b7 '+(isTimed?'timed':'tutor')+' mode'])
-    );
-    if(ins&&ins.error)wrap.append(h('div',{style:{fontSize:'12px',color:'#ff8888',marginBottom:'16px'}},['Your score could not be saved: '+ins.error.message]));
-    var bw=div({style:{display:'grid',gap:'10px'}},[]);
-    bw.append(
-      btn('Review Answers \u2192','btn-gold',function(){showReview({test_title:test.title,score:score,total:questions.length,answers:answers,questions:questions,taken_at:new Date().toISOString()});}),
-      btn('Back to wing','btn-outline',function(){exitFullscreen();currentTab='tests';paintTabs();renderTab();})
-    );
-    wrap.append(bw);
-    content.append(wrap);
+    var byTest={};
+    (DATA.results||[]).forEach(function(rr){var key=rr.test_id;if(!byTest[key]||new Date(rr.taken_at)>new Date(byTest[key].taken_at))byTest[key]=rr;});
+    var trendList=Object.keys(byTest).map(function(k){return{assessment_id:byTest[k].test_id,assessment_title:byTest[k].test_title,score:byTest[k].score,total:byTest[k].total,taken_at:byTest[k].taken_at};}).sort(function(x,y){return new Date(x.taken_at)-new Date(y.taken_at);});
+    renderTutoringTestScoreReport({resultId:ins.data&&ins.data.id,assessment:{id:test.id,title:test.title},score:score,total:questions.length,questions:questions,answers:answers,timeTakenSeconds:timeTakenSeconds,questionTimes:questionTimesSeconds,answerChanges:answerChanges,trendList:trendList,insertError:ins.error&&ins.error.message});
   }
 
   updateQ();
@@ -1599,6 +1601,46 @@ async function renderAssessmentScoreReport(o){
     btn('Review Answers \u2192','btn-gold',function(){showReview({test_title:o.assessment.title,score:o.score,total:o.total,answers:o.answers,questions:o.questions,taken_at:new Date().toISOString()});}),
     downloadBtn,
     btn('Back to wing','btn-outline',function(){exitFullscreen();currentTab='assessments';paintTabs();renderTab();})
+  );
+  wrap.append(actionsRow,pdfStatus);
+  content.append(wrap);
+}
+
+async function renderTutoringTestScoreReport(o){
+  // Same rich score report as assessments, applied to Tutoring Wing tests.
+  o.completeLabel='Test complete';
+  o.trendLabel='Across tests, in the order you took them';
+  o.statsRpcName='get_tutoring_test_stats';
+  o.statsRpcParams={p_test_id:o.assessment.id,p_result_id:o.resultId};
+  content.innerHTML='';
+  content.append(skelCard([['30%'],['100%'],['100%'],['100%']]));
+
+  var reportBody=await buildScoreReportBody(o);
+
+  content.innerHTML='';
+  var wrap=div({style:{maxWidth:'900px',margin:'0 auto'}},[]);
+
+  content.append(btn('\u2190 Back to wing','btn-outline',function(){exitFullscreen();currentTab='tests';paintTabs();renderTab();},{style:{fontSize:'11px',padding:'6px 12px',marginBottom:'16px'}}));
+
+  wrap.append(reportBody);
+
+  var pdfStatus=div({style:{fontSize:'11px',color:'var(--muted)',marginTop:'8px'}},[]);
+  var downloadBtn=btn('Download Report (PDF)','btn-outline',function(){
+    downloadBtn.disabled=true;
+    var origText=downloadBtn.textContent;
+    downloadBtn.textContent='Preparing PDF\u2026';
+    pdfStatus.textContent='';
+    downloadScoreReportPdf(reportBody,(o.assessment.title||'test').replace(/[^a-z0-9]+/gi,'_')+'_score_report.pdf',function(errMsg){
+      downloadBtn.disabled=false;
+      downloadBtn.textContent=origText;
+      if(errMsg)pdfStatus.textContent=errMsg;
+    });
+  },{style:{fontSize:'12px'}});
+  var actionsRow=div({style:{display:'flex',gap:'10px',flexWrap:'wrap',marginTop:'20px',alignItems:'center'}},[]);
+  actionsRow.append(
+    btn('Review Answers \u2192','btn-gold',function(){showReview({test_title:o.assessment.title,score:o.score,total:o.total,answers:o.answers,questions:o.questions,taken_at:new Date().toISOString()});}),
+    downloadBtn,
+    btn('Back to wing','btn-outline',function(){exitFullscreen();currentTab='tests';paintTabs();renderTab();})
   );
   wrap.append(actionsRow,pdfStatus);
   content.append(wrap);
@@ -5073,6 +5115,8 @@ nav.append(dfLogo(),div({style:{display:'flex',gap:'8px'}},[btn('← Dashboard',
 page.append(nav);
 let questions=[],current=0,answers={},submitted=false,revealed={},ruledOut={},highlights={},flagged={},timeLeft=0,tInterval=null,selTopic='',mode='',timeLimit=60,qFilter='all';
 let activeHighlightBtn=null;
+let examStartedAt=0,qTimeMs={},ansChanges=[],activeQId=null,activeEnteredAt=null;
+function flushActiveTime(){if(activeQId&&activeEnteredAt){qTimeMs[activeQId]=(qTimeMs[activeQId]||0)+(Date.now()-activeEnteredAt);}activeQId=null;activeEnteredAt=null;}
 const inner=div({cls:'inner-sm'});page.append(inner);
 async function showSetup(){
 inner.innerHTML='';
@@ -5326,6 +5370,7 @@ container.append(tableWrap);
 if(after.trim()){var pAfter=h('p',{style:{fontSize:'15px',color:'var(--text)',lineHeight:'1.8',marginTop:'14px'}},[]);pAfter.textContent=after.replace(/^[\s.,;]+/,'');container.append(pAfter);}
 }
 function showQuiz(){
+examStartedAt=Date.now();qTimeMs={};ansChanges=[];activeQId=null;activeEnteredAt=null;
 page.innerHTML='';page.append(nav);
 const qNav=div({style:{background:'var(--nav-bg)',borderBottom:'1px solid var(--border)',padding:'12px 24px',display:'flex',alignItems:'center',justifyContent:'space-between',position:'sticky',top:'0',zIndex:'100'}});
 const tEl=h('span',{style:{fontFamily:"Inter,sans-serif",fontSize:'16px',color:'var(--gold)',display:mode==='timed'?'inline':'none'},html:fmtMS(timeLeft)});
@@ -5364,7 +5409,9 @@ const mainArea=div({id:'quiz-main'});
 qi.append(sidebar,mainArea);page.append(qi);
 updateQ();
 function updateQ(){
-const q=questions[current];mainArea.innerHTML='';pEl.textContent=(current+1)+' / '+questions.length;
+flushActiveTime();
+const q=questions[current];activeQId=q.id;activeEnteredAt=Date.now();
+mainArea.innerHTML='';pEl.textContent=(current+1)+' / '+questions.length;
 questions.forEach((qq,i)=>{
 const nb=document.getElementById('nb-'+i);if(!nb)return;
 const flagSpan=nb.children[1];if(flagSpan)flagSpan.style.display=flagged[qq.id]?'inline-flex':'none';
@@ -5422,7 +5469,10 @@ if(isRuledOut)ob.classList.add('ruled-out');
 ob.append(h('strong',{style:{marginRight:'12px'},html:opt.toUpperCase()+'.'}),document.createTextNode(val));
 ob.onclick=()=>{
   if(submitted)return;
-  answers[q.id]=opt.toUpperCase();
+  const newVal=opt.toUpperCase();
+  const prevVal=answers[q.id];
+  if(prevVal&&prevVal!==newVal){ansChanges.push({question_id:q.id,from:prevVal,to:newVal,from_correct:prevVal===q.correct_answer,to_correct:newVal===q.correct_answer});}
+  answers[q.id]=newVal;
   if(mode==='tutor')revealed[q.id]=true;
   const sv=sessionStorage.getItem('vignette_resume');
   if(sv){const st=JSON.parse(sv);st.current=current;st.answers=answers;st.revealed=revealed;st.ruledOut=ruledOut;st.highlights=highlights;sessionStorage.setItem('vignette_resume',JSON.stringify(st));}
@@ -5475,35 +5525,56 @@ mainArea.append(nr);
 }
 async function submitQuiz(){
 clearInterval(tInterval);submitted=true;
+flushActiveTime();
 const score=questions.filter(q=>answers[q.id]===q.correct_answer).length;
-await sb.from('vignette_scores').insert({user_id:S.user.id,topic:selTopic,score,total:questions.length,mode,answers:answers,questions:questions});
+const timeTakenSeconds=examStartedAt?Math.round((Date.now()-examStartedAt)/1000):0;
+const questionTimesSeconds={};Object.keys(qTimeMs).forEach(function(k){questionTimesSeconds[k]=Math.round(qTimeMs[k]/1000);});
+const ins=await sb.from('vignette_scores').insert({user_id:S.user.id,topic:selTopic,score,total:questions.length,mode,answers:answers,questions:questions,time_taken_seconds:timeTakenSeconds,question_times:questionTimesSeconds,answer_changes:ansChanges}).select('id').single();
 if(S.profile?.is_free_tier!==true||isInTrial()){var _vpts=questions.length*2;await sb.from('profiles').update({total_points:(S.profile?.total_points||0)+_vpts}).eq('id',S.user.id);if(S.profile)S.profile.total_points=(S.profile.total_points||0)+_vpts;}
 // Upsert question_progress for each answered question
 var progressUpserts=questions.filter(function(q){return answers[q.id]!==undefined;}).map(function(q){return{user_id:S.user.id,question_id:q.id,seen:true,answered_correctly:answers[q.id]===q.correct_answer,last_seen_at:new Date().toISOString()};});
 if(progressUpserts.length)await sb.from('question_progress').upsert(progressUpserts,{onConflict:'user_id,question_id'});
-showResults(score);
-}
-function showResults(score){
 sessionStorage.removeItem('vignette_resume');
+const{data:histScores}=await sb.from('vignette_scores').select('topic,score,total,created_at').eq('user_id',S.user.id).order('created_at',{ascending:false});
+var byTopic={};
+(histScores||[]).forEach(function(rr){var key=rr.topic;if(!byTopic[key]||new Date(rr.created_at)>new Date(byTopic[key].created_at))byTopic[key]=rr;});
+var trendList=Object.keys(byTopic).map(function(k){return{assessment_id:k,assessment_title:byTopic[k].topic,score:byTopic[k].score,total:byTopic[k].total,taken_at:byTopic[k].created_at};}).sort(function(x,y){return new Date(x.taken_at)-new Date(y.taken_at);});
+renderQbankScoreReport({resultId:ins.data&&ins.data.id,assessment:{id:selTopic,title:selTopic},score:score,total:questions.length,questions:questions,answers:answers,timeTakenSeconds:timeTakenSeconds,questionTimes:questionTimesSeconds,answerChanges:ansChanges,trendList:trendList,insertError:ins.error&&ins.error.message});
+}
+async function renderQbankScoreReport(o){
+o.completeLabel='Quiz Complete';
+o.trendLabel='Across topics, latest attempt each';
+o.statsRpcName='get_qbank_topic_stats';
+o.statsRpcParams={p_topic:selTopic,p_result_id:o.resultId};
 page.innerHTML='';page.append(nav);
-const ri=div({cls:'inner-sm center',style:{minHeight:'80vh',flexDirection:'column'}});
-const card=div({cls:'card fade',style:{maxWidth:'500px',width:'100%',textAlign:'center'}});
-const pct=Math.round(score/questions.length*100);
-card.append(
-  h('span',{cls:'chapter',html:'Quiz Complete'}),
-  div({style:{fontSize:'56px',margin:'16px 0'},html:pct>=70?ICONS.sparkles:ICONS.book}),
-  h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'36px',marginBottom:'4px',color:'var(--gold)'},html:score+' / '+questions.length}),
-  div({cls:'mono',style:{marginBottom:'8px'},html:pct+'% correct'}),
-  h('p',{style:{fontFamily:"Inter,sans-serif",fontSize:'11px',color:'var(--muted)',marginBottom:'24px'},html:selTopic+' · '+mode+' mode'}),
-  div({cls:'quote',style:{textAlign:'left',marginBottom:'24px'},html:pct>=80?'"Excellent. You know this topic well."':pct>=50?'"Good effort. Review the ones you missed."':'"Keep studying. Come back stronger."'})
-);
-const bw=div({style:{display:'grid',gap:'10px'}});
-bw.append(
+const loadingWrap=div({cls:'inner-sm'});
+loadingWrap.append(skelCard([['30%'],['100%'],['100%'],['100%']]));
+page.append(loadingWrap);
+const reportBody=await buildScoreReportBody(o);
+page.innerHTML='';page.append(nav);
+const wrap=div({cls:'inner-sm'});
+wrap.append(reportBody);
+const pdfStatus=div({style:{fontSize:'11px',color:'var(--muted)',marginTop:'8px'}});
+const downloadBtn=btn('Download Report (PDF)','btn-outline',function(){
+  downloadBtn.disabled=true;
+  const origText=downloadBtn.textContent;
+  downloadBtn.textContent='Preparing PDF…';
+  pdfStatus.textContent='';
+  downloadScoreReportPdf(reportBody,(selTopic||'quiz').replace(/[^a-z0-9]+/gi,'_')+'_score_report.pdf',function(errMsg){
+    downloadBtn.disabled=false;
+    downloadBtn.textContent=origText;
+    if(errMsg)pdfStatus.textContent=errMsg;
+  });
+},{style:{fontSize:'12px'}});
+const actionsRow=div({style:{display:'flex',gap:'10px',flexWrap:'wrap',marginTop:'20px',alignItems:'center'}});
+actionsRow.append(
   btn('Review Answers →','btn-gold',()=>showReview()),
   btn('Try Again','btn-outline',()=>showSetup()),
+  downloadBtn,
   btn('Dashboard','btn-outline',()=>go('dashboard'))
 );
-card.append(bw);ri.append(card);page.append(ri);
+wrap.append(actionsRow,pdfStatus);
+page.append(wrap);
 }
 
 function showReview(){
