@@ -706,9 +706,7 @@ async function buildScoreReportBody(o){
       chartSvg.append(c);
       var t=document.createElementNS(svgNS,'text');t.setAttribute('x',String(x));t.setAttribute('y',String(y-10));t.setAttribute('fill','var(--gold)');t.setAttribute('font-size','10');t.setAttribute('text-anchor','middle');t.textContent=String(v);
       chartSvg.append(t);
-      var rawLabel=trendList[i].assessment_title||'Assessment';
-      var shortLabel=rawLabel.length>16?rawLabel.slice(0,15)+'\u2026':rawLabel;
-      var xl=document.createElementNS(svgNS,'text');xl.setAttribute('x',String(x));xl.setAttribute('y',String(ch-10));xl.setAttribute('fill','var(--muted)');xl.setAttribute('font-size','9');xl.setAttribute('text-anchor','middle');xl.textContent=shortLabel;
+      var xl=document.createElementNS(svgNS,'text');xl.setAttribute('x',String(x));xl.setAttribute('y',String(ch-10));xl.setAttribute('fill','var(--muted)');xl.setAttribute('font-size','9');xl.setAttribute('text-anchor','middle');xl.textContent=String(i+1);
       chartSvg.append(xl);
     });
     trendCard.append(chartSvg);
@@ -1234,6 +1232,7 @@ function renderTests(){
     const right=div({style:{display:'flex',gap:'6px',flexShrink:'0'}},[]);
     if(completed){
       right.append(
+        btn('Score Report','btn-outline',function(){viewTutoringTestReport(best,'tests');},{style:{fontSize:'11px',padding:'8px 14px'}}),
         btn('Review','btn-outline',function(){showReview(best);},{style:{fontSize:'11px',padding:'8px 14px'}}),
         btn('Retake','btn-gold',function(){startTest(a,test);},{style:{fontSize:'11px',padding:'8px 14px'}})
       );
@@ -1272,6 +1271,7 @@ function renderAssessTab(){
       right.append(btn('Locked','btn-outline',function(){},{style:{fontSize:'11px',padding:'8px 16px',opacity:'0.5',cursor:'not-allowed'},disabled:true}));
     }else if(completed){
       right.append(
+        btn('Score Report','btn-outline',function(){viewAssessmentReport(best,'assessments');},{style:{fontSize:'11px',padding:'8px 14px'}}),
         btn('Review','btn-outline',function(){showReview(best);},{style:{fontSize:'11px',padding:'8px 14px'}}),
         btn('Retake','btn-gold',function(){startAssessment(a,assessment);},{style:{fontSize:'11px',padding:'8px 14px'}})
       );
@@ -1353,6 +1353,7 @@ function renderResults(){
       const rightR=div({style:{display:'flex',alignItems:'center',gap:'16px'}},[]);
       rightR.append(
         div({style:{textAlign:'right'}},[h('div',{style:{fontFamily:'Georgia,serif',fontSize:'22px',color:'var(--teal)'}},[Math.round((t.score/t.total)*100)+'%']),h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--muted)'}},[t.score+'/'+t.total])]),
+        btn('Score Report','btn-outline',function(){viewTutoringTestReport(t,'results');},{style:{fontSize:'10px',padding:'6px 12px'}}),
         btn('Review','btn-outline',function(){showReview(t);},{style:{fontSize:'10px',padding:'6px 12px'}})
       );
       card.append(rightR);
@@ -1586,7 +1587,7 @@ async function renderAssessmentScoreReport(o){
   content.innerHTML='';
   var wrap=div({style:{maxWidth:'900px',margin:'0 auto'}},[]);
 
-  content.append(btn('\u2190 Back to wing','btn-outline',function(){exitFullscreen();currentTab='assessments';paintTabs();renderTab();},{style:{fontSize:'11px',padding:'6px 12px',marginBottom:'16px'}}));
+  content.append(btn('\u2190 Back to wing','btn-outline',function(){exitFullscreen();currentTab=o.backTab||'assessments';paintTabs();renderTab();},{style:{fontSize:'11px',padding:'6px 12px',marginBottom:'16px'}}));
 
   wrap.append(reportBody);
 
@@ -1606,7 +1607,7 @@ async function renderAssessmentScoreReport(o){
   actionsRow.append(
     btn('Review Answers \u2192','btn-gold',function(){showReview({test_title:o.assessment.title,score:o.score,total:o.total,answers:o.answers,questions:o.questions,taken_at:new Date().toISOString()});}),
     downloadBtn,
-    btn('Back to wing','btn-outline',function(){exitFullscreen();currentTab='assessments';paintTabs();renderTab();})
+    btn('Back to wing','btn-outline',function(){exitFullscreen();currentTab=o.backTab||'assessments';paintTabs();renderTab();})
   );
   wrap.append(actionsRow,pdfStatus);
   content.append(wrap);
@@ -1626,7 +1627,7 @@ async function renderTutoringTestScoreReport(o){
   content.innerHTML='';
   var wrap=div({style:{maxWidth:'900px',margin:'0 auto'}},[]);
 
-  content.append(btn('\u2190 Back to wing','btn-outline',function(){exitFullscreen();currentTab='tests';paintTabs();renderTab();},{style:{fontSize:'11px',padding:'6px 12px',marginBottom:'16px'}}));
+  content.append(btn('\u2190 Back to wing','btn-outline',function(){exitFullscreen();currentTab=o.backTab||'tests';paintTabs();renderTab();},{style:{fontSize:'11px',padding:'6px 12px',marginBottom:'16px'}}));
 
   wrap.append(reportBody);
 
@@ -1646,10 +1647,30 @@ async function renderTutoringTestScoreReport(o){
   actionsRow.append(
     btn('Review Answers \u2192','btn-gold',function(){showReview({test_title:o.assessment.title,score:o.score,total:o.total,answers:o.answers,questions:o.questions,taken_at:new Date().toISOString()});}),
     downloadBtn,
-    btn('Back to wing','btn-outline',function(){exitFullscreen();currentTab='tests';paintTabs();renderTab();})
+    btn('Back to wing','btn-outline',function(){exitFullscreen();currentTab=o.backTab||'tests';paintTabs();renderTab();})
   );
   wrap.append(actionsRow,pdfStatus);
   content.append(wrap);
+}
+
+// Open the full score report for an already-completed tutoring test result,
+// from the Assigned Tests card or My Results history, at any time.
+function viewTutoringTestReport(t,backTab){
+  enterFullscreen();
+  var byTest={};
+  (DATA.results||[]).forEach(function(rr){var key=rr.test_id;if(!byTest[key]||new Date(rr.taken_at)>new Date(byTest[key].taken_at))byTest[key]=rr;});
+  var trendList=Object.keys(byTest).map(function(k){return{assessment_id:byTest[k].test_id,assessment_title:byTest[k].test_title,score:byTest[k].score,total:byTest[k].total,taken_at:byTest[k].taken_at};}).sort(function(x,y){return new Date(x.taken_at)-new Date(y.taken_at);});
+  renderTutoringTestScoreReport({resultId:t.id,assessment:{id:t.test_id,title:t.test_title},score:t.score,total:t.total,questions:t.questions||[],answers:t.answers||{},timeTakenSeconds:t.time_taken_seconds,questionTimes:t.question_times||{},answerChanges:t.answer_changes||[],trendList:trendList,backTab:backTab||'tests'});
+}
+
+// Open the full score report for an already-completed assessment result,
+// from the Assessments tab, at any time.
+function viewAssessmentReport(r,backTab){
+  enterFullscreen();
+  var byAssessment={};
+  (DATA.assessResults||[]).forEach(function(rr){var key=rr.assessment_id;if(!byAssessment[key]||new Date(rr.taken_at)>new Date(byAssessment[key].taken_at))byAssessment[key]=rr;});
+  var trendList=Object.keys(byAssessment).map(function(k){return byAssessment[k];}).sort(function(x,y){return new Date(x.taken_at)-new Date(y.taken_at);});
+  renderAssessmentScoreReport({resultId:r.id,assessment:{id:r.assessment_id,title:r.assessment_title},score:r.score,total:r.total,questions:r.questions||[],answers:r.answers||{},timeTakenSeconds:r.time_taken_seconds,questionTimes:r.question_times||{},answerChanges:r.answer_changes||[],blockScores:r.block_scores||null,trendList:trendList,backTab:backTab||'assessments'});
 }
 
 
@@ -5344,6 +5365,7 @@ const row=div({style:{display:'flex',justifyContent:'space-between',alignItems:'
 const left=div({},[h('span',{style:{fontSize:'13px',color:'var(--text)'},html:s.topic}),div({cls:'mono',style:{fontSize:'9px',marginTop:'2px'},html:s.mode+' mode · '+new Date(s.created_at).toLocaleDateString()})]);
 const right=div({style:{display:'flex',gap:'12px',alignItems:'center'}});
 right.append(h('span',{style:{fontFamily:"Inter,sans-serif",fontSize:'13px',color:pctColor,fontWeight:'700'},html:pct+'%'}),h('span',{style:{fontFamily:"Inter,sans-serif",fontSize:'10px',color:'var(--dim)'},html:s.score+'/'+s.total}));
+right.append(btn('Score Report','btn-outline',()=>{viewQbankReport(s);},{style:{fontSize:'10px',padding:'4px 10px'}}));
 if(s.questions&&s.answers){
 right.append(btn('Review','btn-outline',()=>{
 questions=s.questions;answers=s.answers;submitted=true;selTopic=s.topic;mode=s.mode;
@@ -5546,6 +5568,15 @@ var byTopic={};
 (histScores||[]).forEach(function(rr){var key=rr.topic;if(!byTopic[key]||new Date(rr.created_at)>new Date(byTopic[key].created_at))byTopic[key]=rr;});
 var trendList=Object.keys(byTopic).map(function(k){return{assessment_id:k,assessment_title:byTopic[k].topic,score:byTopic[k].score,total:byTopic[k].total,taken_at:byTopic[k].created_at};}).sort(function(x,y){return new Date(x.taken_at)-new Date(y.taken_at);});
 renderQbankScoreReport({resultId:ins.data&&ins.data.id,assessment:{id:selTopic,title:selTopic},score:score,total:questions.length,questions:questions,answers:answers,timeTakenSeconds:timeTakenSeconds,questionTimes:questionTimesSeconds,answerChanges:ansChanges,trendList:trendList,insertError:ins.error&&ins.error.message});
+}
+async function viewQbankReport(s){
+selTopic=s.topic;mode=s.mode||mode;
+questions=s.questions||[];answers=s.answers||{};submitted=true;
+const{data:histScores}=await sb.from('vignette_scores').select('topic,score,total,created_at').eq('user_id',S.user.id).order('created_at',{ascending:false});
+var byTopic={};
+(histScores||[]).forEach(function(rr){var key=rr.topic;if(!byTopic[key]||new Date(rr.created_at)>new Date(byTopic[key].created_at))byTopic[key]=rr;});
+var trendList=Object.keys(byTopic).map(function(k){return{assessment_id:k,assessment_title:byTopic[k].topic,score:byTopic[k].score,total:byTopic[k].total,taken_at:byTopic[k].created_at};}).sort(function(x,y){return new Date(x.taken_at)-new Date(y.taken_at);});
+renderQbankScoreReport({resultId:s.id,assessment:{id:s.topic,title:s.topic},score:s.score,total:s.total,questions:s.questions||[],answers:s.answers||{},timeTakenSeconds:s.time_taken_seconds,questionTimes:s.question_times||{},answerChanges:s.answer_changes||[],trendList:trendList});
 }
 async function renderQbankScoreReport(o){
 o.completeLabel='Quiz Complete';
@@ -6650,9 +6681,17 @@ function parseTut(text){
     if(raw.length<2)continue;
     var exp=[];
     for(var ri=0;ri<raw.length;ri++){var rl=raw[ri];var inl=/\?\s*[A-Q][.)]\s.+\s[B-Q][.)]\s/.test(rl);if(inl){var ps=rl.split(/\s+(?=[A-Q][.)]\s)/);for(var pi=0;pi<ps.length;pi++)exp.push(ps[pi].trim());}else exp.push(rl);}
-    var lines=exp.filter(function(l){return l.trim();});
+    var linesRaw=exp.filter(function(l){return l.trim();});
+    // Pull out an optional "Topic: X" line before stem/option assignment, wherever it appears in the block.
+    var topic='';
+    var lines=[];
+    for(var li2=0;li2<linesRaw.length;li2++){
+      var lraw=linesRaw[li2];
+      if(/^topic\s*:/i.test(lraw)){var tv=lraw.split(':').slice(1).join(':').trim();if(tv)topic=tv;}
+      else lines.push(lraw);
+    }
     if(lines.length<3)continue;
-    var q={topic:'Tutoring',question:lines[0],option_a:'',option_b:'',option_c:'',option_d:'',option_e:'',option_f:'',option_g:'',option_h:'',option_i:'',option_j:'',option_k:'',option_l:'',option_m:'',option_n:'',option_o:'',option_p:'',option_q:'',correct_answer:'',explanation:''};
+    var q={topic:topic,question:lines[0],option_a:'',option_b:'',option_c:'',option_d:'',option_e:'',option_f:'',option_g:'',option_h:'',option_i:'',option_j:'',option_k:'',option_l:'',option_m:'',option_n:'',option_o:'',option_p:'',option_q:'',correct_answer:'',explanation:''};
     var expIdx=-1;
     for(var li=1;li<lines.length;li++){var line=lines[li];
       if(line.startsWith('A.')||line.startsWith('A)'))q.option_a=line.slice(2).trim();
@@ -6707,7 +6746,7 @@ function renderLibrary(){
   var tPreview=div({style:{marginBottom:'12px'}},[]);
   function renderPreview(){tPreview.innerHTML='';if(!tParsed.length)return;var ok=tParsed.filter(function(q){return q._ok;}).length;var bad=tParsed.length-ok;tPreview.append(h('div',{style:{fontSize:'13px',color:bad?'var(--gold)':'var(--teal)',marginBottom:bad?'8px':'0'}},[tParsed.length+' parsed \u00b7 '+ok+' ready'+(bad?' \u00b7 '+bad+' with missing fields':'')]));if(bad){tParsed.forEach(function(q,i){if(q._ok)return;tPreview.append(h('div',{cls:'mono',style:{fontSize:'11px',color:'var(--muted)',marginBottom:'2px'}},['Q'+(i+1)+' missing: '+q._missing.join(', ')+' \u2014 '+(q.question||'').slice(0,60)]));});}}
   var parseBtn=btn('Parse & preview','btn-outline',async function(){var text='';if(tFile.files&&tFile.files.length)text=await tFile.files[0].text();else text=tPaste.value;if(!text.trim()){tStatus('Pick a .txt file or paste questions first.','#ff4444');return;}tParsed=parseTut(text);renderPreview();if(!tParsed.length)tStatus('No questions found \u2014 check the format.','#ff4444');else tSt.style.display='none';},{style:{fontSize:'12px',padding:'8px 16px',marginRight:'8px'}});
-  var saveBtn=btn('Save to library','btn-gold',async function(){var title=tTitle.value.trim();var ok=tParsed.filter(function(q){return q._ok;});if(!title){tStatus('Add a title first.','#ff4444');return;}if(!ok.length){tStatus('Parse a valid question set first.','#ff4444');return;}var tl=tMode==='timed'?(parseInt(tLimit.value,10)||null):null;saveBtn.disabled=true;tStatus('Saving\u2026','var(--muted)');var ins=await sb.from('tutoring_tests').insert({title:title,mode:tMode,time_limit:tl,created_by:S.user.id}).select().single();if(ins.error||!ins.data){tStatus('Could not create test: '+(ins.error&&ins.error.message||'unknown'),'#ff4444');saveBtn.disabled=false;return;}var rows=ok.map(function(q,i){return{test_id:ins.data.id,position:i+1,topic:q.topic||null,question:q.question,option_a:q.option_a,option_b:q.option_b,option_c:q.option_c,option_d:q.option_d,option_e:q.option_e,option_f:q.option_f,option_g:q.option_g,option_h:q.option_h,option_i:q.option_i,option_j:q.option_j,option_k:q.option_k,option_l:q.option_l,option_m:q.option_m,option_n:q.option_n,option_o:q.option_o,option_p:q.option_p,option_q:q.option_q,correct_answer:q.correct_answer,explanation:q.explanation};});var qins=await sb.from('tutoring_questions').insert(rows);if(qins.error){tStatus('Test created, but questions failed: '+qins.error.message,'#ff4444');saveBtn.disabled=false;return;}tStatus('\u2713 Saved \u201c'+title+'\u201d \u2014 '+rows.length+' questions.','var(--teal)');tTitle.value='';tPaste.value='';tFile.value='';tParsed=[];tPreview.innerHTML='';saveBtn.disabled=false;loadLibrary();},{style:{fontSize:'12px',padding:'8px 16px'}});
+  var saveBtn=btn('Save to library','btn-gold',async function(){var title=tTitle.value.trim();var ok=tParsed.filter(function(q){return q._ok;});if(!title){tStatus('Add a title first.','#ff4444');return;}if(!ok.length){tStatus('Parse a valid question set first.','#ff4444');return;}var tl=tMode==='timed'?(parseInt(tLimit.value,10)||null):null;saveBtn.disabled=true;tStatus('Saving\u2026','var(--muted)');var ins=await sb.from('tutoring_tests').insert({title:title,mode:tMode,time_limit:tl,created_by:S.user.id}).select().single();if(ins.error||!ins.data){tStatus('Could not create test: '+(ins.error&&ins.error.message||'unknown'),'#ff4444');saveBtn.disabled=false;return;}var rows=ok.map(function(q,i){return{test_id:ins.data.id,position:i+1,topic:(q.topic&&q.topic.trim())||title,question:q.question,option_a:q.option_a,option_b:q.option_b,option_c:q.option_c,option_d:q.option_d,option_e:q.option_e,option_f:q.option_f,option_g:q.option_g,option_h:q.option_h,option_i:q.option_i,option_j:q.option_j,option_k:q.option_k,option_l:q.option_l,option_m:q.option_m,option_n:q.option_n,option_o:q.option_o,option_p:q.option_p,option_q:q.option_q,correct_answer:q.correct_answer,explanation:q.explanation};});var qins=await sb.from('tutoring_questions').insert(rows);if(qins.error){tStatus('Test created, but questions failed: '+qins.error.message,'#ff4444');saveBtn.disabled=false;return;}tStatus('\u2713 Saved \u201c'+title+'\u201d \u2014 '+rows.length+' questions.','var(--teal)');tTitle.value='';tPaste.value='';tFile.value='';tParsed=[];tPreview.innerHTML='';saveBtn.disabled=false;loadLibrary();},{style:{fontSize:'12px',padding:'8px 16px'}});
   upCard.append(tTitle,modeRow,limitWrap,tFile,tPaste,tPreview,div({style:{display:'flex',alignItems:'center',flexWrap:'wrap'}},[parseBtn,saveBtn]),tSt);
   tBody.append(upCard);
 
@@ -7368,6 +7407,70 @@ function renderExamStylePreview(kind,item,questions){
   updateQ();
 }
 
+/* ===================== ADMIN SCORE REPORT VIEWER (assessments/tests/quizzes) ===================== */
+async function openAdminScoreReport(result,kind,studentName){
+  var overlay=div({style:{position:'fixed',top:'0',left:'0',width:'100%',height:'100%',background:'rgba(0,0,0,0.72)',zIndex:'1000',display:'flex',alignItems:'flex-start',justifyContent:'center',overflowY:'auto',padding:'32px 16px',boxSizing:'border-box'}},[]);
+  var modal=div({style:{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:'6px',padding:'28px',width:'100%',maxWidth:'920px',position:'relative',boxSizing:'border-box'}},[]);
+  var closeBtn=btn('\u2715 Close','btn-outline',function(){overlay.remove();},{style:{position:'absolute',top:'16px',right:'16px',fontSize:'11px',padding:'5px 12px'}});
+  modal.append(closeBtn);
+  var loadingWrap=div({style:{padding:'20px 0'}},[]);
+  loadingWrap.append(skelCard([['30%'],['100%'],['100%'],['100%']]));
+  modal.append(loadingWrap);
+  overlay.append(modal);
+  document.body.append(overlay);
+
+  var o={},trendList=[];
+  try{
+    if(kind==='assessment'){
+      o={resultId:result.id,assessment:{id:result.assessment_id,title:result.assessment_title||'Assessment'},score:result.score,total:result.total,questions:result.questions||[],answers:result.answers||{},timeTakenSeconds:result.time_taken_seconds,questionTimes:result.question_times||{},answerChanges:result.answer_changes||[],blockScores:result.block_scores||null,statsRpcName:'get_assessment_stats',statsRpcParams:{p_assessment_id:result.assessment_id,p_result_id:result.id}};
+      if(result.student_id){
+        var hr=await sb.from('tutoring_assessment_results').select('assessment_id,assessment_title,score,total,taken_at').eq('student_id',result.student_id).order('taken_at',{ascending:true});
+        var byA={};(hr.data||[]).forEach(function(rr){var k=rr.assessment_id;if(!byA[k]||new Date(rr.taken_at)>new Date(byA[k].taken_at))byA[k]=rr;});
+        trendList=Object.keys(byA).map(function(k){return byA[k];}).sort(function(x,y){return new Date(x.taken_at)-new Date(y.taken_at);});
+      }
+    }else if(kind==='test'){
+      o={resultId:result.id,assessment:{id:result.test_id,title:result.test_title||'Test'},score:result.score,total:result.total,questions:result.questions||[],answers:result.answers||{},timeTakenSeconds:result.time_taken_seconds,questionTimes:result.question_times||{},answerChanges:result.answer_changes||[],completeLabel:'Test complete',trendLabel:'Across tests, in the order taken',statsRpcName:'get_tutoring_test_stats',statsRpcParams:{p_test_id:result.test_id,p_result_id:result.id}};
+      if(result.student_id){
+        var hr2=await sb.from('tutoring_results').select('test_id,test_title,score,total,taken_at').eq('student_id',result.student_id).order('taken_at',{ascending:true});
+        var byT={};(hr2.data||[]).forEach(function(rr){var k=rr.test_id;if(!byT[k]||new Date(rr.taken_at)>new Date(byT[k].taken_at))byT[k]=rr;});
+        trendList=Object.keys(byT).map(function(k){return{assessment_id:byT[k].test_id,assessment_title:byT[k].test_title,score:byT[k].score,total:byT[k].total,taken_at:byT[k].taken_at};}).sort(function(x,y){return new Date(x.taken_at)-new Date(y.taken_at);});
+      }
+    }else{
+      o={resultId:result.id,assessment:{id:result.topic,title:result.topic},score:result.score,total:result.total,questions:result.questions||[],answers:result.answers||{},timeTakenSeconds:result.time_taken_seconds,questionTimes:result.question_times||{},answerChanges:result.answer_changes||[],completeLabel:'Quiz Complete',trendLabel:'Across topics, latest attempt each',statsRpcName:'get_qbank_topic_stats',statsRpcParams:{p_topic:result.topic,p_result_id:result.id}};
+      if(result.user_id){
+        var hr3=await sb.from('vignette_scores').select('topic,score,total,created_at').eq('user_id',result.user_id).order('created_at',{ascending:false});
+        var byTp={};(hr3.data||[]).forEach(function(rr){var k=rr.topic;if(!byTp[k]||new Date(rr.created_at)>new Date(byTp[k].created_at))byTp[k]=rr;});
+        trendList=Object.keys(byTp).map(function(k){return{assessment_id:k,assessment_title:byTp[k].topic,score:byTp[k].score,total:byTp[k].total,taken_at:byTp[k].created_at};}).sort(function(x,y){return new Date(x.taken_at)-new Date(y.taken_at);});
+      }
+    }
+    o.trendList=trendList;
+
+    var reportBody=await buildScoreReportBody(o);
+    loadingWrap.remove();
+    var header=div({style:{marginBottom:'12px'}},[]);
+    header.append(h('span',{cls:'chapter',html:'Admin \u00b7 Score Report'}));
+    if(studentName)header.append(h('p',{cls:'muted',style:{fontSize:'12px',marginTop:'2px'}},[studentName]));
+    modal.append(header,reportBody);
+    var pdfStatus=div({style:{fontSize:'11px',color:'var(--muted)',marginTop:'8px'}},[]);
+    var downloadBtn=btn('Download Report (PDF)','btn-gold',function(){
+      downloadBtn.disabled=true;
+      var origText=downloadBtn.textContent;
+      downloadBtn.textContent='Preparing PDF\u2026';
+      pdfStatus.textContent='';
+      var fname=(studentName?studentName.replace(/[^a-z0-9]+/gi,'_')+'_':'')+(o.assessment.title||'report').replace(/[^a-z0-9]+/gi,'_')+'_score_report.pdf';
+      downloadScoreReportPdf(reportBody,fname,function(errMsg){
+        downloadBtn.disabled=false;
+        downloadBtn.textContent=origText;
+        if(errMsg)pdfStatus.textContent=errMsg;
+      });
+    },{style:{fontSize:'12px',marginTop:'16px'}});
+    modal.append(downloadBtn,pdfStatus);
+  }catch(e){
+    loadingWrap.innerHTML='';
+    loadingWrap.append(h('p',{style:{fontSize:'13px',color:'#ff8888'}},['Could not load score report: '+(e&&e.message||'unknown error')]));
+  }
+}
+
 /* ===================== ADMIN RESULT REVIEW MODAL ===================== */
 function openAdminResultReview(result,opts){
   opts=opts||{};
@@ -7467,6 +7570,7 @@ function renderResults(){
       ]));
       var rightSide=div({style:{display:'flex',alignItems:'center',gap:'12px',flexShrink:'0'}},[]);
       rightSide.append(h('div',{style:{fontFamily:'Georgia,serif',fontSize:'18px',color:'var(--teal)'}},[pct+'% ('+r.score+'/'+r.total+')']));
+      rightSide.append(btn('Score Report','btn-outline',function(){openAdminScoreReport(r,'assessment',name);},{style:{fontSize:'10px',padding:'5px 12px'}}));
       rightSide.append(btn('Review','btn-outline',function(){openAdminResultReview(r,{studentName:name});},{style:{fontSize:'10px',padding:'5px 12px'}}));
       card.append(rightSide);
       listWrap.append(card);
@@ -7628,12 +7732,14 @@ function openStudent(s){
     var assigns=aRes.data||[];
     var kRes=await sb.from('tutoring_tasks').select('*').eq('student_id',s.user_id).order('due_date',{ascending:true});
     var tasks=kRes.data||[];
+    var vRes=await sb.from('vignette_scores').select('*').eq('user_id',s.user_id).order('created_at',{ascending:false});
+    var qbankResults=vRes.data||[];
     body.innerHTML='';
     var taken=results.length;
     var avg=taken?Math.round(results.reduce(function(a,t){return a+(t.score/t.total)*100;},0)/taken):0;
     var openCount=tasks.filter(function(k){return !k.done;}).length;
-    var grid=div({style:{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:'12px',marginBottom:'20px'}},[]);
-    grid.append(statBox('Tests completed',String(taken)),statBox('Average score',taken?avg+'%':'\u2014'),statBox('Assessments completed',String(assessResults.length)),statBox('Tasks open',String(openCount)));
+    var grid=div({style:{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:'12px',marginBottom:'20px'}},[]);
+    grid.append(statBox('Tests completed',String(taken)),statBox('Average score',taken?avg+'%':'\u2014'),statBox('Assessments completed',String(assessResults.length)),statBox('Q-Bank quizzes',String(qbankResults.length)),statBox('Tasks open',String(openCount)));
     body.append(grid);
 
     body.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'15px',marginBottom:'10px'},html:'Assigned tests'}));
@@ -7653,6 +7759,7 @@ function openStudent(s){
         var card=div({cls:'card',style:{marginBottom:'8px',padding:'12px',display:'flex',justifyContent:'space-between',alignItems:'center',gap:'12px',flexWrap:'wrap'}},[]);
         var rightSide=div({style:{display:'flex',alignItems:'center',gap:'12px',flexShrink:'0'}},[]);
         rightSide.append(h('div',{style:{fontFamily:'Georgia,serif',fontSize:'18px',color:'var(--teal)'}},[Math.round((t.score/t.total)*100)+'% ('+t.score+'/'+t.total+')']));
+        rightSide.append(btn('Score Report','btn-outline',function(){openAdminScoreReport(t,'test',s.full_name);},{style:{fontSize:'10px',padding:'5px 12px'}}));
         rightSide.append(btn('Review','btn-outline',function(){showAdminReview(t);},{style:{fontSize:'10px',padding:'5px 12px'}}));
         card.append(div({},[h('div',{style:{fontSize:'14px',color:'var(--text)'}},[t.test_title]),h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--muted)',marginTop:'2px'}},[new Date(t.taken_at).toLocaleDateString()+' \u00b7 '+(t.mode==='timed'?'Timed':'Tutor')])]),rightSide);
         body.append(card);
@@ -7665,8 +7772,21 @@ function openStudent(s){
         var card=div({cls:'card',style:{marginBottom:'8px',padding:'12px',display:'flex',justifyContent:'space-between',alignItems:'center',gap:'12px',flexWrap:'wrap'}},[]);
         var rightSide=div({style:{display:'flex',alignItems:'center',gap:'12px',flexShrink:'0'}},[]);
         rightSide.append(h('div',{style:{fontFamily:'Georgia,serif',fontSize:'18px',color:'var(--teal)'}},[Math.round((t.score/t.total)*100)+'% ('+t.score+'/'+t.total+')']));
+        rightSide.append(btn('Score Report','btn-outline',function(){openAdminScoreReport(t,'assessment',s.full_name);},{style:{fontSize:'10px',padding:'5px 12px'}}));
         rightSide.append(btn('Review','btn-outline',function(){openAdminResultReview(t,{studentName:s.full_name});},{style:{fontSize:'10px',padding:'5px 12px'}}));
         card.append(div({},[h('div',{style:{fontSize:'14px',color:'var(--text)'}},[t.assessment_title]),h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--muted)',marginTop:'2px'}},[new Date(t.taken_at).toLocaleDateString()+' \u00b7 '+(t.mode==='timed'?'Timed':'Tutor')])]),rightSide);
+        body.append(card);
+      });
+    }
+
+    if(qbankResults.length){
+      body.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'15px',margin:'18px 0 10px'},html:'Q-Bank results history'}));
+      qbankResults.forEach(function(t){
+        var card=div({cls:'card',style:{marginBottom:'8px',padding:'12px',display:'flex',justifyContent:'space-between',alignItems:'center',gap:'12px',flexWrap:'wrap'}},[]);
+        var rightSide=div({style:{display:'flex',alignItems:'center',gap:'12px',flexShrink:'0'}},[]);
+        rightSide.append(h('div',{style:{fontFamily:'Georgia,serif',fontSize:'18px',color:'var(--teal)'}},[Math.round((t.score/t.total)*100)+'% ('+t.score+'/'+t.total+')']));
+        rightSide.append(btn('Score Report','btn-outline',function(){openAdminScoreReport(t,'quiz',s.full_name);},{style:{fontSize:'10px',padding:'5px 12px'}}));
+        card.append(div({},[h('div',{style:{fontSize:'14px',color:'var(--text)'}},[t.topic||'Q-Bank quiz']),h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--muted)',marginTop:'2px'}},[new Date(t.created_at).toLocaleDateString()+' \u00b7 '+(t.mode==='timed'?'Timed':'Tutor')])]),rightSide);
         body.append(card);
       });
     }
