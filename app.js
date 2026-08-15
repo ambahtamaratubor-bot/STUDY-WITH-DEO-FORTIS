@@ -655,26 +655,46 @@ async function buildScoreReportBody(o){
   var swCard=div({cls:'card',style:{flex:'1 1 300px',padding:'20px'}},[]);
   swCard.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'15px',marginBottom:'14px'}},['Strengths & Weaknesses']));
   if(topics.length){
-    var bestT=topics[0],worstT=topics[topics.length-1];
-    var bestP=topicMap[bestT].total?Math.round(topicMap[bestT].correct/topicMap[bestT].total*100):0;
-    var worstP=topicMap[worstT].total?Math.round(topicMap[worstT].correct/topicMap[worstT].total*100):0;
-    var strengthBox=div({style:{background:'rgba(126,173,168,0.08)',border:'1px solid var(--teal-border)',borderRadius:'4px',padding:'14px',marginBottom:'10px'}},[]);
-    strengthBox.append(
-      div({cls:'mono',style:{fontSize:'9px',color:'var(--teal)',letterSpacing:'1px',marginBottom:'6px'}},['YOUR STRENGTH']),
-      div({style:{display:'flex',justifyContent:'space-between',alignItems:'center'}},[
-        h('span',{style:{fontSize:'14px',color:'var(--text)',fontWeight:'600'}},['\u2713 '+bestT]),
-        h('span',{style:{background:'var(--teal)',color:'#0E0B08',fontSize:'12px',fontWeight:'700',padding:'2px 10px',borderRadius:'10px'}},[bestP+'%'])
-      ])
-    );
-    var weakBox=div({style:{background:'rgba(255,107,107,0.08)',border:'1px solid rgba(255,107,107,0.3)',borderRadius:'4px',padding:'14px'}},[]);
-    weakBox.append(
-      div({cls:'mono',style:{fontSize:'9px',color:'#ff8888',letterSpacing:'1px',marginBottom:'6px'}},['NEEDS IMPROVEMENT']),
-      div({style:{display:'flex',justifyContent:'space-between',alignItems:'center'}},[
-        h('span',{style:{fontSize:'14px',color:'var(--text)',fontWeight:'600'}},['\u26a0 '+worstT]),
-        h('span',{style:{background:'#ff6b6b',color:'#0E0B08',fontSize:'12px',fontWeight:'700',padding:'2px 10px',borderRadius:'10px'}},[worstP+'%'])
-      ])
-    );
-    swCard.append(strengthBox,weakBox);
+    // topics[] is already ranked descending by score % (see topics.sort above).
+    // Tier assignment:
+    //  1) Percentile pass: top 10% of topics -> Strength, bottom 10% -> Weakness, rest -> Middle.
+    //  2) Override pass: any topic with more than 5 missed questions is forced to
+    //     Weakness (if <70%) or Strength (if >=70%), regardless of its percentile tier.
+    var n=topics.length;
+    var topCount=Math.max(1,Math.ceil(n*0.1));
+    var bottomCount=Math.max(1,Math.ceil(n*0.1));
+    if(topCount+bottomCount>n)bottomCount=Math.max(0,n-topCount);
+    var tierMeta={
+      strength:{label:'STRENGTH',icon:'\u2713',bg:'rgba(126,173,168,0.08)',border:'var(--teal-border)',color:'var(--teal)',badgeBg:'var(--teal)',badgeColor:'#0E0B08'},
+      weakness:{label:'WEAKNESS',icon:'\u26a0',bg:'rgba(255,107,107,0.08)',border:'rgba(255,107,107,0.3)',color:'#ff8888',badgeBg:'#ff6b6b',badgeColor:'#0E0B08'},
+      middle:{label:'MIDDLE',icon:'\u2013',bg:'rgba(255,255,255,0.03)',border:'var(--border)',color:'var(--muted)',badgeBg:'var(--border)',badgeColor:'var(--text)'}
+    };
+    var rankedTopics=topics.map(function(t,i){
+      var d=topicMap[t];
+      var p=d.total?Math.round((d.correct/d.total)*100):0;
+      var missed=d.total-d.correct;
+      var tier=(i<topCount)?'strength':(i>=n-bottomCount)?'weakness':'middle';
+      if(missed>5)tier=(p<70)?'weakness':'strength';
+      return{name:t,correct:d.correct,total:d.total,pct:p,missed:missed,rank:i+1,tier:tier};
+    });
+    rankedTopics.forEach(function(rt){
+      var meta=tierMeta[rt.tier];
+      var row=div({style:{background:meta.bg,border:'1px solid '+meta.border,borderRadius:'4px',padding:'10px 12px',marginBottom:'8px'}},[]);
+      row.append(
+        div({style:{display:'flex',justifyContent:'space-between',alignItems:'center'}},[
+          div({style:{display:'flex',alignItems:'center',gap:'8px',minWidth:'0'}},[
+            h('span',{cls:'mono',style:{fontSize:'9px',color:'var(--muted)',flexShrink:'0'}},['#'+rt.rank]),
+            h('span',{style:{fontSize:'13px',color:'var(--text)',fontWeight:'600',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}},[meta.icon+' '+rt.name])
+          ]),
+          div({style:{display:'flex',alignItems:'center',gap:'8px',flexShrink:'0'}},[
+            h('span',{cls:'mono',style:{fontSize:'10px',color:'var(--muted)'}},[rt.correct+'/'+rt.total]),
+            h('span',{style:{background:meta.badgeBg,color:meta.badgeColor,fontSize:'11px',fontWeight:'700',padding:'2px 9px',borderRadius:'10px'}},[rt.pct+'%'])
+          ])
+        ]),
+        div({cls:'mono',style:{fontSize:'8px',color:meta.color,letterSpacing:'1px',marginTop:'4px'}},[meta.label+(rt.missed>5?' \u00b7 override ('+rt.missed+' missed)':'')])
+      );
+      swCard.append(row);
+    });
   }else{
     swCard.append(h('p',{style:{fontSize:'12px',color:'var(--muted)'}},['Not enough topic data yet.']));
   }
