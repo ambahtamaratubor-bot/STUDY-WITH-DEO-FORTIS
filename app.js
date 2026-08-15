@@ -658,8 +658,8 @@ async function buildScoreReportBody(o){
     // topics[] is already ranked descending by score % (see topics.sort above).
     // Tier assignment:
     //  1) Percentile pass: top 10% of topics -> Strength, bottom 10% -> Weakness, rest -> Middle.
-    //  2) Override pass: any topic with more than 5 missed questions is forced to
-    //     Weakness (if <70%) or Strength (if >=70%), regardless of its percentile tier.
+    //  2) Missed-question override: >5 missed forces Weakness (if <70%) or Strength (if >=70%).
+    //  3) High-volume override: >10 correct and >80% automatically forces Strength.
     var n=topics.length;
     var topCount=Math.max(1,Math.ceil(n*0.1));
     var bottomCount=Math.max(1,Math.ceil(n*0.1));
@@ -675,6 +675,7 @@ async function buildScoreReportBody(o){
       var missed=d.total-d.correct;
       var tier=(i<topCount)?'strength':(i>=n-bottomCount)?'weakness':'middle';
       if(missed>5)tier=(p<70)?'weakness':'strength';
+      if(d.correct>10&&p>80)tier='strength';
       return{name:t,correct:d.correct,total:d.total,pct:p,missed:missed,rank:i+1,tier:tier};
     });
     rankedTopics.forEach(function(rt){
@@ -691,7 +692,7 @@ async function buildScoreReportBody(o){
             h('span',{style:{background:meta.badgeBg,color:meta.badgeColor,fontSize:'11px',fontWeight:'700',padding:'2px 9px',borderRadius:'10px'}},[rt.pct+'%'])
           ])
         ]),
-        div({cls:'mono',style:{fontSize:'8px',color:meta.color,letterSpacing:'1px',marginTop:'4px'}},[meta.label+(rt.missed>5?' \u00b7 override ('+rt.missed+' missed)':'')])
+        div({cls:'mono',style:{fontSize:'8px',color:meta.color,letterSpacing:'1px',marginTop:'4px'}},[meta.label])
       );
       swCard.append(row);
     });
