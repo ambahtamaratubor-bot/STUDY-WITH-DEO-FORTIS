@@ -27,6 +27,17 @@ async function callAdminFn(action,payload){
   const res=await fetch(ADMIN_FN,{method:'POST',headers,body:JSON.stringify({action,...payload})});
   return res.json();
 }
+function ensureNewBadgeStyles(){
+  if(document.getElementById('df-newbadge-style'))return;
+  var st=document.createElement('style');
+  st.id='df-newbadge-style';
+  st.textContent='@keyframes dfNewGlow{0%,100%{box-shadow:0 0 4px 0 rgba(184,146,46,0.6);}50%{box-shadow:0 0 10px 3px rgba(184,146,46,0.9);}}';
+  document.head.appendChild(st);
+}
+function newBadge(){
+  ensureNewBadgeStyles();
+  return h('span',{style:{display:'inline-block',background:'var(--gold)',color:'#0F0E0A',fontFamily:'Inter,sans-serif',fontSize:'9px',fontWeight:'800',letterSpacing:'1px',padding:'2px 8px',borderRadius:'999px',marginLeft:'8px',verticalAlign:'middle',animation:'dfNewGlow 1.6s ease-in-out infinite'}},['NEW']);
+}
 function ensureLoadingBarStyles(){
   if(document.getElementById('df-loadbar-style'))return;
   var st=document.createElement('style');
@@ -1343,7 +1354,7 @@ function renderDashboard(){
     const firstName=((S.profile&&S.profile.full_name)||'Scholar').split(' ')[0];
     content.append(
       div({style:{marginBottom:'20px'}},[
-        h('h1',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'28px',fontWeight:'700',margin:'0 0 4px'}},[greeting+', ',h('span',{style:{color:'var(--gold)'}},[firstName])]),
+        h('h1',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'28px',fontWeight:'700',margin:'0 0 4px'}},[greeting+', ',h('span',{style:{color:'var(--gold)'}},[firstName]),newBadge()]),
         h('p',{cls:'muted',style:{fontSize:'13px',margin:'0'}},['Let\u2019s keep the momentum going.'])
       ])
     );
@@ -1499,7 +1510,7 @@ function renderDashboard(){
     });
     const subjTopics=Object.keys(subjMap).sort(function(a,b){return subjMap[b].total-subjMap[a].total;}).slice(0,6);
     const subjCard=div({cls:'card',style:{padding:'20px',marginBottom:'16px'}},[]);
-    subjCard.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'15px',marginBottom:'4px'}},['Performance by Subject']),h('p',{style:{fontSize:'10px',color:'var(--dim)',marginBottom:'14px'}},['Grouped by the folder each completed test is filed under']));
+    subjCard.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'15px',marginBottom:'14px'}},['Performance by Subject']));
     if(!subjTopics.length){
       subjCard.append(h('p',{style:{fontSize:'12px',color:'var(--dim)'},html:'Complete a test to see this broken down by subject folder.'}));
     }else{
@@ -4179,7 +4190,7 @@ nav.append(
 page.append(nav);
 
 const container=div({cls:'inner'});
-const tutHolder=div({});container.append(tutHolder);(async function(){const _te=await sb.from('tutoring_students').select('id').eq('user_id',S.user.id).eq('active',true).maybeSingle();if(!_te||!_te.data)return;const tw=div({cls:'card',style:{marginBottom:'16px',borderColor:'var(--gold)',cursor:'pointer',display:'flex',justifyContent:'space-between',alignItems:'center',gap:'16px',flexWrap:'wrap'}},[div({style:{flex:'1',minWidth:'200px'}},[h('div',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'17px',color:'var(--gold)',marginBottom:'4px'}},['Tutoring Wing']),h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'13px',color:'var(--muted)'}},['Your assigned tests, tasks and results'])]),h('span',{cls:'mono',style:{fontSize:'12px',color:'var(--gold)',flexShrink:'0'}},['Enter →'])]);tw.onclick=function(){go('tutoring');};tutHolder.append(tw);})();
+const tutHolder=div({});container.append(tutHolder);(async function(){const _te=await sb.from('tutoring_students').select('id').eq('user_id',S.user.id).eq('active',true).maybeSingle();if(!_te||!_te.data)return;const tw=div({cls:'card',style:{marginBottom:'16px',borderColor:'var(--gold)',cursor:'pointer',display:'flex',justifyContent:'space-between',alignItems:'center',gap:'16px',flexWrap:'wrap'}},[div({style:{flex:'1',minWidth:'200px'}},[h('div',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'17px',color:'var(--gold)',marginBottom:'4px'}},['Tutoring Wing',newBadge()]),h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'13px',color:'var(--muted)'}},['Your assigned tests, tasks and results'])]),h('span',{cls:'mono',style:{fontSize:'12px',color:'var(--gold)',flexShrink:'0'}},['Enter →'])]);tw.onclick=function(){go('tutoring');};tutHolder.append(tw);})();
 page.append(container);
 
 // STAT CARD HELPER
@@ -5202,6 +5213,7 @@ function activateTab(activeBtn,showFn){
 }
 const decksTabBtn=btn('Flashcard Decks','btn',()=>activateTab(decksTabBtn,showDecks),{style:{padding:'10px 20px',background:'var(--gold)',color:'var(--bg)',border:'1px solid var(--gold)',borderRadius:'0',fontSize:'12px'}});
 const dailyTabBtn=btn('Daily Review','btn',()=>activateTab(dailyTabBtn,showDailyReview),{style:{padding:'10px 20px',background:'transparent',color:'var(--text)',border:'1px solid var(--border)',borderRadius:'0',fontSize:'12px'}});
+dailyTabBtn.append(newBadge());
 const bitzTabBtn=btn('Riddle & Emoji Bitz','btn',()=>activateTab(bitzTabBtn,showBitz),{style:{padding:'10px 20px',background:'transparent',color:'var(--text)',border:'1px solid var(--border)',borderRadius:'0',fontSize:'12px'}});
 allTabBtns.push(decksTabBtn,dailyTabBtn,bitzTabBtn);
 tabBar.append(decksTabBtn,dailyTabBtn,bitzTabBtn);
@@ -8351,7 +8363,7 @@ function openStudent(s){
 
     // CLASS SCHEDULE
     function fmtTimeShortAdmin(t){if(!t)return'';try{var parts=String(t).split(':');var hh=parseInt(parts[0],10);var mm=parts[1]||'00';var ap=hh>=12?'PM':'AM';var h12=hh%12;if(h12===0)h12=12;return h12+':'+mm+' '+ap;}catch(e){return'';}}
-    body.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'15px',marginBottom:'10px'},html:'Class Schedule'}));
+    body.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'15px',marginBottom:'10px'}},['Class Schedule',newBadge()]));
     var classWrap=div({style:{marginBottom:'12px'}},[]);
     body.append(classWrap);
     var addSlotCard=div({cls:'card',style:{padding:'14px',marginBottom:'18px'}},[]);
