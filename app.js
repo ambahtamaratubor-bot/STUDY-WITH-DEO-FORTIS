@@ -1232,11 +1232,11 @@ const wingHeader=div({},[
 inner.append(wingHeader);
 page.append(inner);
 
-let currentTab='overview';
+let currentTab='dashboard';
 const tabBar=div({style:{display:'flex',gap:'8px',marginBottom:'20px',flexWrap:'wrap'}},[]);
 const content=div({});
 inner.append(tabBar,content);
-const TABS=[['overview','Overview'],['tests','Assigned Tests'],['tasks','Tasks'],['results','My Results'],['assessments','Assessments']];
+const TABS=[['tests','Assigned Tests'],['tasks','Tasks'],['results','My Results'],['assessments','Assessments']];
 
 function enterFullscreen(){
   nav.style.display='none';
@@ -1256,10 +1256,8 @@ function exitFullscreen(){
 
 function paintTabs(){
   tabBar.innerHTML='';
-  TABS.forEach(function(t){
-    const active=currentTab===t[0];
-    tabBar.append(btn(t[1],active?'btn-gold':'btn-outline',function(){currentTab=t[0];paintTabs();renderTab();},{style:{padding:'8px 16px',fontSize:'12px'}}));
-  });
+  if(currentTab==='dashboard')return;
+  tabBar.append(btn('\u2190 Back to Dashboard','btn-outline',function(){currentTab='dashboard';paintTabs();renderTab();},{style:{padding:'8px 16px',fontSize:'12px'}}));
 }
 
 let DATA={enrolled:false,assignments:[],results:[],tasks:[],counts:{},assessAssignments:[],assessResults:[],assessCounts:{}};
@@ -1309,14 +1307,14 @@ function renderTab(){
     content.append(div({cls:'card',style:{textAlign:'center',padding:'40px'}},[h('p',{style:{color:'var(--muted)',fontSize:'14px'},html:'You are not enrolled in tutoring yet. Your tutor will add you when your programme begins.'},[])]));
     return;
   }
-  if(currentTab==='overview')renderOverview();
+  if(currentTab==='dashboard')renderDashboard();
   else if(currentTab==='tests')renderTests();
   else if(currentTab==='tasks')renderTasks();
   else if(currentTab==='assessments')renderAssessTab();
   else renderResults();
 }
 
-function renderOverview(){
+function renderDashboard(){
   const skel=div({});for(var _o=0;_o<4;_o++){skel.append(skelCard([['40%'],['60%']]));}
   content.append(skel);
   const DOW_NAMES2=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
@@ -1337,7 +1335,6 @@ function renderOverview(){
     const combinedResults=[...DATA.results.map(function(r){return Object.assign({},r,{_kind:'Test',_title:r.test_title});}),...DATA.assessResults.map(function(r){return Object.assign({},r,{_kind:'Assessment',_title:r.assessment_title});})];
     combinedResults.sort(function(a,b){return new Date(a.taken_at)-new Date(b.taken_at);});
     const avgScore=combinedResults.length?Math.round(combinedResults.reduce(function(s,r){return s+(r.total?(r.score/r.total)*100:0);},0)/combinedResults.length):0;
-    const testsCompleted=combinedResults.length;
     const streak=(S.profile&&S.profile.streak_count)||0;
 
     // GREETING HEADER
@@ -1351,12 +1348,37 @@ function renderOverview(){
       ])
     );
 
+    // NAVIGATION TILES — the entry point into each section
+    const ICON_TESTS='<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="2"/><line x1="8" y1="8" x2="16" y2="8"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="8" y1="16" x2="12" y2="16"/></svg>';
+    const ICON_TASKS='<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>';
+    const ICON_RESULTS='<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>';
+    const ICON_ASSESS='<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r="0.6" fill="currentColor"/></svg>';
+    const tilesGrid=div({style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(140px,1fr))',gap:'12px',marginBottom:'24px'}});
+    function navTile(icon,label,onClick){
+      const t=div({style:{border:'1px solid var(--border)',padding:'16px',borderRadius:'4px',cursor:'pointer',background:'transparent',textAlign:'center'}});
+      t.onclick=onClick;
+      t.onmouseenter=function(){t.style.background='var(--gold-subtle)';};
+      t.onmouseleave=function(){t.style.background='transparent';};
+      const iconDiv=div({style:{display:'flex',alignItems:'center',justifyContent:'center',marginBottom:'8px',color:'var(--gold)'}});
+      iconDiv.innerHTML=icon;
+      t.append(iconDiv,h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'13px',color:'var(--text)',fontWeight:'600'}},[label]));
+      return t;
+    }
+    tilesGrid.append(
+      navTile(ICON_TESTS,'Assigned Tests',function(){goTab('tests');}),
+      navTile(ICON_TASKS,'Tasks',function(){goTab('tasks');}),
+      navTile(ICON_RESULTS,'My Results',function(){goTab('results');}),
+      navTile(ICON_ASSESS,'Assessments',function(){goTab('assessments');})
+    );
+    content.append(tilesGrid);
+
     // TOP STAT ROW
     const statsGridOv=div({style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(150px,1fr))',gap:'12px',marginBottom:'24px'}});
     function ovStat(label,value,onClick){var c=div({cls:'card',style:{padding:'16px',cursor:onClick?'pointer':'default'}},[h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--muted)',letterSpacing:'1px',textTransform:'uppercase',marginBottom:'8px'}},[label]),h('div',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'30px',color:'var(--gold)',lineHeight:'1'}},[String(value)])]);if(onClick)c.onclick=onClick;return c;}
     statsGridOv.append(
       ovStat('Classes Attended',attendance.length),
-      ovStat('Tests Completed',testsCompleted,function(){goTab('results');}),
+      ovStat('Tests Completed',DATA.results.length,function(){goTab('results');}),
+      ovStat('Assessments Completed',DATA.assessResults.length,function(){goTab('assessments');}),
       ovStat('Avg. Score',combinedResults.length?avgScore+'%':'\u2014',function(){goTab('results');}),
       ovStat('Study Streak',streak+' day'+(streak===1?'':'s'))
     );
@@ -1456,21 +1478,30 @@ function renderOverview(){
     });
     sideCol.append(upCard);
 
-    // PERFORMANCE BY SUBJECT (side col, donut)
+    // PERFORMANCE BY SUBJECT (side col, donut) — grouped by the folder each test lives in
+    const testIds=[...new Set(DATA.results.map(function(r){return r.test_id;}).filter(Boolean))];
+    let folderNameByTestId={};
+    if(testIds.length){
+      const[testsFolderRes,foldersRes]=await Promise.all([
+        sb.from('tutoring_tests').select('id,folder_id').in('id',testIds),
+        sb.from('tutoring_test_folders').select('id,name')
+      ]);
+      const folderNameById={};
+      (foldersRes.data||[]).forEach(function(f){folderNameById[f.id]=f.name;});
+      (testsFolderRes.data||[]).forEach(function(t){folderNameByTestId[t.id]=t.folder_id?(folderNameById[t.folder_id]||'Uncategorized'):'Uncategorized';});
+    }
     const subjMap={};
-    combinedResults.forEach(function(r){
-      (r.questions||[]).forEach(function(q){
-        var t=q.topic||'General';
-        if(!subjMap[t])subjMap[t]={correct:0,total:0};
-        subjMap[t].total++;
-        if((r.answers||{})[q.id]===String(q.correct_answer||'').toUpperCase())subjMap[t].correct++;
-      });
+    DATA.results.forEach(function(r){
+      var subj=folderNameByTestId[r.test_id]||'Uncategorized';
+      if(!subjMap[subj])subjMap[subj]={correct:0,total:0};
+      subjMap[subj].correct+=(r.score||0);
+      subjMap[subj].total+=(r.total||0);
     });
     const subjTopics=Object.keys(subjMap).sort(function(a,b){return subjMap[b].total-subjMap[a].total;}).slice(0,6);
     const subjCard=div({cls:'card',style:{padding:'20px',marginBottom:'16px'}},[]);
-    subjCard.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'15px',marginBottom:'14px'}},['Performance by Subject']));
+    subjCard.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'15px',marginBottom:'4px'}},['Performance by Subject']),h('p',{style:{fontSize:'10px',color:'var(--dim)',marginBottom:'14px'}},['Grouped by the folder each completed test is filed under']));
     if(!subjTopics.length){
-      subjCard.append(h('p',{style:{fontSize:'12px',color:'var(--dim)'},html:'Not enough topic data yet.'}));
+      subjCard.append(h('p',{style:{fontSize:'12px',color:'var(--dim)'},html:'Complete a test to see this broken down by subject folder.'}));
     }else{
       const donutColors=['var(--gold)','var(--teal)','#8B7FD4','#E08A3C','#7EB8A4','var(--muted)'];
       const total=subjTopics.reduce(function(s,t){return s+subjMap[t].total;},0);
