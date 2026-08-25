@@ -500,6 +500,33 @@ function mediaEmbed(m){
   return wrap;
 }
 
+// Reason picker shown under a missed question so the student can log why they got it wrong.
+// Options are intentionally short and mutually distinct — refine wording here if it changes.
+var ERROR_REASONS=[
+  ['','Why did you miss this? (optional)'],
+  ['knowledge_gap','I didn\u2019t know this content'],
+  ['question_misread','I misunderstood what the question was asking'],
+  ['option_confusion','I understood the question but picked the wrong option'],
+  ['second_guessed','I second-guessed my first instinct'],
+  ['careless','Careless mistake \u2014 missed a detail or rushed']
+];
+function buildErrorReasonPicker(resultId,questionId,existingReason){
+  var wrap=div({style:{marginTop:'10px'}},[]);
+  if(!resultId||!questionId)return wrap;
+  var sel=h('select',{cls:'input',style:{fontSize:'11px',padding:'6px 10px',width:'auto',maxWidth:'100%'}},ERROR_REASONS.map(function(r){return h('option',{value:r[0]},[r[1]]);}));
+  sel.value=existingReason||'';
+  var savedNote=h('span',{style:{fontSize:'10px',color:'var(--teal)',marginLeft:'8px',display:'none'}},['\u2713 Saved']);
+  sel.onchange=async function(){
+    savedNote.style.display='none';
+    if(!sel.value)return;
+    var payload={student_id:S.user.id,result_id:resultId,question_id:questionId,reason:sel.value,updated_at:new Date().toISOString()};
+    var res=await sb.from('question_error_log').upsert(payload,{onConflict:'student_id,result_id,question_id'});
+    if(!res.error){savedNote.style.display='inline';setTimeout(function(){savedNote.style.display='none';},1500);}
+  };
+  wrap.append(sel,savedNote);
+  return wrap;
+}
+
 // Builds the per-question review cards (question text, options colored by correctness,
 // explanation) shared by both the student-facing review screen and the admin review modal.
 function buildReviewQuestionCards(qs,ans,opts){
@@ -546,6 +573,12 @@ function buildReviewQuestionCards(qs,ans,opts){
         }
       }
       qCard.append(expWrap);
+    }
+    if(!opts.previewMode&&!isCorrect&&opts.errorReasons&&opts.errorReasons[q.id]){
+      var reasonLabel=(ERROR_REASONS.find(function(r){return r[0]===opts.errorReasons[q.id];})||[])[1];
+      if(reasonLabel){
+        qCard.append(div({style:{marginTop:'10px',fontSize:'11px',color:'var(--gold)',background:'rgba(184,146,46,0.08)',border:'1px solid var(--gold-border)',borderRadius:'3px',padding:'7px 10px'}},['Student\u2019s reported reason: ',h('b',{},[reasonLabel])]));
+      }
     }
     cards.push(qCard);
   });
@@ -1606,6 +1639,22 @@ function renderDashboard(){
     );
     sideCol.append(sumCard);
 
+    // MOST COMMON ERROR (side col)
+    const{data:errLogData}=await sb.from('question_error_log').select('reason').eq('student_id',S.user.id);
+    const errCountsOv={};
+    (errLogData||[]).forEach(function(r){errCountsOv[r.reason]=(errCountsOv[r.reason]||0)+1;});
+    const topReasonKeyOv=Object.keys(errCountsOv).sort(function(a,b){return errCountsOv[b]-errCountsOv[a];})[0];
+    if(topReasonKeyOv){
+      const topReasonLabelOv=(ERROR_REASONS.find(function(r){return r[0]===topReasonKeyOv;})||[])[1]||'\u2014';
+      const errCard=div({cls:'card',style:{padding:'20px',marginBottom:'16px'}},[]);
+      errCard.append(
+        h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'15px',marginBottom:'10px'}},['Most Common Error']),
+        h('div',{style:{fontFamily:'Georgia,serif',fontStyle:'italic',fontSize:'16px',color:'var(--gold)',lineHeight:'1.3',marginBottom:'4px'}},[topReasonLabelOv]),
+        h('div',{style:{fontSize:'11px',color:'var(--dim)'}},[errCountsOv[topReasonKeyOv]+' of '+(errLogData||[]).length+' logged mistake'+((errLogData||[]).length===1?'':'s')])
+      );
+      sideCol.append(errCard);
+    }
+
     // ATTENDANCE LOG (side col)
     if(attendance.length){
       const attCard=div({cls:'card',style:{padding:'20px'}},[]);
@@ -2012,7 +2061,7 @@ async function renderAssessmentScoreReport(o){
   },{style:{fontSize:'12px'}});
   var actionsRow=div({style:{display:'flex',gap:'10px',flexWrap:'wrap',marginTop:'20px',alignItems:'center'}},[]);
   actionsRow.append(
-    btn('Review Answers \u2192','btn-gold',function(){showReview({test_title:o.assessment.title,score:o.score,total:o.total,answers:o.answers,questions:o.questions,taken_at:new Date().toISOString()});}),
+    btn('Review Answers \u2192','btn-gold',function(){showReview({id:o.resultId,test_title:o.assessment.title,score:o.score,total:o.total,answers:o.answers,questions:o.questions,taken_at:new Date().toISOString()});}),
     downloadBtn,
     btn('Back to wing','btn-outline',function(){exitFullscreen();currentTab=o.backTab||'assessments';paintTabs();renderTab();})
   );
@@ -2052,7 +2101,7 @@ async function renderTutoringTestScoreReport(o){
   },{style:{fontSize:'12px'}});
   var actionsRow=div({style:{display:'flex',gap:'10px',flexWrap:'wrap',marginTop:'20px',alignItems:'center'}},[]);
   actionsRow.append(
-    btn('Review Answers \u2192','btn-gold',function(){showReview({test_title:o.assessment.title,score:o.score,total:o.total,answers:o.answers,questions:o.questions,taken_at:new Date().toISOString()});}),
+    btn('Review Answers \u2192','btn-gold',function(){showReview({id:o.resultId,test_title:o.assessment.title,score:o.score,total:o.total,answers:o.answers,questions:o.questions,taken_at:new Date().toISOString()});}),
     downloadBtn,
     btn('Back to wing','btn-outline',function(){exitFullscreen();currentTab=o.backTab||'tests';paintTabs();renderTab();})
   );
@@ -2562,7 +2611,14 @@ function runBlockedAssessment(a,assessment,allQuestions){
   else renderIntro();
 }
 
-function showReview(result){
+async function showReview(result){
+  content.innerHTML='';
+  content.append(skelCard([['40%'],['80%'],['60%']]));
+  var errorReasons={};
+  if(result.id){
+    var er=await sb.from('question_error_log').select('question_id,reason').eq('student_id',S.user.id).eq('result_id',result.id);
+    (er.data||[]).forEach(function(row){errorReasons[row.question_id]=row.reason;});
+  }
   content.innerHTML='';
   content.append(btn('\u2190 Back','btn-outline',function(){exitFullscreen();paintTabs();renderTab();},{style:{fontSize:'11px',padding:'6px 12px',marginBottom:'16px'}}));
   content.append(
@@ -2642,6 +2698,9 @@ function showReview(result){
       }
       qCard.append(expWrap);
     }
+    if(!isCorrect){
+      qCard.append(buildErrorReasonPicker(result.id,q.id,errorReasons[q.id]));
+    }
     content.append(qCard);
   });
   }
@@ -2657,7 +2716,7 @@ const pages={landing,signup,login,pending,dashboard,study,flashcards,vignette,le
 if(!window.activeSessionId||!window.pomPlan){var _ps=localStorage.getItem('pomodoroState');if(_ps){try{var _psp=JSON.parse(_ps);if(_psp.activeSessionId){window.activeSessionId=_psp.activeSessionId;window.sessionStartTime=_psp.sessionStartTime||null;if(!window.pomPlan&&_psp.segStart){var _cfg=_psp.cfg||{};window.pomPlan={topic:_cfg.topic||'General Study',totalSessions:_cfg.sessions||4,workSec:(_cfg.workMins||25)*60,breakSec:(_cfg.breakMins||5)*60,currentCycle:_psp.curSess||1,isBreakMode:_psp.isBreak||false,startedAtTimestamp:_psp.segStart};}}  }catch(e){}}}
 try{
   root.append((pages[S.page]||landing)());
-  if(window.activeSessionId){showNoiseBar();showTimerBar();}else{removeNoiseBar();removeTimerBar();}
+  if(window.activeSessionId){showNoiseBar();showTimerBar();initSessionNotepad();}else{removeNoiseBar();removeTimerBar();removeSessionNotepad();}
 }catch(err){
   console.error('Render error:',err);
   root.innerHTML='';
@@ -5020,7 +5079,7 @@ const coutBtn=btn('⏹ Clock Out & Save Session','btn-gold',async()=>{
     // Clear all state
     window.activeSessionId=null;window.sessionStartTime=null;window.pomPlan=null;
     localStorage.removeItem('pomodoroState');localStorage.removeItem('activeSession');
-    removeNoiseBar();removeTimerBar();
+    removeNoiseBar();removeTimerBar();removeSessionNotepad();
     go('dashboard');
   }catch(e){
     console.error('Clock out error:',e);
@@ -5735,6 +5794,7 @@ const nav=div({cls:'dash-nav'});
 nav.append(dfLogo(),div({style:{display:'flex',gap:'8px'}},[btn('← Dashboard','btn-outline',()=>go('dashboard'),{style:{padding:'8px 16px'}}),makeThemeBtn()]));
 page.append(nav);
 let questions=[],current=0,answers={},submitted=false,revealed={},ruledOut={},highlights={},flagged={},timeLeft=0,tInterval=null,selTopic='',mode='',timeLimit=60,qFilter='all';
+let currentVignetteResultId=null;
 let activeHighlightBtn=null;
 let examStartedAt=0,qTimeMs={},ansChanges=[],activeQId=null,activeEnteredAt=null;
 function flushActiveTime(){if(activeQId&&activeEnteredAt){qTimeMs[activeQId]=(qTimeMs[activeQId]||0)+(Date.now()-activeEnteredAt);}activeQId=null;activeEnteredAt=null;}
@@ -6152,6 +6212,7 @@ const score=questions.filter(q=>answers[q.id]===q.correct_answer).length;
 const timeTakenSeconds=examStartedAt?Math.round((Date.now()-examStartedAt)/1000):0;
 const questionTimesSeconds={};Object.keys(qTimeMs).forEach(function(k){questionTimesSeconds[k]=Math.round(qTimeMs[k]/1000);});
 const ins=await sb.from('vignette_scores').insert({user_id:S.user.id,topic:selTopic,score,total:questions.length,mode,answers:answers,questions:questions,time_taken_seconds:timeTakenSeconds,question_times:questionTimesSeconds,answer_changes:ansChanges}).select('id').single();
+currentVignetteResultId=(ins.data&&ins.data.id)||null;
 if(S.profile?.is_free_tier!==true||isInTrial()){var _vpts=questions.length*2;await sb.from('profiles').update({total_points:(S.profile?.total_points||0)+_vpts}).eq('id',S.user.id);if(S.profile)S.profile.total_points=(S.profile.total_points||0)+_vpts;}
 // Upsert question_progress for each answered question
 var progressUpserts=questions.filter(function(q){return answers[q.id]!==undefined;}).map(function(q){return{user_id:S.user.id,question_id:q.id,seen:true,answered_correctly:answers[q.id]===q.correct_answer,last_seen_at:new Date().toISOString()};});
@@ -6177,6 +6238,7 @@ o.completeLabel='Quiz Complete';
 o.trendLabel='Across topics, latest attempt each';
 o.statsRpcName='get_qbank_topic_stats';
 o.statsRpcParams={p_topic:selTopic,p_result_id:o.resultId};
+currentVignetteResultId=o.resultId||null;
 page.innerHTML='';page.append(nav);
 const loadingWrap=div({cls:'inner-sm'});
 loadingWrap.append(skelCard([['30%'],['100%'],['100%'],['100%']]));
@@ -6208,9 +6270,16 @@ wrap.append(actionsRow,pdfStatus);
 page.append(wrap);
 }
 
-function showReview(){
+async function showReview(){
 page.innerHTML='';page.append(nav);
 const inner=div({cls:'inner-sm'});
+inner.append(skelCard([['40%'],['80%'],['60%']]));
+var errorReasons={};
+if(currentVignetteResultId){
+  var er=await sb.from('question_error_log').select('question_id,reason').eq('student_id',S.user.id).eq('result_id',currentVignetteResultId);
+  (er.data||[]).forEach(function(row){errorReasons[row.question_id]=row.reason;});
+}
+inner.innerHTML='';
 inner.append(h('span',{cls:'chapter',html:'Review'}),h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'26px',marginBottom:'8px'},html:'Answer Review'}),h('p',{cls:'muted',style:{fontSize:'14px',marginBottom:'32px'},html:selTopic+' — '+questions.length+' questions'}));
 questions.forEach((q,i)=>{
 const userAns=answers[q.id];
@@ -6258,6 +6327,9 @@ if(q.explanation){
     }
   }
   qCard.append(expWrap);
+}
+if(!isCorrect){
+  qCard.append(buildErrorReasonPicker(currentVignetteResultId,q.id,errorReasons[q.id]));
 }
 inner.append(qCard);
 });
@@ -8168,11 +8240,20 @@ function openAdminResultReview(result,opts){
   overlay.append(modal);
   document.body.append(overlay);
   overlay.onclick=function(e){if(e.target===overlay)overlay.remove();};
-  function renderAdminReviewQuestions(qs,ans){
-    buildReviewQuestionCards(qs,ans).forEach(function(c){reviewBody.append(c);});
+  function renderAdminReviewQuestions(qs,ans,errorReasons){
+    buildReviewQuestionCards(qs,ans,{errorReasons:errorReasons||{}}).forEach(function(c){reviewBody.append(c);});
   }
   var qs=result.questions||[];var ans=result.answers||{};
-  if(qs.length){renderAdminReviewQuestions(qs,ans);}
+  if(qs.length){
+    (async function(){
+      var errorReasons={};
+      if(result.id&&result.student_id){
+        var er=await sb.from('question_error_log').select('question_id,reason').eq('student_id',result.student_id).eq('result_id',result.id);
+        (er.data||[]).forEach(function(row){errorReasons[row.question_id]=row.reason;});
+      }
+      renderAdminReviewQuestions(qs,ans,errorReasons);
+    })();
+  }
   else{reviewBody.append(h('p',{style:{color:'var(--muted)',fontSize:'13px'}},['No question detail available for this result.']));}
 }
 
@@ -8419,10 +8500,23 @@ function openStudent(s){
     var taken=results.length;
     var avg=taken?Math.round(results.reduce(function(a,t){return a+(t.score/t.total)*100;},0)/taken):0;
     var openCount=tasks.filter(function(k){return !k.done;}).length;
+    var errLogRes=await sb.from('question_error_log').select('reason').eq('student_id',s.user_id);
+    var errCounts={};
+    (errLogRes.data||[]).forEach(function(r){errCounts[r.reason]=(errCounts[r.reason]||0)+1;});
+    var topReasonKey=Object.keys(errCounts).sort(function(a,b){return errCounts[b]-errCounts[a];})[0];
+    var topReasonLabel=topReasonKey?((ERROR_REASONS.find(function(r){return r[0]===topReasonKey;})||[])[1]||'\u2014'):'\u2014';
     var statsSec=adminSection('Overview',false);
     var grid=div({style:{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:'12px'}},[]);
     grid.append(statBox('Tests completed',String(taken)),statBox('Average score',taken?avg+'%':'\u2014'),statBox('Assessments completed',String(assessResults.length)),statBox('Q-Bank quizzes',String(qbankResults.length)),statBox('Tasks open',String(openCount)));
     statsSec.body.append(grid);
+    if(topReasonKey){
+      var errBox=div({cls:'card',style:{padding:'14px',marginTop:'12px'}},[
+        h('div',{cls:'mono',style:{fontSize:'10px',letterSpacing:'1px',textTransform:'uppercase',color:'var(--muted)',marginBottom:'6px'}},['Most Common Error']),
+        h('div',{style:{fontFamily:'Georgia,serif',fontStyle:'italic',fontSize:'17px',color:'var(--gold)',lineHeight:'1.3'}},[topReasonLabel]),
+        h('div',{style:{fontSize:'11px',color:'var(--dim)',marginTop:'4px'}},[errCounts[topReasonKey]+' of '+(errLogRes.data||[]).length+' logged mistake'+((errLogRes.data||[]).length===1?'':'s')])
+      ]);
+      statsSec.body.append(errBox);
+    }
     body.append(statsSec.wrap);
 
     // CLASS LINKS — two permanent links shared across every class slot for this student
@@ -8624,14 +8718,19 @@ function openStudent(s){
       document.body.append(overlay);
       overlay.onclick=function(e){if(e.target===overlay)overlay.remove();};
       var fullQs=[];
+      var reviewErrorReasons={};
       function renderAdminReviewQuestions(qs,ans){
         fullQs=qs;
-        buildReviewQuestionCards(qs,ans).forEach(function(c){reviewBody.append(c);});
+        buildReviewQuestionCards(qs,ans,{errorReasons:reviewErrorReasons}).forEach(function(c){reviewBody.append(c);});
       }
       var qs=result.questions||[];var ans=result.answers||{};
-      if(qs.length){renderAdminReviewQuestions(qs,ans);return;}
-      reviewBody.append(skelCard([['60%'],['100%'],['80%']]));
       (async function(){
+        if(result.id){
+          var er=await sb.from('question_error_log').select('question_id,reason').eq('student_id',s.user_id).eq('result_id',result.id);
+          (er.data||[]).forEach(function(row){reviewErrorReasons[row.question_id]=row.reason;});
+        }
+        if(qs.length){renderAdminReviewQuestions(qs,ans);return;}
+        reviewBody.append(skelCard([['60%'],['100%'],['80%']]));
         var qr=await sb.from('tutoring_questions').select('*').eq('test_id',result.test_id).order('position',{ascending:true});
         reviewBody.innerHTML='';
         var loaded=qr.data||[];
@@ -10311,6 +10410,68 @@ function initAIChat(){
 }
 
 function setAITopic(topic){window._currentTopic=topic;}
+
+// SESSION NOTEPAD — floating notes widget available during an active study session.
+// Autosaves to the same `notes` table used by My Notes, so anything jotted down here
+// shows up there afterward (folder: 'Session Notes').
+let _sessionNoteId=null;
+let _sessionNoteSaveTimer=null;
+function initSessionNotepad(){
+  if(document.getElementById('session-notepad-btn'))return;
+  const noteBtn=document.createElement('button');
+  noteBtn.id='session-notepad-btn';
+  noteBtn.innerHTML=ICONS.file+' Notes';
+  noteBtn.style.cssText='position:fixed;bottom:20px;left:20px;z-index:10000;display:inline-flex;align-items:center;gap:8px;padding:12px 20px;background:var(--gold);color:var(--bg);border:none;border-radius:40px;font-size:13px;font-family:"DM Mono",monospace;font-weight:600;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,0.3);width:auto;';
+  let isOpen=false,panel=null;
+  noteBtn.addEventListener('click',function(){
+    if(isOpen){if(panel)panel.remove();panel=null;isOpen=false;return;}
+    panel=buildNotePanel();document.body.appendChild(panel);isOpen=true;
+  });
+  document.body.appendChild(noteBtn);
+}
+function removeSessionNotepad(){
+  const b=document.getElementById('session-notepad-btn');if(b)b.remove();
+  const p=document.getElementById('session-notepad-panel');if(p)p.remove();
+  if(_sessionNoteSaveTimer){clearTimeout(_sessionNoteSaveTimer);_sessionNoteSaveTimer=null;}
+  _sessionNoteId=null;
+}
+function buildNotePanel(){
+  const panelDiv=div({style:{position:'fixed',bottom:'80px',left:'20px',width:'320px',maxWidth:'90vw',height:'380px',background:'var(--card)',border:'1px solid var(--gold)',borderRadius:'12px',zIndex:10000,display:'flex',flexDirection:'column',overflow:'hidden',boxShadow:'0 8px 24px rgba(0,0,0,0.4)'}});
+  panelDiv.id='session-notepad-panel';
+  const statusEl=h('span',{style:{fontSize:'10px',opacity:'0.8'}},['']);
+  const header=div({style:{padding:'12px 16px',background:'var(--gold)',color:'var(--bg)',display:'flex',justifyContent:'space-between',alignItems:'center',fontFamily:"'Plus Jakarta Sans',sans-serif",fontWeight:'bold'}},[
+    h('span',{},['Session Notes']),
+    statusEl
+  ]);
+  const ta=h('textarea',{placeholder:'Jot down anything you want to remember from this session\u2026',style:{flex:'1',width:'100%',boxSizing:'border-box',padding:'14px',border:'none',outline:'none',resize:'none',background:'var(--bg)',color:'var(--text)',fontFamily:"Inter,sans-serif",fontSize:'13px',lineHeight:'1.6'}});
+  panelDiv.append(header,ta);
+  (async function(){
+    if(_sessionNoteId){
+      const{data}=await sb.from('notes').select('content').eq('id',_sessionNoteId).maybeSingle();
+      if(data)ta.value=data.content||'';
+    }
+  })();
+  ta.addEventListener('input',function(){
+    statusEl.textContent='Saving\u2026';
+    if(_sessionNoteSaveTimer)clearTimeout(_sessionNoteSaveTimer);
+    _sessionNoteSaveTimer=setTimeout(async function(){
+      const content=ta.value;
+      if(!content.trim()){statusEl.textContent='';return;}
+      try{
+        if(!_sessionNoteId){
+          const topic=(window.pomPlan&&window.pomPlan.topic)||'General Study';
+          const ins=await sb.from('notes').insert({user_id:S.user.id,topic:topic,title:'Session Notes \u2014 '+new Date().toLocaleDateString(),content:content,folder:'Session Notes'}).select('id').single();
+          if(ins.data)_sessionNoteId=ins.data.id;
+        }else{
+          await sb.from('notes').update({content:content,updated_at:new Date().toISOString()}).eq('id',_sessionNoteId);
+        }
+        statusEl.textContent='Saved';
+        setTimeout(function(){if(statusEl.textContent==='Saved')statusEl.textContent='';},1500);
+      }catch(e){statusEl.textContent='Could not save';}
+    },1200);
+  });
+  return panelDiv;
+}
 
 function getCurrentMonday(){var now=new Date();var day=now.getDay();var diff=day===0?6:day-1;var mon=new Date(now);mon.setDate(now.getDate()-diff);mon.setHours(0,0,0,0);return mon.toISOString().split('T')[0];}
 
