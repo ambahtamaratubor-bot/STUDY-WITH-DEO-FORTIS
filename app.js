@@ -510,25 +510,159 @@ var ERROR_REASONS=[
   ['second_guessed','I second-guessed my first instinct'],
   ['careless','Careless mistake \u2014 missed a detail or rushed']
 ];
-function buildErrorReasonPicker(resultId,questionId,existingReason){
+function buildErrorReasonPicker(resultId,questionId,existingReason,onSaved){
   var wrap=div({style:{marginTop:'10px'}},[]);
-  if(!resultId||!questionId)return wrap;
+  if(!resultId||!questionId){
+    wrap.append(h('div',{style:{fontSize:'11px',color:'#ff8888'}},['Could not attach a reason picker to this question \u2014 missing result reference.']));
+    return wrap;
+  }
+  var row=div({style:{display:'flex',alignItems:'center',gap:'8px',flexWrap:'wrap'}},[]);
   var sel=h('select',{cls:'input',style:{fontSize:'11px',padding:'6px 10px',width:'auto',maxWidth:'100%'}},ERROR_REASONS.map(function(r){return h('option',{value:r[0]},[r[1]]);}));
   sel.value=existingReason||'';
-  var savedNote=h('span',{style:{fontSize:'10px',color:'var(--teal)',marginLeft:'8px',display:'none'}},['\u2713 Saved']);
+  var savedNote=h('span',{style:{fontSize:'10px',color:'var(--teal)',display:'none'}},['\u2713 Saved']);
+  var errNote=h('span',{style:{fontSize:'10px',color:'#ff8888',display:'none'}},['']);
   sel.onchange=async function(){
-    savedNote.style.display='none';
+    savedNote.style.display='none';errNote.style.display='none';
     if(!sel.value)return;
+    sel.disabled=true;
     var payload={student_id:S.user.id,result_id:resultId,question_id:questionId,reason:sel.value,updated_at:new Date().toISOString()};
     var res=await sb.from('question_error_log').upsert(payload,{onConflict:'student_id,result_id,question_id'});
-    if(!res.error){savedNote.style.display='inline';setTimeout(function(){savedNote.style.display='none';},1500);}
+    sel.disabled=false;
+    if(!res.error){
+      savedNote.style.display='inline';setTimeout(function(){savedNote.style.display='none';},1500);
+      if(onSaved)onSaved(sel.value);
+    }else{
+      errNote.textContent='Could not save: '+res.error.message;
+      errNote.style.display='inline';
+    }
   };
-  wrap.append(sel,savedNote);
+  row.append(sel,savedNote,errNote);
+  wrap.append(row);
+  return wrap;
+}
+
+// Full-screen, one-question-at-a-time review with mandatory error-reason gating.
+// A student cannot move to another question (Next, Previous, or jumping via the
+// number nav) while the currently open question is wrong and has no reason logged.
+function buildGatedReviewUI(opts){
+  var qs=opts.qs,ans=opts.ans,resultId=opts.resultId,errorReasons=opts.errorReasons||{};
+  var idx=0;
+  var wrap=div({},[]);
+  var headerRow=div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',gap:'12px',flexWrap:'wrap',marginBottom:'8px'}},[]);
+  var backBtn=btn('\u2190 Back','btn-outline',function(){if(!canLeave())return;opts.onExit&&opts.onExit();},{style:{fontSize:'11px',padding:'6px 12px'}});
+  headerRow.append(backBtn);
+  if(opts.onDownload){
+    headerRow.append(btn('Download Detailed Review (PDF)','btn-outline',opts.onDownload,{style:{fontSize:'11px',padding:'6px 12px'}}));
+  }
+  wrap.append(headerRow);
+  wrap.append(h('span',{cls:'chapter',html:'Review'}));
+  wrap.append(h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'24px',marginBottom:'4px'}},[opts.title||'Review']));
+  if(opts.subLine)wrap.append(h('p',{cls:'muted',style:{fontSize:'13px',marginBottom:'12px'}},[opts.subLine]));
+  var blockMsg=div({style:{fontSize:'12px',color:'#ff8888',background:'rgba(139,0,0,0.08)',border:'1px solid #8B000066',borderRadius:'4px',padding:'10px 14px',marginBottom:'12px',display:'none'}},['Please select why you missed this question before moving on.']);
+  wrap.append(blockMsg);
+  var grid=div({style:{display:'grid',gridTemplateColumns:'120px 1fr',gap:'16px',alignItems:'start'}},[]);
+  var navCol=div({style:{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(34px,1fr))',gap:'6px'}},[]);
+  var qPanel=div({},[]);
+  grid.append(navCol,qPanel);
+  wrap.append(grid);
+  var footerRow=div({style:{display:'flex',justifyContent:'space-between',marginTop:'16px'}},[]);
+  var prevBtn=btn('\u2190 Previous','btn-outline',function(){tryGoTo(idx-1);},{style:{fontSize:'12px',padding:'8px 16px'}});
+  var nextBtn=btn('Next \u2192','btn-gold',function(){},{style:{fontSize:'12px',padding:'8px 16px'}});
+  footerRow.append(prevBtn,nextBtn);
+  wrap.append(footerRow);
+
+  function isCorrectAt(i){var q=qs[i];var correct=String(q.correct_answer||'').toUpperCase();return(ans[q.id]||'')===correct;}
+  function needsReason(i){return!isCorrectAt(i)&&!errorReasons[qs[i].id];}
+  function canLeave(){
+    if(needsReason(idx)){
+      blockMsg.style.display='block';
+      blockMsg.scrollIntoView&&blockMsg.scrollIntoView({behavior:'smooth',block:'center'});
+      return false;
+    }
+    blockMsg.style.display='none';
+    return true;
+  }
+  function tryGoTo(i){
+    if(i<0||i>=qs.length||i===idx)return;
+    if(!canLeave())return;
+    idx=i;renderQuestion();
+  }
+  function paintNav(){
+    navCol.innerHTML='';
+    qs.forEach(function(q,i){
+      var isCorrect=isCorrectAt(i);var flagged=needsReason(i);
+      var b=h('button',{style:{padding:'8px 0',fontSize:'11px',fontFamily:"'DM Mono',monospace",borderRadius:'3px',cursor:'pointer',border:'1px solid '+(i===idx?'var(--gold)':(flagged?'#e08a3c':(isCorrect?'var(--teal)':'#8B000066'))),background:i===idx?'var(--gold-subtle)':(flagged?'rgba(224,138,60,0.12)':'transparent'),color:'var(--text)'}},[String(i+1)]);
+      b.onclick=function(){tryGoTo(i);};
+      navCol.append(b);
+    });
+  }
+  function renderQuestion(){
+    paintNav();
+    blockMsg.style.display='none';
+    qPanel.innerHTML='';
+    var i=idx;var q=qs[i];
+    var userAns=ans[q.id];var correct=String(q.correct_answer||'').toUpperCase();var isCorrect=userAns===correct;
+    var qCard=div({style:{background:'var(--card)',border:'1px solid '+(isCorrect?'var(--teal)':'#8B000066'),borderRadius:'4px',padding:'20px'}},[]);
+    var qTextDiv=div({style:{marginBottom:'16px'}},[]);
+    appendMediaSafely(qCard,q.media);
+    renderQuestionText(q.question,qTextDiv);
+    qCard.append(
+      div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'12px'}},[div({cls:'mono',style:{fontSize:'9px'}},['Question '+(i+1)+' of '+qs.length]),h('span',{style:{fontFamily:'Inter,sans-serif',fontSize:'11px',color:isCorrect?'var(--teal)':'#ff8888',fontWeight:'700'}},[isCorrect?'\u2713 Correct':'\u2717 Incorrect'])]),
+      qTextDiv
+    );
+    ['a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p','q'].forEach(function(opt){
+      var val=q['option_'+opt];if(!val)return;
+      var isUser=userAns===opt.toUpperCase();var isCorr=correct===opt.toUpperCase();
+      var bg=isCorr?'var(--correct-bg)':(isUser&&!isCorr?'var(--wrong-bg)':'transparent');
+      var color=isCorr?'var(--teal)':(isUser&&!isCorr?'#ff8888':'var(--muted)');
+      var border=isCorr?'1px solid var(--teal)':(isUser&&!isCorr?'1px solid #ff8888':'1px solid var(--border)');
+      var row=div({style:{background:bg,border:border,borderRadius:'2px',padding:'10px 14px',marginBottom:'6px',display:'flex',gap:'10px'}},[]);
+      row.append(h('strong',{style:{color:color,flexShrink:'0'}},[opt.toUpperCase()+'.']),div({style:{fontSize:'13px',color:color,lineHeight:'1.6'},html:val}));
+      if(isCorr)row.append(h('span',{style:{marginLeft:'auto',color:'var(--teal)',fontSize:'11px'}},['\u2713 Correct']));
+      if(isUser&&!isCorr)row.append(h('span',{style:{marginLeft:'auto',color:'#ff8888',fontSize:'11px'}},['Your answer']));
+      qCard.append(row);
+    });
+    if(q.explanation){
+      var expWrap=div({style:{background:'var(--correct-bg)',border:'1px solid var(--teal-border)',borderRadius:'2px',padding:'14px',marginTop:'12px'}},[]);
+      expWrap.append(div({style:{fontFamily:'Inter,sans-serif',fontSize:'9px',color:'var(--teal)',letterSpacing:'2px',textTransform:'uppercase',marginBottom:'6px'}},['Explanation']));
+      var chunks=q.explanation.split(/(?=\b[A-Q]\s*[\(\-]\s)/);
+      for(var ci=0;ci<chunks.length;ci++){
+        var chunk=chunks[ci].trim();if(!chunk)continue;
+        var optMatch=chunk.match(/^([A-Q])\s*[\(\-]/);
+        if(optMatch){
+          var letter=optMatch[1];var isCorrectOpt=(letter===correct);
+          var optBox=div({style:{border:isCorrectOpt?'1px solid var(--teal)':'1px solid var(--border)',borderRadius:'2px',padding:'10px 12px',marginBottom:'8px',background:isCorrectOpt?'rgba(126,184,164,0.08)':'transparent'}},[]);
+          optBox.append(h('span',{style:{fontWeight:'700',color:isCorrectOpt?'var(--teal)':'var(--muted)',marginRight:'8px',fontSize:'12px'}},[(isCorrectOpt?letter+' \u2713':letter+' -')]));
+          optBox.append(h('span',{style:{color:'var(--muted)',fontSize:'13px',lineHeight:'1.7'}},[chunk.replace(/^[A-Q]\s*[\(\-]\s*/,'')]));
+          expWrap.append(optBox);
+        }else{
+          expWrap.append(h('p',{style:{fontSize:'13px',color:'var(--muted)',lineHeight:'1.7',marginBottom:'8px'}},[chunk]));
+        }
+      }
+      qCard.append(expWrap);
+    }
+    if(!isCorrect){
+      qCard.append(buildErrorReasonPicker(resultId,q.id,errorReasons[q.id],function(savedReason){
+        errorReasons[q.id]=savedReason;
+        blockMsg.style.display='none';
+        paintNav();
+      }));
+    }
+    qPanel.append(qCard);
+    prevBtn.disabled=(idx===0);
+    nextBtn.textContent=(idx===qs.length-1)?'Finish':'Next \u2192';
+    nextBtn.onclick=function(){
+      if(idx===qs.length-1){if(!canLeave())return;opts.onExit&&opts.onExit();return;}
+      tryGoTo(idx+1);
+    };
+  }
+  renderQuestion();
   return wrap;
 }
 
 // Builds the per-question review cards (question text, options colored by correctness,
-// explanation) shared by both the student-facing review screen and the admin review modal.
+// explanation) shared by both the admin review modal and PDF export — continuous scroll,
+// used only where the mandatory error-reason gate does not apply.
 function buildReviewQuestionCards(qs,ans,opts){
   opts=opts||{};
   var cards=[];
@@ -2619,92 +2753,28 @@ async function showReview(result){
     var er=await sb.from('question_error_log').select('question_id,reason').eq('student_id',S.user.id).eq('result_id',result.id);
     (er.data||[]).forEach(function(row){errorReasons[row.question_id]=row.reason;});
   }
-  content.innerHTML='';
-  content.append(btn('\u2190 Back','btn-outline',function(){exitFullscreen();paintTabs();renderTab();},{style:{fontSize:'11px',padding:'6px 12px',marginBottom:'16px'}}));
-  content.append(
-    h('span',{cls:'chapter',html:'Review'},[]),
-    h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'24px',marginBottom:'4px'}},[result.test_title||'Test']),
-    h('p',{cls:'muted',style:{fontSize:'13px',marginBottom:'12px'}},['Scored '+result.score+'/'+result.total+' \u00b7 '+new Date(result.taken_at).toLocaleDateString()])
-  );
-  function appendDownloadRow(){
-    var pdfStatus=div({style:{fontSize:'11px',color:'var(--muted)',marginTop:'4px'}},[]);
-    var dlBtn=btn('Download Detailed Review (PDF)','btn-outline',function(){
-      dlBtn.disabled=true;var origText=dlBtn.textContent;dlBtn.textContent='Preparing PDF\u2026';pdfStatus.textContent='';
-      var subLine='Scored '+result.score+'/'+result.total+' \u00b7 '+new Date(result.taken_at).toLocaleDateString();
-      downloadDetailedReviewPdf(result.test_title||'Assessment',subLine,qs,ans,result.test_title||'assessment',function(errMsg){
-        dlBtn.disabled=false;dlBtn.textContent=origText;
-        if(errMsg)pdfStatus.textContent=errMsg;
-      });
-    },{style:{fontSize:'12px',marginBottom:'20px'}});
-    content.append(dlBtn,pdfStatus);
-  }
   var qs=result.questions||[];var ans=result.answers||{};
   if(!qs.length&&result.test_id){
-    content.append(skelCard([['60%'],['100%'],['80%']]));
-    (async function(){
-      var qr=await sb.from('tutoring_questions').select('*').eq('test_id',result.test_id).order('position',{ascending:true});
-      qs=(qr.data||[]);
-      content.innerHTML='';
-      content.append(btn('\u2190 Back','btn-outline',function(){exitFullscreen();paintTabs();renderTab();},{style:{fontSize:'11px',padding:'6px 12px',marginBottom:'16px'}}));
-      content.append(h('span',{cls:'chapter',html:'Review'},[]),h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'24px',marginBottom:'4px'}},[result.test_title||'Test']),h('p',{cls:'muted',style:{fontSize:'13px',marginBottom:'12px'}},['Scored '+result.score+'/'+result.total+' \u00b7 '+new Date(result.taken_at).toLocaleDateString()]));
-      if(!qs.length){content.append(h('p',{style:{color:'var(--muted)',fontSize:'13px'}},['Questions for this test could not be loaded.']));return;}
-      appendDownloadRow();
-      renderReviewQuestions(qs,ans);
-    })();
+    var qr=await sb.from('tutoring_questions').select('*').eq('test_id',result.test_id).order('position',{ascending:true});
+    qs=(qr.data||[]);
+  }
+  content.innerHTML='';
+  if(!qs.length){
+    content.append(btn('\u2190 Back','btn-outline',function(){exitFullscreen();paintTabs();renderTab();},{style:{fontSize:'11px',padding:'6px 12px',marginBottom:'16px'}}));
+    content.append(h('p',{style:{color:'var(--muted)',fontSize:'13px'}},['No question detail available for this result.']));
     return;
   }
-  if(!qs.length){content.append(h('p',{style:{color:'var(--muted)',fontSize:'13px'}},['No question detail available for this result.']));return;}
-  appendDownloadRow();
-  function renderReviewQuestions(qs,ans){
-  qs.forEach(function(q,i){
-    var userAns=ans[q.id];
-    var correct=String(q.correct_answer||'').toUpperCase();
-    var isCorrect=userAns===correct;
-    var qCard=div({style:{background:'var(--card)',border:'1px solid '+(isCorrect?'var(--teal)':'#8B000066'),borderRadius:'4px',padding:'20px',marginBottom:'16px'}},[]);
-    var qTextDiv=div({style:{marginBottom:'16px'}},[]);
-    renderQuestionText(q.question,qTextDiv);
-    qCard.append(
-      div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'12px'}},[div({cls:'mono',style:{fontSize:'9px'},html:'Question '+(i+1)}),h('span',{style:{fontFamily:'Inter,sans-serif',fontSize:'11px',color:isCorrect?'var(--teal)':'#ff8888',fontWeight:'700'},html:isCorrect?'\u2713 Correct':'\u2717 Incorrect'})]),
-      qTextDiv
-    );
-    ['a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p','q'].forEach(function(opt){
-      var val=q['option_'+opt];if(!val)return;
-      var isUser=userAns===opt.toUpperCase();var isCorr=correct===opt.toUpperCase();
-      var bg=isCorr?'var(--correct-bg)':(isUser&&!isCorr?'var(--wrong-bg)':'transparent');
-      var color=isCorr?'var(--teal)':(isUser&&!isCorr?'#ff8888':'var(--muted)');
-      var border=isCorr?'1px solid var(--teal)':(isUser&&!isCorr?'1px solid #ff8888':'1px solid var(--border)');
-      var row=div({style:{background:bg,border:border,borderRadius:'2px',padding:'10px 14px',marginBottom:'6px',display:'flex',gap:'10px'}},[]);
-      row.append(h('strong',{style:{color:color,flexShrink:'0'},html:opt.toUpperCase()+'.'}),div({style:{fontSize:'13px',color:color,lineHeight:'1.6'},html:val}));
-      if(isCorr)row.append(h('span',{style:{marginLeft:'auto',color:'var(--teal)',fontSize:'11px'},html:'\u2713 Correct'}));
-      if(isUser&&!isCorr)row.append(h('span',{style:{marginLeft:'auto',color:'#ff8888',fontSize:'11px'},html:'Your answer'}));
-      qCard.append(row);
-    });
-    if(q.explanation){
-      var expWrap=div({style:{background:'var(--correct-bg)',border:'1px solid var(--teal-border)',borderRadius:'2px',padding:'14px',marginTop:'12px'}},[]);
-      expWrap.append(div({style:{fontFamily:'Inter,sans-serif',fontSize:'9px',color:'var(--teal)',letterSpacing:'2px',textTransform:'uppercase',marginBottom:'6px'},html:'Explanation'}));
-      var chunks=q.explanation.split(/(?=\b[A-Q]\s*[\(\-]\s)/);
-      for(var ci=0;ci<chunks.length;ci++){
-        var chunk=chunks[ci].trim();if(!chunk)continue;
-        var optMatch=chunk.match(/^([A-Q])\s*[\(\-]/);
-        if(optMatch){
-          var letter=optMatch[1];var isCorrectOpt=(letter===correct);
-          var optBox=div({style:{border:isCorrectOpt?'1px solid var(--teal)':'1px solid var(--border)',borderRadius:'2px',padding:'10px 12px',marginBottom:'8px',background:isCorrectOpt?'rgba(126,184,164,0.08)':'transparent'}},[]);
-          optBox.append(h('span',{style:{fontWeight:'700',color:isCorrectOpt?'var(--teal)':'var(--muted)',marginRight:'8px',fontSize:'12px'}},[(isCorrectOpt?letter+' \u2713':letter+' -')]));
-          optBox.append(h('span',{style:{color:'var(--muted)',fontSize:'13px',lineHeight:'1.7'}},[chunk.replace(/^[A-Q]\s*[\(\-]\s*/,'')]));
-          expWrap.append(optBox);
-        }else{
-          expWrap.append(h('p',{style:{fontSize:'13px',color:'var(--muted)',lineHeight:'1.7',marginBottom:'8px'}},[chunk]));
-        }
-      }
-      qCard.append(expWrap);
-    }
-    if(!isCorrect){
-      qCard.append(buildErrorReasonPicker(result.id,q.id,errorReasons[q.id]));
-    }
-    content.append(qCard);
-  });
-  }
-  renderReviewQuestions(qs,ans);
+  var subLine='Scored '+result.score+'/'+result.total+' \u00b7 '+new Date(result.taken_at).toLocaleDateString();
+  content.append(buildGatedReviewUI({
+    qs:qs,ans:ans,resultId:result.id,errorReasons:errorReasons,
+    title:result.test_title||'Test',subLine:subLine,
+    onDownload:function(){
+      downloadDetailedReviewPdf(result.test_title||'Assessment',subLine,qs,ans,result.test_title||'assessment',function(errMsg){
+        if(errMsg)alert(errMsg);
+      });
+    },
+    onExit:function(){exitFullscreen();paintTabs();renderTab();}
+  }));
 }
 
 paintTabs();
@@ -6280,63 +6350,11 @@ if(currentVignetteResultId){
   (er.data||[]).forEach(function(row){errorReasons[row.question_id]=row.reason;});
 }
 inner.innerHTML='';
-inner.append(h('span',{cls:'chapter',html:'Review'}),h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'26px',marginBottom:'8px'},html:'Answer Review'}),h('p',{cls:'muted',style:{fontSize:'14px',marginBottom:'32px'},html:selTopic+' — '+questions.length+' questions'}));
-questions.forEach((q,i)=>{
-const userAns=answers[q.id];
-const correct=q.correct_answer;
-const isCorrect=userAns===correct;
-const qCard=div({style:{background:'var(--card)',border:'1px solid '+(isCorrect?'var(--teal)':'#8B000066'),borderRadius:'4px',padding:'20px',marginBottom:'16px'}});
-var qTextDiv=div({style:{marginBottom:'16px'}},[]);
-renderQuestionText(q.question,qTextDiv);
-qCard.append(
-  div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'12px'}},[
-    div({cls:'mono',style:{fontSize:'9px'},html:'Question '+(i+1)}),
-    h('span',{style:{fontFamily:"Inter,sans-serif",fontSize:'11px',color:isCorrect?'var(--teal)':'#ff8888',fontWeight:'700'},html:isCorrect?'✓ Correct':'✗ Incorrect'})
-  ]),
-  qTextDiv
-);
-['a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p','q'].forEach(opt=>{
-  const val=q['option_'+opt];if(!val)return;
-  const isUser=userAns===opt.toUpperCase();
-  const isCorr=correct===opt.toUpperCase();
-  const bg=isCorr?'var(--correct-bg)':isUser&&!isCorr?'var(--wrong-bg)':'transparent';
-  const color=isCorr?'var(--teal)':isUser&&!isCorr?'#ff8888':'var(--muted)';
-  const border=isCorr?'1px solid var(--teal)':isUser&&!isCorr?'1px solid #ff8888':'1px solid var(--border)';
-  const row=div({style:{background:bg,border,borderRadius:'2px',padding:'10px 14px',marginBottom:'6px',display:'flex',gap:'10px'}});
-  row.append(h('strong',{style:{color,flexShrink:'0'},html:opt.toUpperCase()+'.'}),div({style:{fontSize:'13px',color,lineHeight:'1.6'},html:val}));
-  if(isCorr)row.append(h('span',{style:{marginLeft:'auto',color:'var(--teal)',fontSize:'11px'},html:'✓ Correct'}));
-  if(isUser&&!isCorr)row.append(h('span',{style:{marginLeft:'auto',color:'#ff8888',fontSize:'11px'},html:'Your answer'}));
-  qCard.append(row);
-});
-if(q.explanation){
-  var expWrap=div({style:{background:'var(--correct-bg)',border:'1px solid var(--teal-border)',borderRadius:'2px',padding:'14px',marginTop:'12px'}});
-  expWrap.append(div({style:{fontFamily:"Inter,sans-serif",fontSize:'9px',color:'var(--teal)',letterSpacing:'2px',textTransform:'uppercase',marginBottom:'6px'},html:'Explanation'}));
-  var chunks=q.explanation.split(/(?=\b[A-Q]\s*[\(\-]\s)/);
-  for(var ci=0;ci<chunks.length;ci++){
-    var chunk=chunks[ci].trim();if(!chunk)continue;
-    var optMatch=chunk.match(/^([A-Q])\s*[\(\-]/);
-    if(optMatch){
-      var letter=optMatch[1];
-      var isCorrectOpt=(letter===q.correct_answer);
-      var optBox=div({style:{border:isCorrectOpt?'1px solid var(--teal)':'1px solid var(--border)',borderRadius:'2px',padding:'10px 12px',marginBottom:'8px',background:isCorrectOpt?'rgba(126,184,164,0.08)':'transparent'}});
-      optBox.append(h('span',{style:{fontWeight:'700',color:isCorrectOpt?'var(--teal)':'var(--muted)',marginRight:'8px',fontSize:'12px'}},[(isCorrectOpt?letter+' ✓':letter+' -')]));
-      optBox.append(h('span',{style:{color:'var(--muted)',fontSize:'13px',lineHeight:'1.7'}},[chunk.replace(/^[A-Q]\s*[\(\-]\s*/,'')]));
-      expWrap.append(optBox);
-    }else{
-      expWrap.append(h('p',{style:{fontSize:'13px',color:'var(--muted)',lineHeight:'1.7',marginBottom:'8px'}},[chunk]));
-    }
-  }
-  qCard.append(expWrap);
-}
-if(!isCorrect){
-  qCard.append(buildErrorReasonPicker(currentVignetteResultId,q.id,errorReasons[q.id]));
-}
-inner.append(qCard);
-});
-inner.append(div({style:{display:'grid',gap:'10px',marginTop:'24px'}},[
-  btn('Try Again','btn-gold',()=>showSetup()),
-  btn('Dashboard','btn-outline',()=>go('dashboard'))
-]));
+inner.append(buildGatedReviewUI({
+  qs:questions,ans:answers,resultId:currentVignetteResultId,errorReasons:errorReasons,
+  title:selTopic||'Answer Review',subLine:questions.length+' questions',
+  onExit:function(){showSetup();}
+}));
 page.append(inner);
 }
 showSetup();return page;
