@@ -765,7 +765,7 @@ async function buildScoreReportBody(o){
       row3.append(timeCard);
     }
 
-    var changesCard=div({cls:'card',style:{flex:'1 1 300px',padding:'20px'}},[]);
+    var changesCard=div({cls:'card',style:{flex:'1 1 380px',padding:'20px'}},[]);
     changesCard.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'15px',marginBottom:'14px'}},['Answer Changes']));
     if(!changes.length){
       changesCard.append(h('p',{style:{fontSize:'12px',color:'var(--muted)'}},['No answers were changed during this attempt.']));
@@ -783,8 +783,33 @@ async function buildScoreReportBody(o){
         changeRow('Incorrect \u2192 Correct',toCorrect,'var(--teal)'),
         changeRow('Correct \u2192 Incorrect',toIncorrect,'#ff6b6b'),
         changeRow('Incorrect \u2192 Incorrect',stillWrong,'#e08a3c'),
-        h('p',{style:{fontSize:'10px',color:'var(--muted)',marginTop:'10px'}},[changes.length+' answer change'+(changes.length===1?'':'s')+' total across this attempt.'])
+        h('p',{style:{fontSize:'10px',color:'var(--muted)',marginTop:'10px',marginBottom:'12px'}},[changes.length+' answer change'+(changes.length===1?'':'s')+' total across this attempt.'])
       );
+      var qById={};o.questions.forEach(function(q,i){qById[q.id]={q:q,num:i+1};});
+      var detailList=div({style:{borderTop:'1px solid var(--border)',paddingTop:'12px'}},[]);
+      detailList.append(h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'10px',color:'var(--dim)',letterSpacing:'1px',textTransform:'uppercase',marginBottom:'8px'}},['Per-question detail']));
+      function optText(q,letter){if(!q||!letter)return letter||'\u2014';var v=q['option_'+String(letter).toLowerCase()];return v?letter+' \u2014 '+v:letter;}
+      changes.forEach(function(c){
+        var entry=qById[c.question_id];
+        var q=entry&&entry.q;var qNum=entry?entry.num:'?';
+        var shiftColor=(!c.from_correct&&c.to_correct)?'var(--teal)':(c.from_correct&&!c.to_correct)?'#ff6b6b':'#e08a3c';
+        var shiftLabel=(!c.from_correct&&c.to_correct)?'\u2192 Correct':(c.from_correct&&!c.to_correct)?'\u2192 Incorrect':'still incorrect';
+        var row=div({style:{padding:'10px 12px',border:'1px solid var(--border)',borderRadius:'4px',marginBottom:'8px'}},[]);
+        row.append(
+          div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'6px'}},[
+            h('span',{style:{fontFamily:'Inter,sans-serif',fontSize:'11px',fontWeight:'700',color:'var(--text)'}},['Question '+qNum]),
+            h('span',{style:{fontSize:'10px',fontWeight:'700',color:shiftColor}},[shiftLabel])
+          ]),
+          div({style:{fontSize:'11px',color:'var(--muted)',lineHeight:'1.6'}},[
+            'Changed from ',
+            h('b',{style:{color:'#ff8888'}},[optText(q,c.from)]),
+            ' to ',
+            h('b',{style:{color:shiftColor}},[optText(q,c.to)])
+          ])
+        );
+        detailList.append(row);
+      });
+      changesCard.append(detailList);
     }
     row3.append(changesCard);
   }
@@ -1223,7 +1248,7 @@ async function loadData(){
   const en=await sb.from('tutoring_students').select('id').eq('user_id',S.user.id).eq('active',true).maybeSingle();
   DATA.enrolled=!!(en&&en.data);
   if(!DATA.enrolled)return;
-  const a=await sb.from('tutoring_assignments').select('id,due_date,test_id,tutoring_tests(id,title,mode,time_limit)').eq('student_id',S.user.id).order('assigned_at',{ascending:false});
+  const a=await sb.from('tutoring_assignments').select('id,due_date,due_time,test_id,tutoring_tests(id,title,mode,time_limit)').eq('student_id',S.user.id).order('assigned_at',{ascending:false});
   DATA.assignments=a.data||[];
   const r=await sb.from('tutoring_results').select('*').eq('student_id',S.user.id).order('taken_at',{ascending:false});
   DATA.results=r.data||[];
@@ -1235,7 +1260,7 @@ async function loadData(){
     const q=await sb.from('tutoring_questions').select('test_id').in('test_id',tids);
     (q.data||[]).forEach(function(row){DATA.counts[row.test_id]=(DATA.counts[row.test_id]||0)+1;});
   }
-  const aa=await sb.from('tutoring_assessment_assignments').select('id,due_date,unlocked,assessment_id,tutoring_assessments(id,title,mode,time_limit,block_size,break_minutes,shuffle_questions)').eq('student_id',S.user.id).order('assigned_at',{ascending:false});
+  const aa=await sb.from('tutoring_assessment_assignments').select('id,due_date,due_time,unlocked,assessment_id,tutoring_assessments(id,title,mode,time_limit,block_size,break_minutes,shuffle_questions)').eq('student_id',S.user.id).order('assigned_at',{ascending:false});
   DATA.assessAssignments=aa.data||[];
   const ar=await sb.from('tutoring_assessment_results').select('*').eq('student_id',S.user.id).order('taken_at',{ascending:false});
   DATA.assessResults=ar.data||[];
@@ -1254,7 +1279,9 @@ function statCard(label,value){return div({cls:'card',style:{padding:'16px'}},[h
 function modeBadge(mode){const timed=mode==='timed';return h('span',{cls:'mono',style:{fontSize:'10px',letterSpacing:'1px',textTransform:'uppercase',color:timed?'var(--gold)':'var(--teal)',border:'1px solid '+(timed?'var(--border)':'rgba(126,173,168,0.4)'),borderRadius:'999px',padding:'3px 9px'}},[timed?'Timed':'Tutor']);}
 function statusPill(completed){return h('span',{cls:'mono',style:{fontSize:'10px',color:completed?'var(--teal)':'var(--gold)'}},[completed?'Completed':'Not started']);}
 function fmtDateShort(d){try{var x=new Date(d+'T00:00:00');if(isNaN(x))return String(d);return x.toLocaleDateString('en-US',{month:'short',day:'numeric'});}catch(e){return String(d);}}
-function metaLine(test,a,completed,best){var parts=[];var cnt=DATA.counts[test.id]||0;if(cnt)parts.push(cnt+' questions');if(test.mode==='timed'&&test.time_limit)parts.push(test.time_limit+' min');if(a.due_date)parts.push('Due '+fmtDateShort(a.due_date));if(completed&&best)parts.push('Latest '+best.score+'/'+best.total);return parts.join(' \u00b7 ');}
+function fmtTimeShort(t){if(!t)return'';try{var parts=String(t).split(':');var hh=parseInt(parts[0],10);var mm=parts[1]||'00';var ap=hh>=12?'PM':'AM';var h12=hh%12;if(h12===0)h12=12;return h12+':'+mm+' '+ap;}catch(e){return'';}}
+function fmtDueDateTime(dateStr,timeStr){if(!dateStr)return'';var base='Due '+fmtDateShort(dateStr);var t=fmtTimeShort(timeStr);return t?base+' \u00b7 '+t:base;}
+function metaLine(test,a,completed,best){var parts=[];var cnt=DATA.counts[test.id]||0;if(cnt)parts.push(cnt+' questions');if(test.mode==='timed'&&test.time_limit)parts.push(test.time_limit+' min');if(a.due_date)parts.push(fmtDueDateTime(a.due_date,a.due_time));if(completed&&best)parts.push('Latest '+best.score+'/'+best.total);return parts.join(' \u00b7 ');}
 
 function renderTab(){
   content.innerHTML='';
@@ -1297,7 +1324,7 @@ function renderTests(){
   });
 }
 
-function assessMetaLine(assessment,a,completed,best){var parts=[];var cnt=DATA.assessCounts[assessment.id]||0;if(cnt)parts.push(cnt+' questions');if(assessment.mode==='timed'&&assessment.time_limit)parts.push(assessment.time_limit+' min');if(a.due_date)parts.push('Due '+fmtDateShort(a.due_date));if(completed&&best)parts.push('Latest '+best.score+'/'+best.total);return parts.join(' \u00b7 ');}
+function assessMetaLine(assessment,a,completed,best){var parts=[];var cnt=DATA.assessCounts[assessment.id]||0;if(cnt)parts.push(cnt+' questions');if(assessment.mode==='timed'&&assessment.time_limit)parts.push(assessment.time_limit+' min');if(a.due_date)parts.push(fmtDueDateTime(a.due_date,a.due_time));if(completed&&best)parts.push('Latest '+best.score+'/'+best.total);return parts.join(' \u00b7 ');}
 function todayStr(){var d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
 function isAssessOpen(a){if(a.unlocked)return true;if(!a.due_date)return true;return a.due_date===todayStr();}
 
@@ -1317,7 +1344,7 @@ function renderAssessTab(){
     );
     const open=isAssessOpen(a);
     if(!open){
-      left.append(h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--gold)',marginTop:'6px',letterSpacing:'1px',textTransform:'uppercase'}},['Locked \u00b7 opens '+(a.due_date?fmtDateShort(a.due_date):'on assigned day')]));
+      left.append(h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--gold)',marginTop:'6px',letterSpacing:'1px',textTransform:'uppercase'}},['Locked \u00b7 opens '+(a.due_date?fmtDateShort(a.due_date)+(a.due_time?' \u00b7 '+fmtTimeShort(a.due_time):''):'on assigned day')]));
     }
     const right=div({style:{display:'flex',gap:'6px',flexShrink:'0'}},[]);
     if(!open){
@@ -1346,7 +1373,7 @@ function shuffleArray(arr){
 }
 
 async function startAssessment(a,assessment){
-  if(a&&!isAssessOpen(a)){content.innerHTML='';content.append(emptyCard('This assessment is locked','It opens '+(a.due_date?fmtDateShort(a.due_date):'on the assigned day')+'. Ask your tutor to unlock it early if needed.'));return;}
+  if(a&&!isAssessOpen(a)){content.innerHTML='';content.append(emptyCard('This assessment is locked','It opens '+(a.due_date?fmtDateShort(a.due_date)+(a.due_time?' \u00b7 '+fmtTimeShort(a.due_time):''):'on the assigned day')+'. Ask your tutor to unlock it early if needed.'));return;}
   content.innerHTML='';
   content.append(skelCard([['40%'],['100%'],['100%'],['80%']]));
   const q=await sb.from('tutoring_assessment_questions').select('*').eq('assessment_id',assessment.id).order('position',{ascending:true});
@@ -1551,6 +1578,7 @@ function runQuiz(a,test,questions){
     },{style:{fontSize:'10px',padding:'4px 10px',color:flagged[q.id]?'var(--gold)':'var(--muted)',borderColor:flagged[q.id]?'var(--gold)':'var(--border)'}});
     qHeader.append(flagBtn);
     qCard.append(qHeader);
+    appendMediaSafely(qCard,q.media);
     renderQuestionText(q.question,qCard);
     mainArea.append(qCard);
 
@@ -3954,26 +3982,31 @@ if(isInTrial()){
   container.append(trialBanner);
 }
 
-// NEW CONTENT BANNER
-if(S.profile?.has_new_content){
+// NEW CONTENT BANNER — reflects specific fulfilled-and-unnotified recall requests,
+// not a single sticky flag, so it re-triggers correctly for each new fulfillment.
+(async()=>{
+  const{data:freshFulfilled}=await sb.from('recall_requests').select('id,topic').eq('user_id',S.user.id).eq('status','fulfilled').eq('student_notified',false).order('fulfilled_at',{ascending:false});
+  if(!freshFulfilled||!freshFulfilled.length)return;
+  const topicsStr=freshFulfilled.map(function(r){return r.topic;}).filter(Boolean).join(', ');
   const banner=div({style:{background:'var(--correct-bg)',border:'1px solid var(--teal)',borderRadius:'4px',padding:'14px 20px',marginBottom:'24px',display:'flex',alignItems:'center',justifyContent:'space-between',gap:'16px'}});
   banner.append(
     div({style:{display:'flex',alignItems:'center',gap:'12px'}},[
       div({style:{lineHeight:'1'},html:ICONS.brain}),
       div({},[
         div({style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'16px',color:'var(--teal)',fontWeight:'600',marginBottom:'6px'},html:'Your recall content is ready!'}),
+        div({style:{fontSize:'12px',color:'var(--muted)',marginBottom:'8px'},html:(topicsStr?'Fulfilled: '+topicsStr+'<br>':'')}),
         div({style:{fontSize:'13px',color:'var(--muted)',lineHeight:'1.7'},html:'&bull; <b>Vignette questions</b> &rarr; go to Q-Bank, look for your topic with a <b>PERSONAL</b> badge.<br>&bull; <b>Flashcards</b> &rarr; go to Flashcards, look for your deck with a <b>PERSONAL</b> badge.<br>&bull; <b>Theory notes</b> &rarr; go to Theory Hub to read and respond.<br>You can rename your personal topics and decks anytime &mdash; they will always keep the PERSONAL badge.'})
       ])
     ]),
     div({style:{flexShrink:'0'}},[
       btn('Dismiss','',async()=>{
-        await sb.from('profiles').update({has_new_content:false}).eq('id',S.user.id);
+        await sb.from('recall_requests').update({student_notified:true}).in('id',freshFulfilled.map(function(r){return r.id;}));
         banner.remove();
       },{style:{background:'none',border:'1px solid var(--teal)',color:'var(--teal)',fontSize:'11px',padding:'6px 12px'}})
     ])
   );
   container.append(banner);
-}
+})();
 
 // STAT CARDS — 2 columns
 const statsGrid=div({style:{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:'12px',marginBottom:'28px'}});
@@ -4260,34 +4293,51 @@ setTimeout(loadSess,1000);
   localStorage.removeItem('activeSession');
   localStorage.removeItem('pomodoroState');
   window.activeSessionId=null;window.sessionStartTime=null;window.sessionMaxMins=null;window.pomPlan=null;
+  const plannedMins=orphan.max_minutes||480;
+  const plannedHours=Math.round((plannedMins/60)*10)/10;
   const banner=div({style:{background:'linear-gradient(135deg,#1a1205,#1a0f05)',border:'1px solid var(--gold)',borderRadius:'4px',padding:'16px 20px',marginTop:'16px'}});
-  banner.append(
-    div({style:{display:'flex',alignItems:'center',gap:'10px',marginBottom:'12px'}},[
-      div({style:{fontSize:'20px'},html:ICONS.alert}),
-      div({},[
-        div({style:{fontSize:'14px',color:'var(--text)',fontWeight:'600',marginBottom:'2px'},html:'Unfinished Study Session'}),
-        div({style:{fontSize:'12px',color:'var(--muted)'},html:'You have a session from '+startDate.toLocaleDateString()+' at '+startDate.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'})+' that was never clocked out.'})
-      ])
-    ]),
-    div({style:{display:'flex',gap:'10px',flexWrap:'wrap'}},[
-      btn('Clock Out Now','btn-gold',async()=>{
-        const rawMins=Math.max(1,Math.round((Date.now()-startDate)/60000));
-        const savedSession=localStorage.getItem('activeSession');
-        const maxMins=savedSession?JSON.parse(savedSession).maxMins:null;
-        const mins=maxMins?Math.min(rawMins,maxMins):Math.min(rawMins,480);
-        await sb.from('study_sessions').update({ended_at:new Date().toISOString(),duration_minutes:mins}).eq('id',orphan.id);
-        const upd1={total_study_minutes:(S.profile?.total_study_minutes||0)+mins};
-        if(S.profile?.is_free_tier!==true||isInTrial())upd1.total_points=(S.profile?.total_points||0)+5;
-        await sb.from('profiles').update(upd1).eq('id',S.user.id);
-        banner.remove();
-        setTimeout(loadSess,500);
-      },{style:{fontSize:'11px',padding:'8px 16px'}}),
-      btn('Discard Session','btn-outline',async()=>{
-        await sb.from('study_sessions').update({ended_at:new Date().toISOString(),duration_minutes:0}).eq('id',orphan.id);
-        banner.remove();
-      },{style:{fontSize:'11px',padding:'8px 16px'}})
+  const bannerTop=div({style:{display:'flex',alignItems:'center',gap:'10px',marginBottom:'12px'}},[
+    div({style:{fontSize:'20px'},html:ICONS.alert}),
+    div({},[
+      div({style:{fontSize:'14px',color:'var(--text)',fontWeight:'600',marginBottom:'2px'},html:'Unfinished Study Session'}),
+      div({style:{fontSize:'12px',color:'var(--muted)'},html:'You have a session from '+startDate.toLocaleDateString()+' at '+startDate.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'})+' that was never clocked out. You planned to study '+plannedHours+' hour'+(plannedHours===1?'':'s')+'.'})
     ])
-  );
+  ]);
+  const actionsRow=div({style:{display:'flex',gap:'10px',flexWrap:'wrap'}});
+  const clockOutNowBtn=btn('Clock Out Now','btn-gold',()=>{
+    actionsRow.innerHTML='';
+    const qWrap=div({style:{width:'100%'}});
+    qWrap.append(
+      div({style:{fontSize:'12px',color:'var(--text)',marginBottom:'8px'}},['How many hours did you actually study? (max '+plannedHours+')']),
+      (function(){
+        const row=div({style:{display:'flex',gap:'10px',alignItems:'center',flexWrap:'wrap'}});
+        const hoursInput=h('input',{type:'number',min:'0',max:String(plannedHours),step:'0.25',placeholder:'e.g. 2.5',style:{width:'120px',padding:'8px 10px',background:'var(--bg)',border:'1px solid var(--border)',borderRadius:'2px',color:'var(--text)',fontSize:'13px'}});
+        const errMsg=div({style:{fontSize:'11px',color:'#ff8888',display:'none',marginTop:'6px',flexBasis:'100%'}},[]);
+        const submitBtn=btn('Submit','btn-gold',async()=>{
+          const val=parseFloat(hoursInput.value);
+          if(isNaN(val)||val<0){errMsg.textContent='Enter a valid number of hours.';errMsg.style.display='block';return;}
+          if(val>plannedHours){errMsg.textContent='That\'s more than the '+plannedHours+' hour(s) you planned for this session \u2014 enter a number at or below that.';errMsg.style.display='block';return;}
+          errMsg.style.display='none';submitBtn.disabled=true;submitBtn.textContent='Saving...';
+          const mins=Math.round(val*60);
+          await sb.from('study_sessions').update({ended_at:new Date().toISOString(),duration_minutes:mins}).eq('id',orphan.id);
+          const upd1={total_study_minutes:(S.profile?.total_study_minutes||0)+mins};
+          if(S.profile?.is_free_tier!==true||isInTrial())upd1.total_points=(S.profile?.total_points||0)+5;
+          await sb.from('profiles').update(upd1).eq('id',S.user.id);
+          banner.remove();
+          setTimeout(loadSess,500);
+        },{style:{fontSize:'11px',padding:'8px 16px'}});
+        row.append(hoursInput,submitBtn,errMsg);
+        return row;
+      })()
+    );
+    actionsRow.append(qWrap);
+  },{style:{fontSize:'11px',padding:'8px 16px'}});
+  const discardBtn=btn('Discard Session','btn-outline',async()=>{
+    await sb.from('study_sessions').update({ended_at:new Date().toISOString(),duration_minutes:0}).eq('id',orphan.id);
+    banner.remove();
+  },{style:{fontSize:'11px',padding:'8px 16px'}});
+  actionsRow.append(clockOutNowBtn,discardBtn);
+  banner.append(bannerTop,actionsRow);
   container.append(banner);
 })();
 
@@ -4471,13 +4521,14 @@ card.append(
 );
 const cinBtn=btn('⏵ Clock In & Start Timer','btn-gold',async()=>{
   cinBtn.textContent='Clocking in...';cinBtn.disabled=true;
-  const{data:sess,error}=await sb.from('study_sessions').insert({user_id:S.user.id,topic:cfg.topic||'General Study',started_at:new Date().toISOString()}).select().single();
+  const plannedMins=(cfg.workMins||25)*(cfg.sessions||4);
+  const{data:sess,error}=await sb.from('study_sessions').insert({user_id:S.user.id,topic:cfg.topic||'General Study',started_at:new Date().toISOString(),max_minutes:plannedMins}).select().single();
   if(error){cinBtn.textContent='⏵ Clock In & Start Timer';cinBtn.disabled=false;alert('Failed to clock in. Try again.');return;}
   window.activeSessionId=sess.id;
   window.sessionStartTime=Date.now();
-  window.sessionMaxMins=(cfg.workMins||25)*(cfg.sessions||4);
+  window.sessionMaxMins=plannedMins;
   // Save to localStorage for recovery
-  localStorage.setItem('activeSession',JSON.stringify({id:sess.id,startTime:Date.now(),topic:cfg.topic||'General Study',maxMins:(cfg.workMins||25)*(cfg.sessions||4)}));
+  localStorage.setItem('activeSession',JSON.stringify({id:sess.id,startTime:Date.now(),topic:cfg.topic||'General Study',maxMins:plannedMins}));
   // Initialize fresh pomPlan
   window.pomPlan={
     topic:cfg.topic||'General Study',
@@ -4554,7 +4605,11 @@ const coutBtn=btn('⏹ Clock Out & Save Session','btn-gold',async()=>{
     const endTimeISO=new Date().toISOString();
     const rawMins=Math.max(1,Math.round((Date.now()-window.sessionStartTime)/60000));
     const savedSession=localStorage.getItem('activeSession');
-    const maxMins=window.sessionMaxMins||(savedSession?JSON.parse(savedSession).maxMins:null)||480;
+    let maxMins=window.sessionMaxMins||(savedSession?JSON.parse(savedSession).maxMins:null);
+    if(!maxMins){
+      const{data:sRow}=await sb.from('study_sessions').select('max_minutes').eq('id',window.activeSessionId).single();
+      maxMins=(sRow&&sRow.max_minutes)||480;
+    }
     const actualMins=Math.min(rawMins,maxMins);
     // Refresh session before update to ensure auth is valid
     const{data:{session:_latestSess}}=await sb.auth.getSession();
@@ -4792,10 +4847,30 @@ const nav=div({cls:'dash-nav'});
 nav.append(dfLogo(),div({style:{display:'flex',gap:'8px'}},[btn('← Dashboard','btn-outline',()=>{sessionStorage.removeItem('vignette_resume');go('dashboard');},{style:{padding:'8px 16px'}}),makeThemeBtn()]));
 page.append(nav);
 let decks=[],selDeck=null,cards=[],queue=[],curIdx=0,flipped=false,prog={easy:0,iffy:0,hard:0};
+let dailyReviewActive=false;
+const LEITNER_INTERVALS={1:1,2:2,3:4,4:7,5:15};
+function leitnerNext(currentBox,rating){
+  var box=currentBox||1;
+  if(rating==='hard')box=1;
+  else if(rating==='easy')box=Math.min(5,box+1);
+  else if(rating==='iffy')box=box>=3?box-1:box;
+  var d=new Date();d.setDate(d.getDate()+(LEITNER_INTERVALS[box]||1));
+  var dueAt=d.toISOString().slice(0,10);
+  return{box:box,dueAt:dueAt};
+}
+function dailyTargetKey(){return'df_daily_target_'+(S.user&&S.user.id||'x');}
 const tabBar=div({style:{display:'flex',gap:'8px',padding:'0 24px',borderBottom:'1px solid var(--border)',background:'var(--nav-bg)'}});
-const decksTabBtn=btn('Flashcard Decks','btn',()=>{decksTabBtn.style.background='var(--gold)';decksTabBtn.style.color='var(--bg)';decksTabBtn.style.border='1px solid var(--gold)';bitzTabBtn.style.background='transparent';bitzTabBtn.style.color='var(--text)';bitzTabBtn.style.border='1px solid var(--border)';showDecks();},{style:{padding:'10px 20px',background:'var(--gold)',color:'var(--bg)',border:'1px solid var(--gold)',borderRadius:'0',fontSize:'12px'}});
-const bitzTabBtn=btn('Riddle & Emoji Bitz','btn',()=>{bitzTabBtn.style.background='var(--gold)';bitzTabBtn.style.color='var(--bg)';bitzTabBtn.style.border='1px solid var(--gold)';decksTabBtn.style.background='transparent';decksTabBtn.style.color='var(--text)';decksTabBtn.style.border='1px solid var(--border)';showBitz();},{style:{padding:'10px 20px',background:'transparent',color:'var(--text)',border:'1px solid var(--border)',borderRadius:'0',fontSize:'12px'}});
-tabBar.append(decksTabBtn,bitzTabBtn);
+const allTabBtns=[];
+function activateTab(activeBtn,showFn){
+  allTabBtns.forEach(b=>{b.style.background='transparent';b.style.color='var(--text)';b.style.border='1px solid var(--border)';});
+  activeBtn.style.background='var(--gold)';activeBtn.style.color='var(--bg)';activeBtn.style.border='1px solid var(--gold)';
+  showFn();
+}
+const decksTabBtn=btn('Flashcard Decks','btn',()=>activateTab(decksTabBtn,showDecks),{style:{padding:'10px 20px',background:'var(--gold)',color:'var(--bg)',border:'1px solid var(--gold)',borderRadius:'0',fontSize:'12px'}});
+const dailyTabBtn=btn('Daily Review','btn',()=>activateTab(dailyTabBtn,showDailyReview),{style:{padding:'10px 20px',background:'transparent',color:'var(--text)',border:'1px solid var(--border)',borderRadius:'0',fontSize:'12px'}});
+const bitzTabBtn=btn('Riddle & Emoji Bitz','btn',()=>activateTab(bitzTabBtn,showBitz),{style:{padding:'10px 20px',background:'transparent',color:'var(--text)',border:'1px solid var(--border)',borderRadius:'0',fontSize:'12px'}});
+allTabBtns.push(decksTabBtn,dailyTabBtn,bitzTabBtn);
+tabBar.append(decksTabBtn,dailyTabBtn,bitzTabBtn);
 page.append(tabBar);
 const inner=div({cls:'inner-sm'});page.append(inner);
 async function showBitz(){
@@ -4875,17 +4950,20 @@ if(offlineMode){
   inner.append(div({cls:'card',style:{marginBottom:'16px',padding:'12px 16px',border:'1px solid var(--gold)',background:'rgba(184,146,46,0.08)'}},[h('span',{style:{fontFamily:"Inter,sans-serif",fontSize:'12px',color:'var(--gold)'},html:'⚠ Offline — showing your saved decks. New results will sync once you\'re back online.'})]));
 }
 if(!decks.length){inner.append(div({cls:'card',style:{textAlign:'center',padding:'48px'}},[div({style:{fontSize:'40px',marginBottom:'16px'},html:' '}),h('p',{style:{fontSize:'14px',color:'var(--dim)'},html:'No flashcard decks yet.'})]));return;}
-const grid=div({style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(240px,1fr))',gap:'16px'}});
+const list=div({style:{display:'flex',flexDirection:'column',gap:'10px'}});
 decks.forEach(deck=>{
 const isPersonal=deck.user_id!==null;
-const card=div({cls:'card',style:{cursor:'pointer'}});
-const nameRow=div({style:{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'8px'}});
-nameRow.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'18px',color:'var(--text)',marginBottom:'0'},html:deck.topic}));
+const card=div({cls:'card',style:{padding:'16px 20px'}});
+const row=div({style:{display:'flex',alignItems:'center',justifyContent:'space-between',gap:'16px',flexWrap:'wrap'}});
+const nameRow=div({style:{display:'flex',alignItems:'center',minWidth:'0',flex:'1 1 220px'}});
+nameRow.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'17px',color:'var(--text)',margin:'0',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'},html:deck.topic}));
 if(isPersonal){nameRow.append(h('span',{style:{fontFamily:"Inter,sans-serif",fontSize:'9px',fontWeight:'700',letterSpacing:'1px',color:'var(--gold)',border:'1px solid var(--gold-border)',borderRadius:'2px',padding:'2px 6px',marginLeft:'8px',flexShrink:'0'},html:'PERSONAL'}));}
-card.append(nameRow);
-card.append(btn('Start Deck →','btn-gold',async()=>loadDeck(deck),{style:{width:'100%',marginTop:'12px'}}));
+const actionsRow=div({style:{display:'flex',gap:'8px',flexShrink:'0'}});
+actionsRow.append(btn('Start Deck →','btn-gold',async()=>loadDeck(deck),{style:{padding:'8px 18px',fontSize:'12px'}}));
+row.append(nameRow,actionsRow);
+card.append(row);
 if(isPersonal){
-  const actionRow=div({style:{display:'flex',gap:'8px',marginTop:'8px'}});
+  const actionRow=div({style:{display:'flex',gap:'8px',marginTop:'10px'}});
   const renameBtn=btn('Rename','btn-outline',()=>{
     const nameInp=inp('New deck name','text',deck.topic);
     nameInp.style.marginBottom='8px';
@@ -4911,9 +4989,9 @@ if(isPersonal){
   actionRow.append(renameBtn,deleteBtn);
   card.append(actionRow);
 }
-grid.append(card);
+list.append(card);
 });
-inner.append(grid);
+inner.append(list);
 if(isFree){inner.append(div({style:{background:'rgba(184,146,46,0.06)',border:'1px solid var(--gold-border)',borderRadius:'4px',padding:'12px 16px',marginTop:'8px',display:'flex',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap',gap:'12px'}},[h('span',{style:{fontFamily:"Inter,sans-serif",fontSize:'12px',color:'var(--muted)'},html:'More flashcard decks available on paid plans.'}),btn('Upgrade →','btn-gold',()=>showUpgradeModal(),{style:{padding:'6px 16px',fontSize:'11px',flexShrink:'0'}})]));}
 // Show past performance
 const{data:history}=await sb.from('anki_results').select('*').eq('user_id',S.user.id).order('created_at',{ascending:false}).limit(10);
@@ -4944,6 +5022,55 @@ hCard.append(div({style:{display:'flex',justifyContent:'space-between',alignItem
 inner.append(hCard);
 }
 }
+async function showDailyReview(){
+inner.innerHTML='';
+dailyReviewActive=true;
+const skel=div({});for(var _k=0;_k<3;_k++){skel.append(skelCard([['60%'],['80%'],['40%']]));} inner.append(skel);
+inner.append(h('span',{cls:'chapter',html:'Daily Review'}),h('h1',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'40px',fontWeight:'700',marginBottom:'8px'},html:'Cards <em class="gold-em">Due Today</em>'}),h('p',{cls:'muted',style:{fontSize:'14px',marginBottom:'40px'},html:'Pulls due cards from every deck you have access to, using spaced repetition.'}));
+var deckQuery=(isFree&&!isInTrial())?sb.from('flashcard_decks').select('id').eq('type','flashcard').eq('is_global',true).is('user_id',null):sb.from('flashcard_decks').select('id').or('user_id.eq.'+S.user.id+',user_id.is.null').neq('type','riddle').neq('type','emoji');
+const{data:accessDecks}=await deckQuery;
+const deckIds=(accessDecks||[]).map(function(d){return d.id;});
+let poolCards=[],progMap={},boxMap2={};
+if(deckIds.length){
+  const{data:allC}=await sb.from('flashcards').select('*').in('deck_id',deckIds);
+  poolCards=allC||[];
+  const{data:progressData}=await sb.from('flashcard_progress').select('*').eq('user_id',S.user.id);
+  (progressData||[]).forEach(function(p){progMap[p.flashcard_id]=p;boxMap2[p.flashcard_id]=p.box;});
+}
+skel.remove();
+const today=new Date().toISOString().slice(0,10);
+const dueCards=poolCards.filter(function(c){var p=progMap[c.id];return p&&p.due_at&&p.due_at<=today;}).sort(function(a,b){return(progMap[a.id].due_at).localeCompare(progMap[b.id].due_at);});
+const newCards=poolCards.filter(function(c){return!progMap[c.id];});
+function shuffle2(arr){for(let i=arr.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[arr[i],arr[j]]=[arr[j],arr[i]];}return arr;}
+const availablePool=[...dueCards,...shuffle2(newCards)];
+const card=div({cls:'card',style:{textAlign:'center'}});
+card.append(h('span',{cls:'chapter',html:'Configure Session'}));
+card.append(h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'28px',marginBottom:'8px'},html:'Daily Review'}));
+card.append(h('p',{cls:'muted',style:{fontSize:'14px',marginBottom:'8px'},html:dueCards.length+' due · '+newCards.length+' new · '+poolCards.length+' total across your decks'}));
+if(!availablePool.length){
+  card.append(h('p',{style:{fontSize:'13px',color:'var(--dim)',marginTop:'16px'},html:'No cards due today. Check back tomorrow, or study a specific deck.'}));
+  inner.append(card);
+  return;
+}
+let target=Math.min(20,availablePool.length);
+try{var savedTarget=parseInt(localStorage.getItem(dailyTargetKey()));if(savedTarget>0)target=Math.min(savedTarget,availablePool.length);}catch(e){}
+card.append(h('label',{cls:'label',html:'How many cards do you want to study today?'}));
+const countInput=h('input',{type:'number',value:String(target),min:'1',max:String(availablePool.length),style:{width:'100%',padding:'10px',margin:'12px 0',background:'var(--bg)',border:'1px solid var(--border)',borderRadius:'2px',color:'var(--text)',fontSize:'14px',textAlign:'center'}});
+countInput.oninput=function(e){let val=parseInt(e.target.value);if(isNaN(val))val=1;if(val<1)val=1;if(val>availablePool.length)val=availablePool.length;target=val;countInput.value=String(target);};
+card.append(countInput);
+const startBtn=btn('Start Daily Review →','btn-gold',function(){
+  try{localStorage.setItem(dailyTargetKey(),String(target));}catch(e){}
+  const selected=availablePool.slice(0,target);
+  selected.forEach(function(c){c._box=boxMap2[c.id]||1;});
+  cards=selected;
+  queue=[...cards];
+  curIdx=0;flipped=false;prog={easy:0,iffy:0,hard:0};
+  selDeck={id:null,topic:'Daily Review'};
+  showCard();
+},{style:{width:'100%',marginTop:'8px'}});
+card.append(startBtn);
+inner.append(card);
+}
 async function loadDeck(deck){
 if(S.profile?.is_free_tier&&!deck.user_id&&navigator.onLine){
   try{
@@ -4971,11 +5098,11 @@ try{
   deckOffline=true;
 }
 if(!allCards||!allCards.length){alert(deckOffline?'This deck isn\'t saved for offline use yet — connect once to cache it.':'No cards in this deck yet.');return;}
-var progressMap={};
+var progressMap={},boxMap={};
 try{
   if(navigator.onLine){
     const{data:progressData}=await sb.from('flashcard_progress').select('*').eq('user_id',S.user.id);
-    (progressData||[]).forEach(p=>{progressMap[p.flashcard_id]=p.difficulty;});
+    (progressData||[]).forEach(p=>{progressMap[p.flashcard_id]=p.difficulty;boxMap[p.flashcard_id]=p.box;});
   }
 }catch(e){}
 const hardCount=allCards.filter(c=>progressMap[c.id]==='Hard').length;
@@ -5027,6 +5154,7 @@ const startBtn=btn('Start Session →','btn-gold',()=>{
   const easyCards=shuffle(allCards.filter(c=>progressMap[c.id]==='Easy'));
   const ordered=[...hardCards,...iffyCards,...unseenCards,...easyCards];
   cards=ordered.slice(0,selectedCount);
+  cards.forEach(c=>{c._box=boxMap[c.id]||1;});
   queue=[...cards];
   curIdx=0;
   flipped=false;
@@ -5081,7 +5209,8 @@ if(prev==='none'){
   else if(d==='iffy'){nq.splice(curIdx,1);nq.push(cur);}
   else{nq.splice(curIdx,1);nq.splice(Math.min(curIdx+2,nq.length),0,cur);}
   (async()=>{
-    var payload={user_id:S.user.id,flashcard_id:cur.id,difficulty:d.charAt(0).toUpperCase()+d.slice(1),updated_at:new Date().toISOString()};
+    var lb=leitnerNext(cur._box,d);
+    var payload={user_id:S.user.id,flashcard_id:cur.id,difficulty:d.charAt(0).toUpperCase()+d.slice(1),box:lb.box,due_at:lb.dueAt,updated_at:new Date().toISOString()};
     try{
       if(!navigator.onLine)throw new Error('offline');
       const{error}=await sb.from('flashcard_progress').upsert(payload,{onConflict:'user_id,flashcard_id'});
@@ -5147,7 +5276,9 @@ const gradeMsg=grade==='A'?'Excellent mastery — 90%+ of cards easy.':grade==='
 // Save result and award points — paid only
 if(!S.profile?.is_free_tier||isInTrial()){
   var _fpts=cards.length||1;
-  await sb.from('anki_results').insert({user_id:S.user.id,deck_id:selDeck?.id,deck_topic:selDeck?.topic,grade,easy_count:prog.easy,iffy_count:prog.iffy,hard_count:prog.hard});
+  var _resultRow={user_id:S.user.id,deck_topic:selDeck?.topic,grade,easy_count:prog.easy,iffy_count:prog.iffy,hard_count:prog.hard};
+  if(selDeck&&selDeck.id)_resultRow.deck_id=selDeck.id;
+  await sb.from('anki_results').insert(_resultRow);
   await sb.from('profiles').update({total_points:(S.profile?.total_points||0)+_fpts,total_anki_sessions:(S.profile?.total_anki_sessions||0)+1}).eq('id',S.user.id);
   if(S.profile)S.profile.total_points=(S.profile.total_points||0)+_fpts;
 
@@ -6784,9 +6915,69 @@ function renderLibrary(){
   var tFile=h('input',{type:'file',accept:'.txt',style:{display:'block',marginBottom:'8px',fontSize:'12px',color:'var(--muted)',fontFamily:'Inter,sans-serif'}});
   var tPaste=h('textarea',{cls:'input',placeholder:'\u2026or paste questions here (Q-Bank format: stem, A\u2013Q, Answer:, Explanation:, blank line between).',style:{width:'100%',minHeight:'120px',fontFamily:'monospace',fontSize:'12px',marginBottom:'8px'}});
   var tPreview=div({style:{marginBottom:'12px'}},[]);
-  function renderPreview(){tPreview.innerHTML='';if(!tParsed.length)return;var ok=tParsed.filter(function(q){return q._ok;}).length;var bad=tParsed.length-ok;tPreview.append(h('div',{style:{fontSize:'13px',color:bad?'var(--gold)':'var(--teal)',marginBottom:bad?'8px':'0'}},[tParsed.length+' parsed \u00b7 '+ok+' ready'+(bad?' \u00b7 '+bad+' with missing fields':'')]));if(bad){tParsed.forEach(function(q,i){if(q._ok)return;tPreview.append(h('div',{cls:'mono',style:{fontSize:'11px',color:'var(--muted)',marginBottom:'2px'}},['Q'+(i+1)+' missing: '+q._missing.join(', ')+' \u2014 '+(q.question||'').slice(0,60)]));});}}
-  var parseBtn=btn('Parse & preview','btn-outline',async function(){var text='';if(tFile.files&&tFile.files.length)text=await tFile.files[0].text();else text=tPaste.value;if(!text.trim()){tStatus('Pick a .txt file or paste questions first.','#ff4444');return;}tParsed=parseTut(text);renderPreview();if(!tParsed.length)tStatus('No questions found \u2014 check the format.','#ff4444');else tSt.style.display='none';},{style:{fontSize:'12px',padding:'8px 16px',marginRight:'8px'}});
-  var saveBtn=btn('Save to library','btn-gold',async function(){var title=tTitle.value.trim();var ok=tParsed.filter(function(q){return q._ok;});if(!title){tStatus('Add a title first.','#ff4444');return;}if(!ok.length){tStatus('Parse a valid question set first.','#ff4444');return;}var tl=tMode==='timed'?(parseInt(tLimit.value,10)||null):null;saveBtn.disabled=true;tStatus('Saving\u2026','var(--muted)');var ins=await sb.from('tutoring_tests').insert({title:title,mode:tMode,time_limit:tl,created_by:S.user.id}).select().single();if(ins.error||!ins.data){tStatus('Could not create test: '+(ins.error&&ins.error.message||'unknown'),'#ff4444');saveBtn.disabled=false;return;}var rows=ok.map(function(q,i){return{test_id:ins.data.id,position:i+1,topic:(q.topic&&q.topic.trim())||title,question:q.question,option_a:q.option_a,option_b:q.option_b,option_c:q.option_c,option_d:q.option_d,option_e:q.option_e,option_f:q.option_f,option_g:q.option_g,option_h:q.option_h,option_i:q.option_i,option_j:q.option_j,option_k:q.option_k,option_l:q.option_l,option_m:q.option_m,option_n:q.option_n,option_o:q.option_o,option_p:q.option_p,option_q:q.option_q,correct_answer:q.correct_answer,explanation:q.explanation};});var qins=await sb.from('tutoring_questions').insert(rows);if(qins.error){tStatus('Test created, but questions failed: '+qins.error.message,'#ff4444');saveBtn.disabled=false;return;}tStatus('\u2713 Saved \u201c'+title+'\u201d \u2014 '+rows.length+' questions.','var(--teal)');tTitle.value='';tPaste.value='';tFile.value='';tParsed=[];tPreview.innerHTML='';saveBtn.disabled=false;loadLibrary();},{style:{fontSize:'12px',padding:'8px 16px'}});
+  var tMediaMap={};
+  var tOpenMediaIdx=null;
+  function renderPreview(){
+    tPreview.innerHTML='';if(!tParsed.length)return;
+    var ok=tParsed.filter(function(q){return q._ok;}).length;var bad=tParsed.length-ok;
+    tPreview.append(h('div',{style:{fontSize:'13px',color:bad?'var(--gold)':'var(--teal)',marginBottom:'12px'}},[tParsed.length+' parsed \u00b7 '+ok+' ready'+(bad?' \u00b7 '+bad+' with missing fields (skipped)':'')]));
+    tParsed.forEach(function(q,i){
+      if(!q._ok){tPreview.append(h('div',{cls:'mono',style:{fontSize:'11px',color:'var(--muted)',marginBottom:'2px'}},['Q'+(i+1)+' missing: '+q._missing.join(', ')+' \u2014 '+(q.question||'').slice(0,60)]));return;}
+      var qCard=div({cls:'card',style:{marginBottom:'10px',padding:'14px'}},[]);
+      qCard.append(div({cls:'mono',style:{fontSize:'10px',color:'var(--gold)',textTransform:'uppercase',marginBottom:'8px'}},['Question '+(i+1)]));
+      qCard.append(h('p',{style:{fontSize:'13px',color:'var(--text)',lineHeight:'1.6',marginBottom:'10px'}},[q.question]));
+      var mediaRow=div({style:{marginBottom:'8px'}},[]);
+      (tMediaMap[i]||[]).forEach(function(m,mi){
+        mediaRow.append(mediaBadgeEl(m,function(){tMediaMap[i].splice(mi,1);renderPreview();}));
+      });
+      qCard.append(mediaRow);
+      var addBtn=btn((tMediaMap[i]||[]).length>=2?'Max media reached':'+ Add media','btn-outline',function(){tOpenMediaIdx=(tOpenMediaIdx===i)?null:i;renderPreview();},{style:{fontSize:'10px',padding:'6px 12px'}});
+      if((tMediaMap[i]||[]).length>=2)addBtn.disabled=true;
+      qCard.append(addBtn);
+      if(tOpenMediaIdx===i){
+        var mForm=div({style:{marginTop:'10px',padding:'10px',border:'1px solid var(--border)',borderRadius:'4px'}},[]);
+        var typeSel=h('select',{cls:'input',style:{width:'160px',marginBottom:'8px'}},[h('option',{value:'image'},['Image']),h('option',{value:'audio'},['Audio']),h('option',{value:'youtube'},['YouTube'])]);
+        var fileInput=h('input',{type:'file',accept:'image/png,image/jpeg,image/jpg',style:{display:'block',marginBottom:'8px',fontSize:'12px',color:'var(--muted)',fontFamily:'Inter,sans-serif'}});
+        var linkInput=h('input',{cls:'input',placeholder:'YouTube link \u2014 e.g. https://youtu.be/...',style:{width:'100%',marginBottom:'8px',display:'none'}});
+        var mStatus=div({style:{fontSize:'11px',marginBottom:'8px',display:'none'}},[]);
+        function paintMediaType(){
+          var t=typeSel.value;
+          fileInput.style.display=(t==='youtube')?'none':'block';
+          fileInput.accept=(t==='audio')?'audio/mpeg,audio/wav,audio/mp4,audio/*':'image/png,image/jpeg,image/jpg';
+          linkInput.style.display=(t==='youtube')?'block':'none';
+        }
+        typeSel.onchange=paintMediaType;
+        paintMediaType();
+        var attachBtn=btn('Attach','btn-gold',async function(){
+          var t=typeSel.value;
+          if(!tMediaMap[i])tMediaMap[i]=[];
+          if(tMediaMap[i].length>=2)return;
+          if(t==='youtube'){
+            if(!linkInput.value.trim())return;
+            tMediaMap[i].push({type:'youtube',url:linkInput.value.trim()});
+            tOpenMediaIdx=null;renderPreview();
+            return;
+          }
+          if(!fileInput.files||!fileInput.files.length){mStatus.textContent='Choose a file first.';mStatus.style.color='#ff4444';mStatus.style.display='block';return;}
+          var file=fileInput.files[0];
+          attachBtn.disabled=true;mStatus.textContent='Uploading\u2026';mStatus.style.color='var(--muted)';mStatus.style.display='block';
+          var ext=(file.name.split('.').pop()||'bin').toLowerCase();
+          var path=S.user.id+'/'+Date.now()+'_'+Math.random().toString(36).slice(2)+'.'+ext;
+          var up=await sb.storage.from('assessment-media').upload(path,file,{contentType:file.type||undefined});
+          if(up.error){mStatus.textContent='Upload failed: '+up.error.message;mStatus.style.color='#ff4444';attachBtn.disabled=false;return;}
+          var pub=sb.storage.from('assessment-media').getPublicUrl(path);
+          var publicUrl=pub&&pub.data&&pub.data.publicUrl;
+          tMediaMap[i].push({type:t,url:publicUrl});
+          tOpenMediaIdx=null;renderPreview();
+        },{style:{fontSize:'11px',padding:'6px 14px'}});
+        mForm.append(typeSel,fileInput,linkInput,mStatus,attachBtn);
+        qCard.append(mForm);
+      }
+      tPreview.append(qCard);
+    });
+  }
+  var parseBtn=btn('Parse & preview','btn-outline',async function(){var text='';if(tFile.files&&tFile.files.length)text=await tFile.files[0].text();else text=tPaste.value;if(!text.trim()){tStatus('Pick a .txt file or paste questions first.','#ff4444');return;}tParsed=parseTut(text);tMediaMap={};tOpenMediaIdx=null;renderPreview();if(!tParsed.length)tStatus('No questions found \u2014 check the format.','#ff4444');else tSt.style.display='none';},{style:{fontSize:'12px',padding:'8px 16px',marginRight:'8px'}});
+  var saveBtn=btn('Save to library','btn-gold',async function(){var title=tTitle.value.trim();var ok=tParsed.filter(function(q){return q._ok;});if(!title){tStatus('Add a title first.','#ff4444');return;}if(!ok.length){tStatus('Parse a valid question set first.','#ff4444');return;}var tl=tMode==='timed'?(parseInt(tLimit.value,10)||null):null;saveBtn.disabled=true;tStatus('Saving\u2026','var(--muted)');var ins=await sb.from('tutoring_tests').insert({title:title,mode:tMode,time_limit:tl,created_by:S.user.id}).select().single();if(ins.error||!ins.data){tStatus('Could not create test: '+(ins.error&&ins.error.message||'unknown'),'#ff4444');saveBtn.disabled=false;return;}var rows=ok.map(function(q){var i=tParsed.indexOf(q);return{test_id:ins.data.id,position:i+1,topic:(q.topic&&q.topic.trim())||title,question:q.question,option_a:q.option_a,option_b:q.option_b,option_c:q.option_c,option_d:q.option_d,option_e:q.option_e,option_f:q.option_f,option_g:q.option_g,option_h:q.option_h,option_i:q.option_i,option_j:q.option_j,option_k:q.option_k,option_l:q.option_l,option_m:q.option_m,option_n:q.option_n,option_o:q.option_o,option_p:q.option_p,option_q:q.option_q,correct_answer:q.correct_answer,explanation:q.explanation,media:tMediaMap[i]||[]};});var qins=await sb.from('tutoring_questions').insert(rows);if(qins.error){tStatus('Test created, but questions failed: '+qins.error.message,'#ff4444');saveBtn.disabled=false;return;}tStatus('\u2713 Saved \u201c'+title+'\u201d \u2014 '+rows.length+' questions.','var(--teal)');tTitle.value='';tPaste.value='';tFile.value='';tParsed=[];tMediaMap={};tOpenMediaIdx=null;tPreview.innerHTML='';saveBtn.disabled=false;loadLibrary();},{style:{fontSize:'12px',padding:'8px 16px'}});
   upCard.append(tTitle,modeRow,limitWrap,tFile,tPaste,tPreview,div({style:{display:'flex',alignItems:'center',flexWrap:'wrap'}},[parseBtn,saveBtn]),tSt);
   tBody.append(upCard);
 
@@ -7254,14 +7445,15 @@ function openAssignAssessment(opts){
   var assessSel=h('select',{cls:'input',style:{width:'100%',marginBottom:'14px'}},[]);
   var studWrap=div({style:{marginBottom:'14px'}},[]);
   var pickedStudents={};
-  var dueInput=h('input',{cls:'input',type:'date',style:{width:'220px',marginBottom:'14px'}});
+  var dueInput=h('input',{cls:'input',type:'date',style:{width:'220px',marginBottom:'8px'}});
+  var dueTimeInput=h('input',{cls:'input',type:'time',style:{width:'220px',marginBottom:'14px'}});
   var assignBtn=btn('Assign','btn-gold',async function(){
     var assessmentId=assessSel.value;
     var sids=Object.keys(pickedStudents).filter(function(k){return pickedStudents[k];});
     if(!assessmentId){aaSt('Pick an assessment.','#ff4444');return;}
     if(!sids.length){aaSt('Pick at least one student.','#ff4444');return;}
     assignBtn.disabled=true;aaSt('Assigning\u2026','var(--muted)');
-    var rows=sids.map(function(sid){return{assessment_id:assessmentId,student_id:sid,due_date:dueInput.value||null};});
+    var rows=sids.map(function(sid){return{assessment_id:assessmentId,student_id:sid,due_date:dueInput.value||null,due_time:dueInput.value?(dueTimeInput.value||null):null};});
     var ins=await sb.from('tutoring_assessment_assignments').insert(rows);
     if(ins.error){aaSt('Failed: '+ins.error.message,'#ff4444');assignBtn.disabled=false;return;}
     aaSt('\u2713 Assigned to '+sids.length+' student'+(sids.length>1?'s':'')+(dueInput.value?' \u00b7 scheduling email will go out shortly':'')+'.','var(--teal)');
@@ -7272,6 +7464,7 @@ function openAssignAssessment(opts){
   card.append(h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--muted)',marginBottom:'6px',textTransform:'uppercase',letterSpacing:'1px'},html:'Assessment'}),assessSel);
   card.append(h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--muted)',marginBottom:'6px',textTransform:'uppercase',letterSpacing:'1px'},html:'Students'}),studWrap);
   card.append(h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--muted)',marginBottom:'6px',textTransform:'uppercase',letterSpacing:'1px'},html:'Due date (optional)'}),dueInput);
+  card.append(h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--muted)',marginBottom:'6px',textTransform:'uppercase',letterSpacing:'1px'},html:'Due time (optional)'}),dueTimeInput);
   card.append(h('div',{style:{fontSize:'11px',color:'var(--dim)',marginBottom:'14px'}},['Students can only start on the due date shown above. If you set a due date, a scheduling notice email goes out automatically within a few minutes. Use \u201cUnlock now\u201d below to open it early for a specific student.']));
   card.append(div({},[assignBtn]),aaStatus);
   tBody.append(card);
@@ -7288,14 +7481,14 @@ function openAssignAssessment(opts){
     listWrap.innerHTML='';
     if(!assessmentId){listWrap.append(h('div',{style:{fontSize:'12px',color:'var(--dim)'},html:'Pick an assessment above to see who it\u2019s assigned to.'}));return;}
     listWrap.append(h('div',{style:{fontSize:'12px',color:'var(--dim)'},html:'Loading\u2026'}));
-    var r=await sb.from('tutoring_assessment_assignments').select('id,student_id,due_date,unlocked').eq('assessment_id',assessmentId).order('assigned_at',{ascending:false});
+    var r=await sb.from('tutoring_assessment_assignments').select('id,student_id,due_date,due_time,unlocked').eq('assessment_id',assessmentId).order('assigned_at',{ascending:false});
     var rows=r.data||[];
     listWrap.innerHTML='';
     if(!rows.length){listWrap.append(h('div',{style:{fontSize:'12px',color:'var(--dim)'},html:'No students assigned yet.'}));return;}
     rows.forEach(function(row){
       var name=studentNameMap[row.student_id]||row.student_id;
       var rowDiv=div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',gap:'10px',padding:'8px 0',borderBottom:'1px solid var(--border)',flexWrap:'wrap'}},[]);
-      rowDiv.append(div({},[h('div',{style:{fontSize:'13px',color:'var(--text)'}},[name]),h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--muted)',marginTop:'2px'}},[(row.due_date?'Due '+new Date(row.due_date+'T00:00:00').toLocaleDateString():'No due date')+' \u00b7 '+(row.unlocked?'Unlocked':'Locked to due date')])]));
+      rowDiv.append(div({},[h('div',{style:{fontSize:'13px',color:'var(--text)'}},[name]),h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--muted)',marginTop:'2px'}},[(row.due_date?'Due '+new Date(row.due_date+'T00:00:00').toLocaleDateString()+(row.due_time?' \u00b7 '+fmtTimeShort(row.due_time):''):'No due date')+' \u00b7 '+(row.unlocked?'Unlocked':'Locked to due date')])]));
       var toggleBtn=btn(row.unlocked?'Re-lock':'Unlock now',row.unlocked?'btn-outline':'btn-gold',async function(){
         toggleBtn.disabled=true;
         var upd=await sb.from('tutoring_assessment_assignments').update({unlocked:!row.unlocked}).eq('id',row.id);
@@ -7708,14 +7901,15 @@ function openAssign(opts){
   var testSel=h('select',{cls:'input',style:{width:'100%',marginBottom:'14px'}},[]);
   var studWrap=div({style:{marginBottom:'14px'}},[]);
   var pickedStudents={};
-  var dueInput=h('input',{cls:'input',type:'date',style:{width:'220px',marginBottom:'14px'}});
+  var dueInput=h('input',{cls:'input',type:'date',style:{width:'220px',marginBottom:'8px'}});
+  var dueTimeInput=h('input',{cls:'input',type:'time',style:{width:'220px',marginBottom:'14px'}});
   var assignBtn=btn('Assign','btn-gold',async function(){
     var testId=testSel.value;
     var sids=Object.keys(pickedStudents).filter(function(k){return pickedStudents[k];});
     if(!testId){aSt('Pick a test.','#ff4444');return;}
     if(!sids.length){aSt('Pick at least one student.','#ff4444');return;}
     assignBtn.disabled=true;aSt('Assigning\u2026','var(--muted)');
-    var rows=sids.map(function(sid){return{test_id:testId,student_id:sid,assigned_by:S.user.id,due_date:dueInput.value||null};});
+    var rows=sids.map(function(sid){return{test_id:testId,student_id:sid,assigned_by:S.user.id,due_date:dueInput.value||null,due_time:dueInput.value?(dueTimeInput.value||null):null};});
     var ins=await sb.from('tutoring_assignments').insert(rows);
     if(ins.error){aSt('Failed: '+ins.error.message,'#ff4444');assignBtn.disabled=false;return;}
     aSt('\u2713 Assigned to '+sids.length+' student'+(sids.length>1?'s':'')+'.','var(--teal)');
@@ -7725,6 +7919,7 @@ function openAssign(opts){
   card.append(h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--muted)',marginBottom:'6px',textTransform:'uppercase',letterSpacing:'1px'},html:'Test'}),testSel);
   card.append(h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--muted)',marginBottom:'6px',textTransform:'uppercase',letterSpacing:'1px'},html:'Students'}),studWrap);
   card.append(h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--muted)',marginBottom:'6px',textTransform:'uppercase',letterSpacing:'1px'},html:'Due date (optional)'}),dueInput);
+  card.append(h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--muted)',marginBottom:'6px',textTransform:'uppercase',letterSpacing:'1px'},html:'Due time (optional)'}),dueTimeInput);
   card.append(div({},[assignBtn]),aStatus);
   tBody.append(card);
 
@@ -7768,7 +7963,7 @@ function openStudent(s){
     var results=rRes.data||[];
     var arRes=await sb.from('tutoring_assessment_results').select('*').eq('student_id',s.user_id).order('taken_at',{ascending:false});
     var assessResults=arRes.data||[];
-    var aRes=await sb.from('tutoring_assignments').select('id,due_date,test_id,tutoring_tests(title,mode)').eq('student_id',s.user_id).order('assigned_at',{ascending:false});
+    var aRes=await sb.from('tutoring_assignments').select('id,due_date,due_time,test_id,tutoring_tests(title,mode)').eq('student_id',s.user_id).order('assigned_at',{ascending:false});
     var assigns=aRes.data||[];
     var kRes=await sb.from('tutoring_tasks').select('*').eq('student_id',s.user_id).order('due_date',{ascending:true});
     var tasks=kRes.data||[];
@@ -7788,7 +7983,7 @@ function openStudent(s){
       var done=results.filter(function(r){return r.assignment_id===a.id;});
       var comp=done.length>0;var latest=comp?done[0]:null;var test=a.tutoring_tests||{};
       var card=div({cls:'card',style:{marginBottom:'8px',padding:'12px',display:'flex',justifyContent:'space-between',alignItems:'center',gap:'12px',flexWrap:'wrap'}},[]);
-      card.append(div({style:{flex:'1',minWidth:'180px'}},[div({style:{display:'flex',alignItems:'center',marginBottom:'4px',flexWrap:'wrap'}},[modeBadgeEl(test.mode||'tutor'),h('span',{style:{fontFamily:'Georgia,serif',fontSize:'15px',color:'var(--text)'}},[test.title||'Test'])]),h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--muted)'}},[(a.due_date?'Due '+new Date(a.due_date+'T00:00:00').toLocaleDateString()+' \u00b7 ':'')+(comp?'Completed':'Not started')])]));
+      card.append(div({style:{flex:'1',minWidth:'180px'}},[div({style:{display:'flex',alignItems:'center',marginBottom:'4px',flexWrap:'wrap'}},[modeBadgeEl(test.mode||'tutor'),h('span',{style:{fontFamily:'Georgia,serif',fontSize:'15px',color:'var(--text)'}},[test.title||'Test'])]),h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--muted)'}},[(a.due_date?'Due '+new Date(a.due_date+'T00:00:00').toLocaleDateString()+(a.due_time?' \u00b7 '+fmtTimeShort(a.due_time):'')+' \u00b7 ':'')+(comp?'Completed':'Not started')])]));
       if(comp)card.append(h('div',{style:{fontFamily:'Georgia,serif',fontSize:'20px',color:'var(--teal)'}},[Math.round((latest.score/latest.total)*100)+'%']));
       body.append(card);
     });
@@ -8037,7 +8232,7 @@ reader.onload=async()=>{
 const base64=reader.result.split(',')[1];
 const{error}=await sb.from('theory_pdfs').insert({user_id:r.user_id,topic:r.topic,filename:file.name,data:base64,recall_request_id:r.id});
 if(error){upSt.textContent='Error: '+error.message;}
-else{upSt.textContent='✓ PDF uploaded!';await callAdminFn('set_has_new_content',{user_id:r.user_id});}
+else{upSt.textContent='✓ PDF uploaded!';}
 setTimeout(()=>upSt.style.display='none',3000);
 };
 reader.readAsDataURL(file);
@@ -8046,7 +8241,7 @@ br2.append(div({},[h('label',{cls:'label',html:'Upload Theory PDF'}),fi]));
 }
 if(!r.in_progress_at){br2.append(btn('Mark In Progress','btn-outline',async()=>{await sb.from('recall_requests').update({in_progress_at:new Date().toISOString(),in_progress_by:S.user?.id||null}).eq('id',r.id);loadTab('recalls');},{style:{padding:'8px 16px',fontSize:'11px',color:'var(--teal)',borderColor:'var(--teal)'}}));}
 br2.append(btn('Reject','btn-outline',async()=>{await sb.from('recall_requests').update({status:'rejected',updated_at:new Date().toISOString()}).eq('id',r.id);loadTab('recalls');},{style:{padding:'8px 16px',fontSize:'11px',color:'#ff4444',borderColor:'#ff4444'}}));
-br2.append(btn('Mark Done','btn-teal',async()=>{await callAdminFn('mark_recall_done',{recall_id:r.id,user_id:r.user_id,fulfilled_by:S.user?.id||null});loadTab('recalls');},{style:{padding:'8px 16px',fontSize:'11px'}}));
+br2.append(btn('Mark Done','btn-teal',async()=>{await callAdminFn('mark_recall_done',{recall_id:r.id,user_id:r.user_id,fulfilled_by:S.user?.id||null});await sb.from('recall_requests').update({student_notified:false}).eq('id',r.id);loadTab('recalls');},{style:{padding:'8px 16px',fontSize:'11px'}}));
 card.append(br2);
 (async()=>{
   const delSection=div({style:{marginTop:'16px',borderTop:'1px solid var(--border)',paddingTop:'12px'}});
