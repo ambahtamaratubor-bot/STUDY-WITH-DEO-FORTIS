@@ -38,6 +38,39 @@ function newBadge(){
   ensureNewBadgeStyles();
   return h('span',{style:{display:'inline-block',background:'var(--gold)',color:'#0F0E0A',fontFamily:'Inter,sans-serif',fontSize:'9px',fontWeight:'800',letterSpacing:'1px',padding:'2px 8px',borderRadius:'999px',marginLeft:'8px',verticalAlign:'middle',animation:'dfNewGlow 1.6s ease-in-out infinite'}},['NEW']);
 }
+function ensureJoinGlowStyles(){
+  if(document.getElementById('df-joinglow-style'))return;
+  var st=document.createElement('style');
+  st.id='df-joinglow-style';
+  st.textContent='@keyframes dfJoinGlow{0%,100%{box-shadow:0 0 6px 0 rgba(184,146,46,0.5);}50%{box-shadow:0 0 16px 4px rgba(184,146,46,0.85);}}';
+  document.head.appendChild(st);
+}
+// getLink1/getLink2: functions returning the current link string (so the widget always
+// reflects the latest saved value, e.g. after an admin edits and saves).
+function buildJoinWidget(getLink1,getLink2){
+  ensureJoinGlowStyles();
+  var wrap=div({style:{display:'flex',gap:'10px',alignItems:'center',flexWrap:'wrap'}},[]);
+  var joinBtn=h('button',{cls:'btn btn-gold',style:{padding:'12px 22px',fontSize:'13px',fontWeight:'700',borderRadius:'999px',animation:'dfJoinGlow 1.8s ease-in-out infinite'}},['\u25b8 Join Your Class Now']);
+  joinBtn.onclick=function(){
+    var l1=getLink1();
+    if(!l1){alert('No class link has been set yet.');return;}
+    window.open(l1,'_blank');
+  };
+  var backupSel=h('select',{cls:'input',style:{width:'auto',padding:'10px 14px',fontSize:'12px',cursor:'pointer'}},[
+    h('option',{value:''},['Use backup link\u2026']),
+    h('option',{value:'backup'},['Backup Link'])
+  ]);
+  backupSel.onchange=function(){
+    if(backupSel.value==='backup'){
+      var l2=getLink2();
+      if(!l2){alert('No backup link has been set yet.');backupSel.value='';return;}
+      window.open(l2,'_blank');
+    }
+    backupSel.value='';
+  };
+  wrap.append(joinBtn,backupSel);
+  return wrap;
+}
 function ensureLoadingBarStyles(){
   if(document.getElementById('df-loadbar-style'))return;
   var st=document.createElement('style');
@@ -1361,6 +1394,19 @@ function renderDashboard(){
       ])
     );
 
+    // JOIN CLASS — prominent, only shown when a link is on file
+    if(studentLinks.link1||studentLinks.link2){
+      const joinCard=div({cls:'card',style:{padding:'20px',marginBottom:'20px',display:'flex',alignItems:'center',justifyContent:'space-between',gap:'16px',flexWrap:'wrap',borderColor:'var(--gold)'}},[]);
+      joinCard.append(
+        div({},[
+          h('div',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'15px',color:'var(--text)',fontWeight:'600',marginBottom:'2px'}},['Ready for class?']),
+          h('div',{style:{fontSize:'12px',color:'var(--muted)'}},['Jump straight into your meeting link below.'])
+        ]),
+        buildJoinWidget(function(){return studentLinks.link1;},function(){return studentLinks.link2;})
+      );
+      content.append(joinCard);
+    }
+
     // NAVIGATION TILES — the entry point into each section
     const ICON_TESTS='<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="2"/><line x1="8" y1="8" x2="16" y2="8"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="8" y1="16" x2="12" y2="16"/></svg>';
     const ICON_TASKS='<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>';
@@ -1453,13 +1499,6 @@ function renderDashboard(){
     // WEEKLY SCHEDULE (main col)
     const schedCard=div({cls:'card',style:{padding:'20px'}},[]);
     schedCard.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'15px',marginBottom:'14px'}},['Your Weekly Schedule']));
-    if(studentLinks.link1||studentLinks.link2){
-      const linksBox=div({style:{background:'var(--card2)',borderRadius:'4px',padding:'12px 14px',marginBottom:'14px'}},[]);
-      linksBox.append(h('div',{cls:'mono',style:{fontSize:'9px',color:'var(--muted)',letterSpacing:'1px',textTransform:'uppercase',marginBottom:'6px'}},['Class Links']));
-      if(studentLinks.link1)linksBox.append(h('div',{style:{fontSize:'12px',marginBottom:'2px'}},['Link 1: ',h('a',{href:studentLinks.link1,target:'_blank',style:{color:'var(--teal)'}},[studentLinks.link1])]));
-      if(studentLinks.link2)linksBox.append(h('div',{style:{fontSize:'12px'}},['Link 2: ',h('a',{href:studentLinks.link2,target:'_blank',style:{color:'var(--teal)'}},[studentLinks.link2])]));
-      schedCard.append(linksBox);
-    }
     if(!slots.length){
       schedCard.append(h('p',{style:{fontSize:'12px',color:'var(--dim)'},html:'Your tutor will set up your weekly class time here.'}));
     }else{
@@ -8407,6 +8446,9 @@ function openStudent(s){
       setTimeout(function(){linksSt.style.display='none';},1500);
     },{style:{fontSize:'12px',padding:'8px 16px'}});
     linksSec.body.append(pLink1Inp,pLink2Inp,saveLinksBtn,linksSt);
+    var adminJoinWrap=div({style:{marginTop:'14px',paddingTop:'14px',borderTop:'1px solid var(--border)'}},[]);
+    adminJoinWrap.append(buildJoinWidget(function(){return studentLinks.link1;},function(){return studentLinks.link2;}));
+    linksSec.body.append(adminJoinWrap);
     body.append(linksSec.wrap);
 
     // CLASS SCHEDULE
