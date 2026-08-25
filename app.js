@@ -1232,11 +1232,11 @@ const wingHeader=div({},[
 inner.append(wingHeader);
 page.append(inner);
 
-let currentTab='tests';
+let currentTab='overview';
 const tabBar=div({style:{display:'flex',gap:'8px',marginBottom:'20px',flexWrap:'wrap'}},[]);
 const content=div({});
 inner.append(tabBar,content);
-const TABS=[['tests','Assigned Tests'],['tasks','Tasks'],['results','My Results'],['assessments','Assessments']];
+const TABS=[['overview','Overview'],['tests','Assigned Tests'],['tasks','Tasks'],['results','My Results'],['assessments','Assessments']];
 
 function enterFullscreen(){
   nav.style.display='none';
@@ -1309,10 +1309,63 @@ function renderTab(){
     content.append(div({cls:'card',style:{textAlign:'center',padding:'40px'}},[h('p',{style:{color:'var(--muted)',fontSize:'14px'},html:'You are not enrolled in tutoring yet. Your tutor will add you when your programme begins.'},[])]));
     return;
   }
-  if(currentTab==='tests')renderTests();
+  if(currentTab==='overview')renderOverview();
+  else if(currentTab==='tests')renderTests();
   else if(currentTab==='tasks')renderTasks();
   else if(currentTab==='assessments')renderAssessTab();
   else renderResults();
+}
+
+function renderOverview(){
+  const skel=div({});for(var _o=0;_o<3;_o++){skel.append(skelCard([['40%'],['60%']]));}
+  content.append(skel);
+  const DOW_NAMES2=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  function fmtTimeShortOv(t){if(!t)return'';try{var parts=String(t).split(':');var hh=parseInt(parts[0],10);var mm=parts[1]||'00';var ap=hh>=12?'PM':'AM';var h12=hh%12;if(h12===0)h12=12;return h12+':'+mm+' '+ap;}catch(e){return'';}}
+  (async function(){
+    const[slotsRes,attRes]=await Promise.all([
+      sb.from('tutoring_class_slots').select('*').eq('student_id',S.user.id).eq('active',true).order('day_of_week',{ascending:true}),
+      sb.from('tutoring_class_attendance').select('*').eq('student_id',S.user.id).order('class_date',{ascending:false})
+    ]);
+    skel.remove();
+    const slots=slotsRes.data||[];
+    const attendance=attRes.data||[];
+    const totalHours=attendance.reduce(function(s,a){return s+(a.duration_hours||0);},0);
+    const statsGridOv=div({style:{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:'12px',marginBottom:'24px'}});
+    function ovStat(label,value){return div({cls:'card',style:{padding:'16px',textAlign:'center'}},[h('div',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'32px',color:'var(--gold)',lineHeight:'1',marginBottom:'6px'}},[String(value)]),h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--muted)',letterSpacing:'1px',textTransform:'uppercase'}},[label])]);}
+    statsGridOv.append(ovStat('Classes Attended',attendance.length),ovStat('Class Hours',totalHours));
+    content.append(statsGridOv);
+
+    content.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'16px',marginBottom:'10px'},html:'Your Weekly Schedule'}));
+    if(!slots.length){
+      content.append(emptyCard('No classes scheduled yet','Your tutor will set up your weekly class time here.'));
+    }else{
+      slots.forEach(function(slot){
+        const row=div({cls:'card',style:{marginBottom:'8px',padding:'14px'}},[]);
+        row.append(
+          h('div',{style:{fontSize:'14px',color:'var(--text)',fontWeight:'600',marginBottom:'4px'}},[DOW_NAMES2[slot.day_of_week]+' \u00b7 '+fmtTimeShortOv(slot.class_time)]),
+          h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--muted)',marginBottom:'6px'}},['Next class: '+new Date(slot.next_class_date+'T00:00:00').toLocaleDateString()]),
+          div({style:{fontSize:'11px',color:'var(--dim)'}},[
+            slot.link1?h('div',{},['Link 1: ',h('a',{href:slot.link1,target:'_blank',style:{color:'var(--teal)'}},[slot.link1])]):null,
+            slot.link2?h('div',{},['Link 2: ',h('a',{href:slot.link2,target:'_blank',style:{color:'var(--teal)'}},[slot.link2])]):null
+          ].filter(Boolean))
+        );
+        content.append(row);
+      });
+    }
+
+    content.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'16px',margin:'20px 0 10px'},html:'Attendance Log'}));
+    if(!attendance.length){
+      content.append(emptyCard('No classes attended yet','Once your tutor marks a class as done, it will show up here.'));
+    }else{
+      attendance.slice(0,10).forEach(function(a){
+        const row=div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 0',borderBottom:'1px solid var(--border)'}},[]);
+        row.append(
+          h('span',{style:{fontSize:'13px',color:'var(--text)'}},[new Date(a.class_date+'T00:00:00').toLocaleDateString()]),
+          h('span',{style:{fontFamily:'Inter,sans-serif',fontSize:'11px',color:'var(--teal)'}},[a.duration_hours+'h']));
+        content.append(row);
+      });
+    }
+  })();
 }
 
 function renderTests(){
@@ -4030,43 +4083,57 @@ if(isInTrial()){
   container.append(banner);
 })();
 
-// DUE SOON — tests/assessments due within 3 days (or overdue) that aren't completed yet
+// DUE SOON — tests/assessments due within 3 days (or overdue), plus flashcards due today,
+// that aren't completed yet. Dismissible for the rest of the day only — reappears the next
+// day if the underlying item is still outstanding, so dismissing doesn't quietly bury it.
 (async()=>{
   function fmtTimeShort2(t){if(!t)return'';try{var parts=String(t).split(':');var hh=parseInt(parts[0],10);var mm=parts[1]||'00';var ap=hh>=12?'PM':'AM';var h12=hh%12;if(h12===0)h12=12;return h12+':'+mm+' '+ap;}catch(e){return'';}}
   function fmtDateShort2(d){try{var x=new Date(d+'T00:00:00');if(isNaN(x))return String(d);return x.toLocaleDateString('en-US',{month:'short',day:'numeric'});}catch(e){return String(d);}}
+  const todayStr2=(function(){var d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');})();
+  const dismissKey='due_soon_dismissed_'+(S.user&&S.user.id||'x')+'_'+todayStr2;
+  let dismissedToday=false;
+  try{dismissedToday=localStorage.getItem(dismissKey)==='1';}catch(e){}
+  if(dismissedToday)return;
   const cutoff=new Date();cutoff.setDate(cutoff.getDate()+3);
   const cutoffStr=cutoff.getFullYear()+'-'+String(cutoff.getMonth()+1).padStart(2,'0')+'-'+String(cutoff.getDate()).padStart(2,'0');
-  const todayStr2=(function(){var d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');})();
-  const[testAsg,assessAsg,testRes,assessRes]=await Promise.all([
+  const[testAsg,assessAsg,testRes,assessRes,dueFlashcards]=await Promise.all([
     sb.from('tutoring_assignments').select('id,due_date,due_time,test_id,tutoring_tests(title)').eq('student_id',S.user.id).not('due_date','is',null).lte('due_date',cutoffStr),
     sb.from('tutoring_assessment_assignments').select('id,due_date,due_time,assessment_id,tutoring_assessments(title)').eq('student_id',S.user.id).not('due_date','is',null).lte('due_date',cutoffStr),
     sb.from('tutoring_results').select('assignment_id').eq('student_id',S.user.id),
-    sb.from('tutoring_assessment_results').select('assignment_id').eq('student_id',S.user.id)
+    sb.from('tutoring_assessment_results').select('assignment_id').eq('student_id',S.user.id),
+    sb.from('flashcard_progress').select('flashcard_id',{count:'exact',head:true}).eq('user_id',S.user.id).lte('due_at',todayStr2)
   ]);
   const doneTestAsgIds=new Set((testRes.data||[]).map(function(r){return r.assignment_id;}));
   const doneAssessAsgIds=new Set((assessRes.data||[]).map(function(r){return r.assignment_id;}));
   const items=[];
-  (testAsg.data||[]).forEach(function(a){if(doneTestAsgIds.has(a.id))return;items.push({kind:'Test',title:(a.tutoring_tests&&a.tutoring_tests.title)||'Untitled test',due_date:a.due_date,due_time:a.due_time});});
-  (assessAsg.data||[]).forEach(function(a){if(doneAssessAsgIds.has(a.id))return;items.push({kind:'Assessment',title:(a.tutoring_assessments&&a.tutoring_assessments.title)||'Untitled assessment',due_date:a.due_date,due_time:a.due_time});});
+  (testAsg.data||[]).forEach(function(a){if(doneTestAsgIds.has(a.id))return;items.push({kind:'Test',title:(a.tutoring_tests&&a.tutoring_tests.title)||'Untitled test',due_date:a.due_date,due_time:a.due_time,onClick:function(){go('tutoring');}});});
+  (assessAsg.data||[]).forEach(function(a){if(doneAssessAsgIds.has(a.id))return;items.push({kind:'Assessment',title:(a.tutoring_assessments&&a.tutoring_assessments.title)||'Untitled assessment',due_date:a.due_date,due_time:a.due_time,onClick:function(){go('tutoring');}});});
+  const flashcardDueCount=dueFlashcards.count||0;
+  if(flashcardDueCount>0){
+    items.push({kind:'Flashcards',title:flashcardDueCount+' card'+(flashcardDueCount===1?'':'s')+' due for review',due_date:todayStr2,due_time:null,isFlashcards:true,onClick:function(){go('flashcards');}});
+  }
   if(!items.length)return;
   items.sort(function(x,y){var xk=x.due_date+' '+(x.due_time||'00:00');var yk=y.due_date+' '+(y.due_time||'00:00');return xk<yk?-1:xk>yk?1:0;});
   const dueCard=div({cls:'card',style:{marginBottom:'24px',borderColor:'var(--gold)'}});
-  dueCard.append(
-    div({style:{display:'flex',alignItems:'center',gap:'10px',marginBottom:'12px'}},[
+  const headerRow=div({style:{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'12px'}});
+  headerRow.append(
+    div({style:{display:'flex',alignItems:'center',gap:'10px'}},[
       div({style:{fontSize:'18px'},html:ICONS.alert||' '}),
       h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'16px',margin:'0'}},['Due Soon'])
-    ])
+    ]),
+    btn('\u2715','',function(){try{localStorage.setItem(dismissKey,'1');}catch(e){}dueCard.remove();},{style:{background:'none',border:'none',color:'var(--dim)',cursor:'pointer',fontSize:'14px',padding:'4px 8px'}})
   );
+  dueCard.append(headerRow);
   items.forEach(function(it){
-    const overdue=it.due_date<todayStr2;
+    const overdue=!it.isFlashcards&&it.due_date<todayStr2;
     const row=div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',gap:'12px',padding:'8px 0',borderBottom:'1px solid var(--border)',cursor:'pointer',flexWrap:'wrap'}});
-    row.onclick=function(){go('tutoring');};
+    row.onclick=it.onClick;
     row.append(
       div({},[
         h('span',{style:{fontFamily:'Inter,sans-serif',fontSize:'9px',fontWeight:'700',letterSpacing:'1px',textTransform:'uppercase',color:'var(--teal)',border:'1px solid rgba(126,173,168,0.4)',borderRadius:'999px',padding:'2px 8px',marginRight:'8px'}},[it.kind]),
         h('span',{style:{fontSize:'13px',color:'var(--text)'}},[it.title])
       ]),
-      h('span',{style:{fontFamily:'Inter,sans-serif',fontSize:'11px',fontWeight:'700',color:overdue?'#ff6b6b':'var(--gold)'}},[(overdue?'Overdue \u00b7 ':'Due ')+fmtDateShort2(it.due_date)+(it.due_time?' \u00b7 '+fmtTimeShort2(it.due_time):'')])
+      it.isFlashcards?h('span',{style:{fontFamily:'Inter,sans-serif',fontSize:'11px',fontWeight:'700',color:'var(--gold)'}},['Due today']):h('span',{style:{fontFamily:'Inter,sans-serif',fontSize:'11px',fontWeight:'700',color:overdue?'#ff6b6b':'var(--gold)'}},[(overdue?'Overdue \u00b7 ':'Due ')+fmtDateShort2(it.due_date)+(it.due_time?' \u00b7 '+fmtTimeShort2(it.due_time):'')])
     );
     dueCard.append(row);
   });
@@ -8079,6 +8146,76 @@ function openStudent(s){
     var grid=div({style:{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:'12px',marginBottom:'20px'}},[]);
     grid.append(statBox('Tests completed',String(taken)),statBox('Average score',taken?avg+'%':'\u2014'),statBox('Assessments completed',String(assessResults.length)),statBox('Q-Bank quizzes',String(qbankResults.length)),statBox('Tasks open',String(openCount)));
     body.append(grid);
+
+    // CLASS SCHEDULE
+    function fmtTimeShortAdmin(t){if(!t)return'';try{var parts=String(t).split(':');var hh=parseInt(parts[0],10);var mm=parts[1]||'00';var ap=hh>=12?'PM':'AM';var h12=hh%12;if(h12===0)h12=12;return h12+':'+mm+' '+ap;}catch(e){return'';}}
+    body.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'15px',marginBottom:'10px'},html:'Class Schedule'}));
+    var classWrap=div({style:{marginBottom:'12px'}},[]);
+    body.append(classWrap);
+    var addSlotCard=div({cls:'card',style:{padding:'14px',marginBottom:'18px'}},[]);
+    var DOW_NAMES=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+    var dowSel=h('select',{cls:'input',style:{width:'160px'}},DOW_NAMES.map(function(n,i){return h('option',{value:String(i)},[n]);}));
+    var timeSel=h('input',{cls:'input',type:'time',style:{width:'140px'}});
+    var link1Inp=h('input',{cls:'input',placeholder:'Link 1 (backup meeting link)',style:{width:'100%',marginTop:'8px'}});
+    var link2Inp=h('input',{cls:'input',placeholder:'Link 2 (backup meeting link)',style:{width:'100%',marginTop:'8px'}});
+    var slotSt=div({style:{fontSize:'11px',marginTop:'8px',display:'none'}},[]);
+    var addSlotBtn=btn('Add class slot','btn-gold',async function(){
+      var activeSlots=(await sb.from('tutoring_class_slots').select('id').eq('student_id',s.user_id).eq('active',true)).data||[];
+      if(activeSlots.length>=5){slotSt.textContent='This student already has 5 active class slots \u2014 the max per week.';slotSt.style.color='#ff4444';slotSt.style.display='block';return;}
+      var dow=parseInt(dowSel.value,10);
+      var timeVal=timeSel.value||'00:00';
+      var todayD=new Date();
+      var diff=(dow-todayD.getDay()+7)%7;
+      var nextD=new Date(todayD);nextD.setDate(todayD.getDate()+diff);
+      var nextDateStr=nextD.getFullYear()+'-'+String(nextD.getMonth()+1).padStart(2,'0')+'-'+String(nextD.getDate()).padStart(2,'0');
+      addSlotBtn.disabled=true;
+      var ins=await sb.from('tutoring_class_slots').insert({student_id:s.user_id,tutor_id:S.user.id,day_of_week:dow,class_time:timeVal,link1:link1Inp.value.trim()||null,link2:link2Inp.value.trim()||null,next_class_date:nextDateStr,active:true});
+      addSlotBtn.disabled=false;
+      if(ins.error){slotSt.textContent='Failed: '+ins.error.message;slotSt.style.color='#ff4444';slotSt.style.display='block';return;}
+      link1Inp.value='';link2Inp.value='';
+      slotSt.style.display='none';
+      loadClassSlots();
+    },{style:{marginTop:'10px',fontSize:'12px',padding:'8px 16px'}});
+    addSlotCard.append(h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--muted)',marginBottom:'6px',textTransform:'uppercase',letterSpacing:'1px'},html:'Add a recurring weekly slot (max 5 per student)'}),div({style:{display:'flex',gap:'8px',flexWrap:'wrap'}},[dowSel,timeSel]),link1Inp,link2Inp,addSlotBtn,slotSt);
+    body.append(addSlotCard);
+    async function loadClassSlots(){
+      classWrap.innerHTML='';
+      var slotsRes=await sb.from('tutoring_class_slots').select('*').eq('student_id',s.user_id).eq('active',true).order('day_of_week',{ascending:true});
+      var slots=slotsRes.data||[];
+      if(!slots.length){classWrap.append(h('div',{style:{fontSize:'12px',color:'var(--dim)'},html:'No class slots scheduled yet.'}));return;}
+      slots.forEach(function(slot){
+        var row=div({cls:'card',style:{padding:'12px',marginBottom:'8px',display:'flex',justifyContent:'space-between',alignItems:'center',gap:'12px',flexWrap:'wrap'}},[]);
+        var leftInfo=div({style:{flex:'1',minWidth:'220px'}},[]);
+        leftInfo.append(
+          h('div',{style:{fontSize:'14px',color:'var(--text)',fontWeight:'600'}},[DOW_NAMES[slot.day_of_week]+' \u00b7 '+fmtTimeShortAdmin(slot.class_time)]),
+          h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--muted)',marginTop:'2px'}},['Next class: '+new Date(slot.next_class_date+'T00:00:00').toLocaleDateString()]),
+          h('div',{style:{fontSize:'11px',color:'var(--dim)',marginTop:'4px'}},[
+            slot.link1?h('div',{},['Link 1: ',h('a',{href:slot.link1,target:'_blank',style:{color:'var(--teal)'}},[slot.link1])]):null,
+            slot.link2?h('div',{},['Link 2: ',h('a',{href:slot.link2,target:'_blank',style:{color:'var(--teal)'}},[slot.link2])]):null
+          ].filter(Boolean))
+        );
+        var actions=div({style:{display:'flex',gap:'8px',flexShrink:'0'}},[]);
+        var markDoneBtn=btn('Mark Class Done','btn-teal',async function(){
+          if(!confirm('Mark the '+DOW_NAMES[slot.day_of_week]+' class ('+new Date(slot.next_class_date+'T00:00:00').toLocaleDateString()+') as done? This logs 2 hours of attendance and rolls the slot to next week.'))return;
+          markDoneBtn.disabled=true;
+          var att=await sb.from('tutoring_class_attendance').insert({slot_id:slot.id,student_id:s.user_id,tutor_id:slot.tutor_id,class_date:slot.next_class_date,duration_hours:2,marked_by:S.user.id});
+          if(att.error){alert('Failed: '+att.error.message);markDoneBtn.disabled=false;return;}
+          var nd=new Date(slot.next_class_date+'T00:00:00');nd.setDate(nd.getDate()+7);
+          var ndStr=nd.getFullYear()+'-'+String(nd.getMonth()+1).padStart(2,'0')+'-'+String(nd.getDate()).padStart(2,'0');
+          await sb.from('tutoring_class_slots').update({next_class_date:ndStr}).eq('id',slot.id);
+          loadClassSlots();
+        },{style:{fontSize:'10px',padding:'6px 12px'}});
+        var deactivateBtn=btn('Remove','btn-outline',async function(){
+          if(!confirm('Remove this recurring class slot?'))return;
+          await sb.from('tutoring_class_slots').update({active:false}).eq('id',slot.id);
+          loadClassSlots();
+        },{style:{fontSize:'10px',padding:'6px 12px',color:'#ff4444',borderColor:'#ff4444'}});
+        actions.append(markDoneBtn,deactivateBtn);
+        row.append(leftInfo,actions);
+        classWrap.append(row);
+      });
+    }
+    loadClassSlots();
 
     body.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'15px',marginBottom:'10px'},html:'Assigned tests'}));
     if(!assigns.length)body.append(h('div',{style:{fontSize:'12px',color:'var(--dim)',marginBottom:'18px'}},['None assigned.']));
