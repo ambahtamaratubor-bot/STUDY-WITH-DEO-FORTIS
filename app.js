@@ -27,6 +27,26 @@ async function callAdminFn(action,payload){
   const res=await fetch(ADMIN_FN,{method:'POST',headers,body:JSON.stringify({action,...payload})});
   return res.json();
 }
+function ensureLoadingBarStyles(){
+  if(document.getElementById('df-loadbar-style'))return;
+  var st=document.createElement('style');
+  st.id='df-loadbar-style';
+  st.textContent='@keyframes dfLoadBarSlide{0%{left:-40%;}100%{left:110%;}}';
+  document.head.appendChild(st);
+}
+function makeLoadingBar(label){
+  ensureLoadingBarStyles();
+  var wrap=div({style:{display:'none',marginTop:'12px',width:'100%'}});
+  var track=div({style:{position:'relative',width:'100%',height:'4px',background:'var(--border)',borderRadius:'2px',overflow:'hidden',marginBottom:label?'6px':'0'}});
+  var bar=div({style:{position:'absolute',top:'0',left:'-40%',width:'40%',height:'100%',background:'var(--gold)',borderRadius:'2px',animation:'dfLoadBarSlide 1.1s ease-in-out infinite'}});
+  track.append(bar);
+  var lbl=label?div({style:{fontSize:'11px',color:'var(--dim)',textAlign:'center'}},[label]):null;
+  wrap.append(track);
+  if(lbl)wrap.append(lbl);
+  wrap.show=function(){wrap.style.display='block';};
+  wrap.hide=function(){wrap.style.display='none';};
+  return wrap;
+}
 let themeToggleBtns=[];
 function toggleTheme(){
   const current=document.documentElement.getAttribute('data-theme')||'dark';
@@ -3638,9 +3658,11 @@ const loginBtn=btn('Log In','btn-gold',async()=>{
   errEl.classList.add('hidden');
   loginBtn.textContent='Logging in...';
   loginBtn.disabled=true;
+  loginLoadingBar.show();
   const{data,error}=await sb.auth.signInWithPassword({email:emailI.value,password:passI.value});
-  if(error){errEl.classList.remove('hidden');errEl.textContent=error.message;loginBtn.textContent='Log In';loginBtn.disabled=false;return;}
+  if(error){errEl.classList.remove('hidden');errEl.textContent=error.message;loginBtn.textContent='Log In';loginBtn.disabled=false;loginLoadingBar.hide();return;}
 },{style:{width:'100%',marginBottom:'16px'}});
+const loginLoadingBar=makeLoadingBar('Signing you in\u2026');
 passI.onkeydown=e=>{if(e.key==='Enter')loginBtn.click();};
 const fpLink=h('span',{style:{display:'block',textAlign:'center',fontSize:'12px',color:'var(--gold)',cursor:'pointer',marginBottom:'16px',fontFamily:"'DM Mono',monospace",letterSpacing:'1px'}},[document.createTextNode('Forgot password?')]);
 fpLink.onclick=()=>show('fp');
@@ -3653,7 +3675,7 @@ loginView.append(
   h('hr',{style:{border:'none',borderTop:'1px solid var(--border)',margin:'16px 0'}}),
   h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'24px',marginBottom:'4px'}},[document.createTextNode('Welcome Back')]),
   h('p',{cls:'muted',style:{fontSize:'14px',marginBottom:'24px'}},[document.createTextNode('Log in to continue your studies.')]),
-  errEl,field('Email',emailI),field('Password',wrappedPassI,'mb-24'),loginBtn,fpLink,
+  errEl,field('Email',emailI),field('Password',wrappedPassI,'mb-24'),loginBtn,loginLoadingBar,fpLink,
   h('hr',{style:{border:'none',borderTop:'1px solid var(--border)',margin:'16px 0'}}),
   h('p',{style:{fontSize:'13px',color:'var(--muted)',textAlign:'center',marginTop:'16px'}},[document.createTextNode("Don't have an account? "),signupSpan]),
   h('p',{style:{fontSize:'13px',color:'var(--muted)',textAlign:'center',marginTop:'8px'}},[backSpan])
@@ -4008,6 +4030,49 @@ if(isInTrial()){
   container.append(banner);
 })();
 
+// DUE SOON — tests/assessments due within 3 days (or overdue) that aren't completed yet
+(async()=>{
+  function fmtTimeShort2(t){if(!t)return'';try{var parts=String(t).split(':');var hh=parseInt(parts[0],10);var mm=parts[1]||'00';var ap=hh>=12?'PM':'AM';var h12=hh%12;if(h12===0)h12=12;return h12+':'+mm+' '+ap;}catch(e){return'';}}
+  function fmtDateShort2(d){try{var x=new Date(d+'T00:00:00');if(isNaN(x))return String(d);return x.toLocaleDateString('en-US',{month:'short',day:'numeric'});}catch(e){return String(d);}}
+  const cutoff=new Date();cutoff.setDate(cutoff.getDate()+3);
+  const cutoffStr=cutoff.getFullYear()+'-'+String(cutoff.getMonth()+1).padStart(2,'0')+'-'+String(cutoff.getDate()).padStart(2,'0');
+  const todayStr2=(function(){var d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');})();
+  const[testAsg,assessAsg,testRes,assessRes]=await Promise.all([
+    sb.from('tutoring_assignments').select('id,due_date,due_time,test_id,tutoring_tests(title)').eq('student_id',S.user.id).not('due_date','is',null).lte('due_date',cutoffStr),
+    sb.from('tutoring_assessment_assignments').select('id,due_date,due_time,assessment_id,tutoring_assessments(title)').eq('student_id',S.user.id).not('due_date','is',null).lte('due_date',cutoffStr),
+    sb.from('tutoring_results').select('assignment_id').eq('student_id',S.user.id),
+    sb.from('tutoring_assessment_results').select('assignment_id').eq('student_id',S.user.id)
+  ]);
+  const doneTestAsgIds=new Set((testRes.data||[]).map(function(r){return r.assignment_id;}));
+  const doneAssessAsgIds=new Set((assessRes.data||[]).map(function(r){return r.assignment_id;}));
+  const items=[];
+  (testAsg.data||[]).forEach(function(a){if(doneTestAsgIds.has(a.id))return;items.push({kind:'Test',title:(a.tutoring_tests&&a.tutoring_tests.title)||'Untitled test',due_date:a.due_date,due_time:a.due_time});});
+  (assessAsg.data||[]).forEach(function(a){if(doneAssessAsgIds.has(a.id))return;items.push({kind:'Assessment',title:(a.tutoring_assessments&&a.tutoring_assessments.title)||'Untitled assessment',due_date:a.due_date,due_time:a.due_time});});
+  if(!items.length)return;
+  items.sort(function(x,y){var xk=x.due_date+' '+(x.due_time||'00:00');var yk=y.due_date+' '+(y.due_time||'00:00');return xk<yk?-1:xk>yk?1:0;});
+  const dueCard=div({cls:'card',style:{marginBottom:'24px',borderColor:'var(--gold)'}});
+  dueCard.append(
+    div({style:{display:'flex',alignItems:'center',gap:'10px',marginBottom:'12px'}},[
+      div({style:{fontSize:'18px'},html:ICONS.alert||' '}),
+      h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'16px',margin:'0'}},['Due Soon'])
+    ])
+  );
+  items.forEach(function(it){
+    const overdue=it.due_date<todayStr2;
+    const row=div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',gap:'12px',padding:'8px 0',borderBottom:'1px solid var(--border)',cursor:'pointer',flexWrap:'wrap'}});
+    row.onclick=function(){go('tutoring');};
+    row.append(
+      div({},[
+        h('span',{style:{fontFamily:'Inter,sans-serif',fontSize:'9px',fontWeight:'700',letterSpacing:'1px',textTransform:'uppercase',color:'var(--teal)',border:'1px solid rgba(126,173,168,0.4)',borderRadius:'999px',padding:'2px 8px',marginRight:'8px'}},[it.kind]),
+        h('span',{style:{fontSize:'13px',color:'var(--text)'}},[it.title])
+      ]),
+      h('span',{style:{fontFamily:'Inter,sans-serif',fontSize:'11px',fontWeight:'700',color:overdue?'#ff6b6b':'var(--gold)'}},[(overdue?'Overdue \u00b7 ':'Due ')+fmtDateShort2(it.due_date)+(it.due_time?' \u00b7 '+fmtTimeShort2(it.due_time):'')])
+    );
+    dueCard.append(row);
+  });
+  container.insertBefore(dueCard,tutHolder.nextSibling);
+})();
+
 // STAT CARDS — 2 columns
 const statsGrid=div({style:{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:'12px',marginBottom:'28px'}});
 statsGrid.append(
@@ -4299,8 +4364,8 @@ setTimeout(loadSess,1000);
   const bannerTop=div({style:{display:'flex',alignItems:'center',gap:'10px',marginBottom:'12px'}},[
     div({style:{fontSize:'20px'},html:ICONS.alert}),
     div({},[
-      div({style:{fontSize:'14px',color:'var(--text)',fontWeight:'600',marginBottom:'2px'},html:'Unfinished Study Session'}),
-      div({style:{fontSize:'12px',color:'var(--muted)'},html:'You have a session from '+startDate.toLocaleDateString()+' at '+startDate.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'})+' that was never clocked out. You planned to study '+plannedHours+' hour'+(plannedHours===1?'':'s')+'.'})
+      div({style:{fontSize:'14px',color:'#F5E9D3',fontWeight:'600',marginBottom:'2px'},html:'Unfinished Study Session'}),
+      div({style:{fontSize:'12px',color:'#D8C9A8'},html:'You have a session from '+startDate.toLocaleDateString()+' at '+startDate.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'})+' that was never clocked out. You planned to study '+plannedHours+' hour'+(plannedHours===1?'':'s')+'.'})
     ])
   ]);
   const actionsRow=div({style:{display:'flex',gap:'10px',flexWrap:'wrap'}});
@@ -4308,10 +4373,10 @@ setTimeout(loadSess,1000);
     actionsRow.innerHTML='';
     const qWrap=div({style:{width:'100%'}});
     qWrap.append(
-      div({style:{fontSize:'12px',color:'var(--text)',marginBottom:'8px'}},['How many hours did you actually study? (max '+plannedHours+')']),
+      div({style:{fontSize:'12px',color:'#F5E9D3',marginBottom:'8px'}},['How many hours did you actually study? (max '+plannedHours+')']),
       (function(){
         const row=div({style:{display:'flex',gap:'10px',alignItems:'center',flexWrap:'wrap'}});
-        const hoursInput=h('input',{type:'number',min:'0',max:String(plannedHours),step:'0.25',placeholder:'e.g. 2.5',style:{width:'120px',padding:'8px 10px',background:'var(--bg)',border:'1px solid var(--border)',borderRadius:'2px',color:'var(--text)',fontSize:'13px'}});
+        const hoursInput=h('input',{type:'number',min:'0',max:String(plannedHours),step:'0.25',placeholder:'e.g. 2.5',style:{width:'120px',padding:'8px 10px',background:'#fff',border:'1px solid var(--border)',borderRadius:'2px',color:'#1a1205',fontSize:'13px'}});
         const errMsg=div({style:{fontSize:'11px',color:'#ff8888',display:'none',marginTop:'6px',flexBasis:'100%'}},[]);
         const submitBtn=btn('Submit','btn-gold',async()=>{
           const val=parseFloat(hoursInput.value);
@@ -6232,17 +6297,19 @@ const tmBtn=btn('Team Login','btn-teal',async()=>{
   const password=tmPass.value;
   if(!email||!password){tmErr.classList.remove('hidden');tmErr.textContent='Enter email and password.';return;}
   tmBtn.disabled=true;tmBtn.textContent='Signing in...';
+  tmLoadingBar.show();
   window._teamLogin=true;
   const{data,error}=await sb.auth.signInWithPassword({email,password});
-  if(error){tmErr.classList.remove('hidden');tmErr.textContent='Invalid email or password.';tmBtn.disabled=false;tmBtn.textContent='Team Login';window._teamLogin=false;return;}
+  if(error){tmErr.classList.remove('hidden');tmErr.textContent='Invalid email or password.';tmBtn.disabled=false;tmBtn.textContent='Team Login';tmLoadingBar.hide();window._teamLogin=false;return;}
   const{data:roleData}=await sb.from('admin_roles').select('role').eq('user_id',data.user.id).single();
-  if(!roleData){tmErr.classList.remove('hidden');tmErr.textContent='You do not have team access.';tmBtn.disabled=false;tmBtn.textContent='Team Login';await sb.auth.signOut();return;}
+  if(!roleData){tmErr.classList.remove('hidden');tmErr.textContent='You do not have team access.';tmBtn.disabled=false;tmBtn.textContent='Team Login';tmLoadingBar.hide();await sb.auth.signOut();return;}
   S.user=data.user;
   const{data:teamProfile}=await sb.from('profiles').select('*').eq('id',data.user.id).single();
   S.profile=teamProfile||{};
   authed=true;
   showAdminPanel();
 },{style:{width:'100%',marginTop:'8px'}});
+const tmLoadingBar=makeLoadingBar('Signing you in\u2026');
 tmPass.onkeydown=e=>{if(e.key==='Enter')tmBtn.click();};
 tmCard.append(
   dfLogo(),
@@ -6253,7 +6320,8 @@ tmCard.append(
   h('br'),
   h('label',{cls:'label',html:'Password'}),tmPass,
   h('br'),
-  tmBtn
+  tmBtn,
+  tmLoadingBar
 );
 const backToSite=document.createElement('p');backToSite.style.cssText='font-size:12px;color:var(--dim);text-align:center;margin-top:12px;';const backBtn=document.createElement('button');backBtn.style.cssText='background:none;border:none;color:var(--dim);cursor:pointer;font-size:12px;';backBtn.textContent='← Back to site';backBtn.onclick=function(){go('landing');};backToSite.append(backBtn);tmCard.append(backToSite);
 wrap.append(tmCard);page.append(wrap);
