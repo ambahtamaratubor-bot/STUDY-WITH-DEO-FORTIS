@@ -4222,15 +4222,17 @@ function statCard(title,value,barColor,subLabel=''){
 }
 
 // ACTION BUTTON HELPER
-function actionButton(icon,label,onClick){
-  const btn2=div({style:{border:'1px solid var(--border)',padding:'12px',borderRadius:'2px',cursor:'pointer',background:'transparent',textAlign:'center'},onclick:onClick});
+function actionButton(icon,label,onClick,isNew){
+  const btn2=div({style:{border:'1px solid var(--border)',padding:'12px',borderRadius:'2px',cursor:'pointer',background:'transparent',textAlign:'center',position:'relative'},onclick:onClick});
   btn2.onmouseenter=()=>btn2.style.background='var(--gold-subtle)';
   btn2.onmouseleave=()=>btn2.style.background='transparent';
   const iconDiv=div({style:{display:'flex',alignItems:'center',justifyContent:'center',marginBottom:'8px',color:'var(--text)'}});
   iconDiv.innerHTML=icon;
+  const labelDiv=h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'13px',color:'var(--text)'}},[label]);
+  if(isNew)labelDiv.append(newBadge());
   btn2.append(
     iconDiv,
-    h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'13px',color:'var(--text)'},html:label}),
+    labelDiv,
     h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'11px',color:'var(--muted)'},html:'→'})
   );
   return btn2;
@@ -4332,7 +4334,7 @@ if(isInTrial()){
   headerRow.append(
     div({style:{display:'flex',alignItems:'center',gap:'10px'}},[
       div({style:{fontSize:'18px'},html:ICONS.alert||' '}),
-      h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'16px',margin:'0'}},['Due Soon'])
+      h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'16px',margin:'0'}},['Due Soon',newBadge()])
     ]),
     btn('\u2715','',function(){try{localStorage.setItem(dismissKey,'1');}catch(e){}dueCard.remove();},{style:{background:'none',border:'none',color:'var(--dim)',cursor:'pointer',fontSize:'14px',padding:'4px 8px'}})
   );
@@ -4517,7 +4519,7 @@ twoCol.append(recentCard);
     div({style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'8px'}},[
       actionButton(ICONS.target,'Start Session',()=>go('study')),
       actionButton(ICONS.question,'Q-Bank',()=>go('vignette')),
-      actionButton(ICONS.layers,'Flashcards',()=>go('flashcards')),
+      actionButton(ICONS.layers,'Flashcards',()=>go('flashcards'),true),
       actionButton(ICONS.trophy,'Leaderboard',()=>go('leaderboard')),
       actionButton(ICONS.message,'Community',()=>{if(commLink&&commLink!=='#')window.open(commLink,'_blank');}),
       actionButton(ICONS.brain,'Feynman Arena',()=>go('feynman')),
