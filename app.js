@@ -5109,22 +5109,52 @@ const newCards=poolCards.filter(function(c){return!progMap[c.id];});
 function shuffle2(arr){for(let i=arr.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[arr[i],arr[j]]=[arr[j],arr[i]];}return arr;}
 const availablePool=[...dueCards,...shuffle2(newCards)];
 const card=div({cls:'card',style:{textAlign:'center'}});
-card.append(h('span',{cls:'chapter',html:'Configure Session'}));
+const goalSet=Number.isInteger(S.profile&&S.profile.daily_review_goal)&&S.profile.daily_review_goal>0;
+
+function renderGoalSetter(isChange){
+  card.innerHTML='';
+  card.append(h('span',{cls:'chapter',html:isChange?'Change Daily Goal':'Set Your Daily Goal'}));
+  card.append(h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'28px',marginBottom:'8px'},html:'Daily Review'}));
+  card.append(h('p',{cls:'muted',style:{fontSize:'14px',marginBottom:'20px'},html:'Commit to a fixed number of cards per day. This isn\u2019t something you\u2019ll be asked to reconsider every session \u2014 pick a number you can actually stick to.'}));
+  let goalVal=(S.profile&&S.profile.daily_review_goal)||20;
+  card.append(h('label',{cls:'label',html:'Cards per day'}));
+  const goalInput=h('input',{type:'number',value:String(goalVal),min:'1',style:{width:'100%',padding:'10px',margin:'12px 0',background:'var(--bg)',border:'1px solid var(--border)',borderRadius:'2px',color:'var(--text)',fontSize:'14px',textAlign:'center'}});
+  goalInput.oninput=function(e){let val=parseInt(e.target.value);if(isNaN(val))val=1;if(val<1)val=1;goalVal=val;goalInput.value=String(goalVal);};
+  card.append(goalInput);
+  const saveGoalBtn=btn(isChange?'Save New Goal':'Set Goal & Continue','btn-gold',async function(){
+    saveGoalBtn.disabled=true;saveGoalBtn.textContent='Saving\u2026';
+    await sb.from('profiles').update({daily_review_goal:goalVal}).eq('id',S.user.id);
+    if(S.profile)S.profile.daily_review_goal=goalVal;
+    showDailyReview();
+  },{style:{width:'100%',marginTop:'8px'}});
+  card.append(saveGoalBtn);
+  if(isChange){
+    card.append(btn('Cancel','btn-outline',function(){showDailyReview();},{style:{width:'100%',marginTop:'8px'}}));
+  }
+  inner.append(card);
+}
+
+if(!goalSet){
+  renderGoalSetter(false);
+  return;
+}
+
+card.append(h('span',{cls:'chapter',html:'Today\u2019s Session'}));
 card.append(h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'28px',marginBottom:'8px'},html:'Daily Review'}));
-card.append(h('p',{cls:'muted',style:{fontSize:'14px',marginBottom:'8px'},html:dueCards.length+' due · '+newCards.length+' new · '+poolCards.length+' total across your decks'}));
+card.append(h('p',{cls:'muted',style:{fontSize:'14px',marginBottom:'8px'},html:dueCards.length+' due \u00b7 '+newCards.length+' new \u00b7 '+poolCards.length+' total across your decks'}));
 if(!availablePool.length){
   card.append(h('p',{style:{fontSize:'13px',color:'var(--dim)',marginTop:'16px'},html:'No cards due today. Check back tomorrow, or study a specific deck.'}));
+  card.append(h('div',{style:{marginTop:'20px'}},[]));
+  const changeLink=h('span',{style:{fontSize:'11px',color:'var(--dim)',cursor:'pointer',textDecoration:'underline'}},['Change daily goal ('+S.profile.daily_review_goal+' cards)']);
+  changeLink.onclick=function(){renderGoalSetter(true);};
+  card.append(changeLink);
   inner.append(card);
   return;
 }
-let target=Math.min(20,availablePool.length);
-try{var savedTarget=parseInt(localStorage.getItem(dailyTargetKey()));if(savedTarget>0)target=Math.min(savedTarget,availablePool.length);}catch(e){}
-card.append(h('label',{cls:'label',html:'How many cards do you want to study today?'}));
-const countInput=h('input',{type:'number',value:String(target),min:'1',max:String(availablePool.length),style:{width:'100%',padding:'10px',margin:'12px 0',background:'var(--bg)',border:'1px solid var(--border)',borderRadius:'2px',color:'var(--text)',fontSize:'14px',textAlign:'center'}});
-countInput.oninput=function(e){let val=parseInt(e.target.value);if(isNaN(val))val=1;if(val<1)val=1;if(val>availablePool.length)val=availablePool.length;target=val;countInput.value=String(target);};
-card.append(countInput);
-const startBtn=btn('Start Daily Review →','btn-gold',function(){
-  try{localStorage.setItem(dailyTargetKey(),String(target));}catch(e){}
+const target=Math.min(S.profile.daily_review_goal,availablePool.length);
+card.append(h('div',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'40px',color:'var(--gold)',margin:'12px 0'},html:String(target)}));
+card.append(h('p',{cls:'muted',style:{fontSize:'12px',marginBottom:'20px'},html:'cards in today\u2019s session \u00b7 your daily goal is '+S.profile.daily_review_goal}));
+const startBtn=btn('Start Daily Review \u2192','btn-gold',function(){
   const selected=availablePool.slice(0,target);
   selected.forEach(function(c){c._box=boxMap2[c.id]||1;});
   cards=selected;
@@ -5134,6 +5164,11 @@ const startBtn=btn('Start Daily Review →','btn-gold',function(){
   showCard();
 },{style:{width:'100%',marginTop:'8px'}});
 card.append(startBtn);
+const changeLink=h('div',{style:{marginTop:'16px'}},[
+  h('span',{style:{fontSize:'11px',color:'var(--dim)',cursor:'pointer',textDecoration:'underline'}},['Change daily goal'])
+]);
+changeLink.firstChild.onclick=function(){renderGoalSetter(true);};
+card.append(changeLink);
 inner.append(card);
 }
 async function loadDeck(deck){
