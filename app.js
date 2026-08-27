@@ -8734,6 +8734,7 @@ function renderScheduleBoard(){
       }
       var ncd=new Date(sl.next_class_date+'T00:00:00');
       if(inRange(ncd,weekStart,weekEnd)){
+        if(ncd<todayD)return{status:'unmarked',date:ncd};
         if(ncd.getDay()!==sl.day_of_week)return{status:'rescheduled',date:ncd};
         return{status:'upcoming',date:ncd};
       }
