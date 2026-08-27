@@ -258,6 +258,8 @@ moon:`<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 
 alert:`<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`,
 mail:`<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 7L2 7"/></svg>`,
 file:`<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>`,
+flame:`<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 17a2.5 2.5 0 0 0 2.5-2.5c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7.5 7.5 0 1 1-15 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg>`,
+clock:`<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15.5 14"/></svg>`,
 book:`<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>`,
 lightbulb:`<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/><path d="M9 18h6"/><path d="M10 22h4"/></svg>`,
 zap:`<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>`,
@@ -1563,12 +1565,7 @@ function renderDashboard(){
       ])
     );
 
-    // JOIN CLASS — prominent, only shown when a link is on file
-    if(studentLinks.link1||studentLinks.link2){
-      const joinCard=div({cls:'card',style:{padding:'14px 20px',marginBottom:'20px',display:'flex',alignItems:'center',justifyContent:'flex-end',borderColor:'var(--gold)'}},[]);
-      joinCard.append(buildJoinWidget(function(){return studentLinks.link1;},function(){return studentLinks.link2;}));
-      content.append(joinCard);
-    }
+    // (Join link now lives inside the "Next Class" hero card below — no separate join card needed.)
 
     // NAVIGATION TILES — the entry point into each section
     const ICON_TESTS='<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="2"/><line x1="8" y1="8" x2="16" y2="8"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="8" y1="16" x2="12" y2="16"/></svg>';
@@ -1593,9 +1590,6 @@ function renderDashboard(){
       navTile(ICON_ASSESS,'Assessments',function(){goTab('assessments');})
     );
     content.append(tilesGrid);
-
-    const FLAME_ICON='<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 17a2.5 2.5 0 0 0 2.5-2.5c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7.5 7.5 0 1 1-15 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg>';
-    const CLOCK_ICON='<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15.5 14"/></svg>';
 
     // HERO ROW — next class + today's status
     const today=todayStrOv();
@@ -1673,7 +1667,7 @@ function renderDashboard(){
       statCardV2(ICON_TESTS,'#8B7FD4','Tests Completed',DATA.results.length,'Keep it up!',function(){goTab('results');}),
       statCardV2(ICONS.target,'#E08A3C','Assessments Completed',DATA.assessResults.length,DATA.assessResults.length?null:'Get started!',function(){goTab('assessments');}),
       statCardV2(ICONS.star,'#B8922E','Avg. Test Score',combinedResults.length?avgScore+'%':'\u2014',null,function(){goTab('results');}),
-      statCardV2(FLAME_ICON,'#D9534F','Study Streak',streak+' day'+(streak===1?'':'s'),streak?null:'Start your streak!')
+      statCardV2(ICONS.flame,'#D9534F','Study Streak',streak+' day'+(streak===1?'':'s'),streak?null:'Start your streak!')
     );
     content.append(statsGridOv);
 
@@ -1868,7 +1862,7 @@ function renderDashboard(){
     }
     const sumGrid=div({style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'10px'}},[]);
     sumGrid.append(
-      sumTile(CLOCK_ICON,Math.round(((S.profile&&S.profile.total_study_minutes)||0)/6)/10+'h','Total Study Hours'),
+      sumTile(ICONS.clock,Math.round(((S.profile&&S.profile.total_study_minutes)||0)/6)/10+'h','Total Study Hours'),
       sumTile(ICON_TASKS,String(questionsAttempted),'Questions Attempted'),
       sumTile(ICONS.target,combinedResults.length?avgScore+'%':'\u2014','Accuracy'),
       sumTile(ICONS.book,String(attendedCount),'Classes Attended')
@@ -7400,7 +7394,8 @@ var libNavBtn=h('button',{cls:'btn btn-outline',style:{padding:'8px 16px',fontSi
 var stuNavBtn=h('button',{cls:'btn btn-outline',style:{padding:'8px 16px',fontSize:'12px'}},['Students']);
 var assNavBtn=h('button',{cls:'btn btn-outline',style:{padding:'8px 16px',fontSize:'12px'}},['Assessments']);
 var resNavBtn=h('button',{cls:'btn btn-outline',style:{padding:'8px 16px',fontSize:'12px'}},['Results']);
-subNav.append(libNavBtn,stuNavBtn,assNavBtn,resNavBtn);
+var boardNavBtn=h('button',{cls:'btn btn-outline',style:{padding:'8px 16px',fontSize:'12px'}},['Schedule Board']);
+subNav.append(libNavBtn,stuNavBtn,assNavBtn,resNavBtn,boardNavBtn);
 var tBody=div({},[]);
 content.append(subNav,tBody);
 function paintSub(){
@@ -7408,11 +7403,13 @@ function paintSub(){
   stuNavBtn.style.background=tSub==='students'?'var(--gold)':'transparent';stuNavBtn.style.color=tSub==='students'?'var(--bg)':'var(--text)';
   assNavBtn.style.background=tSub==='assessments'?'var(--gold)':'transparent';assNavBtn.style.color=tSub==='assessments'?'var(--bg)':'var(--text)';
   resNavBtn.style.background=tSub==='results'?'var(--gold)':'transparent';resNavBtn.style.color=tSub==='results'?'var(--bg)':'var(--text)';
+  boardNavBtn.style.background=tSub==='board'?'var(--gold)':'transparent';boardNavBtn.style.color=tSub==='board'?'var(--bg)':'var(--text)';
 }
 libNavBtn.onclick=function(){tSub='library';paintSub();renderLibrary();};
 stuNavBtn.onclick=function(){tSub='students';paintSub();renderStudents();};
 assNavBtn.onclick=function(){tSub='assessments';paintSub();renderAssessments();};
 resNavBtn.onclick=function(){tSub='results';paintSub();renderResults();};
+boardNavBtn.onclick=function(){tSub='board';paintSub();renderScheduleBoard();};
 
 var tSt=div({style:{display:'none',fontSize:'12px',marginBottom:'12px',fontFamily:'Inter,sans-serif'}},[]);
 function tStatus(msg,color){tSt.textContent=msg;tSt.style.color=color||'var(--muted)';tSt.style.display='block';}
@@ -8461,6 +8458,97 @@ function renderResults(){
 }
 
 /* ===================== STUDENTS VIEW ===================== */
+function ensureBoardBlinkStyles(){
+  if(document.getElementById('df-board-blink-style'))return;
+  var st=document.createElement('style');
+  st.id='df-board-blink-style';
+  st.textContent='@keyframes dfBoardBlink{0%,100%{box-shadow:0 0 0 0 rgba(230,140,20,0.55);border-color:#e68c14;}50%{box-shadow:0 0 0 4px rgba(230,140,20,0);border-color:#ffb347;}}';
+  document.head.appendChild(st);
+}
+function renderScheduleBoard(){
+  ensureBoardBlinkStyles();
+  tBody.innerHTML='';
+  var DOW_NAMES_BOARD=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  function fmtTimeBoard(t){if(!t)return'';try{var parts=String(t).split(':');var hh=parseInt(parts[0],10);var mm=parts[1]||'00';var ap=hh>=12?'PM':'AM';var h12=hh%12;if(h12===0)h12=12;return h12+':'+mm+' '+ap;}catch(e){return'';}}
+  function todayStrBoard(){var d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+  var head=div({style:{marginBottom:'16px'}},[
+    h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'18px',marginBottom:'8px'}},['Schedule Board']),
+    h('p',{cls:'muted',style:{fontSize:'12px',marginBottom:'10px'}},['Every active class slot, across every student, at a glance.'])
+  ]);
+  var legend=div({style:{display:'flex',gap:'16px',flexWrap:'wrap',marginBottom:'18px',fontSize:'11px',color:'var(--muted)'}},[
+    div({style:{display:'flex',alignItems:'center',gap:'6px'}},[div({style:{width:'10px',height:'10px',borderRadius:'50%',background:'#D9534F',flexShrink:'0'}}),'Missed']),
+    div({style:{display:'flex',alignItems:'center',gap:'6px'}},[div({style:{width:'10px',height:'10px',borderRadius:'50%',background:'#E8C547',flexShrink:'0'}}),'Rescheduled']),
+    div({style:{display:'flex',alignItems:'center',gap:'6px'}},[div({style:{width:'10px',height:'10px',borderRadius:'50%',background:'#e68c14',flexShrink:'0',animation:'dfBoardBlink 1.4s ease-in-out infinite'}}),'Not marked yet']),
+    div({style:{display:'flex',alignItems:'center',gap:'6px'}},[div({style:{width:'10px',height:'10px',borderRadius:'50%',background:'var(--teal)',flexShrink:'0'}}),'On schedule'])
+  ]);
+  var boardWrap=div({},[]);
+  tBody.append(head,legend,boardWrap);
+  (async function(){
+    boardWrap.append(skelCard([['30%'],['80%'],['80%']]));
+    var slotsRes=await sb.from('tutoring_class_slots').select('*').eq('active',true).order('day_of_week',{ascending:true});
+    var allSlots=slotsRes.data||[];
+    boardWrap.innerHTML='';
+    if(!allSlots.length){boardWrap.append(div({cls:'card',style:{textAlign:'center',padding:'30px'}},[h('p',{style:{fontSize:'13px',color:'var(--dim)'},html:'No active class slots yet.'})]));return;}
+    var studentIds=[...new Set(allSlots.map(function(sl){return sl.student_id;}))];
+    var slotIds=allSlots.map(function(sl){return sl.id;});
+    var[profRes,attRes]=await Promise.all([
+      sb.from('profiles').select('id,full_name').in('id',studentIds),
+      sb.from('tutoring_class_attendance').select('slot_id,class_date,status').in('slot_id',slotIds).order('class_date',{ascending:false})
+    ]);
+    var nameById={};(profRes.data||[]).forEach(function(p){nameById[p.id]=p.full_name||'(no name)';});
+    var latestAttBySlot={};
+    (attRes.data||[]).forEach(function(a){if(!latestAttBySlot[a.slot_id])latestAttBySlot[a.slot_id]=a;});
+    var today=todayStrBoard();
+    var todayD=new Date(today+'T00:00:00');
+    function slotStatus(sl){
+      var ncd=new Date(sl.next_class_date+'T00:00:00');
+      if(ncd<todayD)return'unmarked';
+      var latest=latestAttBySlot[sl.id];
+      if(latest){
+        var daysSince=Math.round((todayD-new Date(latest.class_date+'T00:00:00'))/86400000);
+        if(latest.status==='missed'&&daysSince<=7)return'missed';
+      }
+      if(ncd.getDay()!==sl.day_of_week)return'rescheduled';
+      return'scheduled';
+    }
+    var STATUS_STYLE={
+      missed:{border:'#D9534F',bg:'rgba(217,84,80,0.08)',label:'Missed'},
+      rescheduled:{border:'#E8C547',bg:'rgba(232,197,71,0.10)',label:'Rescheduled'},
+      unmarked:{border:'#e68c14',bg:'rgba(230,140,20,0.08)',label:'Not marked',blink:true},
+      scheduled:{border:'var(--teal)',bg:'transparent',label:'On schedule'}
+    };
+    var daysGrid=div({style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(160px,1fr))',gap:'12px'}},[]);
+    for(var dow=0;dow<7;dow++){
+      (function(dow){
+        var col=div({cls:'card',style:{padding:'12px',minHeight:'80px'}},[]);
+        col.append(h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--muted)',letterSpacing:'1px',textTransform:'uppercase',marginBottom:'10px',fontWeight:'700'}},[DOW_NAMES_BOARD[dow]]));
+        var daySlots=allSlots.filter(function(sl){return sl.day_of_week===dow;}).sort(function(a,b){return(a.class_time||'').localeCompare(b.class_time||'');});
+        if(!daySlots.length){col.append(h('div',{style:{fontSize:'11px',color:'var(--dim)'}},['\u2014']));}
+        daySlots.forEach(function(sl){
+          var st=slotStatus(sl);
+          var sty=STATUS_STYLE[st];
+          var cell=div({style:{border:'1px solid '+sty.border,background:sty.bg,borderRadius:'6px',padding:'8px 10px',marginBottom:'8px',cursor:'pointer',animation:sty.blink?'dfBoardBlink 1.4s ease-in-out infinite':'none'}},[
+            h('div',{style:{fontSize:'12px',color:'var(--text)',fontWeight:'600',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}},[nameById[sl.student_id]||'(unknown)']),
+            h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--muted)',marginTop:'2px'}},[fmtTimeBoard(sl.class_time)]),
+            h('div',{style:{fontSize:'9px',fontWeight:'700',letterSpacing:'0.5px',textTransform:'uppercase',color:sty.border,marginTop:'4px'}},[sty.label])
+          ]);
+          cell.onclick=function(){
+            var enrolled={user_id:sl.student_id,full_name:nameById[sl.student_id]||'(no name)',email:''};
+            sb.from('tutoring_students').select('*').eq('user_id',sl.student_id).maybeSingle().then(function(res){
+              var row=(res&&res.data)||{};
+              openStudent(Object.assign({},enrolled,{enrolled_at:row.enrolled_at||new Date().toISOString()}));
+              tSub='students';paintSub();
+            });
+          };
+          col.append(cell);
+        });
+        daysGrid.append(col);
+      })(dow);
+    }
+    boardWrap.append(daysGrid);
+  })();
+}
+
 function renderStudents(){
   tBody.innerHTML='';
   tBody.append(btn('+ Enroll student','btn-gold',function(){openEnroll();},{style:{fontSize:'12px',padding:'8px 16px',marginBottom:'16px'}}));
@@ -8618,6 +8706,12 @@ function openStudent(s){
     var tasks=kRes.data||[];
     var vRes=await sb.from('vignette_scores').select('*').eq('user_id',s.user_id).order('created_at',{ascending:false});
     var qbankResults=vRes.data||[];
+    var slotsResAdm=await sb.from('tutoring_class_slots').select('*').eq('student_id',s.user_id).eq('active',true).order('day_of_week',{ascending:true});
+    var slotsAdm=slotsResAdm.data||[];
+    var attResAdm=await sb.from('tutoring_class_attendance').select('*').eq('student_id',s.user_id).order('class_date',{ascending:false});
+    var attendanceAdm=attResAdm.data||[];
+    var studProfRes=await sb.from('profiles').select('streak_count,total_study_minutes').eq('id',s.user_id).maybeSingle();
+    var studProf=(studProfRes&&studProfRes.data)||{};
     body.innerHTML='';
     var studentLinksRes=await sb.from('tutoring_students').select('link1,link2').eq('user_id',s.user_id).maybeSingle();
     var studentLinks=(studentLinksRes&&studentLinksRes.data)||{};
@@ -8629,22 +8723,261 @@ function openStudent(s){
     (errLogRes.data||[]).forEach(function(r){errCounts[r.reason]=(errCounts[r.reason]||0)+1;});
     var topReasonKey=Object.keys(errCounts).sort(function(a,b){return errCounts[b]-errCounts[a];})[0];
     var topReasonLabel=topReasonKey?((ERROR_REASONS.find(function(r){return r[0]===topReasonKey;})||[])[1]||'\u2014'):'\u2014';
-    var statsSec=adminSection('Overview',false);
-    var grid=div({style:{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:'12px'}},[]);
-    grid.append(statBox('Tests completed',String(taken)),statBox('Average score',taken?avg+'%':'\u2014'),statBox('Assessments completed',String(assessResults.length)),statBox('Q-Bank quizzes',String(qbankResults.length)),statBox('Tasks open',String(openCount)));
-    statsSec.body.append(grid);
-    if(topReasonKey){
-      var errBox=div({cls:'card',style:{padding:'14px',marginTop:'12px'}},[
-        h('div',{cls:'mono',style:{fontSize:'10px',letterSpacing:'1px',textTransform:'uppercase',color:'var(--muted)',marginBottom:'6px'}},['Most Common Error']),
-        h('div',{style:{fontFamily:'Georgia,serif',fontStyle:'italic',fontSize:'17px',color:'var(--gold)',lineHeight:'1.3'}},[topReasonLabel]),
-        h('div',{style:{fontSize:'11px',color:'var(--dim)',marginTop:'4px'}},[errCounts[topReasonKey]+' of '+(errLogRes.data||[]).length+' logged mistake'+((errLogRes.data||[]).length===1?'':'s')])
-      ]);
-      statsSec.body.append(errBox);
-    }
-    body.append(statsSec.wrap);
-
-    // CLASS LINKS — two permanent links shared across every class slot for this student
+    var attendedCountAdm=attendanceAdm.filter(function(a){return a.status!=='missed';}).length;
+    var combinedResultsAdm=[...results.map(function(r){return Object.assign({},r,{_kind:'Test',_title:r.test_title});}),...assessResults.map(function(r){return Object.assign({},r,{_kind:'Assessment',_title:r.assessment_title});})];
+    combinedResultsAdm.sort(function(a,b){return new Date(a.taken_at)-new Date(b.taken_at);});
+    var avgScoreAdm=combinedResultsAdm.length?Math.round(combinedResultsAdm.reduce(function(sum,r){return sum+(r.total?(r.score/r.total)*100:0);},0)/combinedResultsAdm.length):0;
+    var streakAdm=studProf.streak_count||0;
+    var DOW_NAMES2ADM=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
     function fmtTimeShortAdmin(t){if(!t)return'';try{var parts=String(t).split(':');var hh=parseInt(parts[0],10);var mm=parts[1]||'00';var ap=hh>=12?'PM':'AM';var h12=hh%12;if(h12===0)h12=12;return h12+':'+mm+' '+ap;}catch(e){return'';}}
+    function todayStrAdm(){var d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+
+    // ═══ TUTOR VIEW OF STUDENT DASHBOARD (same layout as the student sees, greeted for the tutor) ═══
+    var greetHead=div({style:{marginBottom:'20px'}},[
+      h('h1',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'24px',fontWeight:'700',margin:'0 0 4px'}},['Hello, ',h('span',{style:{color:'var(--gold)'}},['Tutor']),' \ud83d\udc4b']),
+      h('p',{cls:'muted',style:{fontSize:'13px',margin:'0'}},[s.full_name+'\u2019s progress overview.'])
+    ]);
+    body.append(greetHead);
+
+    var todayAdm=todayStrAdm();
+    var upcomingAdm=[];
+    assigns.forEach(function(a){if(a.due_date===todayAdm&&!results.some(function(r){return r.assignment_id===a.id;}))upcomingAdm.push({title:(a.tutoring_tests&&a.tutoring_tests.title)||'Test',type:'Test'});});
+    tasks.forEach(function(k){if(k.due_date===todayAdm&&!k.done)upcomingAdm.push({title:k.title,type:'Task'});});
+
+    var heroRowAdm=div({style:{display:'flex',gap:'16px',flexWrap:'wrap',marginBottom:'20px'}},[]);
+    var sortedSlotsAdm=slotsAdm.slice().sort(function(a,b){return new Date(a.next_class_date)-new Date(b.next_class_date);});
+    var nextSlotAdm=sortedSlotsAdm[0];
+    var nextCardAdm=div({cls:'card',style:{flex:'2 1 320px',padding:'22px',display:'flex',justifyContent:'space-between',alignItems:'center',gap:'16px',flexWrap:'wrap'}},[]);
+    if(nextSlotAdm){
+      var ndDateAdm=new Date(nextSlotAdm.next_class_date+'T00:00:00');
+      var isSlotTodayAdm=nextSlotAdm.next_class_date===todayAdm;
+      var nextLeftAdm=div({style:{flex:'1',minWidth:'200px'}},[]);
+      nextLeftAdm.append(
+        h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--gold)',letterSpacing:'1.5px',textTransform:'uppercase',marginBottom:'8px',fontWeight:'700'}},[isSlotTodayAdm?'Next Class \u00b7 Today':'Next Class']),
+        h('div',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'20px',fontWeight:'700',color:'var(--text)',marginBottom:'8px'}},[DOW_NAMES2ADM[nextSlotAdm.day_of_week]+' \u00b7 '+fmtTimeShortAdmin(nextSlotAdm.class_time)]),
+        h('div',{style:{fontSize:'12px',color:'var(--muted)'}},[ndDateAdm.toLocaleDateString(undefined,{month:'short',day:'numeric'})])
+      );
+      var nextActionsAdm=div({style:{display:'flex',gap:'10px',flexWrap:'wrap'}},[]);
+      if(studentLinks.link1||studentLinks.link2){
+        nextActionsAdm.append(buildJoinWidget(function(){return studentLinks.link1;},function(){return studentLinks.link2;}));
+      }
+      nextCardAdm.append(nextLeftAdm,nextActionsAdm);
+    }else{
+      nextCardAdm.append(
+        h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--muted)',letterSpacing:'1.5px',textTransform:'uppercase',marginBottom:'8px',fontWeight:'700'}},['Next Class']),
+        h('div',{style:{fontSize:'13px',color:'var(--dim)'}},['No class slot scheduled yet.'])
+      );
+    }
+    heroRowAdm.append(nextCardAdm);
+    var statusCardAdm=div({cls:'card',style:{flex:'1 1 240px',padding:'22px'}},[]);
+    if(!upcomingAdm.length){
+      var checkWrapAdm=div({style:{width:'26px',height:'26px',borderRadius:'50%',background:'rgba(126,184,164,0.15)',color:'var(--teal)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:'0'}});
+      checkWrapAdm.innerHTML=ICONS.check;
+      statusCardAdm.append(
+        div({style:{display:'flex',alignItems:'center',gap:'8px',marginBottom:'10px'}},[checkWrapAdm,h('span',{cls:'mono',style:{fontSize:'10px',color:'var(--teal)',letterSpacing:'1.5px',textTransform:'uppercase',fontWeight:'700'}},['All caught up'])]),
+        h('div',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'15px',fontWeight:'600',color:'var(--text)',marginBottom:'4px'}},['Nothing due today.']),
+        h('p',{style:{fontSize:'12px',color:'var(--dim)',margin:'0'}},[s.full_name+' is on track.'])
+      );
+    }else{
+      statusCardAdm.append(h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--gold)',letterSpacing:'1.5px',textTransform:'uppercase',fontWeight:'700',marginBottom:'10px'}},[upcomingAdm.length+' due today']));
+      upcomingAdm.slice(0,4).forEach(function(it){
+        statusCardAdm.append(div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'6px 0',borderBottom:'1px solid var(--border)',gap:'8px'}},[h('span',{style:{fontSize:'12px',color:'var(--text)'}},[it.title]),h('span',{style:{fontSize:'9px',fontWeight:'700',letterSpacing:'1px',textTransform:'uppercase',color:'var(--gold)',flexShrink:'0'}},[it.type])]));
+      });
+    }
+    heroRowAdm.append(statusCardAdm);
+    body.append(heroRowAdm);
+
+    function statCardV2Adm(iconSvg,accent,label,value,sub){
+      var c=div({cls:'card',style:{padding:'16px',display:'flex',alignItems:'flex-start',gap:'12px'}},[]);
+      var iw=div({style:{width:'38px',height:'38px',borderRadius:'8px',background:accent+'22',color:accent,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:'0'}});
+      iw.innerHTML=iconSvg;
+      var right=div({style:{minWidth:'0'}},[]);
+      right.append(h('div',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'22px',fontWeight:'700',color:'var(--text)',lineHeight:'1'}},[String(value)]));
+      right.append(h('div',{style:{fontSize:'11px',color:'var(--muted)',marginTop:'4px'}},[label]));
+      if(sub)right.append(h('div',{style:{fontSize:'10px',color:'var(--dim)',marginTop:'2px'}},[sub]));
+      c.append(iw,right);
+      return c;
+    }
+    var statsGridAdm=div({style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(160px,1fr))',gap:'12px',marginBottom:'20px'}});
+    statsGridAdm.append(
+      statCardV2Adm(ICONS.book,'#7EB8A4','Classes Attended',attendedCountAdm,attendanceAdm.length?Math.round(attendedCountAdm/attendanceAdm.length*100)+'% of total':null),
+      statCardV2Adm(ICONS.file,'#8B7FD4','Tests Completed',taken,'Keep it up!'),
+      statCardV2Adm(ICONS.target,'#E08A3C','Assessments Completed',assessResults.length,assessResults.length?null:'Not started yet'),
+      statCardV2Adm(ICONS.star,'#B8922E','Avg. Test Score',combinedResultsAdm.length?avgScoreAdm+'%':'\u2014',null),
+      statCardV2Adm(ICONS.flame,'#D9534F','Study Streak',streakAdm+' day'+(streakAdm===1?'':'s'),streakAdm?null:'No streak yet')
+    );
+    body.append(statsGridAdm);
+
+    var twoColAdm=div({style:{display:'flex',gap:'16px',flexWrap:'wrap',alignItems:'flex-start'}},[]);
+    var mainColAdm=div({style:{flex:'2 1 420px',minWidth:'0'}},[]);
+    var sideColAdm=div({style:{flex:'1 1 260px',minWidth:'260px'}},[]);
+    twoColAdm.append(mainColAdm,sideColAdm);
+    body.append(twoColAdm);
+
+    // PERFORMANCE OVER TIME
+    var perfCardAdm=div({cls:'card',style:{padding:'20px',marginBottom:'16px'}},[]);
+    perfCardAdm.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'15px',marginBottom:'6px'}},['Performance Over Time']));
+    if(combinedResultsAdm.length>1){
+      var cwA=520,chA=180,padA=34;
+      var ptsA=combinedResultsAdm.map(function(r){return r.total?Math.round((r.score/r.total)*100):0;});
+      var stepXA=(cwA-padA*2)/Math.max(1,ptsA.length-1);
+      var chartSvgA=document.createElementNS(svgNS,'svg');chartSvgA.setAttribute('viewBox','0 0 '+cwA+' '+chA);chartSvgA.setAttribute('width','100%');chartSvgA.setAttribute('height',String(chA));
+      [0,25,50,75,100].forEach(function(gv){
+        var y=chA-padA-(gv/100)*(chA-padA*2);
+        var line=document.createElementNS(svgNS,'line');line.setAttribute('x1',String(padA));line.setAttribute('x2',String(cwA-padA));line.setAttribute('y1',String(y));line.setAttribute('y2',String(y));line.setAttribute('stroke','var(--border)');line.setAttribute('stroke-width','1');
+        chartSvgA.append(line);
+        var lbl=document.createElementNS(svgNS,'text');lbl.setAttribute('x','4');lbl.setAttribute('y',String(y+4));lbl.setAttribute('fill','var(--muted)');lbl.setAttribute('font-size','9');lbl.textContent=String(gv);
+        chartSvgA.append(lbl);
+      });
+      var pathPtsA=ptsA.map(function(v,i){var x=padA+i*stepXA;var y=chA-padA-(v/100)*(chA-padA*2);return x+','+y;});
+      var polylineA=document.createElementNS(svgNS,'polyline');polylineA.setAttribute('points',pathPtsA.join(' '));polylineA.setAttribute('fill','none');polylineA.setAttribute('stroke','var(--gold)');polylineA.setAttribute('stroke-width','2');
+      chartSvgA.append(polylineA);
+      ptsA.forEach(function(v,i){
+        var x=padA+i*stepXA;var y=chA-padA-(v/100)*(chA-padA*2);
+        var c=document.createElementNS(svgNS,'circle');c.setAttribute('cx',String(x));c.setAttribute('cy',String(y));c.setAttribute('r','3.5');c.setAttribute('fill','var(--gold)');
+        chartSvgA.append(c);
+      });
+      perfCardAdm.append(chartSvgA);
+      perfCardAdm.append(h('p',{style:{fontSize:'11px',color:'var(--muted)',marginTop:'8px'},html:'Score across every test and assessment, in the order taken.'}));
+    }else{
+      perfCardAdm.append(h('p',{style:{fontSize:'12px',color:'var(--dim)'},html:'Not enough tests or assessments yet to plot a trend.'}));
+    }
+    mainColAdm.append(perfCardAdm);
+
+    // RECENT ACTIVITY
+    var recentCardAdm=div({cls:'card',style:{padding:'20px',marginBottom:'16px'}},[]);
+    recentCardAdm.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'15px',marginBottom:'14px'}},['Recent Activity']));
+    var recentItemsAdm=combinedResultsAdm.slice().reverse().slice(0,5).map(function(r){var pct=r.total?Math.round((r.score/r.total)*100):0;return{title:r._title||'Untitled',date:r.taken_at,pct:pct,kind:r._kind};});
+    if(!recentItemsAdm.length){recentCardAdm.append(h('p',{style:{fontSize:'12px',color:'var(--dim)'},html:'Nothing completed yet.'}));}
+    else recentItemsAdm.forEach(function(it){
+      var dotColor=it.pct>=70?'#7EB8A4':it.pct>=40?'#E08A3C':'#D9534F';
+      var row=div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'10px 0',borderBottom:'1px solid var(--border)',gap:'10px',flexWrap:'wrap'}},[]);
+      row.append(
+        div({style:{display:'flex',alignItems:'center',gap:'10px',minWidth:'0'}},[div({style:{width:'8px',height:'8px',borderRadius:'50%',background:dotColor,flexShrink:'0'}}),div({},[h('div',{style:{fontSize:'13px',color:'var(--text)'}},[it.title]),h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--dim)',marginTop:'2px'}},[(it.date?new Date(it.date).toLocaleDateString():'')+' \u00b7 '+it.kind+' Completed'])])]),
+        h('span',{style:{fontFamily:'Inter,sans-serif',fontSize:'13px',fontWeight:'700',color:dotColor}},[it.pct+'%'])
+      );
+      recentCardAdm.append(row);
+    });
+    mainColAdm.append(recentCardAdm);
+
+    // WEEKLY SCHEDULE
+    var schedCardAdm=div({cls:'card',style:{padding:'20px'}},[]);
+    schedCardAdm.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'15px',marginBottom:'14px'}},['Weekly Schedule']));
+    if(!slotsAdm.length){
+      schedCardAdm.append(h('p',{style:{fontSize:'12px',color:'var(--dim)'},html:'No class slots scheduled yet \u2014 add one below.'}));
+    }else{
+      var slotsByDowAdm={};
+      slotsAdm.forEach(function(sl){(slotsByDowAdm[sl.day_of_week]=slotsByDowAdm[sl.day_of_week]||[]).push(sl);});
+      var daysRowAdm=div({style:{display:'flex',gap:'10px',overflowX:'auto',paddingBottom:'4px'}},[]);
+      var nowDAdm=new Date();
+      for(var diA=0;diA<7;diA++){
+        (function(diA){
+          var ddA=new Date(nowDAdm);ddA.setDate(nowDAdm.getDate()+diA);
+          var dowA=ddA.getDay();
+          var isTodayA=diA===0;
+          var dayCardA=div({style:{flex:'0 0 108px',border:'1px solid '+(isTodayA?'var(--gold)':'var(--border)'),borderRadius:'6px',padding:'12px',background:isTodayA?'var(--gold-subtle)':'transparent'}},[]);
+          dayCardA.append(h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'11px',fontWeight:'700',color:isTodayA?'var(--gold)':'var(--text)',marginBottom:'4px'}},[DOW_NAMES2ADM[dowA].slice(0,3)+' '+ddA.getDate()]));
+          var daySlotsA=slotsByDowAdm[dowA]||[];
+          if(!daySlotsA.length){dayCardA.append(h('div',{style:{fontSize:'10px',color:'var(--dim)',marginTop:'6px'}},[isTodayA?'Nothing today':'No classes']));}
+          else daySlotsA.forEach(function(sl){dayCardA.append(h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--muted)',marginTop:'6px'}},[fmtTimeShortAdmin(sl.class_time)]));});
+          daysRowAdm.append(dayCardA);
+        })(diA);
+      }
+      schedCardAdm.append(daysRowAdm);
+    }
+    mainColAdm.append(schedCardAdm);
+
+    // SUBJECT PERFORMANCE
+    var testIdsAdm=[...new Set(results.map(function(r){return r.test_id;}).filter(Boolean))];
+    var folderNameByTestIdAdm={};
+    if(testIdsAdm.length){
+      var[testsFolderResAdm,foldersResAdm]=await Promise.all([
+        sb.from('tutoring_tests').select('id,folder_id').in('id',testIdsAdm),
+        sb.from('tutoring_test_folders').select('id,name')
+      ]);
+      var folderNameByIdAdm={};
+      (foldersResAdm.data||[]).forEach(function(f){folderNameByIdAdm[f.id]=f.name;});
+      (testsFolderResAdm.data||[]).forEach(function(t){folderNameByTestIdAdm[t.id]=t.folder_id?(folderNameByIdAdm[t.folder_id]||'Uncategorized'):'Uncategorized';});
+    }
+    var subjMapAdm={};
+    results.forEach(function(r){
+      var subj=folderNameByTestIdAdm[r.test_id]||'Uncategorized';
+      if(!subjMapAdm[subj])subjMapAdm[subj]={correct:0,total:0};
+      subjMapAdm[subj].correct+=(r.score||0);
+      subjMapAdm[subj].total+=(r.total||0);
+    });
+    var subjTopicsAdm=Object.keys(subjMapAdm).sort(function(a,b){return subjMapAdm[b].total-subjMapAdm[a].total;}).slice(0,6);
+    var subjCardAdm=div({cls:'card',style:{padding:'20px',marginBottom:'16px'}},[]);
+    var subjHeadAdm=div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'14px'}},[]);
+    subjHeadAdm.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'15px',margin:'0'}},['Subject Performance']));
+    if(subjTopicsAdm.length){
+      var grandTotalAdm=subjTopicsAdm.reduce(function(sum,t){return sum+subjMapAdm[t].total;},0);
+      var overallAvgAdm=grandTotalAdm?Math.round(subjTopicsAdm.reduce(function(sum,t){return sum+subjMapAdm[t].correct;},0)/grandTotalAdm*100):0;
+      subjHeadAdm.append(h('span',{cls:'mono',style:{fontSize:'10px',color:'var(--muted)',border:'1px solid var(--border)',borderRadius:'999px',padding:'3px 10px'}},[overallAvgAdm+'%']));
+    }
+    subjCardAdm.append(subjHeadAdm);
+    if(!subjTopicsAdm.length){
+      subjCardAdm.append(h('p',{style:{fontSize:'12px',color:'var(--dim)'},html:'No completed tests to break down by subject folder yet.'}));
+    }else{
+      var barColorsAdm=['#7EB8A4','#B8922E','#5B8DEF','#8B7FD4','#D9534F','var(--muted)'];
+      subjTopicsAdm.forEach(function(t,i){
+        var pct=subjMapAdm[t].total?Math.round(subjMapAdm[t].correct/subjMapAdm[t].total*100):0;
+        var row=div({style:{marginBottom:'12px'}},[]);
+        row.append(
+          div({style:{display:'flex',justifyContent:'space-between',marginBottom:'5px'}},[h('span',{style:{fontSize:'12px',color:'var(--text)'}},[t]),h('span',{cls:'mono',style:{fontSize:'11px',color:'var(--muted)'}},[pct+'%'])]),
+          div({style:{height:'6px',borderRadius:'3px',background:'var(--border)',overflow:'hidden'}},[div({style:{height:'100%',width:pct+'%',borderRadius:'3px',background:barColorsAdm[i%barColorsAdm.length]}})])
+        );
+        subjCardAdm.append(row);
+      });
+    }
+    sideColAdm.append(subjCardAdm);
+
+    // STUDY SUMMARY
+    var questionsAttemptedAdm=combinedResultsAdm.reduce(function(sum,r){return sum+(r.total||0);},0);
+    var sumCardAdm=div({cls:'card',style:{padding:'20px',marginBottom:'16px'}},[]);
+    sumCardAdm.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'15px',marginBottom:'14px'}},['Study Summary']));
+    function sumTileAdm(iconSvg,value,label){
+      var t=div({style:{border:'1px solid var(--border)',borderRadius:'6px',padding:'12px'}},[]);
+      var iw=div({style:{width:'22px',height:'22px',color:'var(--gold)',marginBottom:'8px'}});iw.innerHTML=iconSvg;
+      t.append(iw);
+      t.append(h('div',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'17px',fontWeight:'700',color:'var(--text)'}},[value]));
+      t.append(h('div',{style:{fontSize:'10px',color:'var(--muted)',marginTop:'2px'}},[label]));
+      return t;
+    }
+    var sumGridAdm=div({style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'10px'}},[]);
+    sumGridAdm.append(
+      sumTileAdm(ICONS.clock,Math.round(((studProf&&studProf.total_study_minutes)||0)/6)/10+'h','Total Study Hours'),
+      sumTileAdm(ICONS.file,String(questionsAttemptedAdm),'Questions Attempted'),
+      sumTileAdm(ICONS.target,combinedResultsAdm.length?avgScoreAdm+'%':'\u2014','Accuracy'),
+      sumTileAdm(ICONS.book,String(attendedCountAdm),'Classes Attended')
+    );
+    sumCardAdm.append(sumGridAdm);
+    sideColAdm.append(sumCardAdm);
+
+    // MOST COMMON ERROR
+    if(topReasonKey){
+      var errCardAdm=div({cls:'card',style:{padding:'20px',marginBottom:'16px'}},[]);
+      errCardAdm.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'15px',marginBottom:'10px'}},['Most Common Error']));
+      var quoteBoxAdm=div({style:{background:'var(--gold-subtle)',borderRadius:'6px',padding:'14px',borderLeft:'3px solid var(--gold)'}},[]);
+      quoteBoxAdm.append(
+        h('div',{style:{fontFamily:'Georgia,serif',fontStyle:'italic',fontSize:'15px',color:'var(--gold)',lineHeight:'1.4',marginBottom:'8px'}},['\u201c'+topReasonLabel+'\u201d']),
+        h('div',{style:{fontSize:'11px',color:'var(--dim)'}},[errCounts[topReasonKey]+' of '+(errLogRes.data||[]).length+' logged mistake'+((errLogRes.data||[]).length===1?'':'s')])
+      );
+      errCardAdm.append(quoteBoxAdm);
+      sideColAdm.append(errCardAdm);
+    }
+
+    // ATTENDANCE LOG
+    if(attendanceAdm.length){
+      var attCardAdm=div({cls:'card',style:{padding:'20px'}},[]);
+      attCardAdm.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'15px',marginBottom:'14px'}},['Attendance Log']));
+      attendanceAdm.slice(0,6).forEach(function(a){
+        var missed=a.status==='missed';
+        attCardAdm.append(div({style:{display:'flex',justifyContent:'space-between',padding:'7px 0',borderBottom:'1px solid var(--border)'}},[h('span',{cls:'mono',style:{fontSize:'11px',color:'var(--text)'}},[new Date(a.class_date+'T00:00:00').toLocaleDateString()]),h('span',{style:{fontSize:'11px',color:missed?'#e08a3c':'var(--teal)',fontWeight:'700'}},[missed?'Missed':a.duration_hours+'h'])]));
+      });
+      sideColAdm.append(attCardAdm);
+    }
+
     var linksSec=adminSection('Class Links',false,true);
     linksSec.body.append(h('p',{style:{fontSize:'11px',color:'var(--dim)',marginBottom:'10px'}},['Two permanent backup meeting links for this student \u2014 shared across every class slot below.']));
     var pLink1Inp=h('input',{cls:'input',placeholder:'Link 1 (permanent backup link)',style:{width:'100%',marginBottom:'8px'}});pLink1Inp.value=studentLinks.link1||'';
