@@ -1756,10 +1756,26 @@ function renderDashboard(){
     // PERFORMANCE OVER TIME (main col) — with range toggle
     const perfCard=div({cls:'card',style:{padding:'20px',marginBottom:'16px'}},[]);
     const perfHead=div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:'10px',marginBottom:'6px'}},[]);
-    perfHead.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'15px',margin:'0'}},['Performance Over Time']));
+    const perfTitleRow=div({style:{display:'flex',alignItems:'center',gap:'10px',flexWrap:'wrap'}},[]);
+    perfTitleRow.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'15px',margin:'0'}},['Performance Over Time']));
+    (function(){
+      function monthKey(d){return d.getFullYear()+'-'+d.getMonth();}
+      var nowD=new Date();
+      var thisMonthKey=monthKey(nowD);
+      var lastMonthD=new Date(nowD.getFullYear(),nowD.getMonth()-1,1);
+      var lastMonthKey=monthKey(lastMonthD);
+      function avgPct(list){if(!list.length)return null;return Math.round(list.reduce(function(s,r){return s+(r.total?(r.score/r.total)*100:0);},0)/list.length);}
+      var thisAvg=avgPct(combinedResults.filter(function(r){return monthKey(new Date(r.taken_at))===thisMonthKey;}));
+      var lastAvg=avgPct(combinedResults.filter(function(r){return monthKey(new Date(r.taken_at))===lastMonthKey;}));
+      if(thisAvg!==null&&lastAvg!==null){
+        var d=thisAvg-lastAvg;
+        perfTitleRow.append(h('span',{cls:'mono',style:{fontSize:'10px',fontWeight:'700',color:d>=0?'var(--teal)':'#e08a3c',border:'1px solid '+(d>=0?'rgba(126,184,164,0.4)':'rgba(224,138,60,0.4)'),borderRadius:'999px',padding:'3px 10px'}},[(d>=0?'\u2191 ':'\u2193 ')+Math.abs(d)+'% this month']));
+      }
+    })();
+    perfHead.append(perfTitleRow);
     const rangeBtns=div({style:{display:'flex',gap:'4px'}},[]);
-    const RANGE_OPTS=[['7D',7],['30D',30],['90D',90],['All',null]];
-    let activeRange='30D';
+    const RANGE_OPTS=[['7 Days',7],['1 Month',30],['6 Months',180]];
+    let activeRange='1 Month';
     function paintRangeBtns(){Array.from(rangeBtns.children).forEach(function(b,i){b.style.background=RANGE_OPTS[i][0]===activeRange?'var(--gold)':'transparent';b.style.color=RANGE_OPTS[i][0]===activeRange?'#0F0E0A':'var(--muted)';});}
     RANGE_OPTS.forEach(function(opt){
       const rb=h('button',{style:{padding:'5px 11px',fontSize:'10px',fontWeight:'700',borderRadius:'6px',border:'1px solid var(--border)',background:'transparent',color:'var(--muted)',cursor:'pointer'}},[opt[0]]);
@@ -2321,7 +2337,7 @@ function runQuiz(a,test,questions){
     if(!ins.error){
       await updateStreak();
       var _testMins=Math.round(timeTakenSeconds/60);
-      if(_testMins>0){
+      if(_testMins>0&&!window.activeSessionId){
         await sb.from('profiles').update({total_study_minutes:(S.profile?.total_study_minutes||0)+_testMins}).eq('id',S.user.id);
         if(S.profile)S.profile.total_study_minutes=(S.profile.total_study_minutes||0)+_testMins;
       }
@@ -2628,7 +2644,7 @@ function runAssessmentQuiz(a,assessment,questions){
     if(!ins.error){
       await updateStreak();
       var _testMins=Math.round(timeTakenSeconds/60);
-      if(_testMins>0){
+      if(_testMins>0&&!window.activeSessionId){
         await sb.from('profiles').update({total_study_minutes:(S.profile?.total_study_minutes||0)+_testMins}).eq('id',S.user.id);
         if(S.profile)S.profile.total_study_minutes=(S.profile.total_study_minutes||0)+_testMins;
       }
@@ -2927,7 +2943,7 @@ function runBlockedAssessment(a,assessment,allQuestions){
     if(!ins.error){
       await updateStreak();
       var _testMins=Math.round(timeTakenSeconds/60);
-      if(_testMins>0){
+      if(_testMins>0&&!window.activeSessionId){
         await sb.from('profiles').update({total_study_minutes:(S.profile?.total_study_minutes||0)+_testMins}).eq('id',S.user.id);
         if(S.profile)S.profile.total_study_minutes=(S.profile.total_study_minutes||0)+_testMins;
       }
@@ -6038,7 +6054,7 @@ if(!S.profile?.is_free_tier||isInTrial()){
   if(S.profile)S.profile.total_points=(S.profile.total_points||0)+_fpts;
   await updateStreak();
   var _deckMins=deckSessionStartedAt?Math.min(180,Math.max(0,Math.round((Date.now()-deckSessionStartedAt)/60000))):0;
-  if(_deckMins>0){
+  if(_deckMins>0&&!window.activeSessionId){
     await sb.from('profiles').update({total_study_minutes:(S.profile?.total_study_minutes||0)+_deckMins}).eq('id',S.user.id);
     if(S.profile)S.profile.total_study_minutes=(S.profile.total_study_minutes||0)+_deckMins;
   }
@@ -6496,7 +6512,7 @@ currentVignetteResultId=(ins.data&&ins.data.id)||null;
 if(S.profile?.is_free_tier!==true||isInTrial()){var _vpts=questions.length*2;await sb.from('profiles').update({total_points:(S.profile?.total_points||0)+_vpts}).eq('id',S.user.id);if(S.profile)S.profile.total_points=(S.profile.total_points||0)+_vpts;}
 await updateStreak();
 var _qbMins=Math.round(timeTakenSeconds/60);
-if(_qbMins>0){
+if(_qbMins>0&&!window.activeSessionId){
   await sb.from('profiles').update({total_study_minutes:(S.profile?.total_study_minutes||0)+_qbMins}).eq('id',S.user.id);
   if(S.profile)S.profile.total_study_minutes=(S.profile.total_study_minutes||0)+_qbMins;
 }
@@ -8997,32 +9013,76 @@ function openStudent(s){
     // PERFORMANCE OVER TIME
     var svgNSAdm='http://www.w3.org/2000/svg';
     var perfCardAdm=div({cls:'card',style:{padding:'20px',marginBottom:'16px'}},[]);
-    perfCardAdm.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'15px',marginBottom:'6px'}},['Performance Over Time']));
-    if(combinedResultsAdm.length>1){
-      var cwA=520,chA=180,padA=34;
-      var ptsA=combinedResultsAdm.map(function(r){return r.total?Math.round((r.score/r.total)*100):0;});
-      var stepXA=(cwA-padA*2)/Math.max(1,ptsA.length-1);
-      var chartSvgA=document.createElementNS(svgNSAdm,'svg');chartSvgA.setAttribute('viewBox','0 0 '+cwA+' '+chA);chartSvgA.setAttribute('width','100%');chartSvgA.setAttribute('height',String(chA));
-      [0,25,50,75,100].forEach(function(gv){
-        var y=chA-padA-(gv/100)*(chA-padA*2);
-        var line=document.createElementNS(svgNSAdm,'line');line.setAttribute('x1',String(padA));line.setAttribute('x2',String(cwA-padA));line.setAttribute('y1',String(y));line.setAttribute('y2',String(y));line.setAttribute('stroke','var(--border)');line.setAttribute('stroke-width','1');
-        chartSvgA.append(line);
-        var lbl=document.createElementNS(svgNSAdm,'text');lbl.setAttribute('x','4');lbl.setAttribute('y',String(y+4));lbl.setAttribute('fill','var(--muted)');lbl.setAttribute('font-size','9');lbl.textContent=String(gv);
-        chartSvgA.append(lbl);
-      });
-      var pathPtsA=ptsA.map(function(v,i){var x=padA+i*stepXA;var y=chA-padA-(v/100)*(chA-padA*2);return x+','+y;});
-      var polylineA=document.createElementNS(svgNSAdm,'polyline');polylineA.setAttribute('points',pathPtsA.join(' '));polylineA.setAttribute('fill','none');polylineA.setAttribute('stroke','var(--gold)');polylineA.setAttribute('stroke-width','2');
-      chartSvgA.append(polylineA);
-      ptsA.forEach(function(v,i){
-        var x=padA+i*stepXA;var y=chA-padA-(v/100)*(chA-padA*2);
-        var c=document.createElementNS(svgNSAdm,'circle');c.setAttribute('cx',String(x));c.setAttribute('cy',String(y));c.setAttribute('r','3.5');c.setAttribute('fill','var(--gold)');
-        chartSvgA.append(c);
-      });
-      perfCardAdm.append(chartSvgA);
-      perfCardAdm.append(h('p',{style:{fontSize:'11px',color:'var(--muted)',marginTop:'8px'},html:'Score across every test and assessment, in the order taken.'}));
-    }else{
-      perfCardAdm.append(h('p',{style:{fontSize:'12px',color:'var(--dim)'},html:'Not enough tests or assessments yet to plot a trend.'}));
+    var perfHeadAdm=div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:'10px',marginBottom:'6px'}},[]);
+    var perfTitleRowAdm=div({style:{display:'flex',alignItems:'center',gap:'10px',flexWrap:'wrap'}},[]);
+    perfTitleRowAdm.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'15px',margin:'0'}},['Performance Over Time']));
+    (function(){
+      function monthKey(d){return d.getFullYear()+'-'+d.getMonth();}
+      var nowD=new Date();
+      var thisMonthKey=monthKey(nowD);
+      var lastMonthD=new Date(nowD.getFullYear(),nowD.getMonth()-1,1);
+      var lastMonthKey=monthKey(lastMonthD);
+      function avgPct(list){if(!list.length)return null;return Math.round(list.reduce(function(s,r){return s+(r.total?(r.score/r.total)*100:0);},0)/list.length);}
+      var thisAvg=avgPct(combinedResultsAdm.filter(function(r){return monthKey(new Date(r.taken_at))===thisMonthKey;}));
+      var lastAvg=avgPct(combinedResultsAdm.filter(function(r){return monthKey(new Date(r.taken_at))===lastMonthKey;}));
+      if(thisAvg!==null&&lastAvg!==null){
+        var d=thisAvg-lastAvg;
+        perfTitleRowAdm.append(h('span',{cls:'mono',style:{fontSize:'10px',fontWeight:'700',color:d>=0?'var(--teal)':'#e08a3c',border:'1px solid '+(d>=0?'rgba(126,184,164,0.4)':'rgba(224,138,60,0.4)'),borderRadius:'999px',padding:'3px 10px'}},[(d>=0?'\u2191 ':'\u2193 ')+Math.abs(d)+'% this month']));
+      }
+    })();
+    perfHeadAdm.append(perfTitleRowAdm);
+    var rangeBtnsAdm=div({style:{display:'flex',gap:'4px'}},[]);
+    var RANGE_OPTS_ADM=[['7 Days',7],['1 Month',30],['6 Months',180]];
+    var activeRangeAdm='1 Month';
+    function paintRangeBtnsAdm(){Array.from(rangeBtnsAdm.children).forEach(function(b,i){b.style.background=RANGE_OPTS_ADM[i][0]===activeRangeAdm?'var(--gold)':'transparent';b.style.color=RANGE_OPTS_ADM[i][0]===activeRangeAdm?'#0F0E0A':'var(--muted)';});}
+    RANGE_OPTS_ADM.forEach(function(opt){
+      var rb=h('button',{style:{padding:'5px 11px',fontSize:'10px',fontWeight:'700',borderRadius:'6px',border:'1px solid var(--border)',background:'transparent',color:'var(--muted)',cursor:'pointer'}},[opt[0]]);
+      rb.onclick=function(){activeRangeAdm=opt[0];paintRangeBtnsAdm();drawPerfChartAdm();};
+      rangeBtnsAdm.append(rb);
+    });
+    perfHeadAdm.append(rangeBtnsAdm);
+    perfCardAdm.append(perfHeadAdm);
+    var chartHolderAdm=div({});
+    perfCardAdm.append(chartHolderAdm);
+    function drawPerfChartAdm(){
+      chartHolderAdm.innerHTML='';
+      var optAdm=RANGE_OPTS_ADM.find(function(o){return o[0]===activeRangeAdm;});
+      var filteredAdm=combinedResultsAdm;
+      if(optAdm[1]){
+        var cutoffAdm=new Date();cutoffAdm.setDate(cutoffAdm.getDate()-optAdm[1]);
+        filteredAdm=combinedResultsAdm.filter(function(r){return new Date(r.taken_at)>=cutoffAdm;});
+      }
+      if(filteredAdm.length>1){
+        var cwA=520,chA=180,padA=34;
+        var ptsA=filteredAdm.map(function(r){return r.total?Math.round((r.score/r.total)*100):0;});
+        var stepXA=(cwA-padA*2)/Math.max(1,ptsA.length-1);
+        var chartSvgA=document.createElementNS(svgNSAdm,'svg');chartSvgA.setAttribute('viewBox','0 0 '+cwA+' '+chA);chartSvgA.setAttribute('width','100%');chartSvgA.setAttribute('height',String(chA));
+        [0,25,50,75,100].forEach(function(gv){
+          var y=chA-padA-(gv/100)*(chA-padA*2);
+          var line=document.createElementNS(svgNSAdm,'line');line.setAttribute('x1',String(padA));line.setAttribute('x2',String(cwA-padA));line.setAttribute('y1',String(y));line.setAttribute('y2',String(y));line.setAttribute('stroke','var(--border)');line.setAttribute('stroke-width','1');
+          chartSvgA.append(line);
+          var lbl=document.createElementNS(svgNSAdm,'text');lbl.setAttribute('x','4');lbl.setAttribute('y',String(y+4));lbl.setAttribute('fill','var(--muted)');lbl.setAttribute('font-size','9');lbl.textContent=String(gv);
+          chartSvgA.append(lbl);
+        });
+        var pathPtsA=ptsA.map(function(v,i){var x=padA+i*stepXA;var y=chA-padA-(v/100)*(chA-padA*2);return x+','+y;});
+        var polylineA=document.createElementNS(svgNSAdm,'polyline');polylineA.setAttribute('points',pathPtsA.join(' '));polylineA.setAttribute('fill','none');polylineA.setAttribute('stroke','var(--gold)');polylineA.setAttribute('stroke-width','2');
+        chartSvgA.append(polylineA);
+        ptsA.forEach(function(v,i){
+          var x=padA+i*stepXA;var y=chA-padA-(v/100)*(chA-padA*2);
+          var c=document.createElementNS(svgNSAdm,'circle');c.setAttribute('cx',String(x));c.setAttribute('cy',String(y));c.setAttribute('r','3.5');c.setAttribute('fill','var(--gold)');
+          chartSvgA.append(c);
+        });
+        chartHolderAdm.append(chartSvgA);
+        var deltaAdm=ptsA[ptsA.length-1]-ptsA[0];
+        chartHolderAdm.append(h('p',{style:{fontSize:'11px',color:deltaAdm>=0?'var(--teal)':'#e08a3c',marginTop:'8px'}},[(deltaAdm>=0?'\u2191 ':'\u2193 ')+Math.abs(deltaAdm)+'% over this period']));
+      }else if(combinedResultsAdm.length){
+        chartHolderAdm.append(h('p',{style:{fontSize:'12px',color:'var(--dim)'}},['No tests or assessments taken in this window.']));
+      }else{
+        chartHolderAdm.append(h('p',{style:{fontSize:'12px',color:'var(--dim)'}},['Not enough tests or assessments yet to plot a trend.']));
+      }
     }
+    paintRangeBtnsAdm();
+    drawPerfChartAdm();
     mainColAdm.append(perfCardAdm);
 
     // RECENT ACTIVITY
