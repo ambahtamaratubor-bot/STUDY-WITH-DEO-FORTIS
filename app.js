@@ -1758,20 +1758,8 @@ function renderDashboard(){
     const perfHead=div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:'10px',marginBottom:'6px'}},[]);
     const perfTitleRow=div({style:{display:'flex',alignItems:'center',gap:'10px',flexWrap:'wrap'}},[]);
     perfTitleRow.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'15px',margin:'0'}},['Performance Over Time']));
-    (function(){
-      function monthKey(d){return d.getFullYear()+'-'+d.getMonth();}
-      var nowD=new Date();
-      var thisMonthKey=monthKey(nowD);
-      var lastMonthD=new Date(nowD.getFullYear(),nowD.getMonth()-1,1);
-      var lastMonthKey=monthKey(lastMonthD);
-      function avgPct(list){if(!list.length)return null;return Math.round(list.reduce(function(s,r){return s+(r.total?(r.score/r.total)*100:0);},0)/list.length);}
-      var thisAvg=avgPct(combinedResults.filter(function(r){return monthKey(new Date(r.taken_at))===thisMonthKey;}));
-      var lastAvg=avgPct(combinedResults.filter(function(r){return monthKey(new Date(r.taken_at))===lastMonthKey;}));
-      if(thisAvg!==null&&lastAvg!==null){
-        var d=thisAvg-lastAvg;
-        perfTitleRow.append(h('span',{cls:'mono',style:{fontSize:'10px',fontWeight:'700',color:d>=0?'var(--teal)':'#e08a3c',border:'1px solid '+(d>=0?'rgba(126,184,164,0.4)':'rgba(224,138,60,0.4)'),borderRadius:'999px',padding:'3px 10px'}},[(d>=0?'\u2191 ':'\u2193 ')+Math.abs(d)+'% this month']));
-      }
-    })();
+    const perfPeriodChip=h('span',{cls:'mono',style:{display:'none',fontSize:'10px',fontWeight:'700',borderRadius:'999px',padding:'3px 10px'}},['']);
+    perfTitleRow.append(perfPeriodChip);
     perfHead.append(perfTitleRow);
     const rangeBtns=div({style:{display:'flex',gap:'4px'}},[]);
     const RANGE_OPTS=[['7 Days',7],['1 Month',30],['6 Months',180]];
@@ -1786,7 +1774,33 @@ function renderDashboard(){
     perfCard.append(perfHead);
     const chartHolder=div({});
     perfCard.append(chartHolder);
+    function avgPctOv(list){if(!list.length)return null;return Math.round(list.reduce(function(s,r){return s+(r.total?(r.score/r.total)*100:0);},0)/list.length);}
+    function updatePeriodChip(){
+      if(activeRange==='6 Months'){perfPeriodChip.style.display='none';return;}
+      var nowD=new Date();
+      var curAvg,prevAvg,label;
+      if(activeRange==='7 Days'){
+        var curStart=new Date(nowD);curStart.setDate(curStart.getDate()-7);
+        var prevStart=new Date(curStart);prevStart.setDate(prevStart.getDate()-7);
+        curAvg=avgPctOv(combinedResults.filter(function(r){var t=new Date(r.taken_at);return t>=curStart&&t<=nowD;}));
+        prevAvg=avgPctOv(combinedResults.filter(function(r){var t=new Date(r.taken_at);return t>=prevStart&&t<curStart;}));
+        label='compared to last week';
+      }else{
+        function monthKey(d){return d.getFullYear()+'-'+d.getMonth();}
+        var lastMonthD=new Date(nowD.getFullYear(),nowD.getMonth()-1,1);
+        curAvg=avgPctOv(combinedResults.filter(function(r){return monthKey(new Date(r.taken_at))===monthKey(nowD);}));
+        prevAvg=avgPctOv(combinedResults.filter(function(r){return monthKey(new Date(r.taken_at))===monthKey(lastMonthD);}));
+        label='compared to last month';
+      }
+      if(curAvg===null||prevAvg===null){perfPeriodChip.style.display='none';return;}
+      var d=curAvg-prevAvg;
+      perfPeriodChip.textContent=(d>=0?'\u2191 ':'\u2193 ')+Math.abs(d)+'% '+label;
+      perfPeriodChip.style.color=d>=0?'var(--teal)':'#e08a3c';
+      perfPeriodChip.style.border='1px solid '+(d>=0?'rgba(126,184,164,0.4)':'rgba(224,138,60,0.4)');
+      perfPeriodChip.style.display='inline-block';
+    }
     function drawPerfChart(){
+      updatePeriodChip();
       chartHolder.innerHTML='';
       const opt=RANGE_OPTS.find(function(o){return o[0]===activeRange;});
       let filtered=combinedResults;
@@ -1824,8 +1838,6 @@ function renderDashboard(){
           chartSvg.append(c);
         });
         chartHolder.append(chartSvg);
-        var delta=pts[pts.length-1]-pts[0];
-        chartHolder.append(h('p',{style:{fontSize:'11px',color:delta>=0?'var(--teal)':'#e08a3c',marginTop:'8px'}},[(delta>=0?'\u2191 ':'\u2193 ')+Math.abs(delta)+'% over this period']));
       }else if(combinedResults.length){
         chartHolder.append(h('p',{style:{fontSize:'12px',color:'var(--dim)'}},['No tests or assessments taken in this window.']));
       }else{
@@ -8709,10 +8721,13 @@ function renderScheduleBoard(){
       scheduled:{border:'var(--teal)',bg:'transparent',label:'On schedule'}
     };
     var daysGrid=div({style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(160px,1fr))',gap:'12px'}},[]);
+    var weekStart=new Date(todayD);weekStart.setDate(weekStart.getDate()-weekStart.getDay());
     for(var dow=0;dow<7;dow++){
       (function(dow){
-        var col=div({cls:'card',style:{padding:'12px',minHeight:'80px'}},[]);
-        col.append(h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--muted)',letterSpacing:'1px',textTransform:'uppercase',marginBottom:'10px',fontWeight:'700'}},[DOW_NAMES_BOARD[dow]]));
+        var colDate=new Date(weekStart);colDate.setDate(colDate.getDate()+dow);
+        var isToday=colDate.getTime()===todayD.getTime();
+        var col=div({cls:'card',style:{padding:'12px',minHeight:'80px',border:isToday?'1px solid var(--gold)':'1px solid var(--border)'}},[]);
+        col.append(h('div',{cls:'mono',style:{fontSize:'10px',color:isToday?'var(--gold)':'var(--muted)',letterSpacing:'1px',textTransform:'uppercase',marginBottom:'10px',fontWeight:'700'}},[DOW_NAMES_BOARD[dow].slice(0,3)+' \u00b7 '+colDate.toLocaleDateString(undefined,{month:'short',day:'numeric'})]));
         var daySlots=allSlots.filter(function(sl){return sl.day_of_week===dow;}).sort(function(a,b){return(a.class_time||'').localeCompare(b.class_time||'');});
         if(!daySlots.length){col.append(h('div',{style:{fontSize:'11px',color:'var(--dim)'}},['\u2014']));}
         daySlots.forEach(function(sl){
@@ -9016,20 +9031,8 @@ function openStudent(s){
     var perfHeadAdm=div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:'10px',marginBottom:'6px'}},[]);
     var perfTitleRowAdm=div({style:{display:'flex',alignItems:'center',gap:'10px',flexWrap:'wrap'}},[]);
     perfTitleRowAdm.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'15px',margin:'0'}},['Performance Over Time']));
-    (function(){
-      function monthKey(d){return d.getFullYear()+'-'+d.getMonth();}
-      var nowD=new Date();
-      var thisMonthKey=monthKey(nowD);
-      var lastMonthD=new Date(nowD.getFullYear(),nowD.getMonth()-1,1);
-      var lastMonthKey=monthKey(lastMonthD);
-      function avgPct(list){if(!list.length)return null;return Math.round(list.reduce(function(s,r){return s+(r.total?(r.score/r.total)*100:0);},0)/list.length);}
-      var thisAvg=avgPct(combinedResultsAdm.filter(function(r){return monthKey(new Date(r.taken_at))===thisMonthKey;}));
-      var lastAvg=avgPct(combinedResultsAdm.filter(function(r){return monthKey(new Date(r.taken_at))===lastMonthKey;}));
-      if(thisAvg!==null&&lastAvg!==null){
-        var d=thisAvg-lastAvg;
-        perfTitleRowAdm.append(h('span',{cls:'mono',style:{fontSize:'10px',fontWeight:'700',color:d>=0?'var(--teal)':'#e08a3c',border:'1px solid '+(d>=0?'rgba(126,184,164,0.4)':'rgba(224,138,60,0.4)'),borderRadius:'999px',padding:'3px 10px'}},[(d>=0?'\u2191 ':'\u2193 ')+Math.abs(d)+'% this month']));
-      }
-    })();
+    var perfPeriodChipAdm=h('span',{cls:'mono',style:{display:'none',fontSize:'10px',fontWeight:'700',borderRadius:'999px',padding:'3px 10px'}},['']);
+    perfTitleRowAdm.append(perfPeriodChipAdm);
     perfHeadAdm.append(perfTitleRowAdm);
     var rangeBtnsAdm=div({style:{display:'flex',gap:'4px'}},[]);
     var RANGE_OPTS_ADM=[['7 Days',7],['1 Month',30],['6 Months',180]];
@@ -9044,7 +9047,33 @@ function openStudent(s){
     perfCardAdm.append(perfHeadAdm);
     var chartHolderAdm=div({});
     perfCardAdm.append(chartHolderAdm);
+    function avgPctAdm(list){if(!list.length)return null;return Math.round(list.reduce(function(s,r){return s+(r.total?(r.score/r.total)*100:0);},0)/list.length);}
+    function updatePeriodChipAdm(){
+      if(activeRangeAdm==='6 Months'){perfPeriodChipAdm.style.display='none';return;}
+      var nowD=new Date();
+      var curAvg,prevAvg,label;
+      if(activeRangeAdm==='7 Days'){
+        var curStart=new Date(nowD);curStart.setDate(curStart.getDate()-7);
+        var prevStart=new Date(curStart);prevStart.setDate(prevStart.getDate()-7);
+        curAvg=avgPctAdm(combinedResultsAdm.filter(function(r){var t=new Date(r.taken_at);return t>=curStart&&t<=nowD;}));
+        prevAvg=avgPctAdm(combinedResultsAdm.filter(function(r){var t=new Date(r.taken_at);return t>=prevStart&&t<curStart;}));
+        label='compared to last week';
+      }else{
+        function monthKey(d){return d.getFullYear()+'-'+d.getMonth();}
+        var lastMonthD=new Date(nowD.getFullYear(),nowD.getMonth()-1,1);
+        curAvg=avgPctAdm(combinedResultsAdm.filter(function(r){return monthKey(new Date(r.taken_at))===monthKey(nowD);}));
+        prevAvg=avgPctAdm(combinedResultsAdm.filter(function(r){return monthKey(new Date(r.taken_at))===monthKey(lastMonthD);}));
+        label='compared to last month';
+      }
+      if(curAvg===null||prevAvg===null){perfPeriodChipAdm.style.display='none';return;}
+      var d=curAvg-prevAvg;
+      perfPeriodChipAdm.textContent=(d>=0?'\u2191 ':'\u2193 ')+Math.abs(d)+'% '+label;
+      perfPeriodChipAdm.style.color=d>=0?'var(--teal)':'#e08a3c';
+      perfPeriodChipAdm.style.border='1px solid '+(d>=0?'rgba(126,184,164,0.4)':'rgba(224,138,60,0.4)');
+      perfPeriodChipAdm.style.display='inline-block';
+    }
     function drawPerfChartAdm(){
+      updatePeriodChipAdm();
       chartHolderAdm.innerHTML='';
       var optAdm=RANGE_OPTS_ADM.find(function(o){return o[0]===activeRangeAdm;});
       var filteredAdm=combinedResultsAdm;
@@ -9073,8 +9102,6 @@ function openStudent(s){
           chartSvgA.append(c);
         });
         chartHolderAdm.append(chartSvgA);
-        var deltaAdm=ptsA[ptsA.length-1]-ptsA[0];
-        chartHolderAdm.append(h('p',{style:{fontSize:'11px',color:deltaAdm>=0?'var(--teal)':'#e08a3c',marginTop:'8px'}},[(deltaAdm>=0?'\u2191 ':'\u2193 ')+Math.abs(deltaAdm)+'% over this period']));
       }else if(combinedResultsAdm.length){
         chartHolderAdm.append(h('p',{style:{fontSize:'12px',color:'var(--dim)'}},['No tests or assessments taken in this window.']));
       }else{
