@@ -1685,7 +1685,7 @@ function renderDashboard(){
       const nextLeft=div({style:{flex:'1',minWidth:'200px'}},[]);
       nextLeft.append(
         h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--gold)',letterSpacing:'1.5px',textTransform:'uppercase',marginBottom:'8px',fontWeight:'700'}},[isSlotToday?'Next Class \u00b7 Today':'Next Class']),
-        h('div',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'20px',fontWeight:'700',color:'var(--text)',marginBottom:'8px'}},[DOW_NAMES2[nextSlot.day_of_week]+' \u00b7 '+fmtTimeShortOv(nextSlot.class_time)]),
+        h('div',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'20px',fontWeight:'700',color:'var(--text)',marginBottom:'8px'}},[DOW_NAMES2[new Date(nextSlot.next_class_date+'T00:00:00').getDay()]+' \u00b7 '+fmtTimeShortOv(nextSlot.class_time)]),
         h('div',{style:{fontSize:'12px',color:'var(--muted)'}},[ndDate.toLocaleDateString(undefined,{month:'short',day:'numeric'})])
       );
       const nextActions=div({style:{display:'flex',gap:'10px',flexWrap:'wrap'}},[]);
@@ -8676,13 +8676,14 @@ function renderScheduleBoard(){
   function todayStrBoard(){var d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
   var head=div({style:{marginBottom:'16px'}},[
     h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'18px',marginBottom:'8px'}},['Schedule Board']),
-    h('p',{cls:'muted',style:{fontSize:'12px',marginBottom:'10px'}},['Every active class slot, across every student, at a glance.'])
+    h('p',{cls:'muted',style:{fontSize:'12px',marginBottom:'10px'}},['This week\u2019s classes, across every student, at a glance.'])
   ]);
   var legend=div({style:{display:'flex',gap:'16px',flexWrap:'wrap',marginBottom:'18px',fontSize:'11px',color:'var(--muted)'}},[
+    div({style:{display:'flex',alignItems:'center',gap:'6px'}},[div({style:{width:'10px',height:'10px',borderRadius:'50%',background:'var(--teal)',flexShrink:'0'}}),'Done']),
+    div({style:{display:'flex',alignItems:'center',gap:'6px'}},[div({style:{width:'10px',height:'10px',borderRadius:'50%',background:'#5B8DEF',flexShrink:'0'}}),'Upcoming']),
     div({style:{display:'flex',alignItems:'center',gap:'6px'}},[div({style:{width:'10px',height:'10px',borderRadius:'50%',background:'#D9534F',flexShrink:'0'}}),'Missed']),
     div({style:{display:'flex',alignItems:'center',gap:'6px'}},[div({style:{width:'10px',height:'10px',borderRadius:'50%',background:'#E8C547',flexShrink:'0'}}),'Rescheduled']),
-    div({style:{display:'flex',alignItems:'center',gap:'6px'}},[div({style:{width:'10px',height:'10px',borderRadius:'50%',background:'#e68c14',flexShrink:'0',animation:'dfBoardBlink 1.4s ease-in-out infinite'}}),'Not marked yet']),
-    div({style:{display:'flex',alignItems:'center',gap:'6px'}},[div({style:{width:'10px',height:'10px',borderRadius:'50%',background:'var(--teal)',flexShrink:'0'}}),'On schedule'])
+    div({style:{display:'flex',alignItems:'center',gap:'6px'}},[div({style:{width:'10px',height:'10px',borderRadius:'50%',background:'#e68c14',flexShrink:'0',animation:'dfBoardBlink 1.4s ease-in-out infinite'}}),'Not marked yet'])
   ]);
   var boardWrap=div({},[]);
   tBody.append(head,legend,boardWrap);
@@ -8699,39 +8700,68 @@ function renderScheduleBoard(){
       sb.from('tutoring_class_attendance').select('slot_id,class_date,status').in('slot_id',slotIds).order('class_date',{ascending:false})
     ]);
     var nameById={};(profRes.data||[]).forEach(function(p){nameById[p.id]=p.full_name||'(no name)';});
-    var latestAttBySlot={};
-    (attRes.data||[]).forEach(function(a){if(!latestAttBySlot[a.slot_id])latestAttBySlot[a.slot_id]=a;});
     var today=todayStrBoard();
     var todayD=new Date(today+'T00:00:00');
-    function slotStatus(sl){
-      var ncd=new Date(sl.next_class_date+'T00:00:00');
-      if(ncd<todayD)return'unmarked';
-      var latest=latestAttBySlot[sl.id];
-      if(latest){
-        var daysSince=Math.round((todayD-new Date(latest.class_date+'T00:00:00'))/86400000);
-        if(latest.status==='missed'&&daysSince<=7)return'missed';
+    var weekStart=new Date(todayD);weekStart.setDate(weekStart.getDate()-weekStart.getDay());
+    var weekEnd=new Date(weekStart);weekEnd.setDate(weekEnd.getDate()+6);
+    function inRange(d,start,end){return d>=start&&d<=end;}
+
+    // Latest attendance record that falls within THIS week, per slot
+    var attThisWeekBySlot={};
+    (attRes.data||[]).forEach(function(a){
+      var cd=new Date(a.class_date+'T00:00:00');
+      if(inRange(cd,weekStart,weekEnd)){
+        var existing=attThisWeekBySlot[a.slot_id];
+        if(!existing||cd>new Date(existing.class_date+'T00:00:00'))attThisWeekBySlot[a.slot_id]=a;
       }
-      if(ncd.getDay()!==sl.day_of_week)return'rescheduled';
-      return'scheduled';
-    }
+    });
+
     var STATUS_STYLE={
+      done:{border:'var(--teal)',bg:'rgba(94,156,135,0.08)',label:'Done'},
+      upcoming:{border:'#5B8DEF',bg:'rgba(91,141,239,0.08)',label:'Upcoming'},
       missed:{border:'#D9534F',bg:'rgba(217,84,80,0.08)',label:'Missed'},
       rescheduled:{border:'#E8C547',bg:'rgba(232,197,71,0.10)',label:'Rescheduled'},
-      unmarked:{border:'#e68c14',bg:'rgba(230,140,20,0.08)',label:'Not marked',blink:true},
-      scheduled:{border:'var(--teal)',bg:'transparent',label:'On schedule'}
+      unmarked:{border:'#e68c14',bg:'rgba(230,140,20,0.08)',label:'Not marked',blink:true}
     };
+
+    // Determine this slot's status + displayed date for the CURRENT week (or null if it has no occurrence this week)
+    function slotWeekInfo(sl){
+      var attThisWeek=attThisWeekBySlot[sl.id];
+      if(attThisWeek){
+        var ad=new Date(attThisWeek.class_date+'T00:00:00');
+        return{status:attThisWeek.status==='missed'?'missed':'done',date:ad};
+      }
+      var ncd=new Date(sl.next_class_date+'T00:00:00');
+      if(inRange(ncd,weekStart,weekEnd)){
+        if(ncd.getDay()!==sl.day_of_week)return{status:'rescheduled',date:ncd};
+        return{status:'upcoming',date:ncd};
+      }
+      if(ncd<weekStart){
+        var expected=new Date(weekStart);expected.setDate(expected.getDate()+sl.day_of_week);
+        return{status:'unmarked',date:expected};
+      }
+      return null; // already rolled past this week — nothing to show for this week
+    }
+
+    var slotsByDow={};
+    allSlots.forEach(function(sl){
+      var info=slotWeekInfo(sl);
+      if(!info)return;
+      var dow=info.date.getDay();
+      (slotsByDow[dow]=slotsByDow[dow]||[]).push({sl:sl,info:info});
+    });
+
     var daysGrid=div({style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(160px,1fr))',gap:'12px'}},[]);
-    var weekStart=new Date(todayD);weekStart.setDate(weekStart.getDate()-weekStart.getDay());
     for(var dow=0;dow<7;dow++){
       (function(dow){
         var colDate=new Date(weekStart);colDate.setDate(colDate.getDate()+dow);
         var isToday=colDate.getTime()===todayD.getTime();
         var col=div({cls:'card',style:{padding:'12px',minHeight:'80px',border:isToday?'1px solid var(--gold)':'1px solid var(--border)'}},[]);
         col.append(h('div',{cls:'mono',style:{fontSize:'10px',color:isToday?'var(--gold)':'var(--muted)',letterSpacing:'1px',textTransform:'uppercase',marginBottom:'10px',fontWeight:'700'}},[DOW_NAMES_BOARD[dow].slice(0,3)+' \u00b7 '+colDate.toLocaleDateString(undefined,{month:'short',day:'numeric'})]));
-        var daySlots=allSlots.filter(function(sl){return sl.day_of_week===dow;}).sort(function(a,b){return(a.class_time||'').localeCompare(b.class_time||'');});
-        if(!daySlots.length){col.append(h('div',{style:{fontSize:'11px',color:'var(--dim)'}},['\u2014']));}
-        daySlots.forEach(function(sl){
-          var st=slotStatus(sl);
+        var dayEntries=(slotsByDow[dow]||[]).sort(function(a,b){return(a.sl.class_time||'').localeCompare(b.sl.class_time||'');});
+        if(!dayEntries.length){col.append(h('div',{style:{fontSize:'11px',color:'var(--dim)'}},['\u2014']));}
+        dayEntries.forEach(function(entry){
+          var sl=entry.sl;var st=entry.info.status;
           var sty=STATUS_STYLE[st];
           var cell=div({style:{border:'1px solid '+sty.border,background:sty.bg,borderRadius:'6px',padding:'8px 10px',marginBottom:'8px',cursor:'pointer',animation:sty.blink?'dfBoardBlink 1.4s ease-in-out infinite':'none'}},[
             h('div',{style:{fontSize:'12px',color:'var(--text)',fontWeight:'600',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}},[nameById[sl.student_id]||'(unknown)']),
@@ -8963,7 +8993,7 @@ function openStudent(s){
       var nextLeftAdm=div({style:{flex:'1',minWidth:'200px'}},[]);
       nextLeftAdm.append(
         h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--gold)',letterSpacing:'1.5px',textTransform:'uppercase',marginBottom:'8px',fontWeight:'700'}},[isSlotTodayAdm?'Next Class \u00b7 Today':'Next Class']),
-        h('div',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'20px',fontWeight:'700',color:'var(--text)',marginBottom:'8px'}},[DOW_NAMES2ADM[nextSlotAdm.day_of_week]+' \u00b7 '+fmtTimeShortAdmin(nextSlotAdm.class_time)]),
+        h('div',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'20px',fontWeight:'700',color:'var(--text)',marginBottom:'8px'}},[DOW_NAMES2ADM[new Date(nextSlotAdm.next_class_date+'T00:00:00').getDay()]+' \u00b7 '+fmtTimeShortAdmin(nextSlotAdm.class_time)]),
         h('div',{style:{fontSize:'12px',color:'var(--muted)'}},[ndDateAdm.toLocaleDateString(undefined,{month:'short',day:'numeric'})])
       );
       var nextActionsAdm=div({style:{display:'flex',gap:'10px',flexWrap:'wrap'}},[]);
@@ -9312,12 +9342,12 @@ function openStudent(s){
         var topRow=div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',gap:'12px',flexWrap:'wrap'}},[]);
         var leftInfo=div({style:{flex:'1',minWidth:'220px'}},[]);
         leftInfo.append(
-          h('div',{style:{fontSize:'14px',color:'var(--text)',fontWeight:'600'}},[DOW_NAMES[slot.day_of_week]+' \u00b7 '+fmtTimeShortAdmin(slot.class_time)]),
+          h('div',{style:{fontSize:'14px',color:'var(--text)',fontWeight:'600'}},[DOW_NAMES[new Date(slot.next_class_date+'T00:00:00').getDay()]+' \u00b7 '+fmtTimeShortAdmin(slot.class_time)]),
           h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--muted)',marginTop:'2px'}},['Next class: '+new Date(slot.next_class_date+'T00:00:00').toLocaleDateString()])
         );
         var actions=div({style:{display:'flex',gap:'8px',flexShrink:'0',flexWrap:'wrap'}},[]);
         var markDoneBtn=btn('Mark Class Done','btn-teal',async function(){
-          if(!confirm('Mark the '+DOW_NAMES[slot.day_of_week]+' class ('+new Date(slot.next_class_date+'T00:00:00').toLocaleDateString()+') as done? This logs 2 hours of attendance and rolls the slot to next week.'))return;
+          if(!confirm('Mark the '+DOW_NAMES[new Date(slot.next_class_date+'T00:00:00').getDay()]+' class ('+new Date(slot.next_class_date+'T00:00:00').toLocaleDateString()+') as done? This logs 2 hours of attendance and rolls the slot to next week.'))return;
           markDoneBtn.disabled=true;
           var att=await sb.from('tutoring_class_attendance').insert({slot_id:slot.id,student_id:s.user_id,tutor_id:slot.tutor_id,class_date:slot.next_class_date,duration_hours:2,status:'attended',marked_by:S.user.id});
           if(att.error){alert('Failed: '+att.error.message);markDoneBtn.disabled=false;return;}
@@ -9330,7 +9360,7 @@ function openStudent(s){
           loadClassSlots();
         },{style:{fontSize:'10px',padding:'6px 12px'}});
         var markMissedBtn=btn('Mark Missed','btn-outline',async function(){
-          if(!confirm('Mark the '+DOW_NAMES[slot.day_of_week]+' class ('+new Date(slot.next_class_date+'T00:00:00').toLocaleDateString()+') as missed? No hours are logged, and the slot still rolls to next week.'))return;
+          if(!confirm('Mark the '+DOW_NAMES[new Date(slot.next_class_date+'T00:00:00').getDay()]+' class ('+new Date(slot.next_class_date+'T00:00:00').toLocaleDateString()+') as missed? No hours are logged, and the slot still rolls to next week.'))return;
           markMissedBtn.disabled=true;
           var att=await sb.from('tutoring_class_attendance').insert({slot_id:slot.id,student_id:s.user_id,tutor_id:slot.tutor_id,class_date:slot.next_class_date,duration_hours:0,status:'missed',marked_by:S.user.id});
           if(att.error){alert('Failed: '+att.error.message);markMissedBtn.disabled=false;return;}
