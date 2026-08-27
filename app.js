@@ -8661,10 +8661,11 @@ function renderResults(){
 
 /* ===================== STUDENTS VIEW ===================== */
 function ensureBoardBlinkStyles(){
-  if(document.getElementById('df-board-blink-style'))return;
+  var existing=document.getElementById('df-board-blink-style');
+  if(existing)existing.remove();
   var st=document.createElement('style');
   st.id='df-board-blink-style';
-  st.textContent='@keyframes dfBoardBlink{0%,100%{box-shadow:0 0 0 0 rgba(230,140,20,0.55);border-color:#e68c14;}50%{box-shadow:0 0 0 4px rgba(230,140,20,0);border-color:#ffb347;}}';
+  st.textContent='@keyframes dfBoardBlink{0%,100%{opacity:1;box-shadow:0 0 0 0 rgba(230,140,20,0.55);}50%{opacity:0.55;box-shadow:0 0 0 4px rgba(230,140,20,0);}}\n.df-board-blink{animation:dfBoardBlink 1.2s ease-in-out infinite !important;}';
   document.head.appendChild(st);
 }
 function renderScheduleBoard(){
@@ -8683,7 +8684,7 @@ function renderScheduleBoard(){
     div({style:{display:'flex',alignItems:'center',gap:'6px'}},[div({style:{width:'10px',height:'10px',borderRadius:'50%',background:'#5B8DEF',flexShrink:'0'}}),'Upcoming']),
     div({style:{display:'flex',alignItems:'center',gap:'6px'}},[div({style:{width:'10px',height:'10px',borderRadius:'50%',background:'#D9534F',flexShrink:'0'}}),'Missed']),
     div({style:{display:'flex',alignItems:'center',gap:'6px'}},[div({style:{width:'10px',height:'10px',borderRadius:'50%',background:'#E8C547',flexShrink:'0'}}),'Rescheduled']),
-    div({style:{display:'flex',alignItems:'center',gap:'6px'}},[div({style:{width:'10px',height:'10px',borderRadius:'50%',background:'#e68c14',flexShrink:'0',animation:'dfBoardBlink 1.4s ease-in-out infinite'}}),'Not marked yet'])
+    div({style:{display:'flex',alignItems:'center',gap:'6px'}},[div({cls:'df-board-blink',style:{width:'10px',height:'10px',borderRadius:'50%',background:'#e68c14',flexShrink:'0'}}),'Not marked yet'])
   ]);
   var boardWrap=div({},[]);
   tBody.append(head,legend,boardWrap);
@@ -8763,11 +8764,12 @@ function renderScheduleBoard(){
         dayEntries.forEach(function(entry){
           var sl=entry.sl;var st=entry.info.status;
           var sty=STATUS_STYLE[st];
-          var cell=div({style:{border:'1px solid '+sty.border,background:sty.bg,borderRadius:'6px',padding:'8px 10px',marginBottom:'8px',cursor:'pointer',animation:sty.blink?'dfBoardBlink 1.4s ease-in-out infinite':'none'}},[
+          var cell=div({style:{border:'1px solid '+sty.border,background:sty.bg,borderRadius:'6px',padding:'8px 10px',marginBottom:'8px',cursor:'pointer'}},[
             h('div',{style:{fontSize:'12px',color:'var(--text)',fontWeight:'600',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}},[nameById[sl.student_id]||'(unknown)']),
             h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--muted)',marginTop:'2px'}},[fmtTimeBoard(sl.class_time)]),
             h('div',{style:{fontSize:'9px',fontWeight:'700',letterSpacing:'0.5px',textTransform:'uppercase',color:sty.border,marginTop:'4px'}},[sty.label])
           ]);
+          if(sty.blink)cell.classList.add('df-board-blink');
           cell.onclick=function(){
             var enrolled={user_id:sl.student_id,full_name:nameById[sl.student_id]||'(no name)',email:''};
             sb.from('tutoring_students').select('*').eq('user_id',sl.student_id).maybeSingle().then(function(res){
