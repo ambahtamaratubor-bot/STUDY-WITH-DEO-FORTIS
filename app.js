@@ -1614,6 +1614,36 @@ function renderDashboard(){
       }
     })();
 
+    // DAILY STUDY SUMMARY BANNER — shown once, the first time they open the app on a new day
+    (async function(){
+      const goals=S.profile&&S.profile.study_goals||{};
+      const anchor=goals._dailyAnchor;
+      const curMins=(S.profile&&S.profile.total_study_minutes)||0;
+      if(anchor&&typeof anchor.minutes==='number'&&anchor.date!==today){
+        const deltaMins=Math.max(0,curMins-anchor.minutes);
+        if(deltaMins>0){
+          const hrs=Math.floor(deltaMins/60);const mins=deltaMins%60;
+          const timeStr=(hrs>0?hrs+'h ':'')+mins+'m';
+          const sinceLabel=anchor.date===(function(){var d=new Date();d.setDate(d.getDate()-1);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');})()?'yesterday':'since your last visit';
+          const summaryBanner=div({cls:'card',style:{padding:'14px 20px',marginBottom:'20px',display:'flex',alignItems:'center',justifyContent:'space-between',gap:'16px',flexWrap:'wrap'}},[]);
+          const left=div({style:{display:'flex',alignItems:'center',gap:'10px',minWidth:'0'}},[]);
+          const clockWrap=div({style:{width:'28px',height:'28px',borderRadius:'8px',background:'var(--gold-subtle)',color:'var(--gold)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:'0'}});
+          clockWrap.innerHTML=ICONS.clock;
+          left.append(clockWrap,div({},[
+            h('div',{style:{fontSize:'13px',color:'var(--text)',fontWeight:'600'}},['You studied '+timeStr+' '+sinceLabel+'.']),
+            h('div',{style:{fontSize:'11px',color:'var(--dim)',marginTop:'2px'}},['Studying somewhere else? Clock in with the Pomodoro Timer here so it counts too.'])
+          ]));
+          summaryBanner.append(left,btn('Start a Timer \u2192','btn-outline',function(){go('study');},{style:{fontSize:'10px',padding:'7px 14px',flexShrink:'0'}}));
+          content.append(summaryBanner);
+        }
+      }
+      if(!anchor||anchor.date!==today){
+        const newGoals=Object.assign({},goals,{_dailyAnchor:{date:today,minutes:curMins}});
+        const upd=await sb.from('profiles').update({study_goals:newGoals}).eq('id',S.user.id);
+        if(!upd.error&&S.profile)S.profile.study_goals=newGoals;
+      }
+    })();
+
     // NAVIGATION TILES — the entry point into each section
     const ICON_TESTS='<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="2"/><line x1="8" y1="8" x2="16" y2="8"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="8" y1="16" x2="12" y2="16"/></svg>';
     const ICON_TASKS='<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>';
@@ -2288,7 +2318,14 @@ function runQuiz(a,test,questions){
     var timeTakenSeconds=Math.round((Date.now()-examStartedAt)/1000);
     var questionTimesSeconds={};Object.keys(questionTimeMs).forEach(function(k){questionTimesSeconds[k]=Math.round(questionTimeMs[k]/1000);});
     var ins=await sb.from('tutoring_results').insert({assignment_id:a?a.id:null,test_id:test.id,student_id:S.user.id,test_title:test.title,mode:mode,score:score,total:questions.length,answers:answers,questions:questions,time_taken_seconds:timeTakenSeconds,question_times:questionTimesSeconds,answer_changes:answerChanges}).select('id').single();
-    if(!ins.error)await updateStreak();
+    if(!ins.error){
+      await updateStreak();
+      var _testMins=Math.round(timeTakenSeconds/60);
+      if(_testMins>0){
+        await sb.from('profiles').update({total_study_minutes:(S.profile?.total_study_minutes||0)+_testMins}).eq('id',S.user.id);
+        if(S.profile)S.profile.total_study_minutes=(S.profile.total_study_minutes||0)+_testMins;
+      }
+    }
     await loadData();
     var byTest={};
     (DATA.results||[]).forEach(function(rr){var key=rr.test_id;if(!byTest[key]||new Date(rr.taken_at)>new Date(byTest[key].taken_at))byTest[key]=rr;});
@@ -2588,7 +2625,14 @@ function runAssessmentQuiz(a,assessment,questions){
     var timeTakenSeconds=Math.round((Date.now()-examStartedAt)/1000);
     var questionTimesSeconds={};Object.keys(questionTimeMs).forEach(function(k){questionTimesSeconds[k]=Math.round(questionTimeMs[k]/1000);});
     var ins=await sb.from('tutoring_assessment_results').insert({assignment_id:a?a.id:null,assessment_id:assessment.id,student_id:S.user.id,assessment_title:assessment.title,mode:mode,score:score,total:questions.length,answers:answers,questions:questions,time_taken_seconds:timeTakenSeconds,question_times:questionTimesSeconds,answer_changes:answerChanges}).select('id').single();
-    if(!ins.error)await updateStreak();
+    if(!ins.error){
+      await updateStreak();
+      var _testMins=Math.round(timeTakenSeconds/60);
+      if(_testMins>0){
+        await sb.from('profiles').update({total_study_minutes:(S.profile?.total_study_minutes||0)+_testMins}).eq('id',S.user.id);
+        if(S.profile)S.profile.total_study_minutes=(S.profile.total_study_minutes||0)+_testMins;
+      }
+    }
     await loadData();
     var byAssessment1={};
     (DATA.assessResults||[]).forEach(function(rr){var key=rr.assessment_id;if(!byAssessment1[key]||new Date(rr.taken_at)>new Date(byAssessment1[key].taken_at))byAssessment1[key]=rr;});
@@ -2880,7 +2924,14 @@ function runBlockedAssessment(a,assessment,allQuestions){
     var questionTimesSeconds={};Object.keys(globalQuestionTime).forEach(function(k){questionTimesSeconds[k]=Math.round(globalQuestionTime[k]/1000);});
     var blockScores=blocks.map(function(blk,i){var c=0;blk.forEach(function(q){if(globalAnswers[q.id]===corr(q))c++;});return{block:i+1,correct:c,total:blk.length};});
     var ins=await sb.from('tutoring_assessment_results').insert({assignment_id:a?a.id:null,assessment_id:assessment.id,student_id:S.user.id,assessment_title:assessment.title,mode:assessment.mode,score:score,total:allQuestions.length,answers:globalAnswers,questions:allQuestions,time_taken_seconds:timeTakenSeconds,question_times:questionTimesSeconds,answer_changes:globalAnswerChanges,block_scores:blockScores}).select('id').single();
-    if(!ins.error)await updateStreak();
+    if(!ins.error){
+      await updateStreak();
+      var _testMins=Math.round(timeTakenSeconds/60);
+      if(_testMins>0){
+        await sb.from('profiles').update({total_study_minutes:(S.profile?.total_study_minutes||0)+_testMins}).eq('id',S.user.id);
+        if(S.profile)S.profile.total_study_minutes=(S.profile.total_study_minutes||0)+_testMins;
+      }
+    }
     await loadData();
     var byAssessment2={};
     (DATA.assessResults||[]).forEach(function(rr){var key=rr.assessment_id;if(!byAssessment2[key]||new Date(rr.taken_at)>new Date(byAssessment2[key].taken_at))byAssessment2[key]=rr;});
@@ -3194,7 +3245,7 @@ function showGoalsModal(){
   const saveMsg=div({style:{textAlign:'center',color:'var(--teal)',marginTop:'12px',fontFamily:"Inter,sans-serif",fontSize:'11px',display:'none'},html:'✓ Saved!'});
   modal.append(
     btn('Save Goals','btn-gold',async()=>{
-      const studyGoals={daily_hours:currentDaily,weekly_hours:currentWeekly};
+      const studyGoals=Object.assign({},S.profile?.study_goals||{},{daily_hours:currentDaily,weekly_hours:currentWeekly});
       const{error}=await sb.from('profiles').update({study_goals:studyGoals,topic_goals:topicGoals}).eq('id',S.user.id);
       if(!error){
         if(!S.profile)S.profile={};
@@ -5512,6 +5563,7 @@ const nav=div({cls:'dash-nav'});
 nav.append(dfLogo(),div({style:{display:'flex',gap:'8px'}},[btn('← Dashboard','btn-outline',()=>{sessionStorage.removeItem('vignette_resume');go('dashboard');},{style:{padding:'8px 16px'}}),makeThemeBtn()]));
 page.append(nav);
 let decks=[],selDeck=null,cards=[],queue=[],curIdx=0,flipped=false,prog={easy:0,iffy:0,hard:0};
+let deckSessionStartedAt=null;
 let dailyReviewActive=false;
 const LEITNER_INTERVALS={1:1,2:2,3:4,4:7,5:15};
 function leitnerNext(currentBox,rating){
@@ -5762,6 +5814,7 @@ const startBtn=btn('Start Daily Review \u2192','btn-gold',function(){
   queue=[...cards];
   curIdx=0;flipped=false;prog={easy:0,iffy:0,hard:0};
   selDeck={id:null,topic:'Daily Review'};
+  deckSessionStartedAt=Date.now();
   showCard();
 },{style:{width:'100%',marginTop:'8px'}});
 card.append(startBtn);
@@ -5861,6 +5914,7 @@ const startBtn=btn('Start Session →','btn-gold',()=>{
   flipped=false;
   prog={easy:0,iffy:0,hard:0};
   try{var _fsk2='deck_resume_'+(S.user&&S.user.id||'x');localStorage.setItem(_fsk2,JSON.stringify({deckId:selDeck.id,deckName:selDeck.topic||selDeck.name,currentIndex:1,total:cards.length,cards:cards,queue:queue,prog:prog}));}catch(e){}
+  deckSessionStartedAt=Date.now();
   showCard();
 },{style:{width:'100%',marginTop:'8px'}});
 card.append(startBtn);
@@ -5983,6 +6037,12 @@ if(!S.profile?.is_free_tier||isInTrial()){
   await sb.from('profiles').update({total_points:(S.profile?.total_points||0)+_fpts,total_anki_sessions:(S.profile?.total_anki_sessions||0)+1}).eq('id',S.user.id);
   if(S.profile)S.profile.total_points=(S.profile.total_points||0)+_fpts;
   await updateStreak();
+  var _deckMins=deckSessionStartedAt?Math.min(180,Math.max(0,Math.round((Date.now()-deckSessionStartedAt)/60000))):0;
+  if(_deckMins>0){
+    await sb.from('profiles').update({total_study_minutes:(S.profile?.total_study_minutes||0)+_deckMins}).eq('id',S.user.id);
+    if(S.profile)S.profile.total_study_minutes=(S.profile.total_study_minutes||0)+_deckMins;
+  }
+  deckSessionStartedAt=null;
 
 }
 const card=div({cls:'card fade',style:{textAlign:'center'}});
@@ -6435,6 +6495,11 @@ const ins=await sb.from('vignette_scores').insert({user_id:S.user.id,topic:selTo
 currentVignetteResultId=(ins.data&&ins.data.id)||null;
 if(S.profile?.is_free_tier!==true||isInTrial()){var _vpts=questions.length*2;await sb.from('profiles').update({total_points:(S.profile?.total_points||0)+_vpts}).eq('id',S.user.id);if(S.profile)S.profile.total_points=(S.profile.total_points||0)+_vpts;}
 await updateStreak();
+var _qbMins=Math.round(timeTakenSeconds/60);
+if(_qbMins>0){
+  await sb.from('profiles').update({total_study_minutes:(S.profile?.total_study_minutes||0)+_qbMins}).eq('id',S.user.id);
+  if(S.profile)S.profile.total_study_minutes=(S.profile.total_study_minutes||0)+_qbMins;
+}
 // Upsert question_progress for each answered question
 var progressUpserts=questions.filter(function(q){return answers[q.id]!==undefined;}).map(function(q){return{user_id:S.user.id,question_id:q.id,seen:true,answered_correctly:answers[q.id]===q.correct_answer,last_seen_at:new Date().toISOString()};});
 if(progressUpserts.length)await sb.from('question_progress').upsert(progressUpserts,{onConflict:'user_id,question_id'});
@@ -7565,6 +7630,7 @@ function modeBadgeEl(mode){return h('span',{cls:'mono',style:{fontSize:'10px',le
 
 /* ===================== LIBRARY VIEW ===================== */
 function renderLibrary(){
+  subNav.style.display='flex';
   tBody.innerHTML='';
   tBody.append(btn('+ Create New Test','btn-gold',function(){renderCreateTest();},{style:{fontSize:'12px',padding:'8px 16px',marginBottom:'16px'}}));
 
@@ -7859,6 +7925,7 @@ function mediaBadgeEl(m,onRemove){
   return b;
 }
 function renderAssessments(){
+  subNav.style.display='flex';
   tBody.innerHTML='';
   tBody.append(btn('+ Create New Assessment','btn-gold',function(){renderCreateAssessment();},{style:{fontSize:'12px',padding:'8px 16px',marginBottom:'16px'}}));
   var listWrap=div({},[]);
@@ -8573,6 +8640,7 @@ function ensureBoardBlinkStyles(){
   document.head.appendChild(st);
 }
 function renderScheduleBoard(){
+  subNav.style.display='flex';
   ensureBoardBlinkStyles();
   tBody.innerHTML='';
   var DOW_NAMES_BOARD=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
@@ -8657,6 +8725,7 @@ function renderScheduleBoard(){
 }
 
 function renderStudents(){
+  subNav.style.display='flex';
   tBody.innerHTML='';
   tBody.append(btn('+ Enroll student','btn-gold',function(){openEnroll();},{style:{fontSize:'12px',padding:'8px 16px',marginBottom:'16px'}}));
   var listWrap=div({},[]);
@@ -8791,6 +8860,7 @@ function adminSection(title,startOpen,isNew){
 
 function openStudent(s){
   window.scrollTo({top:0,behavior:'instant'});
+  subNav.style.display='none';
   tBody.innerHTML='';
   tBody.append(btn('\u2190 Back','btn-outline',function(){renderStudents();},{style:{fontSize:'11px',padding:'6px 12px',marginBottom:'16px'}}));
   var head=div({style:{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:'12px',flexWrap:'wrap',marginBottom:'16px'}},[]);
@@ -9164,6 +9234,9 @@ function openStudent(s){
           markDoneBtn.disabled=true;
           var att=await sb.from('tutoring_class_attendance').insert({slot_id:slot.id,student_id:s.user_id,tutor_id:slot.tutor_id,class_date:slot.next_class_date,duration_hours:2,status:'attended',marked_by:S.user.id});
           if(att.error){alert('Failed: '+att.error.message);markDoneBtn.disabled=false;return;}
+          var curProf=await sb.from('profiles').select('total_study_minutes').eq('id',s.user_id).maybeSingle();
+          var curMins=(curProf&&curProf.data&&curProf.data.total_study_minutes)||0;
+          await sb.from('profiles').update({total_study_minutes:curMins+120}).eq('id',s.user_id);
           var nd=new Date(slot.next_class_date+'T00:00:00');nd.setDate(nd.getDate()+7);
           var ndStr=nd.getFullYear()+'-'+String(nd.getMonth()+1).padStart(2,'0')+'-'+String(nd.getDate()).padStart(2,'0');
           await sb.from('tutoring_class_slots').update({next_class_date:ndStr}).eq('id',slot.id);
