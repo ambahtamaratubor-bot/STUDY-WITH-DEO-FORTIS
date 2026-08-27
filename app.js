@@ -1553,6 +1553,7 @@ function renderDashboard(){
     combinedResults.sort(function(a,b){return new Date(a.taken_at)-new Date(b.taken_at);});
     const avgScore=combinedResults.length?Math.round(combinedResults.reduce(function(s,r){return s+(r.total?(r.score/r.total)*100:0);},0)/combinedResults.length):0;
     const streak=(S.profile&&S.profile.streak_count)||0;
+    const today=todayStrOv();
 
     // GREETING HEADER
     const hour=new Date().getHours();
@@ -1566,6 +1567,52 @@ function renderDashboard(){
     );
 
     // (Join link now lives inside the "Next Class" hero card below — no separate join card needed.)
+
+    // STREAK RISK BANNER — warns before the streak breaks at local midnight
+    (function(){
+      const{getDayName}=streakDateHelpers();
+      const restDaysList=(S.profile&&S.profile.rest_days)||[];
+      const todayDayName=getDayName(new Date());
+      const doneToday=(S.profile&&S.profile.last_study_date)===today;
+      const isRestDay=restDaysList.includes(todayDayName);
+      if(streak<=0||doneToday||isRestDay)return;
+      const nowD=new Date();
+      const nextMidnight=new Date(nowD.getFullYear(),nowD.getMonth(),nowD.getDate()+1,0,0,0,0);
+      const msLeft=nextMidnight-nowD;
+      const urgent=msLeft<=3*60*60*1000;
+      const banner=div({cls:'card',style:{padding:'16px 20px',marginBottom:'20px',display:'flex',alignItems:'center',justifyContent:'space-between',gap:'16px',flexWrap:'wrap',borderColor:urgent?'#D9534F':'var(--gold)',background:urgent?'rgba(217,84,80,0.06)':'var(--gold-subtle)'}},[]);
+      const left=div({style:{display:'flex',alignItems:'center',gap:'12px',minWidth:'0'}},[]);
+      const flameWrap=div({style:{width:'32px',height:'32px',borderRadius:'8px',background:(urgent?'#D9534F':'var(--gold)')+'22',color:urgent?'#D9534F':'var(--gold)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:'0'}});
+      flameWrap.innerHTML=ICONS.flame;
+      const textWrap=div({},[]);
+      const titleEl=h('div',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'14px',fontWeight:'700',color:urgent?'#D9534F':'var(--text)'}},[urgent?'Your streak expires soon!':'Your streak is at risk today']);
+      const subEl=h('div',{style:{fontSize:'11px',color:'var(--dim)',marginTop:'2px'}},['Complete any activity \u2014 flashcards, Q-Bank, Feynman, a tutoring test, or a Pomodoro session \u2014 to keep your '+streak+'-day streak alive.']);
+      textWrap.append(titleEl,subEl);
+      left.append(flameWrap,textWrap);
+      const right=div({style:{display:'flex',alignItems:'center',gap:'10px',flexShrink:'0'}},[]);
+      let countdownEl=null;
+      if(urgent){
+        countdownEl=h('span',{cls:'mono',style:{fontSize:'13px',fontWeight:'700',color:'#D9534F'}},['']);
+        right.append(countdownEl);
+      }
+      right.append(btn('Set a rest day \u2192','btn-outline',function(){showRestDaysModal();},{style:{fontSize:'10px',padding:'7px 14px'}}));
+      banner.append(left,right);
+      content.append(banner);
+      if(countdownEl){
+        function paintCountdown(){
+          const now2=new Date();
+          const ms=nextMidnight-now2;
+          if(ms<=0){countdownEl.textContent='0h 0m';return;}
+          const h2=Math.floor(ms/3600000);
+          const m2=Math.floor((ms%3600000)/60000);
+          countdownEl.textContent=h2+'h '+m2+'m left';
+        }
+        paintCountdown();
+        const countdownTimer=setInterval(paintCountdown,60000);
+        window._dfStreakCountdownTimers=window._dfStreakCountdownTimers||[];
+        window._dfStreakCountdownTimers.push(countdownTimer);
+      }
+    })();
 
     // NAVIGATION TILES — the entry point into each section
     const ICON_TESTS='<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="2"/><line x1="8" y1="8" x2="16" y2="8"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="8" y1="16" x2="12" y2="16"/></svg>';
@@ -1592,7 +1639,6 @@ function renderDashboard(){
     content.append(tilesGrid);
 
     // HERO ROW — next class + today's status
-    const today=todayStrOv();
     const upcoming=[];
     DATA.assignments.forEach(function(a){if(a.due_date===today&&resultsForAssignment(a.id).length===0)upcoming.push({title:(a.tutoring_tests&&a.tutoring_tests.title)||'Test',time:a.due_time,type:'Test',onClick:function(){goTab('tests');}});});
     DATA.assessAssignments.forEach(function(a){if(a.due_date===today&&resultsForAssessAssignment(a.id).length===0)upcoming.push({title:(a.tutoring_assessments&&a.tutoring_assessments.title)||'Assessment',time:a.due_time,type:'Assessment',onClick:function(){goTab('assessments');}});});
@@ -2242,6 +2288,7 @@ function runQuiz(a,test,questions){
     var timeTakenSeconds=Math.round((Date.now()-examStartedAt)/1000);
     var questionTimesSeconds={};Object.keys(questionTimeMs).forEach(function(k){questionTimesSeconds[k]=Math.round(questionTimeMs[k]/1000);});
     var ins=await sb.from('tutoring_results').insert({assignment_id:a?a.id:null,test_id:test.id,student_id:S.user.id,test_title:test.title,mode:mode,score:score,total:questions.length,answers:answers,questions:questions,time_taken_seconds:timeTakenSeconds,question_times:questionTimesSeconds,answer_changes:answerChanges}).select('id').single();
+    if(!ins.error)await updateStreak();
     await loadData();
     var byTest={};
     (DATA.results||[]).forEach(function(rr){var key=rr.test_id;if(!byTest[key]||new Date(rr.taken_at)>new Date(byTest[key].taken_at))byTest[key]=rr;});
@@ -2541,6 +2588,7 @@ function runAssessmentQuiz(a,assessment,questions){
     var timeTakenSeconds=Math.round((Date.now()-examStartedAt)/1000);
     var questionTimesSeconds={};Object.keys(questionTimeMs).forEach(function(k){questionTimesSeconds[k]=Math.round(questionTimeMs[k]/1000);});
     var ins=await sb.from('tutoring_assessment_results').insert({assignment_id:a?a.id:null,assessment_id:assessment.id,student_id:S.user.id,assessment_title:assessment.title,mode:mode,score:score,total:questions.length,answers:answers,questions:questions,time_taken_seconds:timeTakenSeconds,question_times:questionTimesSeconds,answer_changes:answerChanges}).select('id').single();
+    if(!ins.error)await updateStreak();
     await loadData();
     var byAssessment1={};
     (DATA.assessResults||[]).forEach(function(rr){var key=rr.assessment_id;if(!byAssessment1[key]||new Date(rr.taken_at)>new Date(byAssessment1[key].taken_at))byAssessment1[key]=rr;});
@@ -2832,6 +2880,7 @@ function runBlockedAssessment(a,assessment,allQuestions){
     var questionTimesSeconds={};Object.keys(globalQuestionTime).forEach(function(k){questionTimesSeconds[k]=Math.round(globalQuestionTime[k]/1000);});
     var blockScores=blocks.map(function(blk,i){var c=0;blk.forEach(function(q){if(globalAnswers[q.id]===corr(q))c++;});return{block:i+1,correct:c,total:blk.length};});
     var ins=await sb.from('tutoring_assessment_results').insert({assignment_id:a?a.id:null,assessment_id:assessment.id,student_id:S.user.id,assessment_title:assessment.title,mode:assessment.mode,score:score,total:allQuestions.length,answers:globalAnswers,questions:allQuestions,time_taken_seconds:timeTakenSeconds,question_times:questionTimesSeconds,answer_changes:globalAnswerChanges,block_scores:blockScores}).select('id').single();
+    if(!ins.error)await updateStreak();
     await loadData();
     var byAssessment2={};
     (DATA.assessResults||[]).forEach(function(rr){var key=rr.assessment_id;if(!byAssessment2[key]||new Date(rr.taken_at)>new Date(byAssessment2[key].taken_at))byAssessment2[key]=rr;});
@@ -5933,6 +5982,7 @@ if(!S.profile?.is_free_tier||isInTrial()){
   await sb.from('anki_results').insert(_resultRow);
   await sb.from('profiles').update({total_points:(S.profile?.total_points||0)+_fpts,total_anki_sessions:(S.profile?.total_anki_sessions||0)+1}).eq('id',S.user.id);
   if(S.profile)S.profile.total_points=(S.profile.total_points||0)+_fpts;
+  await updateStreak();
 
 }
 const card=div({cls:'card fade',style:{textAlign:'center'}});
@@ -6384,6 +6434,7 @@ const questionTimesSeconds={};Object.keys(qTimeMs).forEach(function(k){questionT
 const ins=await sb.from('vignette_scores').insert({user_id:S.user.id,topic:selTopic,score,total:questions.length,mode,answers:answers,questions:questions,time_taken_seconds:timeTakenSeconds,question_times:questionTimesSeconds,answer_changes:ansChanges}).select('id').single();
 currentVignetteResultId=(ins.data&&ins.data.id)||null;
 if(S.profile?.is_free_tier!==true||isInTrial()){var _vpts=questions.length*2;await sb.from('profiles').update({total_points:(S.profile?.total_points||0)+_vpts}).eq('id',S.user.id);if(S.profile)S.profile.total_points=(S.profile.total_points||0)+_vpts;}
+await updateStreak();
 // Upsert question_progress for each answered question
 var progressUpserts=questions.filter(function(q){return answers[q.id]!==undefined;}).map(function(q){return{user_id:S.user.id,question_id:q.id,seen:true,answered_correctly:answers[q.id]===q.correct_answer,last_seen_at:new Date().toISOString()};});
 if(progressUpserts.length)await sb.from('question_progress').upsert(progressUpserts,{onConflict:'user_id,question_id'});
@@ -6573,6 +6624,7 @@ var submitBtn=btn('Submit →','btn-gold',async function(){
   submitStatus.style.display='block';submitStatus.innerHTML='Submitting...';submitStatus.style.color='var(--dim)';submitBtn.disabled=true;
   var{error}=await sb.from('feynman_submissions').insert({user_id:S.user.id,user_name:S.profile?.full_name||S.user.email,topic:topic,type:selectedType,content:content,status:'pending',week_of:getCurrentMonday(),is_king:false,points_awarded:false,student_notified:false});
   if(error){submitStatus.innerHTML='Failed to submit: '+error.message;submitStatus.style.color='#ff4444';submitBtn.disabled=false;return;}
+  await updateStreak();
   topicInput.value='';contentTextarea.value='';selectedType=null;
   explainBtn.style.background='transparent';explainBtn.style.color='var(--text)';explainBtn.style.border='1px solid var(--border)';
   riddleBtn.style.background='transparent';riddleBtn.style.color='var(--text)';riddleBtn.style.border='1px solid var(--border)';
@@ -7388,27 +7440,24 @@ content.innerHTML='';
 if(!panelIsSuperAdmin&&!panelIsTutor){content.append(h('p',{style:{textAlign:'center',padding:'40px',color:'var(--dim)',fontFamily:'Inter,sans-serif'},html:'Tutoring access has not been enabled for your account.'}));return;}
 content.append(h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'22px',marginBottom:'16px'},html:'Tutoring'}));
 
-var tSub='library';
+var tSub='students';
 var subNav=div({style:{display:'flex',gap:'8px',marginBottom:'20px',flexWrap:'wrap'}},[]);
-var libNavBtn=h('button',{cls:'btn btn-outline',style:{padding:'8px 16px',fontSize:'12px'}},['Test Library']);
 var stuNavBtn=h('button',{cls:'btn btn-outline',style:{padding:'8px 16px',fontSize:'12px'}},['Students']);
+var libNavBtn=h('button',{cls:'btn btn-outline',style:{padding:'8px 16px',fontSize:'12px'}},['Test Library']);
 var assNavBtn=h('button',{cls:'btn btn-outline',style:{padding:'8px 16px',fontSize:'12px'}},['Assessments']);
-var resNavBtn=h('button',{cls:'btn btn-outline',style:{padding:'8px 16px',fontSize:'12px'}},['Results']);
 var boardNavBtn=h('button',{cls:'btn btn-outline',style:{padding:'8px 16px',fontSize:'12px'}},['Schedule Board']);
-subNav.append(libNavBtn,stuNavBtn,assNavBtn,resNavBtn,boardNavBtn);
+subNav.append(stuNavBtn,libNavBtn,assNavBtn,boardNavBtn);
 var tBody=div({},[]);
 content.append(subNav,tBody);
 function paintSub(){
   libNavBtn.style.background=tSub==='library'?'var(--gold)':'transparent';libNavBtn.style.color=tSub==='library'?'var(--bg)':'var(--text)';
   stuNavBtn.style.background=tSub==='students'?'var(--gold)':'transparent';stuNavBtn.style.color=tSub==='students'?'var(--bg)':'var(--text)';
   assNavBtn.style.background=tSub==='assessments'?'var(--gold)':'transparent';assNavBtn.style.color=tSub==='assessments'?'var(--bg)':'var(--text)';
-  resNavBtn.style.background=tSub==='results'?'var(--gold)':'transparent';resNavBtn.style.color=tSub==='results'?'var(--bg)':'var(--text)';
   boardNavBtn.style.background=tSub==='board'?'var(--gold)':'transparent';boardNavBtn.style.color=tSub==='board'?'var(--bg)':'var(--text)';
 }
 libNavBtn.onclick=function(){tSub='library';paintSub();renderLibrary();};
 stuNavBtn.onclick=function(){tSub='students';paintSub();renderStudents();};
 assNavBtn.onclick=function(){tSub='assessments';paintSub();renderAssessments();};
-resNavBtn.onclick=function(){tSub='results';paintSub();renderResults();};
 boardNavBtn.onclick=function(){tSub='board';paintSub();renderScheduleBoard();};
 
 var tSt=div({style:{display:'none',fontSize:'12px',marginBottom:'12px',fontFamily:'Inter,sans-serif'}},[]);
@@ -7517,88 +7566,7 @@ function modeBadgeEl(mode){return h('span',{cls:'mono',style:{fontSize:'10px',le
 /* ===================== LIBRARY VIEW ===================== */
 function renderLibrary(){
   tBody.innerHTML='';
-  var tParsed=[];
-  var tMode='timed';
-  var upCard=div({cls:'card',style:{marginBottom:'24px'}},[]);
-  upCard.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'16px',marginBottom:'14px'},html:'Upload a test'}));
-  var tTitle=h('input',{cls:'input',placeholder:'Title \u2014 e.g. Block 1 \u2014 Cardiology Diagnostic',style:{width:'100%',marginBottom:'12px'}});
-  var limitWrap=div({style:{display:'block',marginBottom:'12px'}},[]);
-  var tLimit=h('input',{cls:'input',type:'number',placeholder:'Time limit (minutes)',value:'15',style:{width:'200px'}});
-  limitWrap.append(h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--muted)',marginBottom:'6px',textTransform:'uppercase',letterSpacing:'1px'},html:'Time limit'}),tLimit);
-  var modeRow=div({style:{display:'flex',gap:'8px',marginBottom:'12px'}},[]);
-  var timedBtn=h('button',{cls:'btn btn-outline',style:{padding:'8px 18px',fontSize:'12px'}},['Timed']);
-  var tutorBtn=h('button',{cls:'btn btn-outline',style:{padding:'8px 18px',fontSize:'12px'}},['Tutor']);
-  function paintMode(){timedBtn.style.background=tMode==='timed'?'var(--gold)':'transparent';timedBtn.style.color=tMode==='timed'?'var(--bg)':'var(--text)';tutorBtn.style.background=tMode==='tutor'?'var(--gold)':'transparent';tutorBtn.style.color=tMode==='tutor'?'var(--bg)':'var(--text)';limitWrap.style.display=tMode==='timed'?'block':'none';}
-  timedBtn.onclick=function(){tMode='timed';paintMode();};tutorBtn.onclick=function(){tMode='tutor';paintMode();};
-  modeRow.append(timedBtn,tutorBtn);paintMode();
-  var tFile=h('input',{type:'file',accept:'.txt',style:{display:'block',marginBottom:'8px',fontSize:'12px',color:'var(--muted)',fontFamily:'Inter,sans-serif'}});
-  var tPaste=h('textarea',{cls:'input',placeholder:'\u2026or paste questions here (Q-Bank format: stem, A\u2013Q, Answer:, Explanation:, blank line between).',style:{width:'100%',minHeight:'120px',fontFamily:'monospace',fontSize:'12px',marginBottom:'8px'}});
-  var tPreview=div({style:{marginBottom:'12px'}},[]);
-  var tMediaMap={};
-  var tOpenMediaIdx=null;
-  function renderPreview(){
-    tPreview.innerHTML='';if(!tParsed.length)return;
-    var ok=tParsed.filter(function(q){return q._ok;}).length;var bad=tParsed.length-ok;
-    tPreview.append(h('div',{style:{fontSize:'13px',color:bad?'var(--gold)':'var(--teal)',marginBottom:'12px'}},[tParsed.length+' parsed \u00b7 '+ok+' ready'+(bad?' \u00b7 '+bad+' with missing fields (skipped)':'')]));
-    tParsed.forEach(function(q,i){
-      if(!q._ok){tPreview.append(h('div',{cls:'mono',style:{fontSize:'11px',color:'var(--muted)',marginBottom:'2px'}},['Q'+(i+1)+' missing: '+q._missing.join(', ')+' \u2014 '+(q.question||'').slice(0,60)]));return;}
-      var qCard=div({cls:'card',style:{marginBottom:'10px',padding:'14px'}},[]);
-      qCard.append(div({cls:'mono',style:{fontSize:'10px',color:'var(--gold)',textTransform:'uppercase',marginBottom:'8px'}},['Question '+(i+1)]));
-      qCard.append(h('p',{style:{fontSize:'13px',color:'var(--text)',lineHeight:'1.6',marginBottom:'10px'}},[q.question]));
-      var mediaRow=div({style:{marginBottom:'8px'}},[]);
-      (tMediaMap[i]||[]).forEach(function(m,mi){
-        mediaRow.append(mediaBadgeEl(m,function(){tMediaMap[i].splice(mi,1);renderPreview();}));
-      });
-      qCard.append(mediaRow);
-      var addBtn=btn((tMediaMap[i]||[]).length>=2?'Max media reached':'+ Add media','btn-outline',function(){tOpenMediaIdx=(tOpenMediaIdx===i)?null:i;renderPreview();},{style:{fontSize:'10px',padding:'6px 12px'}});
-      if((tMediaMap[i]||[]).length>=2)addBtn.disabled=true;
-      qCard.append(addBtn);
-      if(tOpenMediaIdx===i){
-        var mForm=div({style:{marginTop:'10px',padding:'10px',border:'1px solid var(--border)',borderRadius:'4px'}},[]);
-        var typeSel=h('select',{cls:'input',style:{width:'160px',marginBottom:'8px'}},[h('option',{value:'image'},['Image']),h('option',{value:'audio'},['Audio']),h('option',{value:'youtube'},['YouTube'])]);
-        var fileInput=h('input',{type:'file',accept:'image/png,image/jpeg,image/jpg',style:{display:'block',marginBottom:'8px',fontSize:'12px',color:'var(--muted)',fontFamily:'Inter,sans-serif'}});
-        var linkInput=h('input',{cls:'input',placeholder:'YouTube link \u2014 e.g. https://youtu.be/...',style:{width:'100%',marginBottom:'8px',display:'none'}});
-        var mStatus=div({style:{fontSize:'11px',marginBottom:'8px',display:'none'}},[]);
-        function paintMediaType(){
-          var t=typeSel.value;
-          fileInput.style.display=(t==='youtube')?'none':'block';
-          fileInput.accept=(t==='audio')?'audio/mpeg,audio/wav,audio/mp4,audio/*':'image/png,image/jpeg,image/jpg';
-          linkInput.style.display=(t==='youtube')?'block':'none';
-        }
-        typeSel.onchange=paintMediaType;
-        paintMediaType();
-        var attachBtn=btn('Attach','btn-gold',async function(){
-          var t=typeSel.value;
-          if(!tMediaMap[i])tMediaMap[i]=[];
-          if(tMediaMap[i].length>=2)return;
-          if(t==='youtube'){
-            if(!linkInput.value.trim())return;
-            tMediaMap[i].push({type:'youtube',url:linkInput.value.trim()});
-            tOpenMediaIdx=null;renderPreview();
-            return;
-          }
-          if(!fileInput.files||!fileInput.files.length){mStatus.textContent='Choose a file first.';mStatus.style.color='#ff4444';mStatus.style.display='block';return;}
-          var file=fileInput.files[0];
-          attachBtn.disabled=true;mStatus.textContent='Uploading\u2026';mStatus.style.color='var(--muted)';mStatus.style.display='block';
-          var ext=(file.name.split('.').pop()||'bin').toLowerCase();
-          var path=S.user.id+'/'+Date.now()+'_'+Math.random().toString(36).slice(2)+'.'+ext;
-          var up=await sb.storage.from('assessment-media').upload(path,file,{contentType:file.type||undefined});
-          if(up.error){mStatus.textContent='Upload failed: '+up.error.message;mStatus.style.color='#ff4444';attachBtn.disabled=false;return;}
-          var pub=sb.storage.from('assessment-media').getPublicUrl(path);
-          var publicUrl=pub&&pub.data&&pub.data.publicUrl;
-          tMediaMap[i].push({type:t,url:publicUrl});
-          tOpenMediaIdx=null;renderPreview();
-        },{style:{fontSize:'11px',padding:'6px 14px'}});
-        mForm.append(typeSel,fileInput,linkInput,mStatus,attachBtn);
-        qCard.append(mForm);
-      }
-      tPreview.append(qCard);
-    });
-  }
-  var parseBtn=btn('Parse & preview','btn-outline',async function(){var text='';if(tFile.files&&tFile.files.length)text=await tFile.files[0].text();else text=tPaste.value;if(!text.trim()){tStatus('Pick a .txt file or paste questions first.','#ff4444');return;}tParsed=parseTut(text);tMediaMap={};tOpenMediaIdx=null;renderPreview();if(!tParsed.length)tStatus('No questions found \u2014 check the format.','#ff4444');else tSt.style.display='none';},{style:{fontSize:'12px',padding:'8px 16px',marginRight:'8px'}});
-  var saveBtn=btn('Save to library','btn-gold',async function(){var title=tTitle.value.trim();var ok=tParsed.filter(function(q){return q._ok;});if(!title){tStatus('Add a title first.','#ff4444');return;}if(!ok.length){tStatus('Parse a valid question set first.','#ff4444');return;}var tl=tMode==='timed'?(parseInt(tLimit.value,10)||null):null;saveBtn.disabled=true;tStatus('Saving\u2026','var(--muted)');var ins=await sb.from('tutoring_tests').insert({title:title,mode:tMode,time_limit:tl,created_by:S.user.id}).select().single();if(ins.error||!ins.data){tStatus('Could not create test: '+(ins.error&&ins.error.message||'unknown'),'#ff4444');saveBtn.disabled=false;return;}var rows=ok.map(function(q){var i=tParsed.indexOf(q);return{test_id:ins.data.id,position:i+1,topic:(q.topic&&q.topic.trim())||title,question:q.question,option_a:q.option_a,option_b:q.option_b,option_c:q.option_c,option_d:q.option_d,option_e:q.option_e,option_f:q.option_f,option_g:q.option_g,option_h:q.option_h,option_i:q.option_i,option_j:q.option_j,option_k:q.option_k,option_l:q.option_l,option_m:q.option_m,option_n:q.option_n,option_o:q.option_o,option_p:q.option_p,option_q:q.option_q,correct_answer:q.correct_answer,explanation:q.explanation,media:tMediaMap[i]||[]};});var qins=await sb.from('tutoring_questions').insert(rows);if(qins.error){tStatus('Test created, but questions failed: '+qins.error.message,'#ff4444');saveBtn.disabled=false;return;}tStatus('\u2713 Saved \u201c'+title+'\u201d \u2014 '+rows.length+' questions.','var(--teal)');tTitle.value='';tPaste.value='';tFile.value='';tParsed=[];tMediaMap={};tOpenMediaIdx=null;tPreview.innerHTML='';saveBtn.disabled=false;loadLibrary();},{style:{fontSize:'12px',padding:'8px 16px'}});
-  upCard.append(tTitle,modeRow,limitWrap,tFile,tPaste,tPreview,div({style:{display:'flex',alignItems:'center',flexWrap:'wrap'}},[parseBtn,saveBtn]),tSt);
-  tBody.append(upCard);
+  tBody.append(btn('+ Create New Test','btn-gold',function(){renderCreateTest();},{style:{fontSize:'12px',padding:'8px 16px',marginBottom:'16px'}}));
 
   var FOLDER_ICON='<svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4.2l1.8 2H19a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"/></svg>';
   var KEBAB_ICON='<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg>';
@@ -7683,7 +7651,7 @@ function renderLibrary(){
 
     libWrap.innerHTML='';
     libWrap.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'16px',marginBottom:'12px'},html:'Library ('+tests.length+')'}));
-    if(!tests.length&&!folders.length){libWrap.append(div({cls:'card',style:{textAlign:'center',padding:'30px'}},[h('p',{style:{fontSize:'13px',color:'var(--dim)'},html:'No tests yet. Upload one above.'})]));return;}
+    if(!tests.length&&!folders.length){libWrap.append(div({cls:'card',style:{textAlign:'center',padding:'30px'}},[h('p',{style:{fontSize:'13px',color:'var(--dim)'},html:'No tests yet. Use \u201c+ Create New Test\u201d above.'})]));return;}
 
     function renderTestCard(t){
       var card=div({cls:'card',style:{marginBottom:'10px',display:'flex',justifyContent:'space-between',alignItems:'center',gap:'14px',flexWrap:'wrap'}},[]);
@@ -7740,7 +7708,7 @@ function renderLibrary(){
         }}
       ]);
       if(!group.length){
-        fb.contentDiv.append(h('div',{style:{fontSize:'12px',color:'var(--dim)',padding:'10px 0'}},['No tests in this folder yet \u2014 move one in using the folder dropdown on any test below.']));
+        fb.contentDiv.append(h('div',{style:{fontSize:'12px',color:'var(--dim)',padding:'10px 0'}},['No tests in this folder yet \u2014 move one in using the folder dropdown on any test below, or pick this folder next time you create a test.']));
       }else{
         group.forEach(function(t){fb.contentDiv.append(renderTestCard(t));});
       }
@@ -7757,6 +7725,129 @@ function renderLibrary(){
   loadLibrary();
 }
 
+/* ===================== CREATE TEST (upload/parse \u2192 preview \u2192 assign, in one flow) ===================== */
+function renderCreateTest(){
+  tBody.innerHTML='';
+  tBody.append(btn('\u2190 Back to Test Library','btn-outline',function(){renderLibrary();},{style:{fontSize:'11px',padding:'6px 12px',marginBottom:'16px'}}));
+
+  var tParsed=[];
+  var tMode='timed';
+  var upCard=div({cls:'card',style:{marginBottom:'24px'}},[]);
+  upCard.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'16px',marginBottom:'14px'},html:'Upload a test'}));
+  var tTitle=h('input',{cls:'input',placeholder:'Title \u2014 e.g. Block 1 \u2014 Cardiology Diagnostic',style:{width:'100%',marginBottom:'12px'}});
+  var folderLabelRow=div({style:{display:'flex',alignItems:'center',gap:'6px',marginBottom:'6px'}},[h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--muted)',textTransform:'uppercase',letterSpacing:'1px'},html:'Folder (optional)'})]);
+  var tFolderSel=h('select',{cls:'input',style:{width:'100%',marginBottom:'12px'}},[h('option',{value:''},['No folder \u2014 leave ungrouped'])]);
+  (async function(){
+    var fRes=await sb.from('tutoring_test_folders').select('*').order('name',{ascending:true});
+    (fRes.data||[]).forEach(function(f){tFolderSel.append(h('option',{value:f.id},[f.name]));});
+  })();
+  var limitWrap=div({style:{display:'block',marginBottom:'12px'}},[]);
+  var tLimit=h('input',{cls:'input',type:'number',placeholder:'Time limit (minutes)',value:'15',style:{width:'200px'}});
+  limitWrap.append(h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--muted)',marginBottom:'6px',textTransform:'uppercase',letterSpacing:'1px'},html:'Time limit'}),tLimit);
+  var modeRow=div({style:{display:'flex',gap:'8px',marginBottom:'12px'}},[]);
+  var timedBtn=h('button',{cls:'btn btn-outline',style:{padding:'8px 18px',fontSize:'12px'}},['Timed']);
+  var tutorBtn=h('button',{cls:'btn btn-outline',style:{padding:'8px 18px',fontSize:'12px'}},['Tutor']);
+  function paintMode(){timedBtn.style.background=tMode==='timed'?'var(--gold)':'transparent';timedBtn.style.color=tMode==='timed'?'var(--bg)':'var(--text)';tutorBtn.style.background=tMode==='tutor'?'var(--gold)':'transparent';tutorBtn.style.color=tMode==='tutor'?'var(--bg)':'var(--text)';limitWrap.style.display=tMode==='timed'?'block':'none';}
+  timedBtn.onclick=function(){tMode='timed';paintMode();};tutorBtn.onclick=function(){tMode='tutor';paintMode();};
+  modeRow.append(timedBtn,tutorBtn);paintMode();
+  var tFile=h('input',{type:'file',accept:'.txt',style:{display:'block',marginBottom:'8px',fontSize:'12px',color:'var(--muted)',fontFamily:'Inter,sans-serif'}});
+  var tPaste=h('textarea',{cls:'input',placeholder:'\u2026or paste questions here (Q-Bank format: stem, A\u2013Q, Answer:, Explanation:, blank line between).',style:{width:'100%',minHeight:'120px',fontFamily:'monospace',fontSize:'12px',marginBottom:'8px'}});
+  var tPreview=div({style:{marginBottom:'12px'}},[]);
+  var tMediaMap={};
+  var tOpenMediaIdx=null;
+  function renderPreview(){
+    tPreview.innerHTML='';if(!tParsed.length)return;
+    var ok=tParsed.filter(function(q){return q._ok;}).length;var bad=tParsed.length-ok;
+    tPreview.append(h('div',{style:{fontSize:'13px',color:bad?'var(--gold)':'var(--teal)',marginBottom:'12px'}},[tParsed.length+' parsed \u00b7 '+ok+' ready'+(bad?' \u00b7 '+bad+' with missing fields (skipped)':'')]));
+    tParsed.forEach(function(q,i){
+      if(!q._ok){tPreview.append(h('div',{cls:'mono',style:{fontSize:'11px',color:'var(--muted)',marginBottom:'2px'}},['Q'+(i+1)+' missing: '+q._missing.join(', ')+' \u2014 '+(q.question||'').slice(0,60)]));return;}
+      var qCard=div({cls:'card',style:{marginBottom:'10px',padding:'14px'}},[]);
+      qCard.append(div({cls:'mono',style:{fontSize:'10px',color:'var(--gold)',textTransform:'uppercase',marginBottom:'8px'}},['Question '+(i+1)]));
+      qCard.append(h('p',{style:{fontSize:'13px',color:'var(--text)',lineHeight:'1.6',marginBottom:'10px'}},[q.question]));
+      var mediaRow=div({style:{marginBottom:'8px'}},[]);
+      (tMediaMap[i]||[]).forEach(function(m,mi){
+        mediaRow.append(mediaBadgeEl(m,function(){tMediaMap[i].splice(mi,1);renderPreview();}));
+      });
+      qCard.append(mediaRow);
+      var addBtn=btn((tMediaMap[i]||[]).length>=2?'Max media reached':'+ Add media','btn-outline',function(){tOpenMediaIdx=(tOpenMediaIdx===i)?null:i;renderPreview();},{style:{fontSize:'10px',padding:'6px 12px'}});
+      if((tMediaMap[i]||[]).length>=2)addBtn.disabled=true;
+      qCard.append(addBtn);
+      if(tOpenMediaIdx===i){
+        var mForm=div({style:{marginTop:'10px',padding:'10px',border:'1px solid var(--border)',borderRadius:'4px'}},[]);
+        var typeSel=h('select',{cls:'input',style:{width:'160px',marginBottom:'8px'}},[h('option',{value:'image'},['Image']),h('option',{value:'audio'},['Audio']),h('option',{value:'youtube'},['YouTube'])]);
+        var fileInput=h('input',{type:'file',accept:'image/png,image/jpeg,image/jpg',style:{display:'block',marginBottom:'8px',fontSize:'12px',color:'var(--muted)',fontFamily:'Inter,sans-serif'}});
+        var linkInput=h('input',{cls:'input',placeholder:'YouTube link \u2014 e.g. https://youtu.be/...',style:{width:'100%',marginBottom:'8px',display:'none'}});
+        var mStatus=div({style:{fontSize:'11px',marginBottom:'8px',display:'none'}},[]);
+        function paintMediaType(){
+          var t=typeSel.value;
+          fileInput.style.display=(t==='youtube')?'none':'block';
+          fileInput.accept=(t==='audio')?'audio/mpeg,audio/wav,audio/mp4,audio/*':'image/png,image/jpeg,image/jpg';
+          linkInput.style.display=(t==='youtube')?'block':'none';
+        }
+        typeSel.onchange=paintMediaType;
+        paintMediaType();
+        var attachBtn=btn('Attach','btn-gold',async function(){
+          var t=typeSel.value;
+          if(!tMediaMap[i])tMediaMap[i]=[];
+          if(tMediaMap[i].length>=2)return;
+          if(t==='youtube'){
+            if(!linkInput.value.trim())return;
+            tMediaMap[i].push({type:'youtube',url:linkInput.value.trim()});
+            tOpenMediaIdx=null;renderPreview();
+            return;
+          }
+          if(!fileInput.files||!fileInput.files.length){mStatus.textContent='Choose a file first.';mStatus.style.color='#ff4444';mStatus.style.display='block';return;}
+          var file=fileInput.files[0];
+          attachBtn.disabled=true;mStatus.textContent='Uploading\u2026';mStatus.style.color='var(--muted)';mStatus.style.display='block';
+          var ext=(file.name.split('.').pop()||'bin').toLowerCase();
+          var path=S.user.id+'/'+Date.now()+'_'+Math.random().toString(36).slice(2)+'.'+ext;
+          var up=await sb.storage.from('assessment-media').upload(path,file,{contentType:file.type||undefined});
+          if(up.error){mStatus.textContent='Upload failed: '+up.error.message;mStatus.style.color='#ff4444';attachBtn.disabled=false;return;}
+          var pub=sb.storage.from('assessment-media').getPublicUrl(path);
+          var publicUrl=pub&&pub.data&&pub.data.publicUrl;
+          tMediaMap[i].push({type:t,url:publicUrl});
+          tOpenMediaIdx=null;renderPreview();
+        },{style:{fontSize:'11px',padding:'6px 14px'}});
+        mForm.append(typeSel,fileInput,linkInput,mStatus,attachBtn);
+        qCard.append(mForm);
+      }
+      tPreview.append(qCard);
+    });
+  }
+  var parseBtn=btn('Parse & preview','btn-outline',async function(){var text='';if(tFile.files&&tFile.files.length)text=await tFile.files[0].text();else text=tPaste.value;if(!text.trim()){tStatus('Pick a .txt file or paste questions first.','#ff4444');return;}tParsed=parseTut(text);tMediaMap={};tOpenMediaIdx=null;renderPreview();if(!tParsed.length)tStatus('No questions found \u2014 check the format.','#ff4444');else tSt.style.display='none';},{style:{fontSize:'12px',padding:'8px 16px',marginRight:'8px'}});
+  var resultPanel=div({style:{display:'none'}},[]);
+  var saveBtn=btn('Save to library','btn-gold',async function(){
+    var title=tTitle.value.trim();var ok=tParsed.filter(function(q){return q._ok;});
+    if(!title){tStatus('Add a title first.','#ff4444');return;}
+    if(!ok.length){tStatus('Parse a valid question set first.','#ff4444');return;}
+    var tl=tMode==='timed'?(parseInt(tLimit.value,10)||null):null;
+    saveBtn.disabled=true;tStatus('Saving\u2026','var(--muted)');
+    var ins=await sb.from('tutoring_tests').insert({title:title,mode:tMode,time_limit:tl,folder_id:tFolderSel.value||null,created_by:S.user.id}).select().single();
+    if(ins.error||!ins.data){tStatus('Could not create test: '+(ins.error&&ins.error.message||'unknown'),'#ff4444');saveBtn.disabled=false;return;}
+    var rows=ok.map(function(q){var i=tParsed.indexOf(q);return{test_id:ins.data.id,position:i+1,topic:(q.topic&&q.topic.trim())||title,question:q.question,option_a:q.option_a,option_b:q.option_b,option_c:q.option_c,option_d:q.option_d,option_e:q.option_e,option_f:q.option_f,option_g:q.option_g,option_h:q.option_h,option_i:q.option_i,option_j:q.option_j,option_k:q.option_k,option_l:q.option_l,option_m:q.option_m,option_n:q.option_n,option_o:q.option_o,option_p:q.option_p,option_q:q.option_q,correct_answer:q.correct_answer,explanation:q.explanation,media:tMediaMap[i]||[]};});
+    var qins=await sb.from('tutoring_questions').insert(rows);
+    if(qins.error){tStatus('Test created, but questions failed: '+qins.error.message,'#ff4444');saveBtn.disabled=false;return;}
+    var createdTest=ins.data;
+    var folderName=tFolderSel.value?(tFolderSel.options[tFolderSel.selectedIndex].textContent):null;
+    upCard.style.display='none';
+    resultPanel.innerHTML='';
+    resultPanel.style.display='block';
+    resultPanel.append(div({cls:'card',style:{padding:'28px',textAlign:'center'}},[
+      h('div',{style:{fontSize:'32px',marginBottom:'10px',color:'var(--teal)'}},['\u2713']),
+      h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'18px',marginBottom:'6px'}},['\u201c'+title+'\u201d created']),
+      h('p',{cls:'muted',style:{fontSize:'12px',marginBottom:'20px'}},[rows.length+' questions'+(folderName?' \u00b7 saved in '+folderName:' \u00b7 ungrouped')+'. Preview it or assign it to students right now, or come back to it later from the library.']),
+      div({style:{display:'flex',gap:'10px',justifyContent:'center',flexWrap:'wrap'}},[
+        btn('Preview','btn-outline',function(){openLibraryPreview('test',createdTest);},{style:{fontSize:'12px',padding:'9px 18px'}}),
+        btn('Assign to Students','btn-gold',function(){openAssign({testId:createdTest.id,testTitle:createdTest.title});},{style:{fontSize:'12px',padding:'9px 18px'}}),
+        btn('+ Create Another Test','btn-outline',function(){renderCreateTest();},{style:{fontSize:'12px',padding:'9px 18px'}}),
+        btn('Done \u2014 Back to Library','btn-outline',function(){renderLibrary();},{style:{fontSize:'12px',padding:'9px 18px'}})
+      ])
+    ]));
+  },{style:{fontSize:'12px',padding:'8px 16px'}});
+  upCard.append(tTitle,folderLabelRow,tFolderSel,modeRow,limitWrap,tFile,tPaste,tPreview,div({style:{display:'flex',alignItems:'center',flexWrap:'wrap'}},[parseBtn,saveBtn]),tSt);
+  tBody.append(upCard,resultPanel);
+}
+
 /* ===================== ASSESSMENTS VIEW ===================== */
 function mediaBadgeEl(m,onRemove){
   var icon=m.type==='image'?'IMG':m.type==='audio'?'AUD':'YT';
@@ -7769,12 +7860,57 @@ function mediaBadgeEl(m,onRemove){
 }
 function renderAssessments(){
   tBody.innerHTML='';
+  tBody.append(btn('+ Create New Assessment','btn-gold',function(){renderCreateAssessment();},{style:{fontSize:'12px',padding:'8px 16px',marginBottom:'16px'}}));
+  var listWrap=div({},[]);
+  tBody.append(listWrap);
+  async function loadAssessments(){
+    listWrap.innerHTML='';listWrap.append(skelCard([['40%'],['80%']]));
+    var a=await sb.from('tutoring_assessments').select('*').order('created_at',{ascending:false});
+    var assessments=a.data||[];var counts={};
+    if(assessments.length){var ids=assessments.map(function(x){return x.id;});var qc=await sb.from('tutoring_assessment_questions').select('assessment_id').in('assessment_id',ids);(qc.data||[]).forEach(function(r){counts[r.assessment_id]=(counts[r.assessment_id]||0)+1;});}
+    listWrap.innerHTML='';
+    listWrap.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'16px',marginBottom:'12px'},html:'Assessments ('+assessments.length+')'}));
+    if(!assessments.length){listWrap.append(div({cls:'card',style:{textAlign:'center',padding:'30px'}},[h('p',{style:{fontSize:'13px',color:'var(--dim)'},html:'No assessments yet. Use \u201c+ Create New Assessment\u201d above.'})]));return;}
+    assessments.forEach(function(a){
+      var card=div({cls:'card',style:{marginBottom:'10px',display:'flex',justifyContent:'space-between',alignItems:'center',gap:'14px',flexWrap:'wrap'}},[]);
+      var statusPillEl=h('span',{cls:'mono',style:{fontSize:'10px',letterSpacing:'1px',textTransform:'uppercase',color:a.published?'var(--teal)':'var(--gold)',border:'1px solid '+(a.published?'rgba(126,173,168,0.4)':'var(--border)'),borderRadius:'999px',padding:'3px 9px',marginRight:'8px'}},[a.published?'Published':'Draft']);
+      var qCount=counts[a.id]||0;
+      var blockInfo=a.block_size?(' \u00b7 '+Math.ceil(qCount/a.block_size)+' blocks of '+a.block_size+(a.break_minutes?' \u00b7 '+a.break_minutes+' min break':'')):'';
+      card.append(div({style:{flex:'1',minWidth:'220px'}},[div({style:{display:'flex',alignItems:'center',marginBottom:'6px',flexWrap:'wrap'}},[statusPillEl,modeBadgeEl(a.mode),h('span',{style:{fontFamily:'Georgia,serif',fontSize:'17px',color:'var(--text)'}},[a.title])]),h('div',{cls:'mono',style:{fontSize:'11px',color:'var(--muted)'}},[qCount+' questions'+(a.mode==='timed'&&a.time_limit?' \u00b7 '+a.time_limit+' min'+(a.block_size?'/block':''):'')+blockInfo+' \u00b7 '+new Date(a.created_at).toLocaleDateString()])]));
+      var btns=div({style:{display:'flex',gap:'6px',flexShrink:'0'}},[]);
+      if(!a.published){
+        btns.append(btn('Edit','btn-outline',function(){renderCreateAssessment({editId:a.id});},{style:{fontSize:'10px',padding:'6px 12px'}}));
+        btns.append(btn('Publish','btn-outline',async function(){var up=await sb.from('tutoring_assessments').update({published:true}).eq('id',a.id);if(up&&up.error){alert('Failed: '+up.error.message);return;}loadAssessments();},{style:{fontSize:'10px',padding:'6px 12px'}}));
+      }else{
+        btns.append(btn('Unpublish','btn-outline',async function(){
+          if(!confirm('Unpublish \u201c'+a.title+'\u201d? It moves back to Draft so you can edit it. Existing assignments and past results are unaffected.'))return;
+          var up=await sb.from('tutoring_assessments').update({published:false}).eq('id',a.id);
+          if(up&&up.error){alert('Failed: '+up.error.message);return;}
+          loadAssessments();
+        },{style:{fontSize:'10px',padding:'6px 12px'}}));
+      }
+      btns.append(btn('Preview','btn-outline',function(){openLibraryPreview('assessment',a);},{style:{fontSize:'10px',padding:'6px 12px'}}));
+      btns.append(btn('Assign','btn-gold',function(){openAssignAssessment({assessmentId:a.id,assessmentTitle:a.title});},{style:{fontSize:'10px',padding:'6px 12px'}}));
+      btns.append(btn('Delete','btn-outline',async function(){if(!confirm('Delete \u201c'+a.title+'\u201d? Its questions and any current assignments are removed. Past results are preserved.'))return;var d=await sb.from('tutoring_assessments').delete().eq('id',a.id);if(d&&d.error){alert('Delete failed: '+d.error.message);return;}loadAssessments();},{style:{fontSize:'10px',padding:'6px 12px',color:'#ff4444',borderColor:'#ff4444'}}));
+      card.append(btns);
+      listWrap.append(card);
+    });
+  }
+  loadAssessments();
+}
+
+/* ===================== CREATE / EDIT ASSESSMENT (upload/parse \u2192 preview \u2192 assign, in one flow) ===================== */
+function renderCreateAssessment(opts){
+  opts=opts||{};
+  tBody.innerHTML='';
+  tBody.append(btn('\u2190 Back to Assessments','btn-outline',function(){renderAssessments();},{style:{fontSize:'11px',padding:'6px 12px',marginBottom:'16px'}}));
+
   var aParsed=[];
   var aMode='timed';
   var aMediaMap={};
   var aTopicMap={};
   var openMediaIdx=null;
-  var editingAssessmentId=null;
+  var editingAssessmentId=opts.editId||null;
   function fieldHint(text){
     return h('span',{title:text,style:{display:'inline-flex',alignItems:'center',justifyContent:'center',width:'14px',height:'14px',borderRadius:'50%',border:'1px solid var(--dim)',color:'var(--dim)',fontSize:'9px',fontFamily:'Inter,sans-serif',lineHeight:'1',cursor:'help',flexShrink:'0'}},['?']);
   }
@@ -7867,9 +8003,9 @@ function renderAssessments(){
       var qCard=div({cls:'card',style:{marginBottom:'10px',padding:'14px'}},[]);
       var qTopHeader=div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'8px',flexWrap:'wrap',gap:'8px'}},[]);
       qTopHeader.append(div({cls:'mono',style:{fontSize:'10px',color:'var(--gold)',textTransform:'uppercase'}},['Question '+(i+1)]));
-      var topicInput=h('input',{cls:'input',placeholder:'Topic',value:aTopicMap[i]||'General',style:{width:'160px',fontSize:'11px',padding:'6px 10px'}});
-      topicInput.oninput=function(){aTopicMap[i]=topicInput.value.trim()||'General';};
-      qTopHeader.append(topicInput);
+      var topicInp=h('input',{cls:'input',placeholder:'Topic',value:aTopicMap[i]||'',style:{width:'160px',fontSize:'11px',padding:'5px 8px'}});
+      topicInp.oninput=function(){aTopicMap[i]=topicInp.value;};
+      qTopHeader.append(topicInp);
       qCard.append(qTopHeader);
       qCard.append(h('p',{style:{fontSize:'13px',color:'var(--text)',lineHeight:'1.6',marginBottom:'10px'}},[q.question]));
       var mediaRow=div({style:{marginBottom:'8px'}},[]);
@@ -7923,6 +8059,24 @@ function renderAssessments(){
     });
   }
 
+  var resultPanel=div({style:{display:'none'}},[]);
+  function showResultPanel(title,rows,createdOrUpdatedAssessment,isUpdate){
+    upCard.style.display='none';
+    resultPanel.innerHTML='';
+    resultPanel.style.display='block';
+    resultPanel.append(div({cls:'card',style:{padding:'28px',textAlign:'center'}},[
+      h('div',{style:{fontSize:'32px',marginBottom:'10px',color:'var(--teal)'}},['\u2713']),
+      h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'18px',marginBottom:'6px'}},[isUpdate?'\u201c'+title+'\u201d updated':'\u201c'+title+'\u201d created as draft']),
+      h('p',{cls:'muted',style:{fontSize:'12px',marginBottom:'20px'}},[rows.length+' questions. Preview it or assign it to students right now, or come back to it later.']),
+      div({style:{display:'flex',gap:'10px',justifyContent:'center',flexWrap:'wrap'}},[
+        btn('Preview','btn-outline',function(){openLibraryPreview('assessment',createdOrUpdatedAssessment);},{style:{fontSize:'12px',padding:'9px 18px'}}),
+        btn('Assign to Students','btn-gold',function(){openAssignAssessment({assessmentId:createdOrUpdatedAssessment.id,assessmentTitle:createdOrUpdatedAssessment.title});},{style:{fontSize:'12px',padding:'9px 18px'}}),
+        btn('+ Create Another Assessment','btn-outline',function(){renderCreateAssessment();},{style:{fontSize:'12px',padding:'9px 18px'}}),
+        btn('Done \u2014 Back to Assessments','btn-outline',function(){renderAssessments();},{style:{fontSize:'12px',padding:'9px 18px'}})
+      ])
+    ]));
+  }
+
   var parseBtn=btn('Parse & preview','btn-outline',async function(){
     var text='';if(aFile.files&&aFile.files.length)text=await aFile.files[0].text();else text=aPaste.value;
     if(!text.trim()){aStatus('Pick a .txt file or paste questions first.','#ff4444');return;}
@@ -7939,8 +8093,8 @@ function renderAssessments(){
     if(!newQs.length)aStatus('No questions found \u2014 check the format.','#ff4444');
     else aSt.style.display='none';
   },{style:{fontSize:'12px',padding:'8px 16px',marginRight:'8px'}});
-  var cancelEditBtn=btn('Cancel edit','btn-outline',function(){resetForm();},{style:{fontSize:'12px',padding:'8px 16px',display:'none'}});
-  var saveBtn=btn('Save as draft','btn-gold',async function(){
+  var cancelEditBtn=btn('Cancel edit','btn-outline',function(){renderAssessments();},{style:{fontSize:'12px',padding:'8px 16px',display:editingAssessmentId?'inline-block':'none'}});
+  var saveBtn=btn(editingAssessmentId?'Save changes':'Save as draft','btn-gold',async function(){
     var title=aTitle.value.trim();
     var ok=aParsed.filter(function(q){return q._ok;});
     if(!title){aStatus('Add a title first.','#ff4444');return;}
@@ -7958,8 +8112,8 @@ function renderAssessments(){
       var rowsU=ok.map(function(q){var i=aParsed.indexOf(q);return{assessment_id:editingAssessmentId,position:i+1,question:q.question,option_a:q.option_a,option_b:q.option_b,option_c:q.option_c,option_d:q.option_d,option_e:q.option_e,option_f:q.option_f,option_g:q.option_g,option_h:q.option_h,option_i:q.option_i,option_j:q.option_j,option_k:q.option_k,option_l:q.option_l,option_m:q.option_m,option_n:q.option_n,option_o:q.option_o,option_p:q.option_p,option_q:q.option_q,correct_answer:q.correct_answer,explanation:q.explanation,media:aMediaMap[i]||[],topic:aTopicMap[i]||'General'};});
       var qinsU=await sb.from('tutoring_assessment_questions').insert(rowsU);
       if(qinsU.error){aStatus('Assessment updated, but questions failed to save: '+qinsU.error.message,'#ff4444');saveBtn.disabled=false;return;}
-      aStatus('\u2713 Saved changes to \u201c'+title+'\u201d \u2014 '+rowsU.length+' questions.','var(--teal)');
-      resetForm();saveBtn.disabled=false;loadAssessments();
+      showResultPanel(title,rowsU,{id:editingAssessmentId,title:title},true);
+      saveBtn.disabled=false;
       return;
     }
     aStatus('Saving\u2026','var(--muted)');
@@ -7968,87 +8122,40 @@ function renderAssessments(){
     var rows=ok.map(function(q){var i=aParsed.indexOf(q);return{assessment_id:ins.data.id,position:i+1,question:q.question,option_a:q.option_a,option_b:q.option_b,option_c:q.option_c,option_d:q.option_d,option_e:q.option_e,option_f:q.option_f,option_g:q.option_g,option_h:q.option_h,option_i:q.option_i,option_j:q.option_j,option_k:q.option_k,option_l:q.option_l,option_m:q.option_m,option_n:q.option_n,option_o:q.option_o,option_p:q.option_p,option_q:q.option_q,correct_answer:q.correct_answer,explanation:q.explanation,media:aMediaMap[i]||[],topic:aTopicMap[i]||'General'};});
     var qins=await sb.from('tutoring_assessment_questions').insert(rows);
     if(qins.error){aStatus('Assessment created, but questions failed: '+qins.error.message,'#ff4444');saveBtn.disabled=false;return;}
-    aStatus('\u2713 Saved \u201c'+title+'\u201d as draft \u2014 '+rows.length+' questions.','var(--teal)');
-    resetForm();saveBtn.disabled=false;loadAssessments();
+    showResultPanel(title,rows,ins.data,false);
+    saveBtn.disabled=false;
   },{style:{fontSize:'12px',padding:'8px 16px'}});
 
-  function resetForm(){
-    editingAssessmentId=null;
-    upCardHeading.textContent='Create an assessment';
-    saveBtn.textContent='Save as draft';
-    cancelEditBtn.style.display='none';
-    aTitle.value='';aPaste.value='';aFile.value='';aParsed=[];aMediaMap={};aTopicMap={};aPreview.innerHTML='';
-    aMode='timed';paintAMode();
-    aUseBlocks=false;aBlockSize.value='40';aBreak.value='10';paintBlockToggle();
-    aShuffle=false;paintAShuffle();
-    aLimit.value='60';
-  }
-
-  async function startEditAssessment(a){
-    var qr=await sb.from('tutoring_assessment_questions').select('*').eq('assessment_id',a.id).order('position',{ascending:true});
-    var existing=qr.data||[];
-    editingAssessmentId=a.id;
-    upCardHeading.textContent='Editing \u201c'+a.title+'\u201d';
-    saveBtn.textContent='Save changes';
-    cancelEditBtn.style.display='inline-block';
-    aTitle.value=a.title||'';
-    aMode=a.mode||'timed';paintAMode();
-    aLimit.value=a.time_limit||60;
-    aUseBlocks=!!a.block_size;paintBlockToggle();
-    aBlockSize.value=a.block_size||40;
-    aBreak.value=a.break_minutes||10;
-    aShuffle=!!a.shuffle_questions;paintAShuffle();
-    aParsed=existing.map(function(q){return Object.assign({},q,{_ok:true,_missing:[]});});
-    aTopicMap={};aMediaMap={};
-    aParsed.forEach(function(q,i){
-      if(q.topic)aTopicMap[i]=q.topic;
-      var m=q.media;if(typeof m==='string'){try{m=JSON.parse(m);}catch(e){m=[];}}
-      if(m&&m.length)aMediaMap[i]=m;
-    });
-    openMediaIdx=null;renderAPreview();
-    aSt.style.display='none';
-    upCard.scrollIntoView({behavior:'smooth',block:'start'});
-  }
-
   upCard.append(aTitleLabelRow,aTitle,aModeLabelRow,aModeRow,aLimitWrap,aBlockToggleRow,aBlockWrap,aShuffleRow,aFileLabelRow,aFile,aPasteLabelRow,aPaste,aPreview,div({style:{display:'flex',alignItems:'center',flexWrap:'wrap',gap:'8px'}},[parseBtn,saveBtn,cancelEditBtn]),aSt);
-  tBody.append(upCard);
+  tBody.append(upCard,resultPanel);
 
-  var listWrap=div({},[]);
-  tBody.append(listWrap);
-  async function loadAssessments(){
-    listWrap.innerHTML='';listWrap.append(skelCard([['40%'],['80%']]));
-    var a=await sb.from('tutoring_assessments').select('*').order('created_at',{ascending:false});
-    var assessments=a.data||[];var counts={};
-    if(assessments.length){var ids=assessments.map(function(x){return x.id;});var qc=await sb.from('tutoring_assessment_questions').select('assessment_id').in('assessment_id',ids);(qc.data||[]).forEach(function(r){counts[r.assessment_id]=(counts[r.assessment_id]||0)+1;});}
-    listWrap.innerHTML='';
-    listWrap.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'16px',marginBottom:'12px'},html:'Assessments ('+assessments.length+')'}));
-    if(!assessments.length){listWrap.append(div({cls:'card',style:{textAlign:'center',padding:'30px'}},[h('p',{style:{fontSize:'13px',color:'var(--dim)'},html:'No assessments yet. Create one above.'})]));return;}
-    assessments.forEach(function(a){
-      var card=div({cls:'card',style:{marginBottom:'10px',display:'flex',justifyContent:'space-between',alignItems:'center',gap:'14px',flexWrap:'wrap'}},[]);
-      var statusPillEl=h('span',{cls:'mono',style:{fontSize:'10px',letterSpacing:'1px',textTransform:'uppercase',color:a.published?'var(--teal)':'var(--gold)',border:'1px solid '+(a.published?'rgba(126,173,168,0.4)':'var(--border)'),borderRadius:'999px',padding:'3px 9px',marginRight:'8px'}},[a.published?'Published':'Draft']);
-      var qCount=counts[a.id]||0;
-      var blockInfo=a.block_size?(' \u00b7 '+Math.ceil(qCount/a.block_size)+' blocks of '+a.block_size+(a.break_minutes?' \u00b7 '+a.break_minutes+' min break':'')):'';
-      card.append(div({style:{flex:'1',minWidth:'220px'}},[div({style:{display:'flex',alignItems:'center',marginBottom:'6px',flexWrap:'wrap'}},[statusPillEl,modeBadgeEl(a.mode),h('span',{style:{fontFamily:'Georgia,serif',fontSize:'17px',color:'var(--text)'}},[a.title])]),h('div',{cls:'mono',style:{fontSize:'11px',color:'var(--muted)'}},[qCount+' questions'+(a.mode==='timed'&&a.time_limit?' \u00b7 '+a.time_limit+' min'+(a.block_size?'/block':''):'')+blockInfo+' \u00b7 '+new Date(a.created_at).toLocaleDateString()])]));
-      var btns=div({style:{display:'flex',gap:'6px',flexShrink:'0'}},[]);
-      if(!a.published){
-        btns.append(btn('Edit','btn-outline',function(){startEditAssessment(a);},{style:{fontSize:'10px',padding:'6px 12px'}}));
-        btns.append(btn('Publish','btn-outline',async function(){var up=await sb.from('tutoring_assessments').update({published:true}).eq('id',a.id);if(up&&up.error){alert('Failed: '+up.error.message);return;}loadAssessments();},{style:{fontSize:'10px',padding:'6px 12px'}}));
-      }else{
-        btns.append(btn('Unpublish','btn-outline',async function(){
-          if(!confirm('Unpublish \u201c'+a.title+'\u201d? It moves back to Draft so you can edit it. Existing assignments and past results are unaffected.'))return;
-          var up=await sb.from('tutoring_assessments').update({published:false}).eq('id',a.id);
-          if(up&&up.error){alert('Failed: '+up.error.message);return;}
-          loadAssessments();
-        },{style:{fontSize:'10px',padding:'6px 12px'}}));
-      }
-      btns.append(btn('Preview','btn-outline',function(){openLibraryPreview('assessment',a);},{style:{fontSize:'10px',padding:'6px 12px'}}));
-      btns.append(btn('Assign','btn-gold',function(){openAssignAssessment({assessmentId:a.id,assessmentTitle:a.title});},{style:{fontSize:'10px',padding:'6px 12px'}}));
-      btns.append(btn('Delete','btn-outline',async function(){if(!confirm('Delete \u201c'+a.title+'\u201d? Its questions and any current assignments are removed. Past results are preserved.'))return;var d=await sb.from('tutoring_assessments').delete().eq('id',a.id);if(d&&d.error){alert('Delete failed: '+d.error.message);return;}loadAssessments();},{style:{fontSize:'10px',padding:'6px 12px',color:'#ff4444',borderColor:'#ff4444'}}));
-      card.append(btns);
-      listWrap.append(card);
-    });
+  if(editingAssessmentId){
+    (async function(){
+      upCardHeading.innerHTML='Loading assessment\u2026';
+      var aRow=await sb.from('tutoring_assessments').select('*').eq('id',editingAssessmentId).single();
+      if(aRow.error||!aRow.data){upCardHeading.innerHTML='Could not load assessment.';return;}
+      var a=aRow.data;
+      var qr=await sb.from('tutoring_assessment_questions').select('*').eq('assessment_id',a.id).order('position',{ascending:true});
+      var existing=qr.data||[];
+      upCardHeading.textContent='Editing \u201c'+a.title+'\u201d';
+      cancelEditBtn.style.display='inline-block';
+      aTitle.value=a.title||'';
+      aMode=a.mode||'timed';paintAMode();
+      aLimit.value=a.time_limit||60;
+      aUseBlocks=!!a.block_size;paintBlockToggle();
+      aBlockSize.value=a.block_size||40;
+      aBreak.value=a.break_minutes||10;
+      aShuffle=!!a.shuffle_questions;paintAShuffle();
+      aParsed=existing.map(function(q){return Object.assign({},q,{_ok:true,_missing:[]});});
+      aTopicMap={};aMediaMap={};
+      aParsed.forEach(function(q,i){
+        if(q.topic)aTopicMap[i]=q.topic;
+        var m=q.media;if(typeof m==='string'){try{m=JSON.parse(m);}catch(e){m=[];}}
+        if(m&&m.length)aMediaMap[i]=m;
+      });
+      openMediaIdx=null;renderAPreview();
+    })();
   }
-  loadAssessments();
 }
 
 /* ===================== ASSIGN ASSESSMENT PANEL ===================== */
@@ -8804,7 +8911,9 @@ function openStudent(s){
       statCardV2Adm(ICONS.file,'#8B7FD4','Tests Completed',taken,'Keep it up!'),
       statCardV2Adm(ICONS.target,'#E08A3C','Assessments Completed',assessResults.length,assessResults.length?null:'Not started yet'),
       statCardV2Adm(ICONS.star,'#B8922E','Avg. Test Score',combinedResultsAdm.length?avgScoreAdm+'%':'\u2014',null),
-      statCardV2Adm(ICONS.flame,'#D9534F','Study Streak',streakAdm+' day'+(streakAdm===1?'':'s'),streakAdm?null:'No streak yet')
+      statCardV2Adm(ICONS.flame,'#D9534F','Study Streak',streakAdm+' day'+(streakAdm===1?'':'s'),streakAdm?null:'No streak yet'),
+      statCardV2Adm(ICONS.puzzle,'#5B8DEF','Q-Bank Quizzes',qbankResults.length,qbankResults.length?null:'None yet'),
+      statCardV2Adm(ICONS.pencil,'#C25450','Tasks Open',openCount,openCount?'Needs attention':'All clear')
     );
     body.append(statsGridAdm);
 
@@ -8847,15 +8956,24 @@ function openStudent(s){
     // RECENT ACTIVITY
     var recentCardAdm=div({cls:'card',style:{padding:'20px',marginBottom:'16px'}},[]);
     recentCardAdm.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'15px',marginBottom:'14px'}},['Recent Activity']));
-    var recentItemsAdm=combinedResultsAdm.slice().reverse().slice(0,5).map(function(r){var pct=r.total?Math.round((r.score/r.total)*100):0;return{title:r._title||'Untitled',date:r.taken_at,pct:pct,kind:r._kind};});
+    var recentItemsAdm=combinedResultsAdm.slice().reverse().slice(0,5).map(function(r){var pct=r.total?Math.round((r.score/r.total)*100):0;return{raw:r,title:r._title||'Untitled',date:r.taken_at,pct:pct,kind:r._kind};});
     if(!recentItemsAdm.length){recentCardAdm.append(h('p',{style:{fontSize:'12px',color:'var(--dim)'},html:'Nothing completed yet.'}));}
     else recentItemsAdm.forEach(function(it){
       var dotColor=it.pct>=70?'#7EB8A4':it.pct>=40?'#E08A3C':'#D9534F';
       var row=div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'10px 0',borderBottom:'1px solid var(--border)',gap:'10px',flexWrap:'wrap'}},[]);
       row.append(
-        div({style:{display:'flex',alignItems:'center',gap:'10px',minWidth:'0'}},[div({style:{width:'8px',height:'8px',borderRadius:'50%',background:dotColor,flexShrink:'0'}}),div({},[h('div',{style:{fontSize:'13px',color:'var(--text)'}},[it.title]),h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--dim)',marginTop:'2px'}},[(it.date?new Date(it.date).toLocaleDateString():'')+' \u00b7 '+it.kind+' Completed'])])]),
-        h('span',{style:{fontFamily:'Inter,sans-serif',fontSize:'13px',fontWeight:'700',color:dotColor}},[it.pct+'%'])
+        div({style:{display:'flex',alignItems:'center',gap:'10px',minWidth:'0'}},[div({style:{width:'8px',height:'8px',borderRadius:'50%',background:dotColor,flexShrink:'0'}}),div({},[h('div',{style:{fontSize:'13px',color:'var(--text)'}},[it.title]),h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--dim)',marginTop:'2px'}},[(it.date?new Date(it.date).toLocaleDateString():'')+' \u00b7 '+it.kind+' Completed'])])])
       );
+      var rightAdm=div({style:{display:'flex',alignItems:'center',gap:'8px',flexShrink:'0'}},[]);
+      rightAdm.append(h('span',{style:{fontFamily:'Inter,sans-serif',fontSize:'13px',fontWeight:'700',color:dotColor}},[it.pct+'%']));
+      if(it.kind==='Test'){
+        rightAdm.append(btn('Score Report','btn-outline',function(){openAdminScoreReport(it.raw,'test',s.full_name);},{style:{fontSize:'9px',padding:'5px 10px'}}));
+        rightAdm.append(btn('Review','btn-outline',function(){showAdminReview(it.raw);},{style:{fontSize:'9px',padding:'5px 10px'}}));
+      }else{
+        rightAdm.append(btn('Score Report','btn-outline',function(){openAdminScoreReport(it.raw,'assessment',s.full_name);},{style:{fontSize:'9px',padding:'5px 10px'}}));
+        rightAdm.append(btn('Review','btn-outline',function(){openAdminResultReview(it.raw,{studentName:s.full_name});},{style:{fontSize:'9px',padding:'5px 10px'}}));
+      }
+      row.append(rightAdm);
       recentCardAdm.append(row);
     });
     mainColAdm.append(recentCardAdm);
@@ -9223,7 +9341,7 @@ function openStudent(s){
   })();
 }
 paintSub();
-renderLibrary();
+renderStudents();
 return;
 }
 if(tab==='recalls'){
