@@ -276,6 +276,7 @@ var SVG_CHEVRON_DOWN='<svg xmlns="http://www.w3.org/2000/svg" width="12" height=
 var SVG_CHEVRON_RIGHT='<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 6 15 12 9 18"/></svg>';
 var FLAG_STAR_FILLED='<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>';
 
+function fmtTimeShortG(t){if(!t)return'';try{var parts=String(t).split(':');var hh=parseInt(parts[0],10);var mm=parts[1]||'00';var ap=hh>=12?'PM':'AM';var h12=hh%12;if(h12===0)h12=12;return h12+':'+mm+' '+ap;}catch(e){return'';}}
 function showMaplet(pageKey,message){var storageKey="maplet_"+pageKey;if(localStorage.getItem(storageKey)==="dismissed")return null;var maplet=div({style:{background:"rgba(184,146,46,0.08)",border:"1px solid var(--gold)",borderRadius:"4px",padding:"12px 20px",marginBottom:"24px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:"16px",fontSize:"13px",fontFamily:"Plus Jakarta Sans,sans-serif",color:"var(--text)",lineHeight:"1.5"}},[h("span",{style:{flex:"1"}},[message]),btn("\u2715","",function(){localStorage.setItem(storageKey,"dismissed");maplet.style.display="none";},{style:{background:"none",border:"none",color:"var(--dim)",cursor:"pointer",fontSize:"16px",padding:"4px 8px",flexShrink:"0"}})]);return maplet;}
 // ═══════════════════════════════
 // SHARED HIGHLIGHT ENGINE
@@ -8004,7 +8005,7 @@ function openAssignAssessment(opts){
     rows.forEach(function(row){
       var name=studentNameMap[row.student_id]||row.student_id;
       var rowDiv=div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',gap:'10px',padding:'8px 0',borderBottom:'1px solid var(--border)',flexWrap:'wrap'}},[]);
-      rowDiv.append(div({},[h('div',{style:{fontSize:'13px',color:'var(--text)'}},[name]),h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--muted)',marginTop:'2px'}},[(row.due_date?'Due '+new Date(row.due_date+'T00:00:00').toLocaleDateString()+(row.due_time?' \u00b7 '+fmtTimeShort(row.due_time):''):'No due date')+' \u00b7 '+(row.unlocked?'Unlocked':'Locked to due date')])]));
+      rowDiv.append(div({},[h('div',{style:{fontSize:'13px',color:'var(--text)'}},[name]),h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--muted)',marginTop:'2px'}},[(row.due_date?'Due '+new Date(row.due_date+'T00:00:00').toLocaleDateString()+(row.due_time?' \u00b7 '+fmtTimeShortG(row.due_time):''):'No due date')+' \u00b7 '+(row.unlocked?'Unlocked':'Locked to due date')])]));
       var toggleBtn=btn(row.unlocked?'Re-lock':'Unlock now',row.unlocked?'btn-outline':'btn-gold',async function(){
         toggleBtn.disabled=true;
         var upd=await sb.from('tutoring_assessment_assignments').update({unlocked:!row.unlocked}).eq('id',row.id);
@@ -8663,7 +8664,7 @@ function openStudent(s){
       var done=results.filter(function(r){return r.assignment_id===a.id;});
       var comp=done.length>0;var latest=comp?done[0]:null;var test=a.tutoring_tests||{};
       var card=div({cls:'card',style:{marginBottom:'8px',padding:'12px',display:'flex',justifyContent:'space-between',alignItems:'center',gap:'12px',flexWrap:'wrap'}},[]);
-      card.append(div({style:{flex:'1',minWidth:'180px'}},[div({style:{display:'flex',alignItems:'center',marginBottom:'4px',flexWrap:'wrap'}},[modeBadgeEl(test.mode||'tutor'),h('span',{style:{fontFamily:'Georgia,serif',fontSize:'15px',color:'var(--text)'}},[test.title||'Test'])]),h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--muted)'}},[(a.due_date?'Due '+new Date(a.due_date+'T00:00:00').toLocaleDateString()+(a.due_time?' \u00b7 '+fmtTimeShort(a.due_time):'')+' \u00b7 ':'')+(comp?'Completed':'Not started')])]));
+      card.append(div({style:{flex:'1',minWidth:'180px'}},[div({style:{display:'flex',alignItems:'center',marginBottom:'4px',flexWrap:'wrap'}},[modeBadgeEl(test.mode||'tutor'),h('span',{style:{fontFamily:'Georgia,serif',fontSize:'15px',color:'var(--text)'}},[test.title||'Test'])]),h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--muted)'}},[(a.due_date?'Due '+new Date(a.due_date+'T00:00:00').toLocaleDateString()+(a.due_time?' \u00b7 '+fmtTimeShortG(a.due_time):'')+' \u00b7 ':'')+(comp?'Completed':'Not started')])]));
       if(comp)card.append(h('div',{style:{fontFamily:'Georgia,serif',fontSize:'20px',color:'var(--teal)'}},[Math.round((latest.score/latest.total)*100)+'%']));
       assignedSec.body.append(card);
     });
