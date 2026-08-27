@@ -8790,6 +8790,7 @@ function adminSection(title,startOpen,isNew){
 }
 
 function openStudent(s){
+  window.scrollTo({top:0,behavior:'instant'});
   tBody.innerHTML='';
   tBody.append(btn('\u2190 Back','btn-outline',function(){renderStudents();},{style:{fontSize:'11px',padding:'6px 12px',marginBottom:'16px'}}));
   var head=div({style:{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:'12px',flexWrap:'wrap',marginBottom:'16px'}},[]);
@@ -9096,7 +9097,7 @@ function openStudent(s){
       sideColAdm.append(attCardAdm);
     }
 
-    var linksSec=adminSection('Class Links',false,true);
+    var linksSec=adminSection('Class Links',true,true);
     linksSec.body.append(h('p',{style:{fontSize:'11px',color:'var(--dim)',marginBottom:'10px'}},['Two permanent backup meeting links for this student \u2014 shared across every class slot below.']));
     var pLink1Inp=h('input',{cls:'input',placeholder:'Link 1 (permanent backup link)',style:{width:'100%',marginBottom:'8px'}});pLink1Inp.value=studentLinks.link1||'';
     var pLink2Inp=h('input',{cls:'input',placeholder:'Link 2 (permanent backup link)',style:{width:'100%',marginBottom:'8px'}});pLink2Inp.value=studentLinks.link2||'';
@@ -9117,7 +9118,7 @@ function openStudent(s){
     body.append(linksSec.wrap);
 
     // CLASS SCHEDULE
-    var scheduleSec=adminSection('Class Schedule',false,true);
+    var scheduleSec=adminSection('Class Schedule',true,true);
     var classWrap=div({style:{marginBottom:'12px',marginTop:'10px'}},[]);
     scheduleSec.body.append(classWrap);
     var addSlotCard=div({cls:'card',style:{padding:'14px',marginBottom:'0'}},[]);
@@ -9214,20 +9215,35 @@ function openStudent(s){
     loadClassSlots();
     body.append(scheduleSec.wrap);
 
-    var assignedSec=adminSection('Assigned Tests',false);
-    if(!assigns.length)assignedSec.body.append(h('div',{style:{fontSize:'12px',color:'var(--dim)'},html:'None assigned.'}));
-    else assigns.forEach(function(a){
-      var done=results.filter(function(r){return r.assignment_id===a.id;});
-      var comp=done.length>0;var latest=comp?done[0]:null;var test=a.tutoring_tests||{};
-      var card=div({cls:'card',style:{marginBottom:'8px',padding:'12px',display:'flex',justifyContent:'space-between',alignItems:'center',gap:'12px',flexWrap:'wrap'}},[]);
-      card.append(div({style:{flex:'1',minWidth:'180px'}},[div({style:{display:'flex',alignItems:'center',marginBottom:'4px',flexWrap:'wrap'}},[modeBadgeEl(test.mode||'tutor'),h('span',{style:{fontFamily:'Georgia,serif',fontSize:'15px',color:'var(--text)'}},[test.title||'Test'])]),h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--muted)'}},[(a.due_date?'Due '+new Date(a.due_date+'T00:00:00').toLocaleDateString()+(a.due_time?' \u00b7 '+fmtTimeShortG(a.due_time):'')+' \u00b7 ':'')+(comp?'Completed':'Not started')])]));
-      if(comp)card.append(h('div',{style:{fontFamily:'Georgia,serif',fontSize:'20px',color:'var(--teal)'}},[Math.round((latest.score/latest.total)*100)+'%']));
-      assignedSec.body.append(card);
-    });
-    body.append(assignedSec.wrap);
+    body.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'16px',margin:'24px 0 12px'}},['Full Activity']));
 
-    if(results.length){
-      var resultsSec=adminSection('Results History',false);
+    function subPageBack(){openStudent(s);}
+    function subPageHeader(title){
+      window.scrollTo({top:0,behavior:'instant'});
+      tBody.innerHTML='';
+      tBody.append(btn('\u2190 Back to '+s.full_name,'btn-outline',subPageBack,{style:{fontSize:'11px',padding:'6px 12px',marginBottom:'16px'}}));
+      tBody.append(h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'20px',marginBottom:'16px'}},[title]));
+      var listWrap=div({},[]);
+      tBody.append(listWrap);
+      return listWrap;
+    }
+
+    function showAssignedTestsPage(){
+      var listWrap=subPageHeader('Assigned Tests ('+assigns.length+')');
+      if(!assigns.length){listWrap.append(div({cls:'card',style:{textAlign:'center',padding:'30px'}},[h('p',{style:{fontSize:'13px',color:'var(--dim)'},html:'None assigned yet.'})]));return;}
+      assigns.forEach(function(a){
+        var done=results.filter(function(r){return r.assignment_id===a.id;});
+        var comp=done.length>0;var latest=comp?done[0]:null;var test=a.tutoring_tests||{};
+        var card=div({cls:'card',style:{marginBottom:'8px',padding:'12px',display:'flex',justifyContent:'space-between',alignItems:'center',gap:'12px',flexWrap:'wrap'}},[]);
+        card.append(div({style:{flex:'1',minWidth:'180px'}},[div({style:{display:'flex',alignItems:'center',marginBottom:'4px',flexWrap:'wrap'}},[modeBadgeEl(test.mode||'tutor'),h('span',{style:{fontFamily:'Georgia,serif',fontSize:'15px',color:'var(--text)'}},[test.title||'Test'])]),h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--muted)'}},[(a.due_date?'Due '+new Date(a.due_date+'T00:00:00').toLocaleDateString()+(a.due_time?' \u00b7 '+fmtTimeShortG(a.due_time):'')+' \u00b7 ':'')+(comp?'Completed':'Not started')])]));
+        if(comp)card.append(h('div',{style:{fontFamily:'Georgia,serif',fontSize:'20px',color:'var(--teal)'}},[Math.round((latest.score/latest.total)*100)+'%']));
+        listWrap.append(card);
+      });
+    }
+
+    function showResultsHistoryPage(){
+      var listWrap=subPageHeader('Results History ('+results.length+')');
+      if(!results.length){listWrap.append(div({cls:'card',style:{textAlign:'center',padding:'30px'}},[h('p',{style:{fontSize:'13px',color:'var(--dim)'},html:'No test results yet.'})]));return;}
       results.forEach(function(t){
         var card=div({cls:'card',style:{marginBottom:'8px',padding:'12px',display:'flex',justifyContent:'space-between',alignItems:'center',gap:'12px',flexWrap:'wrap'}},[]);
         var rightSide=div({style:{display:'flex',alignItems:'center',gap:'12px',flexShrink:'0'}},[]);
@@ -9235,13 +9251,13 @@ function openStudent(s){
         rightSide.append(btn('Score Report','btn-outline',function(){openAdminScoreReport(t,'test',s.full_name);},{style:{fontSize:'10px',padding:'5px 12px'}}));
         rightSide.append(btn('Review','btn-outline',function(){showAdminReview(t);},{style:{fontSize:'10px',padding:'5px 12px'}}));
         card.append(div({},[h('div',{style:{fontSize:'14px',color:'var(--text)'}},[t.test_title]),h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--muted)',marginTop:'2px'}},[new Date(t.taken_at).toLocaleDateString()+' \u00b7 '+(t.mode==='timed'?'Timed':'Tutor')])]),rightSide);
-        resultsSec.body.append(card);
+        listWrap.append(card);
       });
-      body.append(resultsSec.wrap);
     }
 
-    if(assessResults.length){
-      var assessResultsSec=adminSection('Assessment Results History',false);
+    function showAssessmentResultsPage(){
+      var listWrap=subPageHeader('Assessment Results History ('+assessResults.length+')');
+      if(!assessResults.length){listWrap.append(div({cls:'card',style:{textAlign:'center',padding:'30px'}},[h('p',{style:{fontSize:'13px',color:'var(--dim)'},html:'No assessment results yet.'})]));return;}
       assessResults.forEach(function(t){
         var card=div({cls:'card',style:{marginBottom:'8px',padding:'12px',display:'flex',justifyContent:'space-between',alignItems:'center',gap:'12px',flexWrap:'wrap'}},[]);
         var rightSide=div({style:{display:'flex',alignItems:'center',gap:'12px',flexShrink:'0'}},[]);
@@ -9249,23 +9265,41 @@ function openStudent(s){
         rightSide.append(btn('Score Report','btn-outline',function(){openAdminScoreReport(t,'assessment',s.full_name);},{style:{fontSize:'10px',padding:'5px 12px'}}));
         rightSide.append(btn('Review','btn-outline',function(){openAdminResultReview(t,{studentName:s.full_name});},{style:{fontSize:'10px',padding:'5px 12px'}}));
         card.append(div({},[h('div',{style:{fontSize:'14px',color:'var(--text)'}},[t.assessment_title]),h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--muted)',marginTop:'2px'}},[new Date(t.taken_at).toLocaleDateString()+' \u00b7 '+(t.mode==='timed'?'Timed':'Tutor')])]),rightSide);
-        assessResultsSec.body.append(card);
+        listWrap.append(card);
       });
-      body.append(assessResultsSec.wrap);
     }
 
-    if(qbankResults.length){
-      var qbankSec=adminSection('Q-Bank Results History',false);
+    function showQBankHistoryPage(){
+      var listWrap=subPageHeader('Q-Bank Results History ('+qbankResults.length+')');
+      if(!qbankResults.length){listWrap.append(div({cls:'card',style:{textAlign:'center',padding:'30px'}},[h('p',{style:{fontSize:'13px',color:'var(--dim)'},html:'No Q-Bank quizzes yet.'})]));return;}
       qbankResults.forEach(function(t){
         var card=div({cls:'card',style:{marginBottom:'8px',padding:'12px',display:'flex',justifyContent:'space-between',alignItems:'center',gap:'12px',flexWrap:'wrap'}},[]);
         var rightSide=div({style:{display:'flex',alignItems:'center',gap:'12px',flexShrink:'0'}},[]);
         rightSide.append(h('div',{style:{fontFamily:'Georgia,serif',fontSize:'18px',color:'var(--teal)'}},[Math.round((t.score/t.total)*100)+'% ('+t.score+'/'+t.total+')']));
         rightSide.append(btn('Score Report','btn-outline',function(){openAdminScoreReport(t,'quiz',s.full_name);},{style:{fontSize:'10px',padding:'5px 12px'}}));
         card.append(div({},[h('div',{style:{fontSize:'14px',color:'var(--text)'}},[t.topic||'Q-Bank quiz']),h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--muted)',marginTop:'2px'}},[new Date(t.created_at).toLocaleDateString()+' \u00b7 '+(t.mode==='timed'?'Timed':'Tutor')])]),rightSide);
-        qbankSec.body.append(card);
+        listWrap.append(card);
       });
-      body.append(qbankSec.wrap);
     }
+
+    var quickLinksGrid=div({style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(160px,1fr))',gap:'12px'}});
+    function quickTile(icon,label,count,onClick){
+      var t=div({cls:'card',style:{padding:'16px',cursor:'pointer',textAlign:'center'}},[]);
+      t.onclick=onClick;
+      t.onmouseenter=function(){t.style.background='var(--gold-subtle)';};
+      t.onmouseleave=function(){t.style.background='transparent';};
+      var iconDiv=div({style:{display:'flex',alignItems:'center',justifyContent:'center',marginBottom:'8px',color:'var(--gold)'}});
+      iconDiv.innerHTML=icon;
+      t.append(iconDiv,h('div',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'22px',fontWeight:'700',color:'var(--text)'}},[String(count)]),h('div',{style:{fontSize:'12px',color:'var(--muted)',marginTop:'2px'}},[label]));
+      return t;
+    }
+    quickLinksGrid.append(
+      quickTile(ICONS.file,'Assigned Tests',assigns.length,showAssignedTestsPage),
+      quickTile(ICONS.chart,'Results History',results.length,showResultsHistoryPage),
+      quickTile(ICONS.target,'Assessment Results',assessResults.length,showAssessmentResultsPage),
+      quickTile(ICONS.puzzle,'Q-Bank History',qbankResults.length,showQBankHistoryPage)
+    );
+    body.append(quickLinksGrid);
 
     function showAdminReview(result){
       var overlay=div({style:{position:'fixed',top:'0',left:'0',width:'100%',height:'100%',background:'rgba(0,0,0,0.72)',zIndex:'1000',display:'flex',alignItems:'flex-start',justifyContent:'center',overflowY:'auto',padding:'32px 16px',boxSizing:'border-box'}},[]);
