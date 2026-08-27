@@ -8925,26 +8925,27 @@ function openStudent(s){
     body.append(twoColAdm);
 
     // PERFORMANCE OVER TIME
+    var svgNSAdm='http://www.w3.org/2000/svg';
     var perfCardAdm=div({cls:'card',style:{padding:'20px',marginBottom:'16px'}},[]);
     perfCardAdm.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'15px',marginBottom:'6px'}},['Performance Over Time']));
     if(combinedResultsAdm.length>1){
       var cwA=520,chA=180,padA=34;
       var ptsA=combinedResultsAdm.map(function(r){return r.total?Math.round((r.score/r.total)*100):0;});
       var stepXA=(cwA-padA*2)/Math.max(1,ptsA.length-1);
-      var chartSvgA=document.createElementNS(svgNS,'svg');chartSvgA.setAttribute('viewBox','0 0 '+cwA+' '+chA);chartSvgA.setAttribute('width','100%');chartSvgA.setAttribute('height',String(chA));
+      var chartSvgA=document.createElementNS(svgNSAdm,'svg');chartSvgA.setAttribute('viewBox','0 0 '+cwA+' '+chA);chartSvgA.setAttribute('width','100%');chartSvgA.setAttribute('height',String(chA));
       [0,25,50,75,100].forEach(function(gv){
         var y=chA-padA-(gv/100)*(chA-padA*2);
-        var line=document.createElementNS(svgNS,'line');line.setAttribute('x1',String(padA));line.setAttribute('x2',String(cwA-padA));line.setAttribute('y1',String(y));line.setAttribute('y2',String(y));line.setAttribute('stroke','var(--border)');line.setAttribute('stroke-width','1');
+        var line=document.createElementNS(svgNSAdm,'line');line.setAttribute('x1',String(padA));line.setAttribute('x2',String(cwA-padA));line.setAttribute('y1',String(y));line.setAttribute('y2',String(y));line.setAttribute('stroke','var(--border)');line.setAttribute('stroke-width','1');
         chartSvgA.append(line);
-        var lbl=document.createElementNS(svgNS,'text');lbl.setAttribute('x','4');lbl.setAttribute('y',String(y+4));lbl.setAttribute('fill','var(--muted)');lbl.setAttribute('font-size','9');lbl.textContent=String(gv);
+        var lbl=document.createElementNS(svgNSAdm,'text');lbl.setAttribute('x','4');lbl.setAttribute('y',String(y+4));lbl.setAttribute('fill','var(--muted)');lbl.setAttribute('font-size','9');lbl.textContent=String(gv);
         chartSvgA.append(lbl);
       });
       var pathPtsA=ptsA.map(function(v,i){var x=padA+i*stepXA;var y=chA-padA-(v/100)*(chA-padA*2);return x+','+y;});
-      var polylineA=document.createElementNS(svgNS,'polyline');polylineA.setAttribute('points',pathPtsA.join(' '));polylineA.setAttribute('fill','none');polylineA.setAttribute('stroke','var(--gold)');polylineA.setAttribute('stroke-width','2');
+      var polylineA=document.createElementNS(svgNSAdm,'polyline');polylineA.setAttribute('points',pathPtsA.join(' '));polylineA.setAttribute('fill','none');polylineA.setAttribute('stroke','var(--gold)');polylineA.setAttribute('stroke-width','2');
       chartSvgA.append(polylineA);
       ptsA.forEach(function(v,i){
         var x=padA+i*stepXA;var y=chA-padA-(v/100)*(chA-padA*2);
-        var c=document.createElementNS(svgNS,'circle');c.setAttribute('cx',String(x));c.setAttribute('cy',String(y));c.setAttribute('r','3.5');c.setAttribute('fill','var(--gold)');
+        var c=document.createElementNS(svgNSAdm,'circle');c.setAttribute('cx',String(x));c.setAttribute('cy',String(y));c.setAttribute('r','3.5');c.setAttribute('fill','var(--gold)');
         chartSvgA.append(c);
       });
       perfCardAdm.append(chartSvgA);
