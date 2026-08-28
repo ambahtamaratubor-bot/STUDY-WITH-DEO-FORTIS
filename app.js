@@ -1157,15 +1157,68 @@ function ensureAnnouncementBanner(){
       btn('Dismiss','btn-outline',function(){
         localStorage.setItem('ann_dismissed_'+ann[0].id,'1');
         banner.remove();
-        var root=document.getElementById('root');if(root)root.style.marginTop='0px';
+        adjustFixedBannerMargin();
       },{style:{padding:'4px 12px',fontSize:'11px',flexShrink:'0'}})
     );
     document.body.prepend(banner);
-    var root=document.getElementById('root');
-    if(root){
-      requestAnimationFrame(function(){root.style.marginTop=banner.offsetHeight+'px';root.style.transition='margin-top 0.2s ease';});
-    }
+    requestAnimationFrame(adjustFixedBannerMargin);
   })();
+}
+// Keeps #root pushed below whichever fixed top banners (announcement + streak-risk) are
+// currently mounted, and stacks the streak banner directly under the announcement banner.
+function adjustFixedBannerMargin(){
+  var root=document.getElementById('root');if(!root)return;
+  var ann=document.getElementById('df-announce-banner');
+  var streakB=document.getElementById('df-streak-banner');
+  if(streakB)streakB.style.top=(ann?ann.offsetHeight:0)+'px';
+  var total=(ann?ann.offsetHeight:0)+(streakB?streakB.offsetHeight:0);
+  root.style.marginTop=total+'px';
+  root.style.transition='margin-top 0.2s ease';
+}
+// STREAK RISK BANNER — global, fixed-position so it shows on every page/tab (not just the
+// tutoring dashboard), and warns before the streak breaks at local midnight.
+function mountGlobalStreakBanner(){
+  var existing=document.getElementById('df-streak-banner');
+  if(existing)existing.remove();
+  if(window._dfStreakBannerTimer){clearInterval(window._dfStreakBannerTimer);window._dfStreakBannerTimer=null;}
+  if(!S.user||!S.profile){adjustFixedBannerMargin();return;}
+  if(S.profile.is_free_tier===true&&!isInTrial()){adjustFixedBannerMargin();return;}
+  var streak=S.profile.streak_count||0;
+  var helpers=streakDateHelpers();
+  var today=helpers.todayLocal();
+  var restDaysList=S.profile.rest_days||[];
+  var todayDayName=helpers.getDayName(new Date());
+  var doneToday=S.profile.last_study_date===today;
+  var isRestDay=restDaysList.includes(todayDayName);
+  if(streak<=0||doneToday||isRestDay){adjustFixedBannerMargin();return;}
+  var nowD=new Date();
+  var nextMidnight=new Date(nowD.getFullYear(),nowD.getMonth(),nowD.getDate()+1,0,0,0,0);
+  var msLeft=nextMidnight-nowD;
+  var urgent=msLeft<=3*60*60*1000;
+  var banner=div({id:'df-streak-banner',style:{position:'fixed',top:'0',left:'0',width:'100%',zIndex:'9998',display:'flex',alignItems:'center',justifyContent:'center',gap:'16px',flexWrap:'wrap',padding:'10px 20px',boxSizing:'border-box',borderBottom:'1px solid '+(urgent?'#D9534F':'var(--gold)'),background:urgent?'rgba(217,84,80,0.12)':'var(--gold-subtle)',boxShadow:'0 2px 12px rgba(0,0,0,0.2)'}},[]);
+  var left=div({style:{display:'flex',alignItems:'center',gap:'10px',minWidth:'0'}},[]);
+  var flameWrap=div({style:{width:'26px',height:'26px',borderRadius:'6px',background:(urgent?'#D9534F':'var(--gold)')+'22',color:urgent?'#D9534F':'var(--gold)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:'0'}});
+  flameWrap.innerHTML=ICONS.flame;
+  var titleEl=h('span',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'13px',fontWeight:'700',color:urgent?'#D9534F':'var(--text)'}},[urgent?'Your streak expires soon!':'Your streak is at risk today']);
+  var subEl=h('span',{style:{fontSize:'11px',color:'var(--dim)'}},['Complete any activity \u2014 flashcards, Q-Bank, Feynman, a tutoring test, or a Pomodoro session \u2014 to keep your '+streak+'-day streak alive.']);
+  left.append(flameWrap,titleEl,subEl);
+  var right=div({style:{display:'flex',alignItems:'center',gap:'10px',flexShrink:'0'}},[]);
+  var countdownEl=null;
+  if(urgent){countdownEl=h('span',{cls:'mono',style:{fontSize:'12px',fontWeight:'700',color:'#D9534F'}},['']);right.append(countdownEl);}
+  right.append(btn('Set a rest day \u2192','btn-outline',function(){showRestDaysModal();},{style:{fontSize:'10px',padding:'6px 12px'}}));
+  banner.append(left,right);
+  document.body.prepend(banner);
+  requestAnimationFrame(adjustFixedBannerMargin);
+  if(countdownEl){
+    function paintCountdown(){
+      var now2=new Date();var ms=nextMidnight-now2;
+      if(ms<=0){countdownEl.textContent='0h 0m';return;}
+      var h2=Math.floor(ms/3600000);var m2=Math.floor((ms%3600000)/60000);
+      countdownEl.textContent=h2+'h '+m2+'m left';
+    }
+    paintCountdown();
+    window._dfStreakBannerTimer=setInterval(paintCountdown,60000);
+  }
 }
 
 async function render(){
@@ -1288,8 +1341,8 @@ if(!nlist||nlist.length===0){const emptyCard=div({cls:'card',style:{textAlign:'c
 const tree={};
 nlist.forEach(function(n){const fk=n.folder||'General';if(!tree[fk])tree[fk]={notes:[],subfolders:{}};if(n.subfolder&&n.subfolder.trim()){const sk=n.subfolder.trim();if(!tree[fk].subfolders[sk])tree[fk].subfolders[sk]=[];tree[fk].subfolders[sk].push(n);}else{tree[fk].notes.push(n);}});
 function exportNote(n){const win=window.open('','_blank');let xhtml='<!DOCTYPE html><html><head><meta charset="UTF-8"><title>'+n.title+'</title><style>body{font-family:Georgia,serif;max-width:600px;margin:40px auto;padding:0 24px;color:#1a1814;background:#fff;}h1{font-size:20px;font-weight:700;margin-bottom:8px;}pre{font-family:inherit;font-size:15px;line-height:1.8;white-space:pre-wrap;color:#333;}</style></head><body>';xhtml+='<div style="text-align:center;margin-bottom:32px;"><div style="font-family:Georgia,serif;font-style:italic;font-size:28px;color:#B8922E;">Deo Fortis</div><div style="font-size:10px;color:#888;letter-spacing:3px;text-transform:uppercase;margin-top:4px;">Everyone is gifted.</div></div>';xhtml+='<hr style="border:none;border-top:1px solid #eee;margin:24px 0;">';xhtml+='<h1>'+sani(n.title)+'</h1>';xhtml+='<div style="font-size:12px;color:#888;margin-bottom:16px;">Topic: '+sani(n.topic)+(n.folder?' &bull; Folder: '+sani(n.folder):'')+(n.subfolder?' &bull; '+sani(n.subfolder):'')+'</div>';xhtml+='<div style="font-size:15px;line-height:1.8;color:#333;">'+sani(n.content)+'</div>';xhtml+='<div style="text-align:center;margin-top:40px;font-size:11px;color:#aaa;">Deo Fortis &bull; deofortis.work</div>';xhtml+='</body></html>';win.document.write(xhtml);win.document.close();win.print();}
-function openNoteModal(n){const overlay=div({cls:'modal-bg'},[]);const modal=div({cls:'card',style:{maxWidth:'680px',width:'100%',maxHeight:'85vh',overflowY:'auto',position:'relative'}},[]);overlay.onclick=function(e){if(e.target===overlay)overlay.remove();};const modalHeader=div({style:{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:'16px'}},[]);const titleInput=h('input',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'18px',fontWeight:'600',color:'var(--text)',background:'transparent',border:'none',borderBottom:'1px solid transparent',padding:'2px 4px',cursor:'text',flex:'1',marginRight:'12px'}});titleInput.value=n.title;titleInput.onfocus=function(){titleInput.style.borderBottom='1px solid var(--teal)';};titleInput.onblur=async function(){titleInput.style.borderBottom='1px solid transparent';if(titleInput.value.trim()&&titleInput.value.trim()!==n.title){await sb.from('notes').update({title:titleInput.value.trim()}).eq('id',n.id);n.title=titleInput.value.trim();}};const topBtns=div({style:{display:'flex',gap:'8px',flexShrink:'0'}},[]);let isFullscreen=false;const fullscreenBtn=btn('Expand','btn-outline',function(){isFullscreen=!isFullscreen;if(isFullscreen){modal.style.maxWidth='100vw';modal.style.width='100vw';modal.style.maxHeight='100vh';modal.style.height='100vh';modal.style.borderRadius='0';modal.style.margin='0';overlay.style.padding='0';fullscreenBtn.textContent='Collapse';}else{modal.style.maxWidth='680px';modal.style.width='100%';modal.style.maxHeight='85vh';modal.style.height='';modal.style.borderRadius='';modal.style.margin='';overlay.style.padding='24px';fullscreenBtn.textContent='Expand';}},{style:{fontSize:'10px',padding:'4px 10px'}});const closeBtn=btn('\u2715','',function(){overlay.remove();},{style:{background:'none',border:'none',color:'var(--muted)',fontSize:'18px',cursor:'pointer',padding:'4px'}});topBtns.append(fullscreenBtn,closeBtn);modalHeader.append(titleInput,topBtns);const metaDiv=div({style:{fontSize:'11px',color:'var(--dim)',marginBottom:'16px'}},[]);metaDiv.textContent=new Date(n.created_at).toLocaleDateString()+' \u00b7 '+n.topic+(n.subfolder?' \u00b7 '+n.subfolder:'');let isEditing=false;const viewDiv=div({style:{fontSize:'14px',color:'var(--muted)',lineHeight:'1.8',marginBottom:'16px'}},[]);viewDiv.innerHTML=sani(n.content);const editDiv=div({style:{display:'none',marginBottom:'16px'}},[]);const editor=div({style:{minHeight:'200px',padding:'12px',border:'1px solid var(--border)',borderRadius:'2px',fontSize:'14px',color:'var(--text)',lineHeight:'1.8',outline:'none',overflowY:'auto',marginBottom:'8px',background:'var(--bg)'}});editor.contentEditable='true';editor.innerHTML=sani(n.content);const editToolbar=makeMarkdownToolbar(editor);const editMeta=div({style:{display:'flex',gap:'8px',marginBottom:'8px'}},[]);const folderInp=h('input',{cls:'input',style:{fontSize:'12px',padding:'6px 10px',flex:'1'}});folderInp.value=n.folder||'';folderInp.placeholder='Folder';const subfolderInp=h('input',{cls:'input',style:{fontSize:'12px',padding:'6px 10px',flex:'1'}});subfolderInp.value=n.subfolder||'';subfolderInp.placeholder='Subfolder (optional)';editMeta.append(folderInp,subfolderInp);const saveStatus=div({style:{fontSize:'11px',color:'var(--teal)',marginBottom:'8px',display:'none'}},[]);const saveEditHandler=async function(){const{error}=await sb.from('notes').update({content:editor.innerHTML,folder:folderInp.value.trim()||null,subfolder:subfolderInp.value.trim()||null,updated_at:new Date().toISOString()}).eq('id',n.id);if(error){saveStatus.textContent=error.message;saveStatus.style.color='var(--gold)';saveStatus.style.display='block';return;}n.content=editor.innerHTML;n.folder=folderInp.value.trim()||null;n.subfolder=subfolderInp.value.trim()||null;viewDiv.innerHTML=sani(editor.innerHTML);saveStatus.textContent='Saved!';saveStatus.style.color='var(--teal)';saveStatus.style.display='block';setTimeout(function(){saveStatus.style.display='none';},1500);};const saveBtn=btn('Save','btn-teal',saveEditHandler,{style:{fontSize:'11px',padding:'6px 14px'}});editDiv.append(editToolbar,editor,editMeta,saveStatus,saveBtn);const actionRow=div({style:{display:'flex',gap:'8px',borderTop:'1px solid var(--border)',paddingTop:'16px',marginTop:'8px'}},[]);const editBtn=btn('Edit','btn-outline',function(){isEditing=!isEditing;if(isEditing){editDiv.style.display='block';viewDiv.style.display='none';editBtn.textContent='Cancel';modal.style.maxWidth='100vw';modal.style.width='100vw';modal.style.maxHeight='100vh';modal.style.height='100vh';modal.style.borderRadius='0';modal.style.margin='0';overlay.style.padding='0';fullscreenBtn.textContent='Collapse';isFullscreen=true;}else{editDiv.style.display='none';viewDiv.style.display='block';editBtn.textContent='Edit';modal.style.maxWidth='680px';modal.style.width='100%';modal.style.maxHeight='85vh';modal.style.height='';modal.style.borderRadius='';modal.style.margin='';overlay.style.padding='24px';fullscreenBtn.textContent='Expand';isFullscreen=false;}},{style:{fontSize:'11px',padding:'6px 14px'}});const exportBtn=btn('Export','btn-outline',function(){exportNote(n);},{style:{fontSize:'11px',padding:'6px 14px'}});actionRow.append(editBtn,exportBtn);modal.append(modalHeader,actionRow,metaDiv,viewDiv,editDiv);overlay.append(modal);document.body.append(overlay);}
-function renderNoteRow(n,container){const row=div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 0',borderBottom:'1px solid var(--border)'}},[]);const leftDiv=div({style:{flex:'1'}},[]);const titleEl=h('div',{style:{fontSize:'14px',color:'var(--text)',fontWeight:'500'}},[]);titleEl.textContent=n.title;const metaEl=h('div',{style:{fontSize:'11px',color:'var(--dim)',marginTop:'2px'}},[]);metaEl.textContent=new Date(n.created_at).toLocaleDateString()+' \u00b7 '+n.topic;leftDiv.append(titleEl,metaEl);const btnRow=div({style:{display:'flex',gap:'6px'}},[]);const viewBtn=btn('View','btn-outline',function(){openNoteModal(n);},{style:{fontSize:'10px',padding:'4px 8px'}});const xBtn=btn('Export','btn-outline',function(){exportNote(n);},{style:{fontSize:'10px',padding:'4px 8px'}});const deleteBtn=btn('Delete','btn-outline',async function(){if(!confirm('Delete this note?'))return;await sb.from('notes').delete().eq('id',n.id);loadNotes();},{style:{fontSize:'10px',padding:'4px 8px',color:'#ff4444',borderColor:'#ff4444'}});btnRow.append(viewBtn,xBtn,deleteBtn);row.append(leftDiv,btnRow);container.append(row);}
+function openNoteModal(n){const overlay=div({cls:'modal-bg'},[]);const modal=div({cls:'card',style:{maxWidth:'680px',width:'100%',maxHeight:'85vh',overflowY:'auto',position:'relative'}},[]);overlay.onclick=function(e){if(e.target===overlay)overlay.remove();};const modalHeader=div({style:{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:'16px'}},[]);const titleInput=h('input',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'18px',fontWeight:'600',color:'var(--text)',background:'transparent',border:'none',borderBottom:'1px solid transparent',padding:'2px 4px',cursor:'text',flex:'1',marginRight:'12px'}});titleInput.value=n.title;titleInput.onfocus=function(){titleInput.style.borderBottom='1px solid var(--teal)';};titleInput.onblur=async function(){titleInput.style.borderBottom='1px solid transparent';if(titleInput.value.trim()&&titleInput.value.trim()!==n.title){await sb.from('notes').update({title:titleInput.value.trim()}).eq('id',n.id);n.title=titleInput.value.trim();}};const topBtns=div({style:{display:'flex',gap:'8px',flexShrink:'0'}},[]);let isFullscreen=false;const fullscreenBtn=btn('Expand','btn-outline',function(){isFullscreen=!isFullscreen;if(isFullscreen){modal.style.maxWidth='100vw';modal.style.width='100vw';modal.style.maxHeight='100vh';modal.style.height='100vh';modal.style.borderRadius='0';modal.style.margin='0';overlay.style.padding='0';fullscreenBtn.textContent='Collapse';}else{modal.style.maxWidth='680px';modal.style.width='100%';modal.style.maxHeight='85vh';modal.style.height='';modal.style.borderRadius='';modal.style.margin='';overlay.style.padding='24px';fullscreenBtn.textContent='Expand';}},{style:{fontSize:'10px',padding:'4px 10px'}});const closeBtn=btn('\u2715','',function(){overlay.remove();},{style:{background:'none',border:'none',color:'var(--muted)',fontSize:'18px',cursor:'pointer',padding:'4px'}});topBtns.append(fullscreenBtn,closeBtn);modalHeader.append(titleInput,topBtns);const metaDiv=div({style:{fontSize:'11px',color:'var(--dim)',marginBottom:'16px'}},[]);metaDiv.textContent=new Date(n.created_at).toLocaleDateString()+' \u00b7 '+n.topic+(n.subfolder?' \u00b7 '+n.subfolder:'');let isEditing=false;const viewDiv=div({style:{fontSize:'14px',color:'var(--muted)',lineHeight:'1.8',marginBottom:'16px'}},[]);viewDiv.innerHTML=sani(n.content);const editDiv=div({style:{display:'none',marginBottom:'16px'}},[]);const editor=div({style:{minHeight:'200px',padding:'12px',border:'1px solid var(--border)',borderRadius:'2px',fontSize:'14px',color:'var(--text)',lineHeight:'1.8',outline:'none',overflowY:'auto',marginBottom:'8px',background:'var(--bg)'}});editor.contentEditable='true';editor.innerHTML=sani(n.content);const editToolbar=makeMarkdownToolbar(editor);const editMeta=div({style:{display:'flex',gap:'8px',marginBottom:'8px'}},[]);const folderInp=h('input',{cls:'input',style:{fontSize:'12px',padding:'6px 10px',flex:'1'}});folderInp.value=n.folder||'';folderInp.placeholder='Folder';const subfolderInp=h('input',{cls:'input',style:{fontSize:'12px',padding:'6px 10px',flex:'1'}});subfolderInp.value=n.subfolder||'';subfolderInp.placeholder='Subfolder (optional)';editMeta.append(folderInp,subfolderInp);const saveStatus=div({style:{fontSize:'11px',color:'var(--teal)',marginBottom:'8px',display:'none'}},[]);const saveEditHandler=async function(){const{error}=await sb.from('notes').update({content:editor.innerHTML,folder:folderInp.value.trim()||null,subfolder:subfolderInp.value.trim()||null,updated_at:new Date().toISOString()}).eq('id',n.id);if(error){saveStatus.textContent=error.message;saveStatus.style.color='var(--gold)';saveStatus.style.display='block';return;}n.content=editor.innerHTML;n.folder=folderInp.value.trim()||null;n.subfolder=subfolderInp.value.trim()||null;viewDiv.innerHTML=sani(editor.innerHTML);saveStatus.textContent='Saved!';saveStatus.style.color='var(--teal)';saveStatus.style.display='block';setTimeout(function(){saveStatus.style.display='none';},1500);};const saveBtn=btn('Save','btn-teal',saveEditHandler,{style:{fontSize:'11px',padding:'6px 14px'}});editDiv.append(editToolbar,editor,editMeta,saveStatus,saveBtn);const actionRow=div({style:{display:'flex',gap:'8px',borderTop:'1px solid var(--border)',paddingTop:'16px',marginTop:'8px'}},[]);const editBtn=btn('Edit','btn-outline',function(){isEditing=!isEditing;if(isEditing){editDiv.style.display='block';viewDiv.style.display='none';editBtn.textContent='Cancel';modal.style.maxWidth='100vw';modal.style.width='100vw';modal.style.maxHeight='100vh';modal.style.height='100vh';modal.style.borderRadius='0';modal.style.margin='0';overlay.style.padding='0';fullscreenBtn.textContent='Collapse';isFullscreen=true;}else{editDiv.style.display='none';viewDiv.style.display='block';editBtn.textContent='Edit';modal.style.maxWidth='680px';modal.style.width='100%';modal.style.maxHeight='85vh';modal.style.height='';modal.style.borderRadius='';modal.style.margin='';overlay.style.padding='24px';fullscreenBtn.textContent='Expand';isFullscreen=false;}},{style:{fontSize:'11px',padding:'6px 14px'}});const exportBtn=btn('Export','btn-outline',function(){exportNote(n);},{style:{fontSize:'11px',padding:'6px 14px'}});const flashBtn=btn('Create Flashcards','btn-gold',function(){requestFlashcardsFromNote(n);},{style:{fontSize:'11px',padding:'6px 14px'}});actionRow.append(editBtn,exportBtn,flashBtn);modal.append(modalHeader,actionRow,metaDiv,viewDiv,editDiv);overlay.append(modal);document.body.append(overlay);}
+function renderNoteRow(n,container){const row=div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 0',borderBottom:'1px solid var(--border)'}},[]);const leftDiv=div({style:{flex:'1'}},[]);const titleEl=h('div',{style:{fontSize:'14px',color:'var(--text)',fontWeight:'500'}},[]);titleEl.textContent=n.title;const metaEl=h('div',{style:{fontSize:'11px',color:'var(--dim)',marginTop:'2px'}},[]);metaEl.textContent=new Date(n.created_at).toLocaleDateString()+' \u00b7 '+n.topic;leftDiv.append(titleEl,metaEl);const btnRow=div({style:{display:'flex',gap:'6px'}},[]);const viewBtn=btn('View','btn-outline',function(){openNoteModal(n);},{style:{fontSize:'10px',padding:'4px 8px'}});const xBtn=btn('Export','btn-outline',function(){exportNote(n);},{style:{fontSize:'10px',padding:'4px 8px'}});const deleteBtn=btn('Delete','btn-outline',async function(){if(!confirm('Delete this note?'))return;await sb.from('notes').delete().eq('id',n.id);loadNotes();},{style:{fontSize:'10px',padding:'4px 8px',color:'#ff4444',borderColor:'#ff4444'}});const flashBtn2=btn('Create Flashcards','btn-outline',function(){requestFlashcardsFromNote(n);},{style:{fontSize:'10px',padding:'4px 8px',color:'var(--gold)',borderColor:'var(--gold)'}});btnRow.append(viewBtn,xBtn,flashBtn2,deleteBtn);row.append(leftDiv,btnRow);container.append(row);}
 for(const folderName in tree){
 const allFolderIds=[];tree[folderName].notes.forEach(function(n){allFolderIds.push(n.id);});for(const sk in tree[folderName].subfolders){tree[folderName].subfolders[sk].forEach(function(n){allFolderIds.push(n.id);});}
 const totalCount=tree[folderName].notes.length+Object.values(tree[folderName].subfolders).reduce(function(acc,arr){return acc+arr.length;},0);
@@ -1567,52 +1620,8 @@ function renderDashboard(){
     );
 
     // (Join link now lives inside the "Next Class" hero card below — no separate join card needed.)
-
-    // STREAK RISK BANNER — warns before the streak breaks at local midnight
-    (function(){
-      const{getDayName}=streakDateHelpers();
-      const restDaysList=(S.profile&&S.profile.rest_days)||[];
-      const todayDayName=getDayName(new Date());
-      const doneToday=(S.profile&&S.profile.last_study_date)===today;
-      const isRestDay=restDaysList.includes(todayDayName);
-      if(streak<=0||doneToday||isRestDay)return;
-      const nowD=new Date();
-      const nextMidnight=new Date(nowD.getFullYear(),nowD.getMonth(),nowD.getDate()+1,0,0,0,0);
-      const msLeft=nextMidnight-nowD;
-      const urgent=msLeft<=3*60*60*1000;
-      const banner=div({cls:'card',style:{padding:'16px 20px',marginBottom:'20px',display:'flex',alignItems:'center',justifyContent:'space-between',gap:'16px',flexWrap:'wrap',borderColor:urgent?'#D9534F':'var(--gold)',background:urgent?'rgba(217,84,80,0.06)':'var(--gold-subtle)'}},[]);
-      const left=div({style:{display:'flex',alignItems:'center',gap:'12px',minWidth:'0'}},[]);
-      const flameWrap=div({style:{width:'32px',height:'32px',borderRadius:'8px',background:(urgent?'#D9534F':'var(--gold)')+'22',color:urgent?'#D9534F':'var(--gold)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:'0'}});
-      flameWrap.innerHTML=ICONS.flame;
-      const textWrap=div({},[]);
-      const titleEl=h('div',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'14px',fontWeight:'700',color:urgent?'#D9534F':'var(--text)'}},[urgent?'Your streak expires soon!':'Your streak is at risk today']);
-      const subEl=h('div',{style:{fontSize:'11px',color:'var(--dim)',marginTop:'2px'}},['Complete any activity \u2014 flashcards, Q-Bank, Feynman, a tutoring test, or a Pomodoro session \u2014 to keep your '+streak+'-day streak alive.']);
-      textWrap.append(titleEl,subEl);
-      left.append(flameWrap,textWrap);
-      const right=div({style:{display:'flex',alignItems:'center',gap:'10px',flexShrink:'0'}},[]);
-      let countdownEl=null;
-      if(urgent){
-        countdownEl=h('span',{cls:'mono',style:{fontSize:'13px',fontWeight:'700',color:'#D9534F'}},['']);
-        right.append(countdownEl);
-      }
-      right.append(btn('Set a rest day \u2192','btn-outline',function(){showRestDaysModal();},{style:{fontSize:'10px',padding:'7px 14px'}}));
-      banner.append(left,right);
-      content.append(banner);
-      if(countdownEl){
-        function paintCountdown(){
-          const now2=new Date();
-          const ms=nextMidnight-now2;
-          if(ms<=0){countdownEl.textContent='0h 0m';return;}
-          const h2=Math.floor(ms/3600000);
-          const m2=Math.floor((ms%3600000)/60000);
-          countdownEl.textContent=h2+'h '+m2+'m left';
-        }
-        paintCountdown();
-        const countdownTimer=setInterval(paintCountdown,60000);
-        window._dfStreakCountdownTimers=window._dfStreakCountdownTimers||[];
-        window._dfStreakCountdownTimers.push(countdownTimer);
-      }
-    })();
+    // Streak-risk banner is now rendered globally (see mountGlobalStreakBanner) so it shows on
+    // every page, not just this dashboard.
 
     // DAILY STUDY SUMMARY BANNER — shown once, the first time they open the app on a new day
     (async function(){
@@ -3014,7 +3023,18 @@ const pages={landing,signup,login,pending,dashboard,study,flashcards,vignette,le
 if(!window.activeSessionId||!window.pomPlan){var _ps=localStorage.getItem('pomodoroState');if(_ps){try{var _psp=JSON.parse(_ps);if(_psp.activeSessionId){window.activeSessionId=_psp.activeSessionId;window.sessionStartTime=_psp.sessionStartTime||null;if(!window.pomPlan&&_psp.segStart){var _cfg=_psp.cfg||{};window.pomPlan={topic:_cfg.topic||'General Study',totalSessions:_cfg.sessions||4,workSec:(_cfg.workMins||25)*60,breakSec:(_cfg.breakMins||5)*60,currentCycle:_psp.curSess||1,isBreakMode:_psp.isBreak||false,startedAtTimestamp:_psp.segStart};}}  }catch(e){}}}
 try{
   root.append((pages[S.page]||landing)());
-  if(window.activeSessionId){showNoiseBar();showTimerBar();initSessionNotepad();}else{removeNoiseBar();removeTimerBar();removeSessionNotepad();}
+  if(S.user){
+    // Floating notepad now persists across the whole platform (not just Pomodoro sessions),
+    // including inside Q-Bank/vignette question review — it only depends on being logged in.
+    initSessionNotepad();
+    mountGlobalStreakBanner();
+    if(window.activeSessionId){showNoiseBar();showTimerBar();}else{removeNoiseBar();removeTimerBar();}
+  }else{
+    removeNoiseBar();removeTimerBar();removeSessionNotepad();
+    var _existingStreakB=document.getElementById('df-streak-banner');if(_existingStreakB)_existingStreakB.remove();
+    if(window._dfStreakBannerTimer){clearInterval(window._dfStreakBannerTimer);window._dfStreakBannerTimer=null;}
+    adjustFixedBannerMargin();
+  }
 }catch(err){
   console.error('Render error:',err);
   root.innerHTML='';
@@ -3124,12 +3144,33 @@ try{
 }
 if(!window._dfTimerWatcher){window._dfTimerWatcher=setInterval(dfEnsureTimerBar,1000);dfEnsureTimerBar();}
 // ═══════════════════════════════
+// NOTE → FLASHCARDS (via Active Recall)
+// ═══════════════════════════════
+// Stashes a note's content as a pending Active Recall prefill, then routes to the
+// Study/Recall-request page (study()) which reads window._dfPendingRecallPrefill on load.
+function requestFlashcardsFromNote(note){
+  if(!note)return;
+  var plainText=String(note.content||'').replace(/<br\s*\/?>/gi,'\n').replace(/<[^>]+>/g,'').replace(/&nbsp;/g,' ').replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>');
+  var b64=null;
+  try{b64=btoa(unescape(encodeURIComponent(plainText)));}catch(e){b64=null;}
+  window._dfPendingRecallPrefill={
+    topic:note.topic||note.title||'',
+    style:'flashcard',
+    details:'Please use the attached note to create flashcards.',
+    attachmentData:b64,
+    attachmentName:(note.title||'note').replace(/[^a-z0-9\-_ ]/gi,'').trim().slice(0,60)+'.txt'
+  };
+  go('study');
+}
 // STREAK
 // ═══════════════════════════════
 function streakDateHelpers(){
-  function toYMD(d){return d.toISOString().split('T')[0];}
+  // NOTE: toYMD uses LOCAL date parts (not toISOString/UTC) so it never disagrees
+  // with todayLocal() — mixing local and UTC date math here was the root cause of
+  // streaks resetting even after a consecutive day of activity.
+  function toYMD(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
   function getDayName(d){return['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d.getDay()];}
-  function todayLocal(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+  function todayLocal(){return toYMD(new Date());}
   function gapDaysBetween(lastDateStr,todayStr){
     const last=new Date(lastDateStr+'T12:00:00');
     const days=[];
@@ -3186,6 +3227,32 @@ async function updateStreak(){
   }
   await sb.from('profiles').update({streak_count:newStreak,last_study_date:todayStr}).eq('id',S.user.id);
   if(S.profile){S.profile.streak_count=newStreak;S.profile.last_study_date=todayStr;}
+}
+// Same day-based streak logic as updateStreak(), but for an arbitrary student id — used when
+// a TUTOR marks a clocked tutoring session as done on the student's behalf (admin context,
+// so there is no logged-in S.profile for that student to update from).
+async function creditStreakForStudent(studentId){
+  if(!studentId)return;
+  const{todayLocal,gapDaysBetween}=streakDateHelpers();
+  const todayStr=todayLocal();
+  const{data:prof}=await sb.from('profiles').select('streak_count,last_study_date,rest_days,is_free_tier,access_expires_at').eq('id',studentId).maybeSingle();
+  if(!prof)return;
+  if(prof.is_free_tier===true&&!(prof.access_expires_at&&new Date(prof.access_expires_at)>new Date()))return;
+  const lastDateStr=prof.last_study_date;
+  if(lastDateStr===todayStr)return;
+  let newStreak;
+  if(!lastDateStr){
+    newStreak=1;
+  }else{
+    const restDays=prof.rest_days||[];
+    const gapDays=gapDaysBetween(lastDateStr,todayStr);
+    if(gapDays.length===0||gapDays.every(d=>restDays.includes(d))){
+      newStreak=(prof.streak_count||0)+1;
+    }else{
+      newStreak=1;
+    }
+  }
+  await sb.from('profiles').update({streak_count:newStreak,last_study_date:todayStr}).eq('id',studentId);
 }
 
 // ═══════════════════════════════
@@ -5094,6 +5161,7 @@ return page;
 // ═══════════════════════════════
 function study(){
 const page=div({cls:'center',style:{minHeight:'100vh',padding:'24px',flexDirection:'column'}});
+let pendingFlashcardPrefill=window._dfPendingRecallPrefill||null;
 let cfg={topic:'',workMins:25,breakMins:5,sessions:4,useRecall:false,recallStyles:[],recallDetails:''};
 let timer=0,running=false,curSess=1,isBreak=false,interval=null,reqSent=false;
 // Restore timer state from localStorage if exists
@@ -5132,9 +5200,11 @@ if(S.profile?.is_free_tier&&!isInTrial()){
 }else{
 card.append(h('label',{cls:'label',html:'Request Active Recall?'}));
 const rb=div({style:{display:'flex',gap:'12px',marginBottom:'20px'}});
+var yesBtnRef=null;
 ['Yes','No'].forEach(v=>{
 const b=btn(v,'btn-outline',()=>{cfg.useRecall=v==='Yes';rb.querySelectorAll('button').forEach(b2=>{b2.style.background='transparent';b2.style.color='var(--muted)';b2.style.border='1px solid var(--border)';});b.style.background='var(--gold)';b.style.color='#0F0E0A';b.style.border='1px solid var(--gold)';ro.style.display=cfg.useRecall?'block':'none';});
 b.style.flex='1';if((v==='Yes'&&cfg.useRecall)||(v==='No'&&!cfg.useRecall)){b.style.background='var(--gold)';b.style.color='#0F0E0A';b.style.border='1px solid var(--gold)';}
+if(v==='Yes')yesBtnRef=b;
 rb.append(b);
 });
 card.append(rb);
@@ -5192,6 +5262,22 @@ const attachNote=div({style:{fontSize:'11px',color:'var(--dim)',marginBottom:'8p
 const attachI=h('input',{type:'file',accept:'.pdf,.pptx,.txt,.png,.jpg,.jpeg',style:{color:'var(--muted)',fontSize:'12px',marginBottom:'8px',display:'block'}});
 const attachStatus=div({style:{fontSize:'11px',color:'var(--teal)',marginBottom:'8px',display:'none'}},[]);
 ro.append(attachLabel,attachNote,attachI,attachStatus);
+// Prefill this form when arriving from a note's "Create Flashcards" button.
+if(pendingFlashcardPrefill){
+  cfg.topic=pendingFlashcardPrefill.topic||cfg.topic;
+  topI.value=cfg.topic;
+  if(yesBtnRef)yesBtnRef.click();
+  flashcardBtn.click();
+  qtyI.value='20';
+  detI.value=pendingFlashcardPrefill.details||'';
+  cfg.recallDetails=detI.value;
+  if(pendingFlashcardPrefill.attachmentData){
+    cfg._pendingAttachment={data:pendingFlashcardPrefill.attachmentData,name:pendingFlashcardPrefill.attachmentName};
+    attachStatus.style.display='block';attachStatus.style.color='var(--teal)';attachStatus.textContent='Note attached: '+pendingFlashcardPrefill.attachmentName;
+  }
+  window._dfPendingRecallPrefill=null;
+  pendingFlashcardPrefill=null;
+}
 let requestCount=0;
 const requestCountDiv=div({style:{fontFamily:"Inter,sans-serif",fontSize:'11px',color:'var(--teal)',marginBottom:'12px',display:'none'}});
 const sentMsg=div({cls:'ok',style:{display:'none',marginBottom:'12px'}});
@@ -5225,6 +5311,9 @@ attachStatus.style.display='block';attachStatus.textContent='Reading file...';
 attachmentData=await new Promise((res,rej)=>{const reader=new FileReader();reader.onload=()=>res(reader.result.split(',')[1]);reader.onerror=()=>rej(new Error('Read failed'));reader.readAsDataURL(file);});
 attachmentName=file.name;
 attachStatus.style.display='none';
+}else if(cfg._pendingAttachment&&cfg._pendingAttachment.data){
+attachmentData=cfg._pendingAttachment.data;
+attachmentName=cfg._pendingAttachment.name;
 }
 const isFreeTier=S.profile?.is_free_tier===true;
 const styleStr=cfg.recallStyles.join(', ');
@@ -5236,7 +5325,7 @@ requestCountDiv.style.display='block';
 requestCountDiv.textContent='✓ '+requestCount+(requestCount===1?' request':' requests')+' sent this session.';
 sentMsg.style.display='block';
 sentMsg.innerHTML='Request sent! Submit another topic below, or start your session.';
-cfg.recallStyles=[];cfg.recallDetails='';recallPriority='';
+cfg.recallStyles=[];cfg.recallDetails='';cfg._pendingAttachment=null;attachStatus.style.display='none';recallPriority='';
 [flashcardBtn,vignetteBtn,theoryBtn].forEach(function(b){b.style.background='transparent';b.style.color='var(--muted)';b.style.border='1px solid var(--border)';});
 qtyI.value='';detI.value='';attachI.value='';
 updatePriorityDiv();
@@ -5785,9 +5874,11 @@ if(deckIds.length){
 }
 skel.remove();
 const today=new Date().toISOString().slice(0,10);
-const dueCards=poolCards.filter(function(c){var p=progMap[c.id];return p&&p.due_at&&p.due_at<=today;}).sort(function(a,b){return(progMap[a.id].due_at).localeCompare(progMap[b.id].due_at);});
-const newCards=poolCards.filter(function(c){return!progMap[c.id];});
 function shuffle2(arr){for(let i=arr.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[arr[i],arr[j]]=[arr[j],arr[i]];}return arr;}
+// Randomize due cards across decks instead of draining them in due_at order (which made
+// review feel like one deck at a time before moving to the next).
+const dueCards=shuffle2(poolCards.filter(function(c){var p=progMap[c.id];return p&&p.due_at&&p.due_at<=today;}));
+const newCards=poolCards.filter(function(c){return!progMap[c.id];});
 const availablePool=[...dueCards,...shuffle2(newCards)];
 const card=div({cls:'card',style:{textAlign:'center'}});
 const goalSet=Number.isInteger(S.profile&&S.profile.daily_review_goal)&&S.profile.daily_review_goal>0;
@@ -6113,6 +6204,10 @@ const savedQuiz=sessionStorage.getItem('vignette_resume');
 if(savedQuiz){(()=>{const state=JSON.parse(savedQuiz);if(mode==='timed'&&state.timeLeft<=0){sessionStorage.removeItem('vignette_resume');}else{const banner=div({cls:'card',style:{marginBottom:'24px',padding:'16px',border:'1px solid var(--gold)',background:'rgba(184,146,46,0.08)'}},[ h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'11px',color:'var(--gold)',marginBottom:'12px'}},['⏸ Quiz in progress — '+state.selTopic+' · '+Object.keys(state.answers).length+' of '+state.questions.length+' answered']), div({style:{display:'flex',gap:'10px'}},[ btn('Resume','btn-gold',()=>{questions=state.questions;current=state.current;answers=state.answers;selTopic=state.selTopic;mode=state.mode;timeLimit=state.timeLimit;timeLeft=state.timeLeft||0;submitted=false;revealed={};flagged=state.flagged||{};showQuiz();},{style:{padding:'6px 16px',fontSize:'11px'}}), btn('Discard','btn-outline',()=>{sessionStorage.removeItem('vignette_resume');showSetup();},{style:{padding:'6px 16px',fontSize:'11px'}}) ]) ]);inner.append(banner);}})();}
 inner.append(h('span',{cls:'chapter',html:'Question Bank'}),h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'26px',marginBottom:'24px'},html:'Configure Your Quiz'}));
 var mapletQ=showMaplet('qbank','Attempt vignette questions one at a time. Use the highlighter, rule out options, and review your explanation after each answer.');if(mapletQ)inner.append(mapletQ);
+inner.append(div({cls:'card',style:{padding:'12px 16px',marginBottom:'16px',display:'flex',alignItems:'center',justifyContent:'space-between',gap:'12px',flexWrap:'wrap'}},[
+  h('span',{style:{fontFamily:"Inter,sans-serif",fontSize:'12px',color:'var(--dim)'}},['Want to build your own Q-Bank around a specific topic or weak area? Request it via Active Recall.']),
+  btn('Request Active Recall →','btn-outline',()=>go('study'),{style:{fontSize:'11px',padding:'6px 14px',flexShrink:'0'}})
+]));
 const{data}=await (isFree?sb.from('vignette_questions').select('topic').or('is_global.eq.true,user_id.eq.'+S.user.id):sb.from('vignette_questions').select('topic').or('is_global.eq.true,user_id.is.null,user_id.eq.'+S.user.id));
 const topics=data?[...new Set(data.map(d=>d.topic))]:[];
 if(!topics.length){inner.append(div({cls:'card',style:{textAlign:'center',padding:'48px'}},[h('p',{style:{fontSize:'14px',color:'var(--dim)'},html:'No questions available yet.'})]));return;}
@@ -9357,6 +9452,7 @@ function openStudent(s){
           var curProf=await sb.from('profiles').select('total_study_minutes').eq('id',s.user_id).maybeSingle();
           var curMins=(curProf&&curProf.data&&curProf.data.total_study_minutes)||0;
           await sb.from('profiles').update({total_study_minutes:curMins+120}).eq('id',s.user_id);
+          await creditStreakForStudent(s.user_id);
           var nd=new Date(slot.next_class_date+'T00:00:00');nd.setDate(nd.getDate()+7);
           var ndStr=nd.getFullYear()+'-'+String(nd.getMonth()+1).padStart(2,'0')+'-'+String(nd.getDate()).padStart(2,'0');
           await sb.from('tutoring_class_slots').update({next_class_date:ndStr}).eq('id',slot.id);
