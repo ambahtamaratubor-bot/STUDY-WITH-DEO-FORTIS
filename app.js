@@ -1330,7 +1330,7 @@ rightNav.append(dashboardBtn,makeThemeBtn());
 nav.append(logo,rightNav);
 const inner=div({cls:'inner'});
 inner.append(h('span',{cls:'chapter',html:'My Notes'},[]),h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'26px',marginBottom:'8px'},html:'My Notes'},[]),h('p',{cls:'muted',style:{fontSize:'14px',marginBottom:'32px'},html:'Your saved recall responses, organised by topic.'},[]));
-var mapletN=showMaplet('notes','All your saved recall responses live here. Organise by folder, edit anytime, and export as a branded PDF.');if(mapletN)inner.append(mapletN);
+var mapletN=showMaplet('notes-flashcards','All your saved recall responses live here. Organise by folder, edit anytime, export as a branded PDF \u2014 or hit "Create Flashcards" on any note to turn it straight into a flashcard deck.');if(mapletN)inner.append(mapletN);
 async function loadNotes(){
 const notesSkel=skelCard([['50%'],['100%'],['80%'],['100%'],['60%']]);inner.append(notesSkel);
 const{data:nlist}=await sb.from('notes').select('*').eq('user_id',S.user.id).order('created_at',{ascending:false});
@@ -4988,7 +4988,7 @@ twoCol.append(recentCard);
       actionButton(ICONS.message,'Community',()=>{if(commLink&&commLink!=='#')window.open(commLink,'_blank');}),
       actionButton(ICONS.brain,'Feynman Arena',()=>go('feynman')),
       actionButton(ICONS.file,'Theory Hub',()=>{if(isFree&&!isInTrial()){showUpgradeModal();return;}go('theory');}),
-      actionButton(ICONS.book,'My Notes',()=>go('notes'))
+      actionButton(ICONS.book,'My Notes',()=>go('notes'),true)
     ])
   );
   twoCol.append(actionsCard);
@@ -11317,20 +11317,53 @@ let _sessionNoteId=null;
 let _sessionNoteSaveTimer=null;
 function initSessionNotepad(){
   if(document.getElementById('session-notepad-btn'))return;
+  ensureNewBadgeStyles();
+  var introSeen=localStorage.getItem('df_notepad_intro_seen')==='1';
   const noteBtn=document.createElement('button');
   noteBtn.id='session-notepad-btn';
   noteBtn.innerHTML=ICONS.file+' Notes';
   noteBtn.style.cssText='position:fixed;bottom:20px;left:20px;z-index:10000;display:inline-flex;align-items:center;gap:8px;padding:12px 20px;background:var(--gold);color:var(--bg);border:none;border-radius:40px;font-size:13px;font-family:"DM Mono",monospace;font-weight:600;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,0.3);width:auto;';
+  if(!introSeen)noteBtn.style.animation='dfNewGlow 1.4s ease-in-out infinite';
+  let badgeEl=null;
+  if(!introSeen){
+    badgeEl=document.createElement('span');
+    badgeEl.textContent='NEW';
+    badgeEl.style.cssText='background:#0F0E0A;color:var(--gold);font-family:Inter,sans-serif;font-size:9px;font-weight:800;letter-spacing:1px;padding:2px 6px;border-radius:999px;';
+    noteBtn.appendChild(badgeEl);
+  }
   let isOpen=false,panel=null;
+  // Stops the pulsing glow / NEW pill / callout the first time the user engages with the
+  // notepad in any way (opens it, or dismisses the callout) — a one-time intro, not nagging.
+  function stopIntroGlow(){
+    if(introSeen)return;
+    introSeen=true;
+    localStorage.setItem('df_notepad_intro_seen','1');
+    noteBtn.style.animation='';
+    if(badgeEl){badgeEl.remove();badgeEl=null;}
+    var calloutEl=document.getElementById('df-notepad-callout');if(calloutEl)calloutEl.remove();
+  }
   noteBtn.addEventListener('click',function(){
+    stopIntroGlow();
     if(isOpen){if(panel)panel.remove();panel=null;isOpen=false;return;}
     panel=buildNotePanel();document.body.appendChild(panel);isOpen=true;
   });
   document.body.appendChild(noteBtn);
+  // Auto-shown, unmissable one-time callout — explains that notes can be taken from anywhere
+  // and turned into flashcards, without requiring the user to click the button to discover it.
+  if(!introSeen&&!document.getElementById('df-notepad-callout')){
+    var callout=div({id:'df-notepad-callout',style:{position:'fixed',bottom:'78px',left:'20px',maxWidth:'260px',background:'var(--card)',border:'1px solid var(--gold)',borderRadius:'10px',padding:'14px 16px',zIndex:10000,boxShadow:'0 8px 20px rgba(0,0,0,0.35)',fontFamily:'Inter,sans-serif'}},[]);
+    callout.append(
+      h('div',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'13px',fontWeight:'700',color:'var(--gold)',marginBottom:'6px'}},['\uD83D\uDCDD Notes, anywhere']),
+      h('div',{style:{fontSize:'12px',color:'var(--muted)',lineHeight:'1.5',marginBottom:'10px'}},['Jot notes down from any page \u2014 even mid-question. Then hit "Create Flashcards" on any saved note to turn it into a flashcard deck.']),
+      btn('Got it','btn-gold',function(){stopIntroGlow();},{style:{fontSize:'11px',padding:'6px 14px',width:'100%'}})
+    );
+    document.body.appendChild(callout);
+  }
 }
 function removeSessionNotepad(){
   const b=document.getElementById('session-notepad-btn');if(b)b.remove();
   const p=document.getElementById('session-notepad-panel');if(p)p.remove();
+  const c=document.getElementById('df-notepad-callout');if(c)c.remove();
   if(_sessionNoteSaveTimer){clearTimeout(_sessionNoteSaveTimer);_sessionNoteSaveTimer=null;}
   _sessionNoteId=null;
 }
