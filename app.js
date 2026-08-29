@@ -142,11 +142,27 @@ sb.auth.onAuthStateChange(function(event,session){
   }
 });
 async function getProfile(id){
-let{data,error}=await sb.from('profiles').select('*').eq('id',id).single();
-if(!data&&error){
-  await sb.auth.refreshSession();
-  const retry=await sb.from('profiles').select('*').eq('id',id).single();
-  data=retry.data;
+let data,error;
+try{
+  var _r0=await sb.from('profiles').select('*').eq('id',id).single();
+  data=_r0.data;error=_r0.error;
+  if(!data&&error){
+    await sb.auth.refreshSession();
+    const retry=await sb.from('profiles').select('*').eq('id',id).single();
+    data=retry.data;
+  }
+}catch(e){
+  console.warn('getProfile: failed to load/refresh profile',e);
+  data=null;
+}
+if(!data){
+  console.warn('getProfile: no profile after retry, signing out to reset state');
+  try{await sb.auth.signOut({scope:'local'});}catch(e2){}
+  try{localStorage.removeItem('df-auth');}catch(e2){}
+  S.user=null;S.profile=null;
+  alert('Your session has expired. Please sign in again.');
+  go('landing');
+  return;
 }
 if(data){
   if(data.is_free_tier===null||data.is_free_tier===undefined){
@@ -197,14 +213,6 @@ if(data){
   if(requiredPage){if(S.page!==requiredPage)go(requiredPage);return;}
   var validPages=['dashboard','study','flashcards','vignette','feynman','theory','notes','leaderboard','tutoring'];
   if(!validPages.includes(S.page)){go('dashboard');}
-}else{
-  // No profile found — admin-only or orphaned account
-  // Sign out safely and go to landing after globals are ready
-  await sb.auth.signOut();
-  S.user=null;
-  S.profile=null;
-  S.page='landing';
-  setTimeout(render,100);
 }
 }
 function h(tag,attr,kids){
@@ -3028,7 +3036,21 @@ async function showReview(result){
 
 paintTabs();
 content.append(skelCard([['40%'],['100%'],['80%'],['100%']]));
-(async function(){await loadData();if(!DATA.enrolled)tabBar.style.display='none';renderTab();})();
+(async function(){
+  try{
+    await loadData();
+    if(!DATA.enrolled)tabBar.style.display='none';
+    renderTab();
+  }catch(e){
+    console.warn('tutoring wing: loadData failed',e);
+    content.innerHTML='';
+    content.append(div({cls:'card',style:{textAlign:'center',padding:'40px 20px'}},[
+      h('div',{style:{fontFamily:'Georgia,serif',fontSize:'17px',color:'var(--text)',marginBottom:'8px'}},['Couldn\u2019t load the Tutoring Wing']),
+      h('div',{style:{fontSize:'13px',color:'var(--muted)',marginBottom:'16px'}},['This can happen if your session expired. Try again \u2014 if it keeps happening, sign out and back in.']),
+      btn('Retry','btn-outline',function(){go('tutoring');},{style:{padding:'8px 20px'}})
+    ]));
+  }
+})();
 return page;
 }
 const pages={landing,signup,login,pending,dashboard,study,flashcards,vignette,leaderboard,admin,feynman,theory,notes,about,tutoring};
@@ -7099,15 +7121,24 @@ const tmBtn=btn('Team Login','btn-teal',async()=>{
   tmBtn.disabled=true;tmBtn.textContent='Signing in...';
   tmLoadingBar.show();
   window._teamLogin=true;
-  const{data,error}=await sb.auth.signInWithPassword({email,password});
-  if(error){tmErr.classList.remove('hidden');tmErr.textContent='Invalid email or password.';tmBtn.disabled=false;tmBtn.textContent='Team Login';tmLoadingBar.hide();window._teamLogin=false;return;}
-  const{data:roleData}=await sb.from('admin_roles').select('role').eq('user_id',data.user.id).single();
-  if(!roleData){tmErr.classList.remove('hidden');tmErr.textContent='You do not have team access.';tmBtn.disabled=false;tmBtn.textContent='Team Login';tmLoadingBar.hide();await sb.auth.signOut();return;}
-  S.user=data.user;
-  const{data:teamProfile}=await sb.from('profiles').select('*').eq('id',data.user.id).single();
-  S.profile=teamProfile||{};
-  authed=true;
-  showAdminPanel();
+  try{
+    const{data,error}=await sb.auth.signInWithPassword({email,password});
+    if(error){tmErr.classList.remove('hidden');tmErr.textContent='Invalid email or password.';return;}
+    const{data:roleData}=await sb.from('admin_roles').select('role').eq('user_id',data.user.id).single();
+    if(!roleData){tmErr.classList.remove('hidden');tmErr.textContent='You do not have team access.';await sb.auth.signOut();return;}
+    S.user=data.user;
+    const{data:teamProfile}=await sb.from('profiles').select('*').eq('id',data.user.id).single();
+    S.profile=teamProfile||{};
+    authed=true;
+    showAdminPanel();
+  }catch(e){
+    console.warn('team login failed',e);
+    tmErr.classList.remove('hidden');tmErr.textContent='Something went wrong. Please try again.';
+    try{await sb.auth.signOut({scope:'local'});}catch(e2){}
+  }finally{
+    window._teamLogin=false;
+    tmBtn.disabled=false;tmBtn.textContent='Team Login';tmLoadingBar.hide();
+  }
 },{style:{width:'100%',marginTop:'8px'}});
 const tmLoadingBar=makeLoadingBar('Signing you in\u2026');
 tmPass.onkeydown=e=>{if(e.key==='Enter')tmBtn.click();};
