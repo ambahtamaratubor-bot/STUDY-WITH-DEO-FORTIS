@@ -134,6 +134,8 @@ sb.auth.onAuthStateChange(function(event,session){
   if(event==='SIGNED_IN'||(event==='INITIAL_SESSION'&&!S.user)){
     if(session&&session.user){
       if(!S.user||S.user.id!==session.user.id||!S.profile){S.user=session.user;getProfile(session.user.id);}
+    }else if(event==='INITIAL_SESSION'){
+      try{if(localStorage.getItem('df-auth'))localStorage.removeItem('df-auth');}catch(e){}
     }
   }else if(event==='SIGNED_OUT'){
     if(S.user!==null){S.user=null;S.profile=null;go('landing');}
@@ -1225,8 +1227,18 @@ async function render(){
 const root=document.getElementById('root');
 ensureAnnouncementBanner();
 if(!S.user){
-  var _rs=await sb.auth.getSession();
-  var _rsess=_rs&&_rs.data&&_rs.data.session;
+  var _rsess=null;
+  try{
+    var _rs=await Promise.race([
+      sb.auth.getSession(),
+      new Promise(function(_,rej){setTimeout(function(){rej(new Error('getSession timed out'));},8000);})
+    ]);
+    _rsess=_rs&&_rs.data&&_rs.data.session;
+  }catch(e){
+    console.warn('df-auth: session check failed, clearing stale session',e);
+    try{await sb.auth.signOut({scope:'local'});}catch(e2){}
+    try{localStorage.removeItem('df-auth');}catch(e2){}
+  }
   if(_rsess&&_rsess.user){
     S.user=_rsess.user;
     var _savedPage=localStorage.getItem('df-page');
