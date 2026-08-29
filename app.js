@@ -141,6 +141,29 @@ sb.auth.onAuthStateChange(function(event,session){
     if(S.user!==null){S.user=null;S.profile=null;go('landing');}
   }
 });
+async function dfHandleAsyncError(e){
+  console.warn('df: unhandled async error',e);
+  if(!S.user||window._dfRecovering)return;
+  window._dfRecovering=true;
+  try{
+    var _rs=await Promise.race([sb.auth.getSession(),new Promise(function(_,rej){setTimeout(function(){rej(new Error('timeout'));},6000);})]);
+    var _sess=_rs&&_rs.data&&_rs.data.session;
+    if(!_sess){alert('Your session has expired. Please sign in again.');await dfLogout();}
+  }catch(e2){
+    alert('Your session has expired. Please sign in again.');
+    try{await dfLogout();}catch(e3){}
+  }finally{
+    window._dfRecovering=false;
+  }
+}
+window.addEventListener('unhandledrejection',function(ev){dfHandleAsyncError(ev.reason);});
+async function dfLogout(){
+  try{await sb.auth.signOut();}catch(e){console.warn('signOut (global) failed, forcing local cleanup',e);}
+  try{await sb.auth.signOut({scope:'local'});}catch(e){}
+  try{localStorage.removeItem('df-auth');}catch(e){}
+  S.user=null;S.profile=null;
+  go('landing');
+}
 async function getProfile(id){
 let data,error;
 try{
@@ -228,7 +251,32 @@ if(kids)kids.filter(Boolean).forEach(k=>e.append(typeof k==='string'||typeof k==
 return e;
 }
 function div(a,k){return h('div',a,k);}
-function btn(text,cls,onclick,extra){const b=h('button',{cls:'btn '+cls,onclick,...extra},[text]);return b;}
+function btn(text,cls,onclick,extra){
+  var wrapped=onclick;
+  if(typeof onclick==='function'){
+    wrapped=function(){
+      var self=this;var args=arguments;
+      try{
+        var r=onclick.apply(self,args);
+        if(r&&typeof r.then==='function'){
+          r.catch(function(e){
+            console.warn('button click handler failed',e);
+            try{self.disabled=false;}catch(e2){}
+            try{self.textContent=text;}catch(e2){}
+            dfHandleAsyncError(e);
+          });
+        }
+      }catch(e){
+        console.warn('button click handler failed',e);
+        try{self.disabled=false;}catch(e2){}
+        try{self.textContent=text;}catch(e2){}
+        dfHandleAsyncError(e);
+      }
+    };
+  }
+  const b=h('button',{cls:'btn '+cls,onclick:wrapped,...extra},[text]);
+  return b;
+}
 function skel(lines,opts){
   opts=opts||{};
   const wrap=div({style:{padding:opts.pad||'0'}});
@@ -4549,7 +4597,7 @@ txSection.append(
   h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'11px',color:'var(--dim)',marginBottom:'10px',lineHeight:'1.6'},html:'Enter the Payment Reference from your Selar receipt to activate your account immediately.'}),
   txInput,txStatus,txBtn
 );
-card.append(txSection,btn('Log Out','btn-outline',()=>sb.auth.signOut(),{style:{width:'100%'}}));
+card.append(txSection,btn('Log Out','btn-outline',()=>dfLogout(),{style:{width:'100%'}}));
 page.append(card);return page;
 }
 // ═══════════════════════════════
@@ -4682,7 +4730,7 @@ nav.append(
     btn('Leaderboard','btn-outline',()=>go('leaderboard'),{style:{padding:'8px 16px'}}),
     makeThemeBtn(),
     isFree?btn('⬆ Upgrade','btn-gold',()=>showUpgradeModal(),{style:{padding:'8px 16px'}}):null,
-    btn('Log Out','btn-outline',()=>sb.auth.signOut(),{style:{padding:'8px 16px'}})
+    btn('Log Out','btn-outline',()=>dfLogout(),{style:{padding:'8px 16px'}})
   ].filter(Boolean))
 );
 page.append(nav);
@@ -6787,7 +6835,7 @@ if(S.profile?.is_free_tier===true&&!isInTrial()){
   return page;
 }
 var nav=div({cls:'dash-nav'});
-nav.append(dfLogo(),div({style:{display:'flex',gap:'8px'}},[btn('Study','btn-outline',function(){go('study');},{style:{padding:'8px 16px'}}),btn('Dashboard','btn-outline',function(){go('dashboard');},{style:{padding:'8px 16px'}}),makeThemeBtn(),btn('Log Out','btn-outline',function(){sb.auth.signOut();},{style:{padding:'8px 16px'}})]));
+nav.append(dfLogo(),div({style:{display:'flex',gap:'8px'}},[btn('Study','btn-outline',function(){go('study');},{style:{padding:'8px 16px'}}),btn('Dashboard','btn-outline',function(){go('dashboard');},{style:{padding:'8px 16px'}}),makeThemeBtn(),btn('Log Out','btn-outline',function(){dfLogout();},{style:{padding:'8px 16px'}})]));
 page.append(nav);
 var container=div({cls:'inner'});
 page.append(container);
