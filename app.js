@@ -9550,7 +9550,8 @@ function openStudent(s){
           await creditStreakForStudent(s.user_id);
           var nd=new Date(slot.next_class_date+'T00:00:00');nd.setDate(nd.getDate()+7);
           var ndStr=nd.getFullYear()+'-'+String(nd.getMonth()+1).padStart(2,'0')+'-'+String(nd.getDate()).padStart(2,'0');
-          await sb.from('tutoring_class_slots').update({next_class_date:ndStr}).eq('id',slot.id);
+          var rollUpd=await sb.from('tutoring_class_slots').update({next_class_date:ndStr}).eq('id',slot.id);
+          if(rollUpd.error)alert('Attendance was logged, but the class did not roll to next week: '+rollUpd.error.message+'. Please refresh the page and try again, or contact an admin.');
           loadClassSlots();
         },{style:{fontSize:'10px',padding:'6px 12px'}});
         var markMissedBtn=btn('Mark Missed','btn-outline',async function(){
@@ -9560,7 +9561,8 @@ function openStudent(s){
           if(att.error){alert('Failed: '+att.error.message);markMissedBtn.disabled=false;return;}
           var nd=new Date(slot.next_class_date+'T00:00:00');nd.setDate(nd.getDate()+7);
           var ndStr=nd.getFullYear()+'-'+String(nd.getMonth()+1).padStart(2,'0')+'-'+String(nd.getDate()).padStart(2,'0');
-          await sb.from('tutoring_class_slots').update({next_class_date:ndStr}).eq('id',slot.id);
+          var rollUpd=await sb.from('tutoring_class_slots').update({next_class_date:ndStr}).eq('id',slot.id);
+          if(rollUpd.error)alert('Attendance was logged, but the class did not roll to next week: '+rollUpd.error.message+'. Please refresh the page and try again, or contact an admin.');
           loadClassSlots();
         },{style:{fontSize:'10px',padding:'6px 12px',color:'#e08a3c',borderColor:'#e08a3c'}});
         var rescheduleBtn=btn('Reschedule','btn-outline',function(){
@@ -9598,6 +9600,95 @@ function openStudent(s){
       });
     }
     loadClassSlots();
+
+    // OVERDUE CLASS LOCK — if any active slot is 48+ hours past its scheduled time with
+    // no attendance logged, the whole student page is blurred/locked until every overdue
+    // class is marked (attended/missed) or rescheduled to a non-overdue time.
+    async function checkOverdueLock(){
+      var slotsRes=await sb.from('tutoring_class_slots').select('*').eq('student_id',s.user_id).eq('active',true);
+      var slots=slotsRes.data||[];
+      if(!slots.length){removeOverdueLock();return;}
+      var attRes=await sb.from('tutoring_class_attendance').select('slot_id,class_date').eq('student_id',s.user_id).in('slot_id',slots.map(function(x){return x.id;}));
+      var markedSet={};
+      (attRes.data||[]).forEach(function(a){markedSet[a.slot_id+'|'+a.class_date]=true;});
+      var now=Date.now();
+      var overdue=slots.filter(function(slot){
+        if(markedSet[slot.id+'|'+slot.next_class_date])return false;
+        var sched=new Date(slot.next_class_date+'T'+slot.class_time).getTime();
+        return (now-sched)>48*60*60*1000;
+      });
+      if(!overdue.length){removeOverdueLock();return;}
+      showOverdueLock(overdue);
+    }
+    function removeOverdueLock(){
+      var ex=document.getElementById('df-overdue-lock');if(ex)ex.remove();
+      tBody.style.filter='';
+      tBody.style.pointerEvents='';
+      tBody.style.userSelect='';
+    }
+    function showOverdueLock(overdue){
+      removeOverdueLock();
+      tBody.style.filter='blur(6px)';
+      tBody.style.pointerEvents='none';
+      tBody.style.userSelect='none';
+      var overlay=div({style:{position:'fixed',top:'0',left:'0',width:'100%',height:'100%',background:'rgba(0,0,0,0.55)',zIndex:'2000',display:'flex',alignItems:'center',justifyContent:'center',padding:'24px',boxSizing:'border-box',overflowY:'auto'}},[]);
+      overlay.id='df-overdue-lock';
+      var modal=div({style:{background:'var(--surface)',border:'1px solid var(--gold)',borderRadius:'8px',padding:'28px',width:'100%',maxWidth:'480px',maxHeight:'82vh',overflowY:'auto',boxSizing:'border-box'}},[]);
+      modal.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'17px',color:'var(--gold)',marginBottom:'6px'}},['\u26a0 Overdue Class'+(overdue.length>1?'es':'')]));
+      modal.append(h('p',{style:{fontSize:'12px',color:'var(--dim)',marginBottom:'16px',lineHeight:'1.5'}},['These classes for '+s.full_name+' are more than 48 hours past their scheduled time and haven\u2019t been marked. Mark or reschedule each one to continue.']));
+      overdue.forEach(function(slot){
+        var row=div({cls:'card',style:{padding:'14px',marginBottom:'10px'}},[]);
+        row.append(h('div',{style:{fontSize:'13px',color:'var(--text)',fontWeight:'600',marginBottom:'2px'}},[DOW_NAMES[new Date(slot.next_class_date+'T00:00:00').getDay()]+' \u00b7 '+fmtTimeShortAdmin(slot.class_time)]));
+        row.append(h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--muted)',marginBottom:'10px'}},[new Date(slot.next_class_date+'T00:00:00').toLocaleDateString()]));
+        var btnRow=div({style:{display:'flex',gap:'8px',flexWrap:'wrap'}},[]);
+        function rollForward(onErr){
+          var nd=new Date(slot.next_class_date+'T00:00:00');nd.setDate(nd.getDate()+7);
+          var ndStr=nd.getFullYear()+'-'+String(nd.getMonth()+1).padStart(2,'0')+'-'+String(nd.getDate()).padStart(2,'0');
+          return sb.from('tutoring_class_slots').update({next_class_date:ndStr}).eq('id',slot.id).then(function(res){if(res.error&&onErr)onErr(res.error);});
+        }
+        var doneBtn=btn('Attended','btn-teal',async function(){
+          doneBtn.disabled=true;
+          var att=await sb.from('tutoring_class_attendance').insert({slot_id:slot.id,student_id:s.user_id,tutor_id:slot.tutor_id,class_date:slot.next_class_date,duration_hours:2,status:'attended',marked_by:S.user.id});
+          if(att.error){alert('Failed: '+att.error.message);doneBtn.disabled=false;return;}
+          var curProf=await sb.from('profiles').select('total_study_minutes').eq('id',s.user_id).maybeSingle();
+          var curMins=(curProf&&curProf.data&&curProf.data.total_study_minutes)||0;
+          await sb.from('profiles').update({total_study_minutes:curMins+120}).eq('id',s.user_id);
+          await creditStreakForStudent(s.user_id);
+          await rollForward(function(e){alert('Attendance was logged, but the class did not roll to next week: '+e.message+'. Please refresh and try again.');});
+          loadClassSlots();checkOverdueLock();
+        },{style:{fontSize:'10px',padding:'6px 12px'}});
+        var missedBtn=btn('Missed','btn-outline',async function(){
+          missedBtn.disabled=true;
+          var att=await sb.from('tutoring_class_attendance').insert({slot_id:slot.id,student_id:s.user_id,tutor_id:slot.tutor_id,class_date:slot.next_class_date,duration_hours:0,status:'missed',marked_by:S.user.id});
+          if(att.error){alert('Failed: '+att.error.message);missedBtn.disabled=false;return;}
+          await rollForward(function(e){alert('Attendance was logged, but the class did not roll to next week: '+e.message+'. Please refresh and try again.');});
+          loadClassSlots();checkOverdueLock();
+        },{style:{fontSize:'10px',padding:'6px 12px',color:'#e08a3c',borderColor:'#e08a3c'}});
+        var resForm=div({style:{display:'none',marginTop:'10px',paddingTop:'10px',borderTop:'1px solid var(--border)'}},[]);
+        var rescheduleToggleBtn=btn('Reschedule','btn-outline',function(){
+          resForm.style.display=resForm.style.display==='block'?'none':'block';
+        },{style:{fontSize:'10px',padding:'6px 12px'}});
+        btnRow.append(doneBtn,missedBtn,rescheduleToggleBtn);
+        row.append(btnRow);
+        var rDateInp=h('input',{cls:'input',type:'date',style:{width:'150px',color:'var(--text)'}});rDateInp.value=slot.next_class_date;
+        var rTimeInp=h('input',{cls:'input',type:'time',style:{width:'130px',color:'var(--text)'}});rTimeInp.value=slot.class_time;
+        var rSaveBtn=btn('Save New Time','btn-gold',async function(){
+          if(!rDateInp.value)return;
+          rSaveBtn.disabled=true;
+          var upd=await sb.from('tutoring_class_slots').update({next_class_date:rDateInp.value,class_time:rTimeInp.value||slot.class_time}).eq('id',slot.id);
+          rSaveBtn.disabled=false;
+          if(upd.error){alert('Failed: '+upd.error.message);return;}
+          loadClassSlots();checkOverdueLock();
+        },{style:{fontSize:'10px',padding:'6px 12px'}});
+        resForm.append(div({style:{display:'flex',gap:'8px',flexWrap:'wrap',alignItems:'center'}},[rDateInp,rTimeInp,rSaveBtn]));
+        row.append(resForm);
+        modal.append(row);
+      });
+      overlay.append(modal);
+      document.body.appendChild(overlay);
+    }
+    checkOverdueLock();
+
     body.append(scheduleSec.wrap);
 
     // MONTHLY REPORTS (Build 1) — fast, complete status snapshot any tutor/admin can add,
