@@ -9617,6 +9617,13 @@ function openStudent(s){
       return b;
     }
     var REPORT_RATINGS=['Excellent','Good','Average','Struggling'];
+    function ratingStars(rating){
+      var filled=REPORT_RATINGS.length-REPORT_RATINGS.indexOf(rating);
+      if(filled<=0)filled=1;
+      var out='';
+      for(var i=0;i<REPORT_RATINGS.length;i++)out+=(i<filled?'\u2605':'\u2606');
+      return out;
+    }
     var reportAuthorNames={};
     async function resolveReportAuthors(ids){
       var need=ids.filter(function(id){return id&&!reportAuthorNames[id];});
@@ -9724,13 +9731,36 @@ function openStudent(s){
 
     // Opens a report as its own full page (Back button via subPageHeader) rather than an
     // inline expand/collapse.
+    async function toggleReportStar(r,onDone){
+      var upd=await sb.from('tutoring_monthly_reports').update({is_starred:!r.is_starred}).eq('id',r.id);
+      if(upd.error){alert('Failed: '+upd.error.message);return;}
+      r.is_starred=!r.is_starred;
+      if(onDone)onDone();
+    }
+    function starToggleEl(r,size,onDone){
+      var el=h('span',{style:{fontSize:size||'18px',color:r.is_starred?'var(--gold)':'var(--muted)',cursor:'pointer',lineHeight:'1',userSelect:'none'}},[r.is_starred?'\u2605':'\u2606']);
+      el.title=r.is_starred?'Unstar this report':'Star this report as important';
+      el.onclick=function(ev){
+        ev.stopPropagation();
+        toggleReportStar(r,function(){
+          el.textContent=r.is_starred?'\u2605':'\u2606';
+          el.style.color=r.is_starred?'var(--gold)':'var(--muted)';
+          el.title=r.is_starred?'Unstar this report':'Star this report as important';
+          if(onDone)onDone();
+        });
+      };
+      return el;
+    }
     function showMonthlyReportPage(r){
       var listWrap=subPageHeader((new Date(r.report_month+'T00:00:00')).toLocaleDateString(undefined,{month:'long',year:'numeric'})+' Report');
       var card=div({cls:'card',style:{padding:'20px'}},[]);
-      card.append(
-        h('div',{style:{fontSize:'15px',color:'var(--text)',fontWeight:'700',marginBottom:'2px'}},[r.progress_rating]),
+      var headRow=div({style:{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:'10px'}},[]);
+      headRow.append(div({},[
+        h('div',{style:{fontSize:'15px',color:'var(--text)',fontWeight:'700',marginBottom:'2px'}},['Progress: '+r.progress_rating+'  ',h('span',{style:{color:'var(--gold)',fontSize:'14px'}},[ratingStars(r.progress_rating)])]),
         h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--muted)',marginBottom:'16px'}},['by '+(reportAuthorNames[r.created_by]||'Staff')+' \u00b7 '+new Date(r.created_at).toLocaleString()])
-      );
+      ]));
+      headRow.append(starToggleEl(r,'22px'));
+      card.append(headRow);
       var detail=div({style:{fontSize:'13px',lineHeight:'1.8',color:'var(--text)'}},[]);
       function row(label,val){if(!val)return;detail.append(div({style:{marginBottom:'8px'}},[h('b',{style:{color:'var(--gold)'}},[label+': ']),val]));}
       row('Daily test average trend',r.daily_test_trend);
@@ -9750,7 +9780,7 @@ function openStudent(s){
     var reportNotesCache={};
     async function loadMonthlyReports(){
       reportsListWrap.innerHTML='';
-      var rr=await sb.from('tutoring_monthly_reports').select('*').eq('student_id',s.user_id).order('created_at',{ascending:false});
+      var rr=await sb.from('tutoring_monthly_reports').select('*').eq('student_id',s.user_id).order('is_starred',{ascending:false}).order('created_at',{ascending:false});
       var reports=rr.data||[];
       var latest=reports[0];
       var isDue=!latest||((Date.now()-new Date(latest.created_at).getTime())>30*24*60*60*1000);
@@ -9764,12 +9794,15 @@ function openStudent(s){
       (nr.data||[]).forEach(function(n){(reportNotesCache[n.report_id]=reportNotesCache[n.report_id]||[]).push(n);});
       reports.forEach(function(r){
         var monthLabel=new Date(r.report_month+'T00:00:00').toLocaleDateString(undefined,{month:'long',year:'numeric'});
-        var card=div({cls:'card',style:{padding:'14px',marginBottom:'8px',display:'flex',justifyContent:'space-between',alignItems:'center',gap:'10px',flexWrap:'wrap',cursor:'pointer'}},[]);
+        var card=div({cls:'card',style:{padding:'14px',marginBottom:'8px',display:'flex',justifyContent:'space-between',alignItems:'center',gap:'10px',flexWrap:'wrap',cursor:'pointer',border:r.is_starred?'1px solid var(--gold)':'1px solid var(--border)',background:r.is_starred?'var(--gold-subtle)':'transparent'}},[]);
         card.append(div({style:{flex:'1',minWidth:'200px'}},[
-          h('div',{style:{fontSize:'13px',color:'var(--text)',fontWeight:'600'}},[monthLabel+' \u00b7 '+r.progress_rating]),
+          h('div',{style:{fontSize:'13px',color:'var(--text)',fontWeight:'600'}},[monthLabel+' \u00b7 Progress: '+r.progress_rating+'  ',h('span',{style:{color:'var(--gold)',fontSize:'12px'}},[ratingStars(r.progress_rating)])]),
           h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--muted)',marginTop:'4px'}},['by '+(reportAuthorNames[r.created_by]||'Staff')+' \u00b7 '+new Date(r.created_at).toLocaleDateString()])
         ]));
-        card.append(h('span',{style:{fontSize:'13px',color:'var(--muted)'}},['\u203a']));
+        var rightWrap=div({style:{display:'flex',alignItems:'center',gap:'10px',flexShrink:'0'}},[]);
+        rightWrap.append(starToggleEl(r,'18px',function(){loadMonthlyReports();}));
+        rightWrap.append(h('span',{style:{fontSize:'13px',color:'var(--muted)'}},['\u203a']));
+        card.append(rightWrap);
         card.onclick=function(){showMonthlyReportPage(r);};
         reportsListWrap.append(card);
       });
