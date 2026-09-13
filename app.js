@@ -9602,6 +9602,7 @@ function openStudent(s){
 
     // MONTHLY REPORTS (Build 1) — fast, complete status snapshot any tutor/admin can add,
     // so someone can step in on a student without needing history from the previous tutor.
+    // Admin/tutor console only — reached solely from openStudent(), never from any student-facing view.
     function ensureDueBadgeStyles(){
       if(document.getElementById('df-duebadge-style'))return;
       var st=document.createElement('style');
@@ -9616,22 +9617,6 @@ function openStudent(s){
       return b;
     }
     var REPORT_RATINGS=['Excellent','Good','Average','Struggling'];
-    // Pure string templating — no AI call. Keep this in sync if the questionnaire fields change.
-    function buildMonthlySummary(f){
-      var parts=[f.monthLabel+' \u2014 Progress: '+f.progress_rating+'.'];
-      if(f.daily_test_trend)parts.push('Daily test average trending '+f.daily_test_trend+'.');
-      if(f.block_assessment_notes)parts.push(f.block_assessment_notes.trim().replace(/\.?\s*$/,'.'));
-      if(f.strengths||f.weaknesses){
-        var sw='';
-        if(f.strengths)sw+='Strong in '+f.strengths;
-        if(f.weaknesses)sw+=(sw?'; ':'')+'needs focus on '+f.weaknesses;
-        parts.push(sw+'.');
-      }
-      if(f.study_habits)parts.push(f.study_habits.trim().replace(/\.?\s*$/,'.'));
-      if(f.personal_factors)parts.push(f.personal_factors.trim().replace(/\.?\s*$/,'.'));
-      if(f.handoff_notes)parts.push('Handoff note: '+f.handoff_notes.trim().replace(/\.?\s*$/,'.'));
-      return parts.join(' ');
-    }
     var reportAuthorNames={};
     async function resolveReportAuthors(ids){
       var need=ids.filter(function(id){return id&&!reportAuthorNames[id];});
@@ -9652,19 +9637,23 @@ function openStudent(s){
       modal.append(closeBtn);
       modal.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'17px',marginBottom:'16px'}},[existing?'Edit Monthly Report':'Add Monthly Report']));
       function field(label,el){var w=div({style:{marginBottom:'14px'}},[]);w.append(h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--muted)',marginBottom:'6px',textTransform:'uppercase',letterSpacing:'1px'}},[label]),el);return w;}
-      var monthInp=h('input',{cls:'input',type:'month',style:{width:'100%'}});
+      // Text color forced explicitly on every field below — some browsers render native
+      // form-control text using a UA default rather than the page's --text variable, which
+      // reads as washed-out grey against a light background if left unset.
+      var FIELD_TEXT_STYLE={color:'var(--text)'};
+      var monthInp=h('input',{cls:'input',type:'month',style:Object.assign({width:'100%'},FIELD_TEXT_STYLE)});
       monthInp.value=existing?existing.report_month.slice(0,7):new Date().toISOString().slice(0,7);
-      var ratingSel=h('select',{cls:'input',style:{width:'100%'}},REPORT_RATINGS.map(function(r){return h('option',{value:r},[r]);}));
-      var trendDirSel=h('select',{cls:'input',style:{width:'110px'}},[['up','Up'],['down','Down'],['flat','Flat']].map(function(p){return h('option',{value:p[0]},[p[1]]);}));
-      var trendBeforeInp=h('input',{cls:'input',type:'number',placeholder:'Before %',style:{width:'110px'}});
-      var trendAfterInp=h('input',{cls:'input',type:'number',placeholder:'After %',style:{width:'110px'}});
+      var ratingSel=h('select',{cls:'input',style:Object.assign({width:'100%'},FIELD_TEXT_STYLE)},REPORT_RATINGS.map(function(r){return h('option',{value:r},[r]);}));
+      var trendDirSel=h('select',{cls:'input',style:Object.assign({width:'110px'},FIELD_TEXT_STYLE)},[['up','Up'],['down','Down'],['flat','Flat']].map(function(p){return h('option',{value:p[0]},[p[1]]);}));
+      var trendBeforeInp=h('input',{cls:'input',type:'number',placeholder:'Before %',style:Object.assign({width:'110px'},FIELD_TEXT_STYLE)});
+      var trendAfterInp=h('input',{cls:'input',type:'number',placeholder:'After %',style:Object.assign({width:'110px'},FIELD_TEXT_STYLE)});
       var trendRow=div({style:{display:'flex',gap:'8px',flexWrap:'wrap'}},[trendDirSel,trendBeforeInp,trendAfterInp]);
-      var blockTa=h('textarea',{cls:'input',rows:'2',style:{width:'100%',resize:'vertical'}});
-      var strengthsInp=h('input',{cls:'input',placeholder:'e.g. Cardiology, Renal',style:{width:'100%'}});
-      var weaknessesInp=h('input',{cls:'input',placeholder:'e.g. Biostatistics',style:{width:'100%'}});
-      var habitsTa=h('textarea',{cls:'input',rows:'2',style:{width:'100%',resize:'vertical'}});
-      var personalTa=h('textarea',{cls:'input',rows:'2',style:{width:'100%',resize:'vertical'}});
-      var handoffTa=h('textarea',{cls:'input',rows:'3',style:{width:'100%',resize:'vertical'}});
+      var blockTa=h('textarea',{cls:'input',rows:'2',style:Object.assign({width:'100%',resize:'vertical'},FIELD_TEXT_STYLE)});
+      var strengthsInp=h('input',{cls:'input',placeholder:'e.g. Cardiology, Renal',style:Object.assign({width:'100%'},FIELD_TEXT_STYLE)});
+      var weaknessesInp=h('input',{cls:'input',placeholder:'e.g. Biostatistics',style:Object.assign({width:'100%'},FIELD_TEXT_STYLE)});
+      var habitsTa=h('textarea',{cls:'input',rows:'2',style:Object.assign({width:'100%',resize:'vertical'},FIELD_TEXT_STYLE)});
+      var personalTa=h('textarea',{cls:'input',rows:'2',style:Object.assign({width:'100%',resize:'vertical'},FIELD_TEXT_STYLE)});
+      var handoffTa=h('textarea',{cls:'input',rows:'3',style:Object.assign({width:'100%',resize:'vertical'},FIELD_TEXT_STYLE)});
       if(existing){
         ratingSel.value=existing.progress_rating;
         if(existing.daily_test_trend){
@@ -9697,9 +9686,7 @@ function openStudent(s){
           trendStr=({up:'up',down:'down',flat:'steady'})[trendDirSel.value]+' ('+trendBeforeInp.value+'%\u2192'+trendAfterInp.value+'%)';
         }
         var monthDate=monthInp.value+'-01';
-        var monthLabel=new Date(monthDate+'T00:00:00').toLocaleDateString(undefined,{month:'long',year:'numeric'});
-        var fields={monthLabel:monthLabel,progress_rating:ratingSel.value,daily_test_trend:trendStr,block_assessment_notes:blockTa.value.trim(),strengths:strengthsInp.value.trim(),weaknesses:weaknessesInp.value.trim(),study_habits:habitsTa.value.trim(),personal_factors:personalTa.value.trim(),handoff_notes:handoffTa.value.trim()};
-        var payload={student_id:s.user_id,created_by:S.user.id,report_month:monthDate,progress_rating:fields.progress_rating,daily_test_trend:fields.daily_test_trend||null,block_assessment_notes:fields.block_assessment_notes||null,strengths:fields.strengths||null,weaknesses:fields.weaknesses||null,study_habits:fields.study_habits||null,personal_factors:fields.personal_factors||null,handoff_notes:fields.handoff_notes||null,summary_note:buildMonthlySummary(fields)};
+        var payload={student_id:s.user_id,created_by:S.user.id,report_month:monthDate,progress_rating:ratingSel.value,daily_test_trend:trendStr||null,block_assessment_notes:blockTa.value.trim()||null,strengths:strengthsInp.value.trim()||null,weaknesses:weaknessesInp.value.trim()||null,study_habits:habitsTa.value.trim()||null,personal_factors:personalTa.value.trim()||null,handoff_notes:handoffTa.value.trim()||null};
         var res=existing?await sb.from('tutoring_monthly_reports').update(payload).eq('id',existing.id):await sb.from('tutoring_monthly_reports').insert(payload);
         saveBtn.disabled=false;
         if(res.error){formSt.textContent='Failed: '+res.error.message;formSt.style.color='#ff4444';formSt.style.display='block';return;}
@@ -9711,8 +9698,9 @@ function openStudent(s){
       document.body.appendChild(overlay);
     }
 
-    function buildReportNoteThread(reportId,notes){
-      var thread=div({style:{marginTop:'12px',paddingTop:'12px',borderTop:'1px solid var(--border)'}},[]);
+    function buildReportNoteThread(reportId,notes,onBack){
+      var thread=div({style:{marginTop:'16px',paddingTop:'16px',borderTop:'1px solid var(--border)'}},[]);
+      thread.append(h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--muted)',marginBottom:'10px',textTransform:'uppercase',letterSpacing:'1px'}},['Notes']));
       notes.forEach(function(n){
         thread.append(div({style:{marginBottom:'8px',fontSize:'12px'}},[
           h('span',{style:{color:'var(--gold)',fontWeight:'700'}},[reportAuthorNames[n.author_id]||'Staff']),
@@ -9720,7 +9708,7 @@ function openStudent(s){
           div({style:{color:'var(--text)',marginTop:'2px'}},[n.note_text])
         ]));
       });
-      var noteInp=h('input',{cls:'input',placeholder:'Add a note to this report\u2026',style:{width:'100%',marginTop:'6px'}});
+      var noteInp=h('input',{cls:'input',placeholder:'Add a note to this report\u2026',style:{width:'100%',marginTop:'6px',color:'var(--text)'}});
       var noteBtn=btn('Add Note','btn-outline',async function(){
         var txt=noteInp.value.trim();if(!txt)return;
         noteBtn.disabled=true;
@@ -9728,12 +9716,38 @@ function openStudent(s){
         noteBtn.disabled=false;
         if(ins.error){alert('Failed: '+ins.error.message);return;}
         noteInp.value='';
-        loadMonthlyReports();
+        onBack();
       },{style:{fontSize:'10px',padding:'6px 12px',marginTop:'6px'}});
       thread.append(noteInp,noteBtn);
       return thread;
     }
 
+    // Opens a report as its own full page (Back button via subPageHeader) rather than an
+    // inline expand/collapse.
+    function showMonthlyReportPage(r){
+      var listWrap=subPageHeader((new Date(r.report_month+'T00:00:00')).toLocaleDateString(undefined,{month:'long',year:'numeric'})+' Report');
+      var card=div({cls:'card',style:{padding:'20px'}},[]);
+      card.append(
+        h('div',{style:{fontSize:'15px',color:'var(--text)',fontWeight:'700',marginBottom:'2px'}},[r.progress_rating]),
+        h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--muted)',marginBottom:'16px'}},['by '+(reportAuthorNames[r.created_by]||'Staff')+' \u00b7 '+new Date(r.created_at).toLocaleString()])
+      );
+      var detail=div({style:{fontSize:'13px',lineHeight:'1.8',color:'var(--text)'}},[]);
+      function row(label,val){if(!val)return;detail.append(div({style:{marginBottom:'8px'}},[h('b',{style:{color:'var(--gold)'}},[label+': ']),val]));}
+      row('Daily test average trend',r.daily_test_trend);
+      row('Block assessment performance',r.block_assessment_notes);
+      row('Strongest systems/topics',r.strengths);
+      row('Weakest systems/topics',r.weaknesses);
+      row('Study habits/consistency',r.study_habits);
+      row('Personal/circumstantial factors',r.personal_factors);
+      row('Handoff notes',r.handoff_notes);
+      card.append(detail);
+      var editBtn=btn('Edit','btn-outline',function(){openMonthlyReportForm(r);},{style:{fontSize:'11px',padding:'6px 14px',marginTop:'12px'}});
+      card.append(editBtn);
+      card.append(buildReportNoteThread(r.id,reportNotesCache[r.id]||[],function(){loadMonthlyReports();showMonthlyReportPage(r);}));
+      listWrap.append(card);
+    }
+
+    var reportNotesCache={};
     async function loadMonthlyReports(){
       reportsListWrap.innerHTML='';
       var rr=await sb.from('tutoring_monthly_reports').select('*').eq('student_id',s.user_id).order('created_at',{ascending:false});
@@ -9746,33 +9760,17 @@ function openStudent(s){
       if(!reports.length){reportsListWrap.append(h('div',{style:{fontSize:'12px',color:'var(--dim)'},html:'No monthly reports yet.'}));return;}
       await resolveReportAuthors(reports.map(function(r){return r.created_by;}));
       var nr=await sb.from('tutoring_monthly_report_notes').select('*').in('report_id',reports.map(function(r){return r.id;})).order('created_at',{ascending:true});
-      var notesByReport={};
-      (nr.data||[]).forEach(function(n){(notesByReport[n.report_id]=notesByReport[n.report_id]||[]).push(n);});
+      reportNotesCache={};
+      (nr.data||[]).forEach(function(n){(reportNotesCache[n.report_id]=reportNotesCache[n.report_id]||[]).push(n);});
       reports.forEach(function(r){
-        var card=div({cls:'card',style:{padding:'14px',marginBottom:'8px'}},[]);
-        var topRow=div({style:{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:'10px',flexWrap:'wrap',cursor:'pointer'}},[]);
         var monthLabel=new Date(r.report_month+'T00:00:00').toLocaleDateString(undefined,{month:'long',year:'numeric'});
-        topRow.append(div({style:{flex:'1',minWidth:'200px'}},[
+        var card=div({cls:'card',style:{padding:'14px',marginBottom:'8px',display:'flex',justifyContent:'space-between',alignItems:'center',gap:'10px',flexWrap:'wrap',cursor:'pointer'}},[]);
+        card.append(div({style:{flex:'1',minWidth:'200px'}},[
           h('div',{style:{fontSize:'13px',color:'var(--text)',fontWeight:'600'}},[monthLabel+' \u00b7 '+r.progress_rating]),
-          h('div',{style:{fontSize:'12px',color:'var(--dim)',marginTop:'4px',lineHeight:'1.5'}},[r.summary_note]),
-          h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--muted)',marginTop:'6px'}},['by '+(reportAuthorNames[r.created_by]||'Staff')+' \u00b7 '+new Date(r.created_at).toLocaleDateString()])
+          h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--muted)',marginTop:'4px'}},['by '+(reportAuthorNames[r.created_by]||'Staff')+' \u00b7 '+new Date(r.created_at).toLocaleDateString()])
         ]));
-        var chev=h('span',{style:{fontSize:'11px',color:'var(--muted)'}},['\u25b8']);
-        topRow.append(chev);
-        var detail=div({style:{display:'none',marginTop:'12px',paddingTop:'12px',borderTop:'1px solid var(--border)',fontSize:'12px',lineHeight:'1.7'}},[]);
-        function row(label,val){if(!val)return;detail.append(div({},[h('b',{style:{color:'var(--gold)'}},[label+': ']),val]));}
-        row('Block assessment performance',r.block_assessment_notes);
-        row('Strongest systems/topics',r.strengths);
-        row('Weakest systems/topics',r.weaknesses);
-        row('Study habits/consistency',r.study_habits);
-        row('Personal/circumstantial factors',r.personal_factors);
-        row('Handoff notes',r.handoff_notes);
-        var editBtn=btn('Edit','btn-outline',function(){openMonthlyReportForm(r);},{style:{fontSize:'10px',padding:'5px 12px',marginTop:'10px'}});
-        detail.append(editBtn);
-        detail.append(buildReportNoteThread(r.id,notesByReport[r.id]||[]));
-        var isOpen=false;
-        topRow.onclick=function(){isOpen=!isOpen;detail.style.display=isOpen?'block':'none';chev.style.transform=isOpen?'rotate(90deg)':'rotate(0deg)';};
-        card.append(topRow,detail);
+        card.append(h('span',{style:{fontSize:'13px',color:'var(--muted)'}},['\u203a']));
+        card.onclick=function(){showMonthlyReportPage(r);};
         reportsListWrap.append(card);
       });
     }
