@@ -569,7 +569,11 @@ var ERROR_REASONS=[
   ['question_misread','I misunderstood what the question was asking'],
   ['option_confusion','I understood the question but picked the wrong option'],
   ['second_guessed','I second-guessed my first instinct'],
-  ['careless','Careless mistake \u2014 missed a detail or rushed']
+  ['careless','Careless mistake \u2014 missed a detail or rushed'],
+  ['just_forgot','I just forgot'],
+  ['didnt_come_to_mind','My mind didn\u2019t go there'],
+  ['fixated_on_detail','I fixated on one thing in the question'],
+  ['time_pressure','I ran out of time / rushed']
 ];
 function buildErrorReasonPicker(resultId,questionId,existingReason,onSaved){
   var wrap=div({style:{marginTop:'10px'}},[]);
@@ -9105,7 +9109,7 @@ function adminSection(title,startOpen,isNew){
     chevron.style.transform=open?'rotate(90deg)':'rotate(0deg)';
   };
   wrap.append(header,bodyDiv);
-  return{wrap:wrap,body:bodyDiv};
+  return{wrap:wrap,body:bodyDiv,titleSpan:titleSpan};
 }
 
 function openStudent(s){
@@ -9595,6 +9599,184 @@ function openStudent(s){
     }
     loadClassSlots();
     body.append(scheduleSec.wrap);
+
+    // MONTHLY REPORTS (Build 1) — fast, complete status snapshot any tutor/admin can add,
+    // so someone can step in on a student without needing history from the previous tutor.
+    function ensureDueBadgeStyles(){
+      if(document.getElementById('df-duebadge-style'))return;
+      var st=document.createElement('style');
+      st.id='df-duebadge-style';
+      st.textContent='@keyframes dfDueGlow{0%,100%{box-shadow:0 0 4px 0 rgba(224,138,60,0.6);}50%{box-shadow:0 0 10px 3px rgba(224,138,60,0.9);}}';
+      document.head.appendChild(st);
+    }
+    function dueBadge(){
+      ensureDueBadgeStyles();
+      var b=h('span',{style:{display:'inline-block',background:'#e08a3c',color:'#0F0E0A',fontFamily:'Inter,sans-serif',fontSize:'9px',fontWeight:'800',letterSpacing:'1px',padding:'2px 8px',borderRadius:'999px',marginLeft:'8px',verticalAlign:'middle',animation:'dfDueGlow 1.6s ease-in-out infinite'}},['DUE']);
+      b.className='df-due-marker';
+      return b;
+    }
+    var REPORT_RATINGS=['Excellent','Good','Average','Struggling'];
+    // Pure string templating — no AI call. Keep this in sync if the questionnaire fields change.
+    function buildMonthlySummary(f){
+      var parts=[f.monthLabel+' \u2014 Progress: '+f.progress_rating+'.'];
+      if(f.daily_test_trend)parts.push('Daily test average trending '+f.daily_test_trend+'.');
+      if(f.block_assessment_notes)parts.push(f.block_assessment_notes.trim().replace(/\.?\s*$/,'.'));
+      if(f.strengths||f.weaknesses){
+        var sw='';
+        if(f.strengths)sw+='Strong in '+f.strengths;
+        if(f.weaknesses)sw+=(sw?'; ':'')+'needs focus on '+f.weaknesses;
+        parts.push(sw+'.');
+      }
+      if(f.study_habits)parts.push(f.study_habits.trim().replace(/\.?\s*$/,'.'));
+      if(f.personal_factors)parts.push(f.personal_factors.trim().replace(/\.?\s*$/,'.'));
+      if(f.handoff_notes)parts.push('Handoff note: '+f.handoff_notes.trim().replace(/\.?\s*$/,'.'));
+      return parts.join(' ');
+    }
+    var reportAuthorNames={};
+    async function resolveReportAuthors(ids){
+      var need=ids.filter(function(id){return id&&!reportAuthorNames[id];});
+      if(!need.length)return;
+      var pr=await sb.from('profiles').select('id,full_name').in('id',need);
+      (pr.data||[]).forEach(function(p){reportAuthorNames[p.id]=p.full_name||'Staff';});
+    }
+    var reportsSec=adminSection('Monthly Reports',true,false);
+    var reportsListWrap=div({style:{marginTop:'10px'}},[]);
+    var addReportBtn=btn('+ Add Monthly Report','btn-gold',function(){openMonthlyReportForm(null);},{style:{fontSize:'11px',padding:'7px 14px',marginBottom:'12px'}});
+    reportsSec.body.append(addReportBtn,reportsListWrap);
+    body.append(reportsSec.wrap);
+
+    function openMonthlyReportForm(existing){
+      var overlay=div({style:{position:'fixed',top:'0',left:'0',width:'100%',height:'100%',background:'rgba(0,0,0,0.72)',zIndex:'1000',display:'flex',alignItems:'flex-start',justifyContent:'center',overflowY:'auto',padding:'32px 16px',boxSizing:'border-box'}},[]);
+      var modal=div({style:{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:'6px',padding:'28px',width:'100%',maxWidth:'560px',position:'relative',boxSizing:'border-box'}},[]);
+      var closeBtn=btn('\u2715 Close','btn-outline',function(){overlay.remove();},{style:{position:'absolute',top:'16px',right:'16px',fontSize:'11px',padding:'5px 12px'}});
+      modal.append(closeBtn);
+      modal.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'17px',marginBottom:'16px'}},[existing?'Edit Monthly Report':'Add Monthly Report']));
+      function field(label,el){var w=div({style:{marginBottom:'14px'}},[]);w.append(h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--muted)',marginBottom:'6px',textTransform:'uppercase',letterSpacing:'1px'}},[label]),el);return w;}
+      var monthInp=h('input',{cls:'input',type:'month',style:{width:'100%'}});
+      monthInp.value=existing?existing.report_month.slice(0,7):new Date().toISOString().slice(0,7);
+      var ratingSel=h('select',{cls:'input',style:{width:'100%'}},REPORT_RATINGS.map(function(r){return h('option',{value:r},[r]);}));
+      var trendDirSel=h('select',{cls:'input',style:{width:'110px'}},[['up','Up'],['down','Down'],['flat','Flat']].map(function(p){return h('option',{value:p[0]},[p[1]]);}));
+      var trendBeforeInp=h('input',{cls:'input',type:'number',placeholder:'Before %',style:{width:'110px'}});
+      var trendAfterInp=h('input',{cls:'input',type:'number',placeholder:'After %',style:{width:'110px'}});
+      var trendRow=div({style:{display:'flex',gap:'8px',flexWrap:'wrap'}},[trendDirSel,trendBeforeInp,trendAfterInp]);
+      var blockTa=h('textarea',{cls:'input',rows:'2',style:{width:'100%',resize:'vertical'}});
+      var strengthsInp=h('input',{cls:'input',placeholder:'e.g. Cardiology, Renal',style:{width:'100%'}});
+      var weaknessesInp=h('input',{cls:'input',placeholder:'e.g. Biostatistics',style:{width:'100%'}});
+      var habitsTa=h('textarea',{cls:'input',rows:'2',style:{width:'100%',resize:'vertical'}});
+      var personalTa=h('textarea',{cls:'input',rows:'2',style:{width:'100%',resize:'vertical'}});
+      var handoffTa=h('textarea',{cls:'input',rows:'3',style:{width:'100%',resize:'vertical'}});
+      if(existing){
+        ratingSel.value=existing.progress_rating;
+        if(existing.daily_test_trend){
+          var tm=existing.daily_test_trend.match(/^(up|down|steady)\s*\((\d+(?:\.\d+)?)%\u2192(\d+(?:\.\d+)?)%\)$/);
+          if(tm){trendDirSel.value=tm[1]==='steady'?'flat':tm[1];trendBeforeInp.value=tm[2];trendAfterInp.value=tm[3];}
+        }
+        blockTa.value=existing.block_assessment_notes||'';
+        strengthsInp.value=existing.strengths||'';
+        weaknessesInp.value=existing.weaknesses||'';
+        habitsTa.value=existing.study_habits||'';
+        personalTa.value=existing.personal_factors||'';
+        handoffTa.value=existing.handoff_notes||'';
+      }
+      modal.append(
+        field('Month',monthInp),
+        field('1. Progress rating this month',ratingSel),
+        field('2. Daily test average trend',trendRow),
+        field('3. Block assessment performance this month',blockTa),
+        field('4. Strongest systems/topics',strengthsInp),
+        field('5. Weakest systems/topics \u2014 needs focus',weaknessesInp),
+        field('6. Study habits/consistency',habitsTa),
+        field('7. Personal/circumstantial factors (optional)',personalTa),
+        field('8. Handoff notes \u2014 what should the next tutor know',handoffTa)
+      );
+      var formSt=div({style:{fontSize:'11px',marginBottom:'10px',display:'none'}},[]);
+      var saveBtn=btn(existing?'Save Changes':'Save Report','btn-gold',async function(){
+        saveBtn.disabled=true;
+        var trendStr='';
+        if(trendBeforeInp.value&&trendAfterInp.value){
+          trendStr=({up:'up',down:'down',flat:'steady'})[trendDirSel.value]+' ('+trendBeforeInp.value+'%\u2192'+trendAfterInp.value+'%)';
+        }
+        var monthDate=monthInp.value+'-01';
+        var monthLabel=new Date(monthDate+'T00:00:00').toLocaleDateString(undefined,{month:'long',year:'numeric'});
+        var fields={monthLabel:monthLabel,progress_rating:ratingSel.value,daily_test_trend:trendStr,block_assessment_notes:blockTa.value.trim(),strengths:strengthsInp.value.trim(),weaknesses:weaknessesInp.value.trim(),study_habits:habitsTa.value.trim(),personal_factors:personalTa.value.trim(),handoff_notes:handoffTa.value.trim()};
+        var payload={student_id:s.user_id,created_by:S.user.id,report_month:monthDate,progress_rating:fields.progress_rating,daily_test_trend:fields.daily_test_trend||null,block_assessment_notes:fields.block_assessment_notes||null,strengths:fields.strengths||null,weaknesses:fields.weaknesses||null,study_habits:fields.study_habits||null,personal_factors:fields.personal_factors||null,handoff_notes:fields.handoff_notes||null,summary_note:buildMonthlySummary(fields)};
+        var res=existing?await sb.from('tutoring_monthly_reports').update(payload).eq('id',existing.id):await sb.from('tutoring_monthly_reports').insert(payload);
+        saveBtn.disabled=false;
+        if(res.error){formSt.textContent='Failed: '+res.error.message;formSt.style.color='#ff4444';formSt.style.display='block';return;}
+        overlay.remove();
+        loadMonthlyReports();
+      },{style:{fontSize:'12px',padding:'8px 16px'}});
+      modal.append(formSt,saveBtn);
+      overlay.append(modal);
+      document.body.appendChild(overlay);
+    }
+
+    function buildReportNoteThread(reportId,notes){
+      var thread=div({style:{marginTop:'12px',paddingTop:'12px',borderTop:'1px solid var(--border)'}},[]);
+      notes.forEach(function(n){
+        thread.append(div({style:{marginBottom:'8px',fontSize:'12px'}},[
+          h('span',{style:{color:'var(--gold)',fontWeight:'700'}},[reportAuthorNames[n.author_id]||'Staff']),
+          h('span',{cls:'mono',style:{color:'var(--muted)',fontSize:'10px',marginLeft:'6px'}},[new Date(n.created_at).toLocaleString()]),
+          div({style:{color:'var(--text)',marginTop:'2px'}},[n.note_text])
+        ]));
+      });
+      var noteInp=h('input',{cls:'input',placeholder:'Add a note to this report\u2026',style:{width:'100%',marginTop:'6px'}});
+      var noteBtn=btn('Add Note','btn-outline',async function(){
+        var txt=noteInp.value.trim();if(!txt)return;
+        noteBtn.disabled=true;
+        var ins=await sb.from('tutoring_monthly_report_notes').insert({report_id:reportId,author_id:S.user.id,note_text:txt});
+        noteBtn.disabled=false;
+        if(ins.error){alert('Failed: '+ins.error.message);return;}
+        noteInp.value='';
+        loadMonthlyReports();
+      },{style:{fontSize:'10px',padding:'6px 12px',marginTop:'6px'}});
+      thread.append(noteInp,noteBtn);
+      return thread;
+    }
+
+    async function loadMonthlyReports(){
+      reportsListWrap.innerHTML='';
+      var rr=await sb.from('tutoring_monthly_reports').select('*').eq('student_id',s.user_id).order('created_at',{ascending:false});
+      var reports=rr.data||[];
+      var latest=reports[0];
+      var isDue=!latest||((Date.now()-new Date(latest.created_at).getTime())>30*24*60*60*1000);
+      var existingMarker=reportsSec.titleSpan.querySelector('.df-due-marker');
+      if(isDue&&!existingMarker)reportsSec.titleSpan.append(dueBadge());
+      if(!isDue&&existingMarker)existingMarker.remove();
+      if(!reports.length){reportsListWrap.append(h('div',{style:{fontSize:'12px',color:'var(--dim)'},html:'No monthly reports yet.'}));return;}
+      await resolveReportAuthors(reports.map(function(r){return r.created_by;}));
+      var nr=await sb.from('tutoring_monthly_report_notes').select('*').in('report_id',reports.map(function(r){return r.id;})).order('created_at',{ascending:true});
+      var notesByReport={};
+      (nr.data||[]).forEach(function(n){(notesByReport[n.report_id]=notesByReport[n.report_id]||[]).push(n);});
+      reports.forEach(function(r){
+        var card=div({cls:'card',style:{padding:'14px',marginBottom:'8px'}},[]);
+        var topRow=div({style:{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:'10px',flexWrap:'wrap',cursor:'pointer'}},[]);
+        var monthLabel=new Date(r.report_month+'T00:00:00').toLocaleDateString(undefined,{month:'long',year:'numeric'});
+        topRow.append(div({style:{flex:'1',minWidth:'200px'}},[
+          h('div',{style:{fontSize:'13px',color:'var(--text)',fontWeight:'600'}},[monthLabel+' \u00b7 '+r.progress_rating]),
+          h('div',{style:{fontSize:'12px',color:'var(--dim)',marginTop:'4px',lineHeight:'1.5'}},[r.summary_note]),
+          h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--muted)',marginTop:'6px'}},['by '+(reportAuthorNames[r.created_by]||'Staff')+' \u00b7 '+new Date(r.created_at).toLocaleDateString()])
+        ]));
+        var chev=h('span',{style:{fontSize:'11px',color:'var(--muted)'}},['\u25b8']);
+        topRow.append(chev);
+        var detail=div({style:{display:'none',marginTop:'12px',paddingTop:'12px',borderTop:'1px solid var(--border)',fontSize:'12px',lineHeight:'1.7'}},[]);
+        function row(label,val){if(!val)return;detail.append(div({},[h('b',{style:{color:'var(--gold)'}},[label+': ']),val]));}
+        row('Block assessment performance',r.block_assessment_notes);
+        row('Strongest systems/topics',r.strengths);
+        row('Weakest systems/topics',r.weaknesses);
+        row('Study habits/consistency',r.study_habits);
+        row('Personal/circumstantial factors',r.personal_factors);
+        row('Handoff notes',r.handoff_notes);
+        var editBtn=btn('Edit','btn-outline',function(){openMonthlyReportForm(r);},{style:{fontSize:'10px',padding:'5px 12px',marginTop:'10px'}});
+        detail.append(editBtn);
+        detail.append(buildReportNoteThread(r.id,notesByReport[r.id]||[]));
+        var isOpen=false;
+        topRow.onclick=function(){isOpen=!isOpen;detail.style.display=isOpen?'block':'none';chev.style.transform=isOpen?'rotate(90deg)':'rotate(0deg)';};
+        card.append(topRow,detail);
+        reportsListWrap.append(card);
+      });
+    }
+    loadMonthlyReports();
 
     body.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'16px',margin:'24px 0 12px'}},['Full Activity']));
 
