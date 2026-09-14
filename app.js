@@ -9747,7 +9747,7 @@ function openStudent(s){
     // then already satisfies this deadline.
     if(panelIsSuperAdmin){
       var deadlineWrap=div({style:{display:'flex',gap:'8px',alignItems:'center',flexWrap:'wrap',marginBottom:'12px',padding:'10px',border:'1px solid var(--border)',borderRadius:'4px'}},[]);
-      var deadlineLabel=h('span',{cls:'mono',style:{fontSize:'10px',color:'var(--muted)',textTransform:'uppercase',letterSpacing:'1px'}},['Report deadline (this student) \u00b7 Super Admin only']);
+      var deadlineLabel=h('span',{cls:'mono',style:{fontSize:'10px',color:'var(--text)',textTransform:'uppercase',letterSpacing:'1px'}},['Report deadline (this student) \u00b7 Super Admin only']);
       var deadlineInp=h('input',{cls:'input',type:'date',style:{width:'150px',color:'var(--text)'}});
       var deadlineSt=div({style:{fontSize:'11px',display:'none'}},[]);
       var deadlineSaveBtn=btn('Set','btn-outline',async function(){
@@ -9781,7 +9781,7 @@ function openStudent(s){
     body.append(reportsSec.wrap);
 
     function openMonthlyReportForm(existing){
-      var overlay=div({style:{position:'fixed',top:'0',left:'0',width:'100%',height:'100%',background:'rgba(0,0,0,0.72)',zIndex:'1000',display:'flex',alignItems:'flex-start',justifyContent:'center',overflowY:'auto',padding:'32px 16px',boxSizing:'border-box'}},[]);
+      var overlay=div({style:{position:'fixed',top:'0',left:'0',width:'100%',height:'100%',background:'rgba(0,0,0,0.72)',zIndex:'2100',display:'flex',alignItems:'flex-start',justifyContent:'center',overflowY:'auto',padding:'32px 16px',boxSizing:'border-box'}},[]);
       var modal=div({style:{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:'6px',padding:'28px',width:'100%',maxWidth:'560px',position:'relative',boxSizing:'border-box'}},[]);
       var closeBtn=btn('\u2715 Close','btn-outline',function(){overlay.remove();},{style:{position:'absolute',top:'16px',right:'16px',fontSize:'11px',padding:'5px 12px'}});
       modal.append(closeBtn);
