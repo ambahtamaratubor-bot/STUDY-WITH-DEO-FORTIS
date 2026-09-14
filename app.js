@@ -9803,7 +9803,15 @@ function openStudent(s){
       var weaknessesInp=h('input',{cls:'input',placeholder:'e.g. Biostatistics',style:Object.assign({width:'100%'},FIELD_TEXT_STYLE)});
       var habitsTa=h('textarea',{cls:'input',rows:'2',style:Object.assign({width:'100%',resize:'vertical'},FIELD_TEXT_STYLE)});
       var personalTa=h('textarea',{cls:'input',rows:'2',style:Object.assign({width:'100%',resize:'vertical'},FIELD_TEXT_STYLE)});
-      var handoffTa=h('textarea',{cls:'input',rows:'3',style:Object.assign({width:'100%',resize:'vertical'},FIELD_TEXT_STYLE)});
+      var handoffTa=h('textarea',{cls:'input',rows:'6',style:Object.assign({width:'100%',resize:'vertical'},FIELD_TEXT_STYLE)});
+      var HANDOFF_MIN=500;
+      var handoffCounter=h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--text)',marginTop:'4px'}},[]);
+      function updateHandoffCounter(){
+        var len=handoffTa.value.length;
+        handoffCounter.textContent=len+' / '+HANDOFF_MIN+' characters minimum'+(len<HANDOFF_MIN?' \u2014 '+(HANDOFF_MIN-len)+' to go':' \u2713');
+        handoffCounter.style.color=len<HANDOFF_MIN?'var(--gold)':'var(--teal)';
+      }
+      handoffTa.addEventListener('input',updateHandoffCounter);
       if(existing){
         ratingSel.value=existing.progress_rating;
         if(existing.daily_test_trend){
@@ -9817,6 +9825,8 @@ function openStudent(s){
         personalTa.value=existing.personal_factors||'';
         handoffTa.value=existing.handoff_notes||'';
       }
+      updateHandoffCounter();
+      [monthInp,ratingSel,trendBeforeInp,trendAfterInp,blockTa,strengthsInp,weaknessesInp,habitsTa,personalTa,handoffTa].forEach(function(el){el.required=true;});
       modal.append(
         field('Month',monthInp),
         field('1. Progress rating this month',ratingSel),
@@ -9825,18 +9835,33 @@ function openStudent(s){
         field('4. Strongest systems/topics',strengthsInp),
         field('5. Weakest systems/topics \u2014 needs focus',weaknessesInp),
         field('6. Study habits/consistency',habitsTa),
-        field('7. Personal/circumstantial factors (optional)',personalTa),
-        field('8. Handoff notes \u2014 what should the next tutor know',handoffTa)
+        field('7. Personal/circumstantial factors',personalTa),
+        field('8. Handoff notes \u2014 what should the next tutor know (minimum '+HANDOFF_MIN+' characters, no maximum)',div({},[handoffTa,handoffCounter]))
       );
       var formSt=div({style:{fontSize:'11px',marginBottom:'10px',display:'none'}},[]);
       var saveBtn=btn(existing?'Save Changes':'Save Report','btn-gold',async function(){
+        var missing=[];
+        if(!monthInp.value)missing.push('Month');
+        if(!trendBeforeInp.value)missing.push('Daily test average trend (Before %)');
+        if(!trendAfterInp.value)missing.push('Daily test average trend (After %)');
+        if(!blockTa.value.trim())missing.push('Block assessment performance');
+        if(!strengthsInp.value.trim())missing.push('Strongest systems/topics');
+        if(!weaknessesInp.value.trim())missing.push('Weakest systems/topics');
+        if(!habitsTa.value.trim())missing.push('Study habits/consistency');
+        if(!personalTa.value.trim())missing.push('Personal/circumstantial factors');
+        if(handoffTa.value.trim().length<HANDOFF_MIN)missing.push('Handoff notes (needs at least '+HANDOFF_MIN+' characters \u2014 currently '+handoffTa.value.trim().length+')');
+        if(missing.length){
+          formSt.textContent='Please complete: '+missing.join('; ');
+          formSt.style.color='#ff4444';formSt.style.display='block';
+          return;
+        }
         saveBtn.disabled=true;
         var trendStr='';
         if(trendBeforeInp.value&&trendAfterInp.value){
           trendStr=({up:'up',down:'down',flat:'steady'})[trendDirSel.value]+' ('+trendBeforeInp.value+'%\u2192'+trendAfterInp.value+'%)';
         }
         var monthDate=monthInp.value+'-01';
-        var payload={student_id:s.user_id,created_by:S.user.id,report_month:monthDate,progress_rating:ratingSel.value,daily_test_trend:trendStr||null,block_assessment_notes:blockTa.value.trim()||null,strengths:strengthsInp.value.trim()||null,weaknesses:weaknessesInp.value.trim()||null,study_habits:habitsTa.value.trim()||null,personal_factors:personalTa.value.trim()||null,handoff_notes:handoffTa.value.trim()||null};
+        var payload={student_id:s.user_id,created_by:S.user.id,report_month:monthDate,progress_rating:ratingSel.value,daily_test_trend:trendStr,block_assessment_notes:blockTa.value.trim(),strengths:strengthsInp.value.trim(),weaknesses:weaknessesInp.value.trim(),study_habits:habitsTa.value.trim(),personal_factors:personalTa.value.trim(),handoff_notes:handoffTa.value.trim()};
         var res=existing?await sb.from('tutoring_monthly_reports').update(payload).eq('id',existing.id):await sb.from('tutoring_monthly_reports').insert(payload);
         saveBtn.disabled=false;
         if(res.error){formSt.textContent='Failed: '+res.error.message;formSt.style.color='#ff4444';formSt.style.display='block';return;}
