@@ -7497,16 +7497,22 @@ const ncI=inp('Cafe MP3 URL (.mp3)','text',set.noise_cafe||'');
 const nwI=inp('White Noise MP3 URL (.mp3)','text',set.noise_white||'');
 card.append(field(' Rain',nrI),field(' Ocean',noI),field(' Cafe',ncI),field(' White Noise',nwI));
 // Monthly report deadline (global default — overridable per student on their profile page)
-card.append(h('hr',{style:{border:'none',borderTop:'1px solid var(--border)',margin:'24px 0'}}),h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'18px',marginBottom:'8px'},html:'Monthly Report Deadline'}));
-card.append(h('p',{cls:'mono',style:{marginBottom:'16px'},html:'Default deadline for tutors to file each student\u2019s monthly report. Past this date, that student\u2019s profile locks until filed. Override per student on their profile page.'}));
+// Super-admin only: other roles never see or touch this field.
 const rdI=h('input',{cls:'input',type:'date',style:{color:'var(--text)'}});
 rdI.value=set.report_deadline||'';
-card.append(field('Global Report Deadline',rdI));
+if(panelIsSuperAdmin){
+  card.append(h('hr',{style:{border:'none',borderTop:'1px solid var(--border)',margin:'24px 0'}}),h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'18px',marginBottom:'8px'},html:'Monthly Report Deadline'}));
+  card.append(h('p',{cls:'mono',style:{marginBottom:'16px'},html:'Default deadline for tutors to file each student\u2019s monthly report. Past this date, that student\u2019s profile locks until filed. Override per student on their profile page. Super Admin only.'}));
+  card.append(field('Global Report Deadline',rdI));
+}
 // Save
 const sm=div({cls:'ok',style:{display:'none',marginTop:'12px'},html:'✓ Settings saved!'});
 const saveBtn=btn('Save Settings','btn-gold',async()=>{
-const obj={id:1,video_url:vI.value,community_link:comI.value,support_email:supI.value,noise_rain:nrI.value,noise_ocean:noI.value,noise_cafe:ncI.value,noise_white:nwI.value,link_study_partner:spI.value,link_kahoot:khI.value,report_deadline:rdI.value||null};
-if((set.report_deadline||'')!==(rdI.value||''))obj.report_deadline_set_at=new Date().toISOString();
+const obj={id:1,video_url:vI.value,community_link:comI.value,support_email:supI.value,noise_rain:nrI.value,noise_ocean:noI.value,noise_cafe:ncI.value,noise_white:nwI.value,link_study_partner:spI.value,link_kahoot:khI.value};
+if(panelIsSuperAdmin){
+  obj.report_deadline=rdI.value||null;
+  if((set.report_deadline||'')!==(rdI.value||''))obj.report_deadline_set_at=new Date().toISOString();
+}
 Object.keys(lIs).forEach(k=>obj[k]=lIs[k].value);
 const{error}=await sb.from('admin_settings').upsert(obj);
 if(error){alert('Save error: '+error.message);return;}
@@ -9734,40 +9740,44 @@ function openStudent(s){
     var reportsListWrap=div({style:{marginTop:'10px'}},[]);
     var addReportBtn=btn('+ Add Monthly Report','btn-gold',function(){openMonthlyReportForm(null);},{style:{fontSize:'11px',padding:'7px 14px',marginBottom:'12px'}});
 
-    // Per-student report-deadline override. Leave blank to fall back to the global
-    // deadline set in Site Settings. Setting/changing this (or the global one) stamps
-    // report_deadline_set_at=now(), which is what checkReportDeadlineLock() uses to
-    // decide whether a report filed since then already satisfies this deadline.
-    var deadlineWrap=div({style:{display:'flex',gap:'8px',alignItems:'center',flexWrap:'wrap',marginBottom:'12px',padding:'10px',border:'1px solid var(--border)',borderRadius:'4px'}},[]);
-    var deadlineLabel=h('span',{cls:'mono',style:{fontSize:'10px',color:'var(--muted)',textTransform:'uppercase',letterSpacing:'1px'}},['Report deadline (this student)']);
-    var deadlineInp=h('input',{cls:'input',type:'date',style:{width:'150px',color:'var(--text)'}});
-    var deadlineSt=div({style:{fontSize:'11px',display:'none'}},[]);
-    var deadlineSaveBtn=btn('Set','btn-outline',async function(){
-      deadlineSaveBtn.disabled=true;
-      var upd=await sb.from('tutoring_students').update({report_deadline:deadlineInp.value||null,report_deadline_set_at:new Date().toISOString()}).eq('user_id',s.user_id);
-      deadlineSaveBtn.disabled=false;
-      if(upd.error){deadlineSt.textContent='Failed: '+upd.error.message;deadlineSt.style.color='#ff4444';deadlineSt.style.display='block';return;}
-      deadlineSt.textContent='Saved.';deadlineSt.style.color='var(--teal)';deadlineSt.style.display='block';
-      setTimeout(function(){deadlineSt.style.display='none';},1500);
-      checkReportDeadlineLock();
-    },{style:{fontSize:'10px',padding:'6px 12px'}});
-    var deadlineClearBtn=btn('Clear','btn-outline',async function(){
-      deadlineInp.value='';
-      deadlineClearBtn.disabled=true;
-      var upd=await sb.from('tutoring_students').update({report_deadline:null,report_deadline_set_at:new Date().toISOString()}).eq('user_id',s.user_id);
-      deadlineClearBtn.disabled=false;
-      if(upd.error){deadlineSt.textContent='Failed: '+upd.error.message;deadlineSt.style.color='#ff4444';deadlineSt.style.display='block';return;}
-      deadlineSt.textContent='Cleared \u2014 using global deadline.';deadlineSt.style.color='var(--teal)';deadlineSt.style.display='block';
-      setTimeout(function(){deadlineSt.style.display='none';},2000);
-      checkReportDeadlineLock();
-    },{style:{fontSize:'10px',padding:'6px 12px'}});
-    deadlineWrap.append(deadlineLabel,deadlineInp,deadlineSaveBtn,deadlineClearBtn,deadlineSt);
-    (async function(){
-      var dr=await sb.from('tutoring_students').select('report_deadline').eq('user_id',s.user_id).maybeSingle();
-      if(dr&&dr.data&&dr.data.report_deadline)deadlineInp.value=dr.data.report_deadline;
-    })();
-
-    reportsSec.body.append(deadlineWrap,addReportBtn,reportsListWrap);
+    // Per-student report-deadline override. Super-admin only — other roles never see or
+    // touch this control. Leave blank to fall back to the global deadline set in Site
+    // Settings. Setting/changing this (or the global one) stamps report_deadline_set_at=now(),
+    // which is what checkReportDeadlineLock() uses to decide whether a report filed since
+    // then already satisfies this deadline.
+    if(panelIsSuperAdmin){
+      var deadlineWrap=div({style:{display:'flex',gap:'8px',alignItems:'center',flexWrap:'wrap',marginBottom:'12px',padding:'10px',border:'1px solid var(--border)',borderRadius:'4px'}},[]);
+      var deadlineLabel=h('span',{cls:'mono',style:{fontSize:'10px',color:'var(--muted)',textTransform:'uppercase',letterSpacing:'1px'}},['Report deadline (this student) \u00b7 Super Admin only']);
+      var deadlineInp=h('input',{cls:'input',type:'date',style:{width:'150px',color:'var(--text)'}});
+      var deadlineSt=div({style:{fontSize:'11px',display:'none'}},[]);
+      var deadlineSaveBtn=btn('Set','btn-outline',async function(){
+        deadlineSaveBtn.disabled=true;
+        var upd=await sb.from('tutoring_students').update({report_deadline:deadlineInp.value||null,report_deadline_set_at:new Date().toISOString()}).eq('user_id',s.user_id);
+        deadlineSaveBtn.disabled=false;
+        if(upd.error){deadlineSt.textContent='Failed: '+upd.error.message;deadlineSt.style.color='#ff4444';deadlineSt.style.display='block';return;}
+        deadlineSt.textContent='Saved.';deadlineSt.style.color='var(--teal)';deadlineSt.style.display='block';
+        setTimeout(function(){deadlineSt.style.display='none';},1500);
+        checkReportDeadlineLock();
+      },{style:{fontSize:'10px',padding:'6px 12px'}});
+      var deadlineClearBtn=btn('Clear','btn-outline',async function(){
+        deadlineInp.value='';
+        deadlineClearBtn.disabled=true;
+        var upd=await sb.from('tutoring_students').update({report_deadline:null,report_deadline_set_at:new Date().toISOString()}).eq('user_id',s.user_id);
+        deadlineClearBtn.disabled=false;
+        if(upd.error){deadlineSt.textContent='Failed: '+upd.error.message;deadlineSt.style.color='#ff4444';deadlineSt.style.display='block';return;}
+        deadlineSt.textContent='Cleared \u2014 using global deadline.';deadlineSt.style.color='var(--teal)';deadlineSt.style.display='block';
+        setTimeout(function(){deadlineSt.style.display='none';},2000);
+        checkReportDeadlineLock();
+      },{style:{fontSize:'10px',padding:'6px 12px'}});
+      deadlineWrap.append(deadlineLabel,deadlineInp,deadlineSaveBtn,deadlineClearBtn,deadlineSt);
+      (async function(){
+        var dr=await sb.from('tutoring_students').select('report_deadline').eq('user_id',s.user_id).maybeSingle();
+        if(dr&&dr.data&&dr.data.report_deadline)deadlineInp.value=dr.data.report_deadline;
+      })();
+      reportsSec.body.append(deadlineWrap,addReportBtn,reportsListWrap);
+    }else{
+      reportsSec.body.append(addReportBtn,reportsListWrap);
+    }
     body.append(reportsSec.wrap);
 
     function openMonthlyReportForm(existing){
@@ -9980,7 +9990,7 @@ function openStudent(s){
       overlay.id='df-report-lock';
       var modal=div({style:{background:'var(--surface)',border:'1px solid var(--gold)',borderRadius:'8px',padding:'28px',width:'100%',maxWidth:'440px',textAlign:'center',boxSizing:'border-box'}},[]);
       modal.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'17px',color:'var(--gold)',marginBottom:'10px'}},['\u26a0 Student Report Due']));
-      modal.append(h('p',{style:{fontSize:'13px',color:'var(--muted)',marginBottom:'20px',lineHeight:'1.6'}},['The deadline for filling in '+s.full_name+'\u2019s student report was '+new Date(deadlineStr+'T00:00:00').toLocaleDateString()+'. Please fill it in to continue.']));
+      modal.append(h('p',{style:{fontSize:'13px',color:'var(--text)',marginBottom:'20px',lineHeight:'1.6'}},['The deadline for filling in '+s.full_name+'\u2019s student report was '+new Date(deadlineStr+'T00:00:00').toLocaleDateString()+'. Please fill it in to continue.']));
       modal.append(btn('Fill In Report','btn-gold',function(){openMonthlyReportForm(null);},{style:{padding:'10px 24px',fontSize:'12px'}}));
       overlay.append(modal);
       document.body.appendChild(overlay);
