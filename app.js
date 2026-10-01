@@ -1019,6 +1019,105 @@ async function dfMailSendEmails(ids){
   throw new Error(problem);
 }
 
+// ───────────────────────────── MAIL ATTACHMENTS ─────────────────────────────
+// Files are uploaded to Google Drive by the Apps Script (not Supabase), so they take no space on the
+// platform. Each one comes back as a link and is written into the message body as an "Attachments:"
+// block, so the platform thread and the emailed copy both show it as a plain link.
+var DF_MAIL_MAX_FILE=10*1024*1024;
+var DF_MAIL_MAX_FILES=5;
+var DF_MAIL_ATT_HEAD='Attachments:';
+function dfMailReadB64(file){
+  return new Promise(function(resolve,reject){
+    var r=new FileReader();
+    r.onload=function(){var t=String(r.result||'');var i=t.indexOf(',');resolve(i===-1?'':t.slice(i+1));};
+    r.onerror=function(){reject(new Error('Could not read '+file.name));};
+    r.readAsDataURL(file);
+  });
+}
+async function dfMailUploadFile(file){
+  var sess=await sb.auth.getSession();
+  var token=sess&&sess.data&&sess.data.session&&sess.data.session.access_token;
+  if(!token)throw new Error('Please sign in again.');
+  var b64=await dfMailReadB64(file);
+  var res=await fetch(DF_MAIL_URL,{method:'POST',body:JSON.stringify({action:'upload_mail_attachment',token:token,name:file.name,mime:file.type||'application/octet-stream',data:b64})});
+  var raw=await res.text();
+  var data=null;try{data=JSON.parse(raw);}catch(e){}
+  if(!data)throw new Error('The upload service sent back something unexpected. Check that the latest Apps Script version is deployed.');
+  if(!data.ok||!data.url)throw new Error(data.error||'The upload failed.');
+  return{name:data.name||file.name,url:data.url};
+}
+function dfMailBodyWithFiles(text,files){
+  if(!files||!files.length)return text;
+  return text+'\n\n'+DF_MAIL_ATT_HEAD+'\n'+files.map(function(f){return '- '+String(f.name).replace(/[\r\n]+/g,' ')+': '+f.url;}).join('\n');
+}
+function dfMailSplitBody(body){
+  body=String(body||'');
+  var marker='\n\n'+DF_MAIL_ATT_HEAD+'\n';
+  var idx=body.lastIndexOf(marker);
+  if(idx===-1)return{text:body,files:[]};
+  var lines=body.slice(idx+marker.length).split('\n').filter(function(l){return l.trim();});
+  var files=[];
+  for(var i=0;i<lines.length;i++){
+    var m=/^- (.+): (https:\/\/(?:drive|docs)\.google\.com\/\S+)$/.exec(lines[i].trim());
+    if(!m)return{text:body,files:[]};
+    files.push({name:m[1],url:m[2]});
+  }
+  return files.length?{text:body.slice(0,idx),files:files}:{text:body,files:[]};
+}
+function dfMailPreview(body){
+  var sp=dfMailSplitBody(body);
+  var t=sp.text.replace(/\s+/g,' ').slice(0,90);
+  return sp.files.length?t+'  ['+sp.files.length+(sp.files.length===1?' attachment]':' attachments]'):t;
+}
+function dfMailFileLinks(files){
+  var box=div({style:{marginTop:files.length?'10px':'0'}},[]);
+  files.forEach(function(f){
+    box.append(div({style:{fontSize:'12px',marginTop:'4px',wordBreak:'break-word'}},[
+      h('a',{href:f.url,target:'_blank',rel:'noopener noreferrer',style:{color:'var(--gold)',textDecoration:'underline'}},['Attachment: '+f.name])
+    ]));
+  });
+  return box;
+}
+// Attach-file control: pick files, they upload straight away, and picker.files() holds the links.
+function dfMailAttachPicker(){
+  var state={files:[],busy:0};
+  var list=div({style:{marginTop:'8px'}},[]);
+  var note=div({style:{fontSize:'12px',marginTop:'6px',display:'none',lineHeight:'1.6'}},[]);
+  var input=h('input',{type:'file',multiple:true,style:{display:'none'}});
+  function say(text,color){note.textContent=text;note.style.color=color||'var(--muted)';note.style.display=text?'block':'none';}
+  function paint(){
+    list.innerHTML='';
+    state.files.forEach(function(f,i){
+      list.append(div({style:{display:'flex',alignItems:'center',gap:'8px',padding:'6px 10px',border:'1px solid var(--border)',borderRadius:'4px',background:'var(--bg)',marginBottom:'6px',fontSize:'12px'}},[
+        h('a',{href:f.url,target:'_blank',rel:'noopener noreferrer',style:{flex:'1',color:'var(--gold)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}},[f.name]),
+        btn('\u2715','',function(){state.files.splice(i,1);paint();},{title:'Remove',style:{background:'none',border:'none',color:'var(--muted)',cursor:'pointer',padding:'2px 6px',fontSize:'13px'}})
+      ]));
+    });
+  }
+  input.onchange=async function(){
+    var picked=Array.prototype.slice.call(input.files||[]);
+    input.value='';
+    var problems=[];
+    for(var i=0;i<picked.length;i++){
+      var f=picked[i];
+      if(state.files.length+state.busy>=DF_MAIL_MAX_FILES){problems.push('Only '+DF_MAIL_MAX_FILES+' attachments per message.');break;}
+      if(f.size>DF_MAIL_MAX_FILE){problems.push(f.name+' is larger than '+Math.round(DF_MAIL_MAX_FILE/1048576)+' MB.');continue;}
+      state.busy++;
+      say('Uploading '+f.name+'\u2026','var(--muted)');
+      try{
+        var up=await dfMailUploadFile(f);
+        state.files.push(up);
+        paint();
+      }catch(e){problems.push(f.name+': '+(e&&e.message?e.message:'upload failed'));}
+      state.busy--;
+    }
+    if(problems.length)say(problems.join(' '),'#ff4444');else say('');
+  };
+  var pick=btn('Attach file','btn-outline',function(){input.click();},{style:{fontSize:'11px',padding:'7px 14px'}});
+  var el=div({style:{marginTop:'12px'}},[pick,input,list,note]);
+  return{el:el,files:function(){return state.files;},busy:function(){return state.busy>0;}};
+}
+
 // Compose window.
 //  opts.mode: 'fixed'  -> recipients preset (Email student, replies)
 //             'list'   -> choose among opts.recipients with checkboxes (Email tutors)
@@ -1088,18 +1187,21 @@ function dfMailCompose(opts){
   var msg=h('textarea',{cls:'input',placeholder:'Write your message\u2026',style:{minHeight:'150px',resize:'vertical'}});
   var status=div({style:{fontSize:'12px',marginTop:'10px',display:'none',lineHeight:'1.6'}},[]);
   function say(text,color){status.textContent=text;status.style.color=color;status.style.display='block';}
+  var picker=dfMailAttachPicker();
   var sendBtn=btn('Send','btn-gold',async function(){
     status.style.display='none';
     var ids=Object.keys(chosen);
     if(!ids.length){say('Choose at least one recipient.','#ff4444');return;}
     if(!subj.value.trim()){say('Add a subject.','#ff4444');return;}
     if(!msg.value.trim()){say('Write a message.','#ff4444');return;}
+    if(picker.busy()){say('Please wait for the attachment to finish uploading.','#ff4444');return;}
+    var fullBody=dfMailBodyWithFiles(msg.value.trim(),picker.files());
     if(ids.length>1&&!confirm('Send this message to '+ids.length+' people?'))return;
     sendBtn.disabled=true;sendBtn.textContent='Sending\u2026';
     var okIds=[],errs=[];
     for(var i=0;i<ids.length;i++){
       try{
-        var r=await sb.rpc('mail_send',{p_recipient:ids[i],p_subject:subj.value.trim(),p_body:msg.value.trim(),p_parent:opts.parent||null});
+        var r=await sb.rpc('mail_send',{p_recipient:ids[i],p_subject:subj.value.trim(),p_body:fullBody,p_parent:opts.parent||null});
         if(r.error)throw new Error(r.error.message);
         okIds.push(r.data);
       }catch(e){errs.push(chosen[ids[i]]+': '+(e&&e.message?e.message:'failed'));}
@@ -1122,7 +1224,7 @@ function dfMailCompose(opts){
     if(!errs.length&&!/could not/.test(emailNote))setTimeout(function(){overlay.remove();},1800);
     else{sendBtn.disabled=false;sendBtn.textContent='Send';}
   },{style:{width:'100%',marginTop:'14px'}});
-  modal.append(div({style:{marginTop:'14px'}},[lbl('Subject'),subj]),div({style:{marginTop:'12px'}},[lbl('Message'),msg]),status,sendBtn);
+  modal.append(div({style:{marginTop:'14px'}},[lbl('Subject'),subj]),div({style:{marginTop:'12px'}},[lbl('Message'),msg]),picker.el,status,sendBtn);
   overlay.append(modal);document.body.appendChild(overlay);
   return overlay;
 }
@@ -1198,7 +1300,7 @@ async function dfMailbox(openMsgId){
           h('span',{cls:'mono',style:{fontSize:'10px',color:'var(--muted)',flexShrink:'0'}},[dfMailWhen(m.created_at)])
         ]),
         h('div',{style:{fontSize:'12px',fontWeight:unread?'600':'400',color:'var(--text)',marginTop:'3px',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}},[m.subject]),
-        h('div',{style:{fontSize:'12px',color:'var(--muted)',marginTop:'2px',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}},[m.body.replace(/\s+/g,' ').slice(0,90)])
+        h('div',{style:{fontSize:'12px',color:'var(--muted)',marginTop:'2px',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}},[dfMailPreview(m.body)])
       ]);
       row.onclick=function(){openThread(t);};
       listCol.append(row);
@@ -1228,7 +1330,8 @@ async function dfMailbox(openMsgId){
           h('span',{style:{fontSize:'12px',fontWeight:'700',color:'var(--text)'}},[(mine?'You':m.sender_name)+' ']),
           h('span',{cls:'mono',style:{fontSize:'10px',color:'var(--muted)'}},[(mine?'':m.sender_role+' \u00b7 ')+new Date(m.created_at).toLocaleString([], {month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})])
         ]),
-        h('div',{style:{fontSize:'13px',color:'var(--text)',lineHeight:'1.7',whiteSpace:'pre-wrap',wordBreak:'break-word'}},[m.body])
+        h('div',{style:{fontSize:'13px',color:'var(--text)',lineHeight:'1.7',whiteSpace:'pre-wrap',wordBreak:'break-word'}},[dfMailSplitBody(m.body).text]),
+        dfMailFileLinks(dfMailSplitBody(m.body).files)
       );
       threadCol.append(bubble);
     });
@@ -1236,12 +1339,14 @@ async function dfMailbox(openMsgId){
     var otherName=last.sender_id===me?last.recipient_name:last.sender_name;
     var reply=h('textarea',{cls:'input',placeholder:'Reply to '+otherName+'\u2026',style:{minHeight:'100px',resize:'vertical',marginTop:'6px'}});
     var st=div({style:{fontSize:'12px',marginTop:'8px',display:'none',lineHeight:'1.6'}},[]);
+    var rpick=dfMailAttachPicker();
     var rb=btn('Send reply','btn-gold',async function(){
       st.style.display='none';
       if(!reply.value.trim()){st.textContent='Write a reply first.';st.style.color='#ff4444';st.style.display='block';return;}
+      if(rpick.busy()){st.textContent='Please wait for the attachment to finish uploading.';st.style.color='#ff4444';st.style.display='block';return;}
       rb.disabled=true;rb.textContent='Sending\u2026';
       var subj=/^re:/i.test(first.subject)?first.subject:'Re: '+first.subject;
-      var rr=await sb.rpc('mail_send',{p_recipient:otherId,p_subject:subj,p_body:reply.value.trim(),p_parent:last.id});
+      var rr=await sb.rpc('mail_send',{p_recipient:otherId,p_subject:subj,p_body:dfMailBodyWithFiles(reply.value.trim(),rpick.files()),p_parent:last.id});
       if(rr.error){st.textContent='Could not send: '+rr.error.message;st.style.color='#ff4444';st.style.display='block';rb.disabled=false;rb.textContent='Send reply';return;}
       var replyNote='';
       try{var ro=await dfMailSendEmails([rr.data]);if(ro.failed&&ro.failed.length){replyNote='Reply saved, but the email copy could not be sent'+((ro.errors&&ro.errors[0]&&ro.errors[0].reason)?': '+ro.errors[0].reason:'.');}}
@@ -1249,7 +1354,7 @@ async function dfMailbox(openMsgId){
       if(replyNote)dfToast(replyNote);
       openThread(tid);loadList();
     },{style:{marginTop:'8px',fontSize:'12px',padding:'9px 20px'}});
-    threadCol.append(div({style:{borderTop:'1px solid var(--border)',paddingTop:'14px',marginTop:'6px'}},[reply,st,rb]));
+    threadCol.append(div({style:{borderTop:'1px solid var(--border)',paddingTop:'14px',marginTop:'6px'}},[reply,rpick.el,st,rb]));
     try{threadCol.scrollTop=threadCol.scrollHeight;}catch(e){}
   }
   paintTabs(0);showList();
