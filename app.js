@@ -1026,14 +1026,6 @@ async function dfMailSendEmails(ids){
 var DF_MAIL_MAX_FILE=10*1024*1024;
 var DF_MAIL_MAX_FILES=5;
 var DF_MAIL_ATT_HEAD='Attachments:';
-function dfMailReadB64(file){
-  return new Promise(function(resolve,reject){
-    var r=new FileReader();
-    r.onload=function(){var t=String(r.result||'');var i=t.indexOf(',');resolve(i===-1?'':t.slice(i+1));};
-    r.onerror=function(){reject(new Error('Could not read '+file.name));};
-    r.readAsDataURL(file);
-  });
-}
 // Screenshots and photos are often several MB. Shrink them in the browser (max 1600px, JPEG) so the
 // upload is small and fast. Other file types, GIFs and SVGs go up untouched.
 function dfMailShrinkImage(file){
@@ -1066,17 +1058,14 @@ function dfMailShrinkImage(file){
 }
 async function dfMailUploadFile(file){
   var sess=await sb.auth.getSession();
-  var token=sess&&sess.data&&sess.data.session&&sess.data.session.access_token;
-  if(!token)throw new Error('Please sign in again.');
-  var b64=await dfMailReadB64(file);
-  var res;
-  try{res=await fetch(DF_MAIL_URL,{method:'POST',body:JSON.stringify({action:'upload_mail_attachment',token:token,name:file.name,mime:file.type||'application/octet-stream',data:b64})});}
-  catch(e){throw new Error('could not reach the upload service. In Apps Script, open Executions to see the error, run dfmAuthorize, then deploy a New version.');}
-  var raw=await res.text();
-  var data=null;try{data=JSON.parse(raw);}catch(e){}
-  if(!data)throw new Error('The upload service sent back something unexpected. Check that the latest Apps Script version is deployed.');
-  if(!data.ok||!data.url)throw new Error(data.error||'The upload failed.');
-  return{name:data.name||file.name,url:data.url};
+  var uid=sess&&sess.data&&sess.data.session&&sess.data.session.user&&sess.data.session.user.id;
+  if(!uid)throw new Error('Please sign in again.');
+  var ext=(String(file.name).split('.').pop()||'file').toLowerCase().replace(/[^a-z0-9]/g,'').slice(0,8)||'file';
+  var path=uid+'/'+Date.now()+'-'+Math.random().toString(36).slice(2,10)+'.'+ext;
+  var up=await sb.storage.from('mail-files').upload(path,file,{contentType:file.type||undefined});
+  if(up.error)throw new Error(up.error.message);
+  var pub=sb.storage.from('mail-files').getPublicUrl(path);
+  return{name:file.name,url:pub.data.publicUrl};
 }
 function dfMailBodyWithFiles(text,files){
   if(!files||!files.length)return text;
@@ -1090,8 +1079,8 @@ function dfMailSplitBody(body){
   var lines=body.slice(idx+marker.length).split('\n').filter(function(l){return l.trim();});
   var files=[];
   for(var i=0;i<lines.length;i++){
-    var m=/^- (.+): (https:\/\/(?:drive|docs)\.google\.com\/\S+)$/.exec(lines[i].trim());
-    if(!m)return{text:body,files:[]};
+    var m=/^- (.+): (https:\/\/\S+)$/.exec(lines[i].trim());
+    if(!m||m[2].indexOf(SURL+'/storage/v1/object/public/mail-files/')!==0)return{text:body,files:[]};
     files.push({name:m[1],url:m[2]});
   }
   return files.length?{text:body.slice(0,idx),files:files}:{text:body,files:[]};
