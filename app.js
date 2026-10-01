@@ -504,7 +504,7 @@ function dfEsc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){ret
 function dfToast(msg){
   try{
     var old=document.getElementById('df-toast');if(old)old.remove();
-    var t=div({id:'df-toast',style:{position:'fixed',left:'50%',bottom:'86px',transform:'translateX(-50%)',zIndex:'100002',background:'var(--card)',color:'var(--text)',border:'1px solid var(--gold)',borderRadius:'8px',padding:'10px 16px',fontSize:'13px',fontFamily:"'Inter',sans-serif",maxWidth:'90vw',boxShadow:'0 6px 20px rgba(0,0,0,.4)',textAlign:'center'}},[msg]);
+    var t=div({id:'df-toast',style:{position:'fixed',left:'50%',bottom:'86px',transform:'translateX(-50%)',zIndex:'100020',background:'var(--card)',color:'var(--text)',border:'1px solid var(--gold)',borderRadius:'8px',padding:'10px 16px',fontSize:'13px',fontFamily:"'Inter',sans-serif",maxWidth:'90vw',boxShadow:'0 6px 20px rgba(0,0,0,.4)',textAlign:'center'}},[msg]);
     document.body.appendChild(t);
     setTimeout(function(){if(t.parentNode)t.remove();},3400);
   }catch(e){}
@@ -976,15 +976,45 @@ function dfInitMail(){
   },2000);
 }
 
+var DF_MAIL_POLL_MS=1500;
+// After a request whose reply the browser could not read, the database tells us whether the
+// email really went out (the script marks a message as emailed once Gmail has accepted it).
+async function dfMailConfirmEmailed(ids){
+  var done=[];
+  for(var attempt=0;attempt<3;attempt++){
+    await new Promise(function(r){setTimeout(r,DF_MAIL_POLL_MS);});
+    try{
+      var r=await sb.from('messages').select('id,emailed_at').in('id',ids);
+      done=((r&&r.data)||[]).filter(function(m){return m.emailed_at;}).map(function(m){return m.id;});
+      if(done.length===ids.length)return done;
+    }catch(e){}
+  }
+  return done;
+}
 async function dfMailSendEmails(ids){
-  if(!ids||!ids.length)return{ok:true,sent:0,failed:[]};
+  if(!ids||!ids.length)return{ok:true,sent:0,failed:[],errors:[]};
   var sess=await sb.auth.getSession();
   var token=sess&&sess.data&&sess.data.session&&sess.data.session.access_token;
   if(!token)throw new Error('Please sign in again.');
-  var res=await fetch(DF_MAIL_URL,{method:'POST',body:JSON.stringify({action:'send_platform_email',token:token,message_ids:ids})});
-  var data=await res.json();
-  if(!data||!data.ok)throw new Error((data&&data.error)||'The email service did not accept the request.');
-  return data;
+  var problem=null,unreadable=false;
+  try{
+    var res=await fetch(DF_MAIL_URL,{method:'POST',body:JSON.stringify({action:'send_platform_email',token:token,message_ids:ids})});
+    var raw=await res.text();
+    var data=null;try{data=JSON.parse(raw);}catch(e){}
+    if(data&&data.ok)return data;
+    if(data){problem=(data.error||'The email service refused the request.');}
+    else{unreadable=true;problem='The email service sent back something unexpected. Check that the Apps Script is deployed as a Web app with access set to Anyone, and that its latest version is deployed.';}
+  }catch(e){
+    unreadable=true;
+    problem='Could not reach the email service. Check that the Apps Script address is correct and deployed with access set to Anyone.';
+  }
+  if(unreadable){
+    // The request may still have gone through even though the browser could not read the reply.
+    var confirmed=await dfMailConfirmEmailed(ids);
+    if(confirmed.length===ids.length)return{ok:true,sent:ids.length,failed:[],errors:[]};
+    if(confirmed.length>0)return{ok:true,sent:confirmed.length,failed:ids.filter(function(x){return confirmed.indexOf(x)===-1;}),errors:[]};
+  }
+  throw new Error(problem);
 }
 
 // Compose window.
@@ -1076,8 +1106,11 @@ function dfMailCompose(opts){
     if(okIds.length){
       try{
         var out=await dfMailSendEmails(okIds);
-        emailNote=(out.failed&&out.failed.length)?' Their email copy could not be sent to '+out.failed.length+' address(es).':' A copy was emailed to their registered address.';
-      }catch(e){emailNote=' It is in their mailbox, but the email copy could not be sent right now.';}
+        if(out.failed&&out.failed.length){
+          var why=out.errors&&out.errors[0]&&out.errors[0].reason;
+          emailNote=' Their email copy could not be sent to '+out.failed.length+' address(es)'+(why?': '+why:'.');
+        }else{emailNote=' A copy was emailed to their registered address.';}
+      }catch(e){emailNote=' It is in their mailbox, but the email copy could not be sent: '+(e&&e.message?e.message:'unknown error');}
     }
     dfMailRefreshUnread();
     if(opts.onSent)try{opts.onSent(okIds);}catch(e){}
@@ -1208,7 +1241,10 @@ async function dfMailbox(openMsgId){
       var subj=/^re:/i.test(first.subject)?first.subject:'Re: '+first.subject;
       var rr=await sb.rpc('mail_send',{p_recipient:otherId,p_subject:subj,p_body:reply.value.trim(),p_parent:last.id});
       if(rr.error){st.textContent='Could not send: '+rr.error.message;st.style.color='#ff4444';st.style.display='block';rb.disabled=false;rb.textContent='Send reply';return;}
-      try{await dfMailSendEmails([rr.data]);}catch(e){}
+      var replyNote='';
+      try{var ro=await dfMailSendEmails([rr.data]);if(ro.failed&&ro.failed.length){replyNote='Reply saved, but the email copy could not be sent'+((ro.errors&&ro.errors[0]&&ro.errors[0].reason)?': '+ro.errors[0].reason:'.');}}
+      catch(e){replyNote='Reply saved, but the email copy could not be sent: '+(e&&e.message?e.message:'unknown error');}
+      if(replyNote)dfToast(replyNote);
       openThread(tid);loadList();
     },{style:{marginTop:'8px',fontSize:'12px',padding:'9px 20px'}});
     threadCol.append(div({style:{borderTop:'1px solid var(--border)',paddingTop:'14px',marginTop:'6px'}},[reply,st,rb]));
