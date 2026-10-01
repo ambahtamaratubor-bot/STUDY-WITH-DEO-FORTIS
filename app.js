@@ -125,7 +125,7 @@ let S={page:'landing',user:null,profile:null};
 let signingUp=false;
 let payLinks={monthly:'#',sixmonth:'#',yearly:'#'};
 sb.from('admin_settings').select('link_monthly,link_sixmonth,link_yearly').single().then(({data})=>{if(data)payLinks={monthly:data.link_monthly||'#',sixmonth:data.link_sixmonth||'#',yearly:data.link_yearly||'#'};});
-function go(p){S.page=p;try{localStorage.setItem('df-page',p);}catch(e){}if(window._goT)clearTimeout(window._goT);window._goT=setTimeout(render,0);}
+function go(p){dfRefreshEvidence();S.page=p;try{localStorage.setItem('df-page',p);}catch(e){}if(window._goT)clearTimeout(window._goT);window._goT=setTimeout(render,0);}
 function isInTrial(){return S.profile?.is_free_tier===true&&S.inTrial===true;}
 sb.auth.onAuthStateChange(function(event,session){
   if(signingUp)return;
@@ -363,7 +363,7 @@ function dfHlFindSpans(container){
     for(var i=0;i<n.childNodes.length;i++){
       var c=n.childNodes[i];
       if(c.nodeType===1){
-        if(c.className==='highlight-text')spans.push(c);
+        if((' '+c.className+' ').indexOf(' highlight-text ')!==-1)spans.push(c);
         else walk(c);
       }
     }
@@ -387,7 +387,8 @@ function dfHlOffset(container,node,offset){
 // Saves a new highlight for question `qid` in `store`, merging it with any
 // existing highlight it overlaps or touches so you never get broken/nested
 // fragments, then re-paints immediately (no full re-render needed).
-function dfHlMergeAndSave(container,store,qid,range,persistFn){
+function dfHlMergeAndSave(container,store,qid,range,persistFn,kind){
+  kind=kind||'hl';
   var selectedText=range.toString();
   if(!selectedText||!selectedText.trim().length)return false;
   var start=dfHlOffset(container,range.startContainer,range.startOffset);
@@ -396,17 +397,25 @@ function dfHlMergeAndSave(container,store,qid,range,persistFn){
   var mStart=start,mEnd=end,kept=[];
   store[qid].forEach(function(hl){
     var hStart=hl.start,hEnd=hl.start+hl.text.length;
+    var hk=hl.kind||'hl';
+    if(hk!==kind){
+      // different colour: only displaced when the new selection genuinely overlaps it
+      if(hEnd>start&&hStart<end){/* replaced by the new selection */}
+      else kept.push(hl);
+      return;
+    }
     if(hEnd<mStart||hStart>mEnd){kept.push(hl);}
     else{mStart=Math.min(mStart,hStart);mEnd=Math.max(mEnd,hEnd);}
   });
   var fullText=container.textContent;
   var mergedText=fullText.slice(mStart,mEnd);
   if(!mergedText)return false;
-  kept.push({start:mStart,text:mergedText});
+  kept.push({start:mStart,text:mergedText,kind:kind});
   kept.sort(function(a,b){return a.start-b.start;});
   store[qid]=kept;
   if(persistFn)persistFn();
   dfHlApply(container,store,qid);
+  if(typeof dfEvidenceActive==='function'&&dfEvidenceActive())dfEvidencePaint();
   return true;
 }
 // Removes the highlight whose recorded start matches the clicked span's
@@ -416,6 +425,7 @@ function dfHlRemove(container,store,qid,startVal,persistFn){
   store[qid]=store[qid].filter(function(hl){return hl.start!==startVal;});
   if(persistFn)persistFn();
   dfHlApply(container,store,qid);
+  if(typeof dfEvidenceActive==='function'&&dfEvidenceActive())dfEvidencePaint();
 }
 // Repaints all saved highlights for `qid` onto the live DOM of `container`.
 // Rebuilds the text-node walk fresh for every single highlight (instead of
@@ -447,7 +457,7 @@ function dfHlApply(container,store,qid){
       }
       var rng=document.createRange();
       rng.setStart(startNode,startOff);rng.setEnd(endNode,endOff);
-      var span=document.createElement('span');span.className='highlight-text';span.dataset.hlStart=String(hl.start);
+      var span=document.createElement('span');span.className='highlight-text'+(hl.kind==='evidence'?' evidence-text':'');span.dataset.hlStart=String(hl.start);
       var frag=rng.extractContents();span.appendChild(frag);rng.insertNode(span);
     }catch(err){}
   });
@@ -470,6 +480,459 @@ tableWrap.append(tableHead);
 labItems.forEach(function(item){var row=div({style:{display:'flex',alignItems:'baseline',padding:'9px 16px',borderBottom:'1px solid var(--border)'}});var nameEl=h('span',{style:{flex:'1',fontSize:'13px',color:'var(--text)',lineHeight:'1.5'}},[]);nameEl.textContent=item.name;var valEl=h('span',{style:{fontSize:'13px',fontWeight:'400',color:'var(--text)',minWidth:'90px',textAlign:'right'}},[]);valEl.textContent=item.value;var normEl=h('span',{style:{fontSize:'11px',color:'var(--muted)',minWidth:'120px',textAlign:'right',marginLeft:'16px'}},[]);normEl.textContent='('+item.normal+')';row.append(nameEl,valEl,normEl);tableWrap.append(row);});
 container.append(tableWrap);
 if(after.trim()){var pAfter=h('p',{style:{fontSize:'15px',color:'var(--text)',lineHeight:'1.8',marginTop:'14px'}},[]);pAfter.textContent=after.replace(/^[\s.,;]+/,'');container.append(pAfter);}
+}
+// ═══════════════════════════════════════════════════════════════════════════
+// ADDED: Evidence Mode · AI explanations · Email composer · Tutor payout details
+// ═══════════════════════════════════════════════════════════════════════════
+const DF_MAIL_URL='https://script.google.com/macros/s/AKfycbxh_qahHUtBuc3IlYDTeWPlp4GG_zksJWUA5ewLijK1mEmd5FynsttlCRJqgkhqE4QQCg/exec';
+const DF_AI_URL='https://ai-tutor.ambahtamaratubor.workers.dev';
+
+(function dfInjectNewStyles(){
+  try{
+    var st=document.createElement('style');
+    st.textContent=
+      '.highlight-text.evidence-text{background:rgba(220,53,69,.30)!important;border-bottom:2px solid #dc3545;border-radius:2px;}'+
+      '@keyframes dfEvShake{0%,100%{transform:translateX(0)}20%{transform:translateX(-6px)}60%{transform:translateX(6px)}}'+
+      '.df-ev-shake{animation:dfEvShake .35s ease-in-out 1;}'+
+      '@keyframes dfAiFade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}'+
+      '.df-ai-body{animation:dfAiFade .35s ease-out;}';
+    document.head.appendChild(st);
+  }catch(e){}
+})();
+
+function dfEsc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+function dfToast(msg){
+  try{
+    var old=document.getElementById('df-toast');if(old)old.remove();
+    var t=div({id:'df-toast',style:{position:'fixed',left:'50%',bottom:'86px',transform:'translateX(-50%)',zIndex:'100002',background:'var(--card)',color:'var(--text)',border:'1px solid var(--gold)',borderRadius:'8px',padding:'10px 16px',fontSize:'13px',fontFamily:"'Inter',sans-serif",maxWidth:'90vw',boxShadow:'0 6px 20px rgba(0,0,0,.4)',textAlign:'center'}},[msg]);
+    document.body.appendChild(t);
+    setTimeout(function(){if(t.parentNode)t.remove();},3400);
+  }catch(e){}
+}
+
+// ───────────────────────────── EVIDENCE MODE ─────────────────────────────
+var dfEvidence={on:false,enabledAt:'',loaded:false};
+async function dfRefreshEvidence(){
+  try{
+    if(!S.user){dfEvidence.on=false;return;}
+    var r=await sb.from('tutoring_students').select('evidence_mode,evidence_enabled_at').eq('user_id',S.user.id).maybeSingle();
+    if(r&&r.error)return; // column/table missing or no access: keep previous state
+    var d=r&&r.data;
+    dfEvidence.on=!!(d&&d.evidence_mode);
+    dfEvidence.enabledAt=(d&&d.evidence_enabled_at)||'';
+    dfEvidence.loaded=true;
+  }catch(e){}
+}
+function dfEvidenceActive(){return dfEvidence.on===true;}
+function dfEvidenceCount(store,qid){
+  return ((store&&store[qid])||[]).filter(function(x){return x&&x.kind==='evidence';}).length;
+}
+// Returns true (and nudges the student) when an option click must be refused.
+function dfEvidenceBlock(store,qid){
+  if(!dfEvidenceActive())return false;
+  if(dfEvidenceCount(store,qid)>=2)return false;
+  dfEvidenceNudge();
+  return true;
+}
+function dfEvidenceNudge(){
+  var el=document.getElementById('df-ev-banner');
+  if(el){
+    el.classList.remove('df-ev-shake');void el.offsetWidth;el.classList.add('df-ev-shake');
+    try{el.scrollIntoView({block:'center',behavior:'smooth'});}catch(e){}
+  }
+  dfToast('Evidence Mode: mark at least 2 pieces of evidence in the question first.');
+}
+
+var dfEvCtx=null;
+function dfEvidenceBanner(store,qid){
+  var el=div({id:'df-ev-banner',style:{margin:'0 0 14px',padding:'12px 14px',borderRadius:'4px',border:'1px solid #dc3545',background:'rgba(220,53,69,.08)',display:'flex',justifyContent:'space-between',alignItems:'center',gap:'12px',flexWrap:'wrap'}});
+  dfEvCtx={store:store,qid:qid,el:el};
+  dfEvidencePaint();
+  setTimeout(dfEvidenceMaybeIntro,60);
+  return el;
+}
+function dfEvidencePaint(){
+  if(!dfEvCtx||!dfEvCtx.el)return;
+  var el=dfEvCtx.el;
+  var n=dfEvidenceCount(dfEvCtx.store,dfEvCtx.qid);
+  var ok=n>=2;
+  el.innerHTML='';
+  el.style.borderColor=ok?'var(--teal)':'#dc3545';
+  el.style.background=ok?'rgba(126,184,164,.10)':'rgba(220,53,69,.08)';
+  var left=div({style:{flex:'1',minWidth:'220px'}},[]);
+  left.append(
+    h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'10px',letterSpacing:'2px',textTransform:'uppercase',color:ok?'var(--teal)':'#ff6b6b',marginBottom:'4px'}},['Evidence Mode']),
+    h('div',{style:{fontSize:'13px',color:'var(--text)',lineHeight:'1.5'}},[ok?'Evidence collected. You can now choose your answer.':'Select text in the question and mark it as Evidence (red). You need at least 2 before you can choose an option.'])
+  );
+  var right=div({style:{display:'flex',alignItems:'center',gap:'10px'}},[]);
+  right.append(
+    h('span',{style:{fontFamily:"'DM Mono',monospace",fontSize:'13px',fontWeight:'700',padding:'4px 12px',borderRadius:'20px',border:'1px solid '+(ok?'var(--teal)':'#dc3545'),color:ok?'var(--teal)':'#ff6b6b'}},[(ok?'\u2713 ':'')+Math.min(n,99)+' / 2']),
+    btn('How it works','btn-outline',function(){dfEvidenceIntro(false);},{style:{fontSize:'10px',padding:'5px 10px'}})
+  );
+  el.append(left,right);
+}
+
+// Floating "Highlight / Evidence" chooser shown after selecting text in Evidence Mode.
+function dfHlPopup(rect,onPick){
+  var old=document.getElementById('df-hl-pop');if(old)old.remove();
+  var pop=div({id:'df-hl-pop',style:{position:'fixed',zIndex:'100001',background:'var(--card)',border:'1px solid var(--border)',borderRadius:'10px',padding:'6px',display:'flex',gap:'6px',boxShadow:'0 8px 24px rgba(0,0,0,.45)'}});
+  var closer=function(e){if(pop.contains(e.target))return;pop.remove();document.removeEventListener('mousedown',closer,true);};
+  function mk(label,bg,fg,kind){
+    return h('button',{type:'button',style:{border:'none',cursor:'pointer',borderRadius:'6px',padding:'8px 14px',fontSize:'12px',fontWeight:'700',fontFamily:"'Plus Jakarta Sans',sans-serif",background:bg,color:fg},
+      onmousedown:function(e){e.preventDefault();},
+      onclick:function(){pop.remove();document.removeEventListener('mousedown',closer,true);onPick(kind);}},[label]);
+  }
+  pop.append(mk('Highlight','rgba(126,184,164,.35)','var(--text)','hl'),mk('Evidence','#dc3545','#fff','evidence'));
+  document.body.appendChild(pop);
+  var w=pop.offsetWidth||190,hgt=pop.offsetHeight||44;
+  var left=Math.max(8,Math.min(window.innerWidth-w-8,rect.left+rect.width/2-w/2));
+  var top=rect.bottom+8;if(top+hgt>window.innerHeight-8)top=Math.max(8,rect.top-hgt-8);
+  pop.style.left=left+'px';pop.style.top=top+'px';
+  document.addEventListener('mousedown',closer,true);
+}
+// Drop-in replacement for dfHlMergeAndSave at the mouseup handlers.
+function dfHlSelect(container,store,qid,range,persistFn){
+  if(!dfEvidenceActive())return dfHlMergeAndSave(container,store,qid,range,persistFn);
+  var rect=range.getBoundingClientRect();
+  var r=range.cloneRange();
+  dfHlPopup(rect,function(kind){dfHlMergeAndSave(container,store,qid,r,persistFn,kind);});
+  return true;
+}
+
+function dfEvidenceIntroKey(){return 'df-ev-intro-'+(S.user?S.user.id:'x')+'-'+(dfEvidence.enabledAt||'1');}
+function dfEvidenceMaybeIntro(){
+  if(!dfEvidenceActive()||window._dfEvIntroOpen)return;
+  try{if(localStorage.getItem(dfEvidenceIntroKey()))return;}catch(e){}
+  dfEvidenceIntro(true);
+}
+function dfEvidenceIntro(markSeen){
+  if(window._dfEvIntroOpen)return;
+  window._dfEvIntroOpen=true;
+  var GREEN='rgba(126,184,164,0.35)',RED='rgba(220,53,69,0.32)';
+  function mark(t,bg,extra){return '<span style="background:'+bg+';padding:1px 3px;border-radius:2px;'+(extra||'')+'">'+t+'</span>';}
+  var steps=[
+    {t:'Welcome to Evidence Mode',b:'Your tutor has turned on <strong>Evidence Mode</strong> for you. Before you are allowed to choose an answer, you must first prove <em>why</em> you are choosing it, using clues from the question itself.<br><br>It trains you to stop guessing and start reasoning like a clinician. This quick tour takes under a minute.'},
+    {t:'Step 1: Read and find the clues',b:'Read the question stem carefully. Look for the facts that point toward a diagnosis or a mechanism: age, sex, symptoms, timing, vital signs, lab values, exposures.',demo:'A '+mark('45-year-old man','transparent','text-decoration:underline dotted')+' presents with '+mark('crushing chest pain radiating to the left arm','transparent','text-decoration:underline dotted')+' and '+mark('ST elevation in leads II, III and aVF','transparent','text-decoration:underline dotted')+'.'},
+    {t:'Step 2: Select the clue',b:'Press and drag across a piece of text in the question to select it. A small menu pops up with two choices: <strong>Highlight</strong> and <strong>Evidence</strong>.'},
+    {t:'Step 3: Choose the colour',b:'<span style="background:'+GREEN+';padding:1px 6px;border-radius:3px">Green = Highlight</span> is your normal note-taking. It does <strong>not</strong> count.<br><br><span style="background:'+RED+';border-bottom:2px solid #dc3545;padding:1px 6px;border-radius:3px">Red = Evidence</span> is a clue that supports your answer. Only red counts toward your requirement.',demo:'A 45-year-old man presents with '+mark('crushing chest pain','rgba(220,53,69,.32)','border-bottom:2px solid #dc3545')+' and '+mark('ST elevation in leads II, III and aVF','rgba(220,53,69,.32)','border-bottom:2px solid #dc3545')+'. He has a '+mark('history of smoking','rgba(126,184,164,.35)')+'.'},
+    {t:'Step 4: Collect at least 2 pieces',b:'A counter above the options shows <strong>0 / 2</strong>. Each time you mark red evidence it goes up. Until it reaches <strong>2</strong>, the answer options will not respond.<br><br>Once you have two or more pieces of evidence, the options unlock and you can choose.'},
+    {t:'Step 5: Tips',b:'\u2022 Tap a marked piece of text to remove it.<br>\u2022 Pick clues that really discriminate between the options, not just the obvious ones.<br>\u2022 If you cannot find two pieces of evidence, you probably do not have enough to answer confidently yet. Re-read the question.<br>\u2022 You can reopen this guide any time with the <strong>How it works</strong> button.'}
+  ];
+  var idx=0;
+  var overlay=div({cls:'modal-bg',style:{zIndex:'100003'}},[]);
+  var modal=div({cls:'card',style:{maxWidth:'520px',width:'100%',maxHeight:'88vh',overflowY:'auto',position:'relative'}},[]);
+  function close(){
+    window._dfEvIntroOpen=false;overlay.remove();
+    if(markSeen){try{localStorage.setItem(dfEvidenceIntroKey(),'1');}catch(e){}}
+  }
+  function paint(){
+    modal.innerHTML='';
+    var s=steps[idx];
+    var dots=div({style:{display:'flex',gap:'6px',marginBottom:'16px'}},[]);
+    steps.forEach(function(_,i){dots.append(div({style:{height:'4px',flex:'1',borderRadius:'2px',background:i<=idx?'#dc3545':'var(--border)'}}));});
+    modal.append(dots,
+      h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'10px',letterSpacing:'2px',textTransform:'uppercase',color:'#ff6b6b',marginBottom:'6px'}},['Evidence Mode guide \u00b7 '+(idx+1)+' of '+steps.length]),
+      h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'20px',margin:'0 0 12px'}},[s.t]),
+      h('div',{style:{fontSize:'14px',color:'var(--muted)',lineHeight:'1.8'},html:s.b})
+    );
+    if(s.demo)modal.append(h('div',{style:{marginTop:'14px',padding:'14px',border:'1px dashed var(--border)',borderRadius:'4px',fontSize:'14px',color:'var(--text)',lineHeight:'1.9',background:'var(--bg)'},html:s.demo}));
+    var row=div({style:{display:'flex',justifyContent:'space-between',gap:'8px',marginTop:'20px'}},[]);
+    row.append(idx>0?btn('\u2190 Back','btn-outline',function(){idx--;paint();},{style:{fontSize:'12px'}}):btn('Skip','btn-outline',close,{style:{fontSize:'12px'}}));
+    row.append(idx<steps.length-1?btn('Next \u2192','btn-gold',function(){idx++;paint();},{style:{fontSize:'12px'}}):btn('Got it, let\u2019s go','btn-gold',close,{style:{fontSize:'12px'}}));
+    modal.append(row);
+  }
+  paint();
+  overlay.append(modal);document.body.appendChild(overlay);
+}
+
+// ───────────────────────────── AI EXPLANATIONS ─────────────────────────────
+var dfAiMem={};
+function dfAiPrompt(q,correct){
+  var opts=[];
+  ['a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p','q'].forEach(function(o){if(q['option_'+o])opts.push(o.toUpperCase()+'. '+q['option_'+o]);});
+  var ref=String(q.explanation||'').replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim().slice(0,1500);
+  return [
+    'You are Deo Tutor, explaining a USMLE-style question to a medical student right after they see the answer.',
+    'Write in SIMPLE, clear language. Keep the correct medical terms, but explain any technical term in a few plain words the first time it appears. Do not talk down to the student and do not oversimplify the science.',
+    'Use EXACTLY this layout, plain text only, no tables, no extra intro or outro:',
+    '**Answer: '+(correct||'?')+' \u2014 <name the answer in a few words>**',
+    '**Why this is right**',
+    '<2 to 4 short sentences linking the clues in the question to the answer>',
+    '**Key clues in the question**',
+    '- <clue and what it points to>',
+    '- <clue and what it points to>',
+    '**Why the other options are wrong**',
+    '- <letter>: <one short reason>',
+    '**Remember this**',
+    '<one memorable take-home sentence>',
+    '',
+    'QUESTION:',String(q.question||''),
+    '',
+    'OPTIONS:',opts.join('\n'),
+    '',
+    'CORRECT ANSWER: '+(correct||'unknown'),
+    ref?('\nREFERENCE EXPLANATION (use for accuracy, do not copy it):\n'+ref):''
+  ].join('\n');
+}
+function dfAiInline(str,parent){
+  String(str).split(/(\*\*[^*]+\*\*)/g).forEach(function(p){
+    if(!p)return;
+    if(/^\*\*[^*]+\*\*$/.test(p)){var b=document.createElement('strong');b.style.color='var(--text)';b.textContent=p.slice(2,-2);parent.appendChild(b);}
+    else parent.appendChild(document.createTextNode(p));
+  });
+}
+function dfAiRender(text,container){
+  container.innerHTML='';
+  var list=null;
+  String(text||'').replace(/\r/g,'').split('\n').forEach(function(raw){
+    var line=raw.trim();
+    if(!line){list=null;return;}
+    var li=/^([-\u2022*]|\d+[.)])\s+(.*)$/.exec(line);
+    if(li){
+      if(!list){list=document.createElement('ul');list.style.cssText='margin:0 0 12px;padding-left:20px;';container.appendChild(list);}
+      var item=document.createElement('li');item.style.cssText='font-size:13px;color:var(--muted);line-height:1.75;margin-bottom:4px;';
+      dfAiInline(li[2],item);list.appendChild(item);return;
+    }
+    list=null;
+    var hd=/^\*\*([^*]+)\*\*:?$/.exec(line)||/^#{1,4}\s+(.*)$/.exec(line);
+    if(hd){
+      var txt=hd[1].trim();
+      if(/^answer\b/i.test(txt)){
+        var ans=document.createElement('div');
+        ans.style.cssText='background:rgba(126,184,164,.14);border:1px solid var(--teal);border-radius:4px;padding:10px 14px;margin-bottom:14px;font-family:"Plus Jakarta Sans",sans-serif;font-size:14px;font-weight:700;color:var(--teal);';
+        ans.textContent='\u2713 '+txt;container.appendChild(ans);
+      }else{
+        var hh=document.createElement('div');
+        hh.style.cssText='font-family:"DM Mono",monospace;font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--gold);margin:14px 0 6px;';
+        hh.textContent=txt;container.appendChild(hh);
+      }
+      return;
+    }
+    var p=document.createElement('p');p.style.cssText='font-size:13px;color:var(--muted);line-height:1.8;margin:0 0 10px;';
+    dfAiInline(line,p);container.appendChild(p);
+  });
+}
+function dfAiExplanation(q,correct){
+  var key='df-aiexp-'+q.id;
+  var card=div({style:{background:'var(--card)',border:'1px solid var(--gold)',borderRadius:'4px',padding:'16px',marginTop:'16px'}},[]);
+  card.append(div({style:{display:'flex',alignItems:'center',gap:'8px',marginBottom:'12px',fontFamily:"'DM Mono',monospace",fontSize:'10px',letterSpacing:'2px',textTransform:'uppercase',color:'var(--gold)'},html:ICONS.brain+' Deo Tutor \u00b7 Simple explanation'}));
+  var body=div({cls:'df-ai-body'},[]);
+  card.append(body);
+  function paintLoading(){body.innerHTML='';body.append(skel(['40%','100%','92%','96%','70%']));}
+  function paintError(){
+    body.innerHTML='';
+    body.append(h('p',{style:{fontSize:'13px',color:'var(--muted)',margin:'0 0 10px'}},['The tutor could not write an explanation just now.']),btn('Try again','btn-outline',function(){load();},{style:{fontSize:'11px',padding:'6px 14px'}}));
+  }
+  async function load(){
+    paintLoading();
+    var ctrl=(typeof AbortController!=='undefined')?new AbortController():null;
+    var timer=setTimeout(function(){try{ctrl&&ctrl.abort();}catch(e){}},45000);
+    try{
+      var res=await fetch(DF_AI_URL,{method:'POST',headers:{'Content-Type':'application/json'},signal:ctrl?ctrl.signal:undefined,body:JSON.stringify({messages:[{role:'user',content:dfAiPrompt(q,correct)}],topic:window._currentTopic||'question explanation'})});
+      var data=await res.json();
+      var reply=data&&data.reply;
+      if(!reply||typeof reply!=='string'){paintError();return;}
+      dfAiMem[q.id]=reply;
+      try{sessionStorage.setItem(key,reply);}catch(e){}
+      dfAiRender(reply,body);
+    }catch(err){paintError();}
+    finally{clearTimeout(timer);}
+  }
+  var cached=dfAiMem[q.id];
+  if(!cached){try{cached=sessionStorage.getItem(key);}catch(e){}}
+  if(cached){dfAiRender(cached,body);}else{load();}
+  return card;
+}
+
+// ───────────────────────────── EMAIL FROM THE PLATFORM ─────────────────────────────
+async function dfFetchTutors(){
+  var tr=await sb.from('admin_roles').select('user_id,profiles(full_name,email)').eq('is_tutor',true);
+  return (tr.data||[]).filter(function(t){return t.profiles;}).map(function(t){return{user_id:t.user_id,name:t.profiles.full_name||'(no name)',email:t.profiles.email||''};});
+}
+async function dfSendEmails(messages){
+  var sess=await sb.auth.getSession();
+  var token=sess&&sess.data&&sess.data.session&&sess.data.session.access_token;
+  if(!token)throw new Error('Please sign in again.');
+  var res=await fetch(DF_MAIL_URL,{method:'POST',body:JSON.stringify({action:'send_admin_email',token:token,reply_to:(S.user&&S.user.email)||'',messages:messages})});
+  var data=await res.json();
+  if(!data||!data.ok)throw new Error((data&&data.error)||'The email service did not accept the request.');
+  return data;
+}
+function dfEmailModal(opts){
+  var recips=(opts.recipients||[]).filter(function(r){return r&&r.email;});
+  var pick=!!opts.pick;
+  var selected={};recips.forEach(function(r){selected[r.email]=!pick;});
+  var overlay=div({cls:'modal-bg',style:{zIndex:'100003'}},[]);
+  var modal=div({cls:'card',style:{maxWidth:'560px',width:'100%',maxHeight:'90vh',overflowY:'auto',position:'relative'}},[]);
+  overlay.onclick=function(e){if(e.target===overlay)overlay.remove();};
+  var head=div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'14px'}},[
+    h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'18px',margin:'0'}},[opts.title||'Send email']),
+    btn('\u2715','',function(){overlay.remove();},{style:{background:'none',border:'none',color:'var(--muted)',fontSize:'18px',cursor:'pointer',padding:'4px'}})
+  ]);
+  modal.append(head);
+  var countEl=h('div',{cls:'mono',style:{fontSize:'11px',color:'var(--muted)',margin:'6px 0 0'}},['']);
+  function refreshCount(){var n=recips.filter(function(r){return selected[r.email];}).length;countEl.textContent=n+' recipient'+(n===1?'':'s')+' selected';}
+  if(pick){
+    if(!recips.length){modal.append(h('p',{style:{fontSize:'13px',color:'var(--dim)'}},['No tutors with an email address were found.']));}
+    var tools=div({style:{display:'flex',gap:'8px',alignItems:'center',marginBottom:'8px'}},[]);
+    var filter=inp('Search tutors\u2026','text','');filter.style.flex='1';
+    var listBox=div({style:{maxHeight:'220px',overflowY:'auto',border:'1px solid var(--border)',borderRadius:'4px',padding:'6px 10px',background:'var(--bg)'}},[]);
+    var rows=[];
+    recips.forEach(function(r){
+      var cb=h('input',{type:'checkbox',style:{marginRight:'10px'}});cb.checked=!!selected[r.email];
+      cb.onchange=function(){selected[r.email]=cb.checked;refreshCount();};
+      var lab=h('label',{style:{display:'flex',alignItems:'center',padding:'7px 0',borderBottom:'1px solid var(--border)',cursor:'pointer',fontSize:'13px',color:'var(--text)'}},[cb,div({},[h('div',{},[r.name]),h('div',{cls:'mono',style:{fontSize:'11px',color:'var(--muted)'}},[r.email])])]);
+      rows.push({el:lab,cb:cb,hay:(r.name+' '+r.email).toLowerCase(),r:r});listBox.append(lab);
+    });
+    filter.oninput=function(){var q=filter.value.trim().toLowerCase();rows.forEach(function(x){x.el.style.display=(!q||x.hay.indexOf(q)!==-1)?'flex':'none';});};
+    var allBtn=btn('Select all','btn-outline',function(){
+      var visible=rows.filter(function(x){return x.el.style.display!=='none';});
+      var allOn=visible.every(function(x){return x.cb.checked;});
+      visible.forEach(function(x){x.cb.checked=!allOn;selected[x.r.email]=!allOn;});
+      allBtn.textContent=allOn?'Select all':'Clear';refreshCount();
+    },{style:{fontSize:'11px',padding:'7px 12px',whiteSpace:'nowrap'}});
+    tools.append(filter,allBtn);
+    modal.append(lbl('To'),tools,listBox,countEl);
+  }else{
+    var r0=recips[0];
+    modal.append(lbl('To'),div({style:{padding:'10px 12px',border:'1px solid var(--border)',borderRadius:'4px',background:'var(--bg)',fontSize:'13px'}},[r0?(r0.name+' \u00b7 '+r0.email):'No email address on file for this person.']));
+  }
+  var subj=inp('Subject','text','');
+  var msg=h('textarea',{cls:'input',placeholder:'Write your message\u2026 Each person gets it addressed to them by first name.',style:{minHeight:'160px',resize:'vertical'}});
+  var status=div({style:{fontSize:'12px',marginTop:'10px',display:'none'}},[]);
+  var sendBtn=btn('Send email','btn-gold',async function(){
+    status.style.display='none';
+    var to=recips.filter(function(r){return selected[r.email];});
+    if(!to.length){status.textContent='Choose at least one recipient.';status.style.color='#ff4444';status.style.display='block';return;}
+    if(!subj.value.trim()){status.textContent='Add a subject.';status.style.color='#ff4444';status.style.display='block';return;}
+    if(!msg.value.trim()){status.textContent='Write a message.';status.style.color='#ff4444';status.style.display='block';return;}
+    if(to.length>1&&!confirm('Send this email to '+to.length+' people?'))return;
+    sendBtn.disabled=true;sendBtn.textContent='Sending\u2026';
+    var body=msg.value.trim();
+    var messages=to.map(function(r){
+      var first=(String(r.name||'').replace(/^\(no name\)$/,'').trim().split(/\s+/)[0])||'there';
+      var html=emailBase('<p style="font-size:15px;line-height:1.7;margin:0 0 16px;color:#E8E4DC">Hi '+dfEsc(first)+',</p><div style="font-size:14px;line-height:1.8;color:#cfcabd">'+dfEsc(body).replace(/\n/g,'<br>')+'</div>');
+      return{to:r.email,subject:subj.value.trim(),html:html,text:'Hi '+first+',\n\n'+body+'\n\nDeo Fortis\ndeofortis.work'};
+    });
+    try{
+      var out=await dfSendEmails(messages);
+      status.style.color='var(--teal)';
+      status.textContent='\u2713 Sent to '+(out.sent!=null?out.sent:to.length)+' of '+to.length+'.'+((out.failed&&out.failed.length)?' Could not reach: '+out.failed.join(', '):'');
+      status.style.display='block';sendBtn.textContent='Sent';
+      if(!(out.failed&&out.failed.length))setTimeout(function(){overlay.remove();},1800);else{sendBtn.disabled=false;sendBtn.textContent='Send email';}
+    }catch(err){
+      status.style.color='#ff4444';status.textContent='Could not send: '+(err&&err.message?err.message:'unknown error');status.style.display='block';
+      sendBtn.disabled=false;sendBtn.textContent='Send email';
+    }
+  },{style:{width:'100%',marginTop:'14px'}});
+  modal.append(div({style:{marginTop:'14px'}},[lbl('Subject'),subj]),div({style:{marginTop:'12px'}},[lbl('Message'),msg]),status,sendBtn);
+  if(pick)refreshCount();
+  overlay.append(modal);document.body.appendChild(overlay);
+}
+
+// ───────────────────────────── TUTOR PAYOUT DETAILS ─────────────────────────────
+var DF_BANKS=['Access Bank','Citibank Nigeria','Ecobank Nigeria','Fidelity Bank','First Bank of Nigeria','First City Monument Bank (FCMB)','Globus Bank','Guaranty Trust Bank (GTBank)','Heritage Bank','Keystone Bank','Kuda Microfinance Bank','Moniepoint MFB','OPay','PalmPay','Polaris Bank','Providus Bank','Stanbic IBTC Bank','Standard Chartered Bank','Sterling Bank','SunTrust Bank','Union Bank of Nigeria','United Bank for Africa (UBA)','Unity Bank','Wema Bank','Zenith Bank'];
+async function dfFetchBankMap(){
+  var map={};
+  try{
+    var r=await sb.from('tutor_bank_details').select('*');
+    (r.data||[]).forEach(function(b){map[b.tutor_id]=b;});
+  }catch(e){}
+  return map;
+}
+function dfBankLine(b){
+  if(!b||!b.account_number){
+    return div({style:{fontSize:'11px',color:'#ff6b6b',marginTop:'4px'}},['No payout details yet']);
+  }
+  var copy=btn('Copy','btn-outline',function(){
+    try{navigator.clipboard.writeText(String(b.account_number));copy.textContent='Copied';setTimeout(function(){copy.textContent='Copy';},1400);}catch(e){}
+  },{style:{fontSize:'9px',padding:'2px 8px',marginLeft:'8px'}});
+  return div({style:{marginTop:'6px',textAlign:'right'}},[
+    h('div',{style:{fontSize:'11px',color:'var(--muted)'}},[b.bank_name+' \u00b7 '+b.account_name]),
+    div({style:{display:'flex',justifyContent:'flex-end',alignItems:'center',marginTop:'2px'}},[h('span',{cls:'mono',style:{fontSize:'14px',color:'var(--text)',letterSpacing:'1px'}},[b.account_number]),copy])
+  ]);
+}
+// Shows the payout-details form. locked=true => full-screen, cannot be dismissed (only log out).
+function dfBankForm(opts){
+  opts=opts||{};
+  return new Promise(function(resolve){
+    var ex=opts.existing||{};
+    var overlay=div({cls:'modal-bg',style:{zIndex:'100010'}},[]);
+    var modal=div({cls:'card',style:{maxWidth:'460px',width:'100%',maxHeight:'92vh',overflowY:'auto'}},[]);
+    var errEl=div({style:{fontSize:'12px',color:'#ff4444',margin:'0 0 12px',display:'none'}},[]);
+    var bankInp=inp('Select or type your bank','text',ex.bank_name||'');
+    bankInp.setAttribute('list','df-bank-list');
+    var dl=h('datalist',{id:'df-bank-list'},DF_BANKS.map(function(b){return h('option',{value:b});}));
+    var nameInp=inp('Name exactly as on the account','text',ex.account_name||opts.fullName||'');
+    var numInp=inp('Account number','text',ex.account_number||'');
+    numInp.maxLength=40;
+    numInp.oninput=function(){numInp.value=numInp.value.replace(/[^A-Za-z0-9-]/g,'').slice(0,34);};
+    var saveBtn=btn(opts.locked?'Save and continue':'Save','btn-gold',async function(){
+      errEl.style.display='none';
+      var bank=bankInp.value.trim(),nm=nameInp.value.trim(),num=numInp.value.trim();
+      var msg='';
+      if(!bank)msg='Enter your bank name.';
+      else if(nm.length<3)msg='Enter the account name.';
+      else if(!/^[A-Za-z0-9-]{6,34}$/.test(num))msg='Enter a valid account number (6 to 34 letters or digits).';
+      if(msg){errEl.textContent=msg;errEl.style.display='block';return;}
+      saveBtn.disabled=true;saveBtn.textContent='Saving\u2026';
+      var up=await sb.from('tutor_bank_details').upsert({tutor_id:S.user.id,bank_name:bank,account_name:nm,account_number:num,updated_at:new Date().toISOString()},{onConflict:'tutor_id'});
+      if(up.error){
+        errEl.textContent='Could not save: '+up.error.message;errEl.style.display='block';
+        saveBtn.disabled=false;saveBtn.textContent=opts.locked?'Save and continue':'Save';return;
+      }
+      overlay.remove();resolve({tutor_id:S.user.id,bank_name:bank,account_name:nm,account_number:num});
+    },{style:{width:'100%',marginTop:'6px'}});
+    modal.append(
+      h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'10px',letterSpacing:'2px',textTransform:'uppercase',color:'var(--gold)',marginBottom:'6px'}},[opts.locked?'Required to continue':'Payout details']),
+      h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'20px',margin:'0 0 8px'}},['Where should we pay you?']),
+      h('p',{style:{fontSize:'13px',color:'var(--muted)',lineHeight:'1.7',margin:'0 0 16px'}},[opts.locked?'Please add your account details before you continue. This is where your tutor payouts will be sent. Only the Deo Fortis admin can see this.':'Update the account your tutor payouts are sent to. Only the Deo Fortis admin can see this.']),
+      errEl,field('Bank',bankInp),dl,field('Account name',nameInp),field('Account number',numInp),saveBtn
+    );
+    if(opts.locked){
+      modal.append(btn('Log out','btn-outline',function(){dfLogout();},{style:{width:'100%',marginTop:'10px',fontSize:'12px'}}));
+    }else{
+      modal.append(btn('Cancel','btn-outline',function(){overlay.remove();resolve(null);},{style:{width:'100%',marginTop:'10px',fontSize:'12px'}}));
+      overlay.onclick=function(e){if(e.target===overlay){overlay.remove();resolve(null);}};
+    }
+    overlay.append(modal);document.body.appendChild(overlay);
+  });
+}
+// Blocks a tutor until payout details are saved. Fails open if the table is missing/unreachable
+// so a database setup problem can never lock everybody out.
+async function dfTutorBankGate(){
+  if(!S.user)return;
+  var r=await sb.from('tutor_bank_details').select('tutor_id,bank_name,account_name,account_number').eq('tutor_id',S.user.id).maybeSingle();
+  if(r.error){console.warn('tutor bank gate skipped:',r.error.message);return;}
+  var d=r.data;
+  if(d&&d.bank_name&&d.account_name&&d.account_number)return;
+  await dfBankForm({locked:true,fullName:(S.profile&&S.profile.full_name)||''});
+}
+
+// Makes text selection work on touch devices (phones, iPads): long-press + drag handles
+// fires no mouseup, so we also react to touchend and (debounced) selectionchange.
+function dfBindSelectOnce(el){
+  if(!el||el._dfSel)return;
+  el._dfSel=true;
+  try{el.style.webkitUserSelect='text';el.style.userSelect='text';}catch(e){}
+  var timer=null,mouseDown=false;
+  el.addEventListener('mousedown',function(){mouseDown=true;});
+  document.addEventListener('mouseup',function(){mouseDown=false;},true);
+  function fire(){
+    if(!el.isConnected||mouseDown||typeof el.onmouseup!=='function')return;
+    var sel=window.getSelection();
+    if(!sel||sel.isCollapsed||!sel.rangeCount)return;
+    if(!el.contains(sel.getRangeAt(0).commonAncestorContainer))return;
+    el.onmouseup({});
+  }
+  el.addEventListener('touchend',function(){clearTimeout(timer);timer=setTimeout(fire,450);},{passive:true});
+  var onSel=function(){
+    if(!el.isConnected){document.removeEventListener('selectionchange',onSel);return;}
+    var touch=('ontouchstart' in window)||(navigator.maxTouchPoints>0);
+    if(!touch||mouseDown)return;
+    clearTimeout(timer);timer=setTimeout(fire,450);
+  };
+  document.addEventListener('selectionchange',onSel);
 }
 function assessBrandHeader(){
   var wrap=div({style:{textAlign:'center',marginBottom:'24px'}},[]);
@@ -2376,12 +2839,12 @@ function runQuiz(a,test,questions){
     renderQuestionText(q.question,qCard);
     mainArea.append(qCard);
 
-    qCard.onmouseup=function(e){
+    dfBindSelectOnce(qCard);qCard.onmouseup=function(e){
       if(submitted)return;
       var sel=window.getSelection();if(!sel||sel.isCollapsed)return;
       var rng=sel.getRangeAt(0);
       if(rng.toString().trim().length<1){sel.removeAllRanges();return;}
-      dfHlMergeAndSave(qCard,highlights,q.id,rng,persist);
+      dfHlSelect(qCard,highlights,q.id,rng,persist);
       sel.removeAllRanges();
     };
     qCard.onclick=function(e){
@@ -2391,7 +2854,7 @@ function runQuiz(a,test,questions){
         dfHlRemove(qCard,highlights,q.id,parseInt(target.dataset.hlStart,10),persist);
       }
     };
-    dfHlApply(qCard,highlights,q.id);
+    dfHlApply(qCard,highlights,q.id);if(dfEvidenceActive())mainArea.append(dfEvidenceBanner(highlights,q.id));
 
     ['a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p','q'].forEach(function(opt){
       var val=q['option_'+opt];if(!val)return;
@@ -2405,11 +2868,12 @@ function runQuiz(a,test,questions){
       else if(isSel)ob.classList.add('selected');
       if(isRuledOut)ob.classList.add('ruled-out');
       ob.append(h('strong',{style:{marginRight:'12px'},html:opt.toUpperCase()+'.'}),document.createTextNode(val));
-      ob.onclick=function(){if(submitted)return;var newVal=opt.toUpperCase();var prevVal=answers[q.id];if(prevVal&&prevVal!==newVal){answerChanges.push({question_id:q.id,from:prevVal,to:newVal,from_correct:prevVal===corr(q),to_correct:newVal===corr(q)});}answers[q.id]=newVal;if(mode==='tutor')revealed[q.id]=true;persist();updateQ();};
+      ob.onclick=function(){if(submitted)return;if(dfEvidenceBlock(highlights,q.id))return;var newVal=opt.toUpperCase();var prevVal=answers[q.id];if(prevVal&&prevVal!==newVal){answerChanges.push({question_id:q.id,from:prevVal,to:newVal,from_correct:prevVal===corr(q),to_correct:newVal===corr(q)});}answers[q.id]=newVal;if(mode==='tutor')revealed[q.id]=true;persist();updateQ();};
       ob.oncontextmenu=function(e){e.preventDefault();if(submitted)return;if(!ruledOut[q.id])ruledOut[q.id]=[];var idx=ruledOut[q.id].indexOf(opt.toUpperCase());if(idx===-1)ruledOut[q.id].push(opt.toUpperCase());else ruledOut[q.id].splice(idx,1);persist();updateQ();};
       mainArea.append(ob);
     });
 
+    if(revealed[q.id]||submitted)mainArea.append(dfAiExplanation(q,corr(q)));
     if((revealed[q.id]||submitted)&&q.explanation)mainArea.append(buildExplanation(q));
 
     var nr=div({style:{display:'flex',gap:'12px',marginTop:'16px'}},[]);
@@ -2683,12 +3147,12 @@ function runAssessmentQuiz(a,assessment,questions){
     renderQuestionText(q.question,qCard);
     mainArea.append(qCard);
 
-    qCard.onmouseup=function(e){
+    dfBindSelectOnce(qCard);qCard.onmouseup=function(e){
       if(submitted)return;
       var sel=window.getSelection();if(!sel||sel.isCollapsed)return;
       var rng=sel.getRangeAt(0);
       if(rng.toString().trim().length<1){sel.removeAllRanges();return;}
-      dfHlMergeAndSave(qCard,highlights,q.id,rng,persist);
+      dfHlSelect(qCard,highlights,q.id,rng,persist);
       sel.removeAllRanges();
     };
     qCard.onclick=function(e){
@@ -2698,7 +3162,7 @@ function runAssessmentQuiz(a,assessment,questions){
         dfHlRemove(qCard,highlights,q.id,parseInt(target.dataset.hlStart,10),persist);
       }
     };
-    dfHlApply(qCard,highlights,q.id);
+    dfHlApply(qCard,highlights,q.id);if(dfEvidenceActive())mainArea.append(dfEvidenceBanner(highlights,q.id));
 
     ['a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p','q'].forEach(function(opt){
       var val=q['option_'+opt];if(!val)return;
@@ -2712,11 +3176,12 @@ function runAssessmentQuiz(a,assessment,questions){
       else if(isSel)ob.classList.add('selected');
       if(isRuledOut)ob.classList.add('ruled-out');
       ob.append(h('strong',{style:{marginRight:'12px'},html:opt.toUpperCase()+'.'}),document.createTextNode(val));
-      ob.onclick=function(){if(submitted)return;var newVal=opt.toUpperCase();var prevVal=answers[q.id];if(prevVal&&prevVal!==newVal){answerChanges.push({question_id:q.id,from:prevVal,to:newVal,from_correct:prevVal===corr(q),to_correct:newVal===corr(q)});}answers[q.id]=newVal;if(mode==='tutor')revealed[q.id]=true;persist();updateQ();};
+      ob.onclick=function(){if(submitted)return;if(dfEvidenceBlock(highlights,q.id))return;var newVal=opt.toUpperCase();var prevVal=answers[q.id];if(prevVal&&prevVal!==newVal){answerChanges.push({question_id:q.id,from:prevVal,to:newVal,from_correct:prevVal===corr(q),to_correct:newVal===corr(q)});}answers[q.id]=newVal;if(mode==='tutor')revealed[q.id]=true;persist();updateQ();};
       ob.oncontextmenu=function(e){e.preventDefault();if(submitted)return;if(!ruledOut[q.id])ruledOut[q.id]=[];var idx=ruledOut[q.id].indexOf(opt.toUpperCase());if(idx===-1)ruledOut[q.id].push(opt.toUpperCase());else ruledOut[q.id].splice(idx,1);persist();updateQ();};
       mainArea.append(ob);
     });
 
+    if(revealed[q.id]||submitted)mainArea.append(dfAiExplanation(q,corr(q)));
     if((revealed[q.id]||submitted)&&q.explanation)mainArea.append(buildExplanation(q));
 
     var nr=div({style:{display:'flex',gap:'12px',marginTop:'16px'}},[]);
@@ -2976,11 +3441,11 @@ function runBlockedAssessment(a,assessment,allQuestions){
       renderQuestionText(q.question,qCard);
       mainArea.append(qCard);
 
-      qCard.onmouseup=function(e){
+      dfBindSelectOnce(qCard);qCard.onmouseup=function(e){
         var sel=window.getSelection();if(!sel||sel.isCollapsed)return;
         var rng=sel.getRangeAt(0);
         if(rng.toString().trim().length<1){sel.removeAllRanges();return;}
-        dfHlMergeAndSave(qCard,globalHighlights,q.id,rng,persist);
+        dfHlSelect(qCard,globalHighlights,q.id,rng,persist);
         sel.removeAllRanges();
       };
       qCard.onclick=function(e){
@@ -2990,7 +3455,7 @@ function runBlockedAssessment(a,assessment,allQuestions){
           dfHlRemove(qCard,globalHighlights,q.id,parseInt(target.dataset.hlStart,10),persist);
         }
       };
-      dfHlApply(qCard,globalHighlights,q.id);
+      dfHlApply(qCard,globalHighlights,q.id);if(dfEvidenceActive())mainArea.append(dfEvidenceBanner(globalHighlights,q.id));
 
       ['a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p','q'].forEach(function(opt){
         var val=q['option_'+opt];if(!val)return;
@@ -3000,7 +3465,7 @@ function runBlockedAssessment(a,assessment,allQuestions){
         if(isSel)ob.classList.add('selected');
         if(isRuledOut)ob.classList.add('ruled-out');
         ob.append(h('strong',{style:{marginRight:'12px'},html:opt.toUpperCase()+'.'}),document.createTextNode(val));
-        ob.onclick=function(){var newVal=opt.toUpperCase();var prevVal=globalAnswers[q.id];if(prevVal&&prevVal!==newVal){globalAnswerChanges.push({question_id:q.id,from:prevVal,to:newVal,from_correct:prevVal===corr(q),to_correct:newVal===corr(q)});}globalAnswers[q.id]=newVal;persist();updateQ();};
+        ob.onclick=function(){if(dfEvidenceBlock(globalHighlights,q.id))return;var newVal=opt.toUpperCase();var prevVal=globalAnswers[q.id];if(prevVal&&prevVal!==newVal){globalAnswerChanges.push({question_id:q.id,from:prevVal,to:newVal,from_correct:prevVal===corr(q),to_correct:newVal===corr(q)});}globalAnswers[q.id]=newVal;persist();updateQ();};
         ob.oncontextmenu=function(e){e.preventDefault();if(!globalRuledOut[q.id])globalRuledOut[q.id]=[];var idx=globalRuledOut[q.id].indexOf(opt.toUpperCase());if(idx===-1)globalRuledOut[q.id].push(opt.toUpperCase());else globalRuledOut[q.id].splice(idx,1);persist();updateQ();};
         mainArea.append(ob);
       });
@@ -6609,13 +7074,13 @@ function dfHlPersistVignette(){
   const sv=sessionStorage.getItem('vignette_resume');
   if(sv){const st=JSON.parse(sv);st.highlights=highlights;sessionStorage.setItem('vignette_resume',JSON.stringify(st));}
 }
-qCard.onmouseup=(e)=>{
+dfBindSelectOnce(qCard);qCard.onmouseup=(e)=>{
   if(submitted)return;
   const sel=window.getSelection();
   if(!sel||sel.isCollapsed)return;
   const rng=sel.getRangeAt(0);
   if(rng.toString().trim().length<1){sel.removeAllRanges();return;}
-  dfHlMergeAndSave(qCard,highlights,q.id,rng,dfHlPersistVignette);
+  dfHlSelect(qCard,highlights,q.id,rng,dfHlPersistVignette);
   sel.removeAllRanges();
 };
 qCard.onclick=(e)=>{
@@ -6625,7 +7090,7 @@ qCard.onclick=(e)=>{
     dfHlRemove(qCard,highlights,q.id,parseInt(target.dataset.hlStart,10),dfHlPersistVignette);
   }
 };
-dfHlApply(qCard,highlights,q.id);
+dfHlApply(qCard,highlights,q.id);if(dfEvidenceActive())mainArea.append(dfEvidenceBanner(highlights,q.id));
 ['a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p','q'].forEach(opt=>{
 const val=q['option_'+opt];if(!val)return;
 const ob=h('button',{cls:'option-btn'});
@@ -6639,7 +7104,7 @@ else if(isSel)ob.classList.add('selected');
 if(isRuledOut)ob.classList.add('ruled-out');
 ob.append(h('strong',{style:{marginRight:'12px'},html:opt.toUpperCase()+'.'}),document.createTextNode(val));
 ob.onclick=()=>{
-  if(submitted)return;
+  if(submitted)return; if(dfEvidenceBlock(highlights,q.id))return;
   const newVal=opt.toUpperCase();
   const prevVal=answers[q.id];
   if(prevVal&&prevVal!==newVal){ansChanges.push({question_id:q.id,from:prevVal,to:newVal,from_correct:prevVal===q.correct_answer,to_correct:newVal===q.correct_answer});}
@@ -6661,6 +7126,7 @@ ob.oncontextmenu=(e)=>{
 };
 mainArea.append(ob);
 });
+if(revealed[q.id]||submitted)mainArea.append(dfAiExplanation(q,q.correct_answer));
 if((revealed[q.id]||submitted)&&q.explanation){
 const exp=div({style:{background:'var(--correct-bg)',border:'1px solid var(--teal-border)',borderRadius:'2px',padding:'16px',marginTop:'16px'}});
 exp.append(div({style:{fontFamily:"Inter,sans-serif",fontSize:'10px',color:'var(--teal)',letterSpacing:'2px',textTransform:'uppercase',marginBottom:'12px'},html:'Explanation'}));
@@ -7212,7 +7678,7 @@ wrap.append(tmCard);page.append(wrap);
 async function showAdminPanel(){
 page.innerHTML='';
 const aN=div({style:{background:'var(--nav-bg)',borderBottom:'1px solid var(--border)',padding:'16px 24px',display:'flex',alignItems:'center',justifyContent:'space-between',position:'sticky',top:'0',zIndex:'100'}});
-aN.append(dfLogo(),div({style:{display:'flex',gap:'8px'}},[makeThemeBtn(),btn('← Site','btn-outline',()=>go('landing'),{style:{padding:'8px 16px'}})]));
+const aNRight=div({style:{display:'flex',gap:'8px'}},[makeThemeBtn(),btn('← Site','btn-outline',()=>go('landing'),{style:{padding:'8px 16px'}})]);aN.append(dfLogo(),aNRight);
 page.append(aN);
 const tabs=div({style:{display:'none'}});
 const content=div({cls:'inner-md',style:{padding:'24px'}});
@@ -7233,6 +7699,10 @@ try{
   panelIsTutor=false;
 }
 if(!panelIsSuperAdmin&&!panelTeamRole){page.innerHTML='';page.append(h('p',{style:{textAlign:'center',padding:'40px',color:'var(--dim)',fontFamily:'Inter,sans-serif'},html:'Access denied. You do not have a valid admin role.'}));return;}
+if(panelIsTutor){
+  await dfTutorBankGate();
+  aNRight.prepend(btn('Payout details','btn-outline',async()=>{var cur=await sb.from('tutor_bank_details').select('*').eq('tutor_id',S.user.id).maybeSingle();await dfBankForm({existing:(cur&&cur.data)||{},fullName:(S.profile&&S.profile.full_name)||''});},{style:{padding:'8px 16px'}}));
+}
 if(panelTeamRole&&!panelIsSuperAdmin){
   const workerTabs=['recalls','feynman','riddles','team'];
   const managerTabs=['settings','recalls','flashcards','questions','testimonials','packages','bookings','feynman','riddles','team'];
@@ -8994,7 +9464,9 @@ function renderScheduleBoard(){
 function renderStudents(){
   subNav.style.display='flex';
   tBody.innerHTML='';
-  tBody.append(btn('+ Enroll student','btn-gold',function(){openEnroll();},{style:{fontSize:'12px',padding:'8px 16px',marginBottom:'16px'}}));
+  var enrollRow=div({style:{display:'flex',gap:'8px',flexWrap:'wrap',marginBottom:'16px'}},[btn('+ Enroll student','btn-gold',function(){openEnroll();},{style:{fontSize:'12px',padding:'8px 16px'}})]);
+  if(panelIsSuperAdmin)enrollRow.append(btn('\u2709 Email tutors','btn-outline',async function(){var ts=await dfFetchTutors();dfEmailModal({title:'Email tutors',pick:true,recipients:ts});},{style:{fontSize:'12px',padding:'8px 16px'}}));
+  tBody.append(enrollRow);
   var listWrap=div({},[]);
   tBody.append(listWrap);
   (async function(){
@@ -9134,6 +9606,23 @@ function openStudent(s){
   head.append(div({},[h('div',{style:{fontFamily:'Georgia,serif',fontSize:'22px',color:'var(--text)'}},[s.full_name]),h('div',{cls:'mono',style:{fontSize:'11px',color:'var(--muted)',marginTop:'4px'}},[s.email+' \u00b7 enrolled '+new Date(s.enrolled_at).toLocaleDateString()])]));
   var headBtns=div({style:{display:'flex',gap:'6px',flexWrap:'wrap'}},[]);
   headBtns.append(btn('Assign test','btn-gold',function(){openAssign({studentId:s.user_id,studentName:s.full_name});},{style:{fontSize:'10px',padding:'6px 12px'}}));
+  if(panelIsSuperAdmin){
+    headBtns.append(btn('\u2709 Email student','btn-outline',function(){dfEmailModal({title:'Email '+s.full_name,recipients:[{name:s.full_name,email:s.email}]});},{style:{fontSize:'10px',padding:'6px 12px'}}));
+    var evOn=false;
+    var evBtn=btn('Evidence mode: \u2026','btn-outline',null,{style:{fontSize:'10px',padding:'6px 12px'}});
+    var paintEv=function(){evBtn.textContent='Evidence mode: '+(evOn?'ON':'OFF');evBtn.style.color=evOn?'#ff6b6b':'';evBtn.style.borderColor=evOn?'#dc3545':'';};
+    paintEv();
+    (async function(){var er=await sb.from('tutoring_students').select('evidence_mode').eq('user_id',s.user_id).maybeSingle();evOn=!!(er&&er.data&&er.data.evidence_mode);paintEv();})();
+    evBtn.onclick=async function(){
+      var next=!evOn;
+      if(next&&!confirm('Turn ON Evidence Mode for '+s.full_name+'? They must mark at least 2 pieces of evidence in each question before they can choose an answer, and they will see a step-by-step guide.'))return;
+      var upd={evidence_mode:next};if(next)upd.evidence_enabled_at=new Date().toISOString();
+      var u=await sb.from('tutoring_students').update(upd).eq('user_id',s.user_id);
+      if(u.error){alert('Failed: '+u.error.message+'\n\nHave you run the setup SQL for Evidence Mode?');return;}
+      evOn=next;paintEv();
+    };
+    headBtns.append(evBtn);
+  }
   headBtns.append(btn('Unenroll','btn-outline',async function(){if(!confirm('Remove '+s.full_name+' from tutoring? They lose access to the wing. Their tests and results are kept.'))return;var d=await sb.from('tutoring_students').delete().eq('user_id',s.user_id);if(d&&d.error){alert('Failed: '+d.error.message);return;}renderStudents();},{style:{fontSize:'10px',padding:'6px 12px',color:'#ff4444',borderColor:'#ff4444'}}));
   head.append(headBtns);
   tBody.append(head);
@@ -10819,6 +11308,7 @@ if(!panelIsSuperAdmin){content.append(h('p',{style:{textAlign:'center',padding:'
 content.append(h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'22px',marginBottom:'8px'},html:'Tutor Payouts'}),h('p',{cls:'muted',style:{fontSize:'13px',marginBottom:'20px'},html:'Put a tutor on payroll, attach students to them with what each is owed in ₦, and mark payments as made.'}));
 
 var payoutsListWrap=div({},[]);
+content.append(div({style:{display:'flex',justifyContent:'flex-end',marginBottom:'14px'}},[btn('\u2709 Email tutors','btn-outline',async function(){var ts=await dfFetchTutors();dfEmailModal({title:'Email tutors',pick:true,recipients:ts});},{style:{fontSize:'11px',padding:'8px 16px'}})]));
 content.append(payoutsListWrap);
 
 function fmtNaira(n){return '₦'+Number(n||0).toLocaleString();}
@@ -10849,6 +11339,7 @@ async function renderPayoutsBody(){
   payoutsListWrap.append(skelCard([['40%'],['70%'],['50%']]));
   var tutors=await fetchTutorsList();
   var allRows=await fetchPayoutRows();
+  var bankMap=await dfFetchBankMap();
   payoutsListWrap.innerHTML='';
   if(!tutors.length){
     payoutsListWrap.append(div({cls:'card',style:{textAlign:'center',padding:'30px'}},[h('p',{style:{fontSize:'13px',color:'var(--dim)'},html:'No one has tutoring access yet. Enable "Tutoring" for a team member in Team → Team Admin first, then they will show up here to put on payroll.'})]));
@@ -10864,7 +11355,7 @@ async function renderPayoutsBody(){
     var hdr=div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:'8px',marginBottom:'14px'}});
     hdr.append(
       div({},[h('div',{style:{fontSize:'16px',color:'var(--text)',fontWeight:'600'}},[t.full_name]),h('div',{style:{fontSize:'12px',color:'var(--muted)'}},[t.email])]),
-      h('div',{cls:'mono',style:{fontSize:'13px',color:totalOwed>0?'var(--gold)':'var(--dim)'}},[totalOwed>0?fmtNaira(totalOwed)+' owed':'All settled'])
+      div({style:{textAlign:'right'}},[h('div',{cls:'mono',style:{fontSize:'15px',fontWeight:'700',color:totalOwed>0?'var(--gold)':'var(--dim)'}},[totalOwed>0?fmtNaira(totalOwed)+' owed':'All settled']),dfBankLine(bankMap[t.user_id])])
     );
     tCard.append(hdr);
 
