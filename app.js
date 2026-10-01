@@ -410,7 +410,7 @@ function dfHlMergeAndSave(container,store,qid,range,persistFn,kind){
   var fullText=container.textContent;
   var mergedText=fullText.slice(mStart,mEnd);
   if(!mergedText)return false;
-  kept.push({start:mStart,text:mergedText,kind:kind});
+  kept.push({start:mStart,text:mergedText,kind:kind,pre:fullText.slice(Math.max(0,mStart-30),mStart),post:fullText.slice(mEnd,mEnd+30)});
   kept.sort(function(a,b){return a.start-b.start;});
   store[qid]=kept;
   if(persistFn)persistFn();
@@ -1333,6 +1333,42 @@ function dfBindSelectOnce(el){
   };
   document.addEventListener('selectionchange',onSel);
 }
+// Re-draws a student's saved highlights (green) and evidence (red) inside a REVIEW view.
+// `container` must hold only the question text. Positions are re-found from the saved text plus
+// the words around it, so it works even though the review screen is laid out differently.
+function dfHlRestore(container,list){
+  try{
+    if(!container||!list||!list.length)return;
+    var full=container.textContent||'';
+    var found=[];
+    list.forEach(function(hl){
+      if(!hl||!hl.text)return;
+      var t=hl.text,pre=hl.pre||'',post=hl.post||'',idx=-1;
+      if(pre||post){
+        idx=full.indexOf(pre+t+post);if(idx>=0)idx+=pre.length;
+        if(idx<0&&pre){idx=full.indexOf(pre+t);if(idx>=0)idx+=pre.length;}
+        if(idx<0&&post){idx=full.indexOf(t+post);}
+      }
+      if(idx<0){
+        var best=-1,bestD=1e9,from=0,i;
+        while((i=full.indexOf(t,from))!==-1){var d=Math.abs(i-(hl.start||0));if(d<bestD){bestD=d;best=i;}from=i+1;}
+        idx=best;
+      }
+      if(idx>=0)found.push({start:idx,text:t,kind:hl.kind==='evidence'?'evidence':'hl'});
+    });
+    found.sort(function(a,b){return a.start-b.start;});
+    var clean=[];
+    found.forEach(function(f){
+      var last=clean[clean.length-1];
+      if(last&&f.start<last.start+last.text.length){
+        if(f.kind==='evidence'&&last.kind!=='evidence')clean[clean.length-1]=f;
+        return;
+      }
+      clean.push(f);
+    });
+    if(clean.length)dfHlApply(container,{r:clean},'r');
+  }catch(e){}
+}
 function assessBrandHeader(){
   var wrap=div({style:{textAlign:'center',marginBottom:'24px'}},[]);
   var logoRow=div({style:{display:'flex',justifyContent:'center'}},[]);
@@ -1533,6 +1569,7 @@ function buildGatedReviewUI(opts){
     var qTextDiv=div({style:{marginBottom:'16px'}},[]);
     appendMediaSafely(qCard,q.media);
     renderQuestionText(q.question,qTextDiv);
+    dfHlRestore(qTextDiv,(opts.highlights||{})[q.id]);
     qCard.append(
       div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'12px'}},[div({cls:'mono',style:{fontSize:'9px'}},['Question '+(i+1)+' of '+qs.length]),h('span',{style:{fontFamily:'Inter,sans-serif',fontSize:'11px',color:isCorrect?'var(--teal)':'#ff8888',fontWeight:'700'}},[isCorrect?'\u2713 Correct':'\u2717 Incorrect'])]),
       qTextDiv
@@ -1602,6 +1639,7 @@ function buildReviewQuestionCards(qs,ans,opts){
     var qTextDiv=div({style:{marginBottom:'14px'}},[]);
     appendMediaSafely(qCard,q.media);
     renderQuestionText(q.question,qTextDiv);
+    dfHlRestore(qTextDiv,(opts.highlights||{})[q.id]);
     var headerRow=div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'10px'}},[div({cls:'mono',style:{fontSize:'9px'},html:'Question '+(i+1)})]);
     if(!opts.previewMode)headerRow.append(h('span',{style:{fontFamily:'Inter,sans-serif',fontSize:'11px',color:isCorrect?'var(--teal)':'#ff8888',fontWeight:'700'},html:isCorrect?'\u2713 Correct':'\u2717 Incorrect'}));
     qCard.append(headerRow,qTextDiv);
@@ -3291,7 +3329,7 @@ function runQuiz(a,test,questions){
     var score=0;questions.forEach(function(q){if(answers[q.id]===corr(q))score++;});
     var timeTakenSeconds=Math.round((Date.now()-examStartedAt)/1000);
     var questionTimesSeconds={};Object.keys(questionTimeMs).forEach(function(k){questionTimesSeconds[k]=Math.round(questionTimeMs[k]/1000);});
-    var ins=await sb.from('tutoring_results').insert({assignment_id:a?a.id:null,test_id:test.id,student_id:S.user.id,test_title:test.title,mode:mode,score:score,total:questions.length,answers:answers,questions:questions,time_taken_seconds:timeTakenSeconds,question_times:questionTimesSeconds,answer_changes:answerChanges}).select('id').single();
+    var ins=await sb.from('tutoring_results').insert({assignment_id:a?a.id:null,test_id:test.id,student_id:S.user.id,test_title:test.title,mode:mode,score:score,total:questions.length,answers:answers,questions:questions,highlights:highlights,time_taken_seconds:timeTakenSeconds,question_times:questionTimesSeconds,answer_changes:answerChanges}).select('id').single();
     if(!ins.error){
       await updateStreak();
       var _testMins=Math.round(timeTakenSeconds/60);
@@ -3599,7 +3637,7 @@ function runAssessmentQuiz(a,assessment,questions){
     var score=0;questions.forEach(function(q){if(answers[q.id]===corr(q))score++;});
     var timeTakenSeconds=Math.round((Date.now()-examStartedAt)/1000);
     var questionTimesSeconds={};Object.keys(questionTimeMs).forEach(function(k){questionTimesSeconds[k]=Math.round(questionTimeMs[k]/1000);});
-    var ins=await sb.from('tutoring_assessment_results').insert({assignment_id:a?a.id:null,assessment_id:assessment.id,student_id:S.user.id,assessment_title:assessment.title,mode:mode,score:score,total:questions.length,answers:answers,questions:questions,time_taken_seconds:timeTakenSeconds,question_times:questionTimesSeconds,answer_changes:answerChanges}).select('id').single();
+    var ins=await sb.from('tutoring_assessment_results').insert({assignment_id:a?a.id:null,assessment_id:assessment.id,student_id:S.user.id,assessment_title:assessment.title,mode:mode,score:score,total:questions.length,answers:answers,questions:questions,highlights:highlights,time_taken_seconds:timeTakenSeconds,question_times:questionTimesSeconds,answer_changes:answerChanges}).select('id').single();
     if(!ins.error){
       await updateStreak();
       var _testMins=Math.round(timeTakenSeconds/60);
@@ -3898,7 +3936,7 @@ function runBlockedAssessment(a,assessment,allQuestions){
     var timeTakenSeconds=Math.round((Date.now()-examStartedAt)/1000);
     var questionTimesSeconds={};Object.keys(globalQuestionTime).forEach(function(k){questionTimesSeconds[k]=Math.round(globalQuestionTime[k]/1000);});
     var blockScores=blocks.map(function(blk,i){var c=0;blk.forEach(function(q){if(globalAnswers[q.id]===corr(q))c++;});return{block:i+1,correct:c,total:blk.length};});
-    var ins=await sb.from('tutoring_assessment_results').insert({assignment_id:a?a.id:null,assessment_id:assessment.id,student_id:S.user.id,assessment_title:assessment.title,mode:assessment.mode,score:score,total:allQuestions.length,answers:globalAnswers,questions:allQuestions,time_taken_seconds:timeTakenSeconds,question_times:questionTimesSeconds,answer_changes:globalAnswerChanges,block_scores:blockScores}).select('id').single();
+    var ins=await sb.from('tutoring_assessment_results').insert({assignment_id:a?a.id:null,assessment_id:assessment.id,student_id:S.user.id,assessment_title:assessment.title,mode:assessment.mode,score:score,total:allQuestions.length,answers:globalAnswers,questions:allQuestions,highlights:globalHighlights,time_taken_seconds:timeTakenSeconds,question_times:questionTimesSeconds,answer_changes:globalAnswerChanges,block_scores:blockScores}).select('id').single();
     if(!ins.error){
       await updateStreak();
       var _testMins=Math.round(timeTakenSeconds/60);
@@ -3941,7 +3979,7 @@ async function showReview(result){
   }
   var subLine='Scored '+result.score+'/'+result.total+' \u00b7 '+new Date(result.taken_at).toLocaleDateString();
   content.append(buildGatedReviewUI({
-    qs:qs,ans:ans,resultId:result.id,errorReasons:errorReasons,
+    qs:qs,ans:ans,resultId:result.id,errorReasons:errorReasons,highlights:result.highlights||{},
     title:result.test_title||'Test',subLine:subLine,
     onDownload:function(){
       downloadDetailedReviewPdf(result.test_title||'Assessment',subLine,qs,ans,result.test_title||'assessment',function(errMsg){
@@ -7357,7 +7395,7 @@ var finalQs=qs.slice();
 if(qFilter==='unused'&&filterIds&&filterIds.length){finalQs=finalQs.filter(function(q){return filterIds.indexOf(q.id)===-1;});}
 if(!finalQs.length){alert('No unused questions for this topic yet.');return;}
 var qsArr=finalQs.slice();for(var si=qsArr.length-1;si>0;si--){var sj=Math.floor(Math.random()*(si+1));var stmp=qsArr[si];qsArr[si]=qsArr[sj];qsArr[sj]=stmp;}
-questions=qsArr;current=0;answers={};submitted=false;revealed={};
+questions=qsArr;current=0;answers={};submitted=false;revealed={};highlights={};
 if(mode==='timed')timeLeft=timeLimit*60;
 sessionStorage.setItem('vignette_resume',JSON.stringify({questions,current:0,answers:{},revealed:{},ruledOut:{},highlights:{},flagged:{},selectedTopics,selectedSubsections,mode,timeLimit,timeLeft:mode==='timed'?timeLimit*60:null}));
 selTopic=selectedTopics.join(', ')+(selectedSubsections.length?(' — '+selectedSubsections.join(', ')):'');
@@ -7569,7 +7607,7 @@ flushActiveTime();
 const score=questions.filter(q=>answers[q.id]===q.correct_answer).length;
 const timeTakenSeconds=examStartedAt?Math.round((Date.now()-examStartedAt)/1000):0;
 const questionTimesSeconds={};Object.keys(qTimeMs).forEach(function(k){questionTimesSeconds[k]=Math.round(qTimeMs[k]/1000);});
-const ins=await sb.from('vignette_scores').insert({user_id:S.user.id,topic:selTopic,score,total:questions.length,mode,answers:answers,questions:questions,time_taken_seconds:timeTakenSeconds,question_times:questionTimesSeconds,answer_changes:ansChanges}).select('id').single();
+const ins=await sb.from('vignette_scores').insert({user_id:S.user.id,topic:selTopic,score,total:questions.length,mode,answers:answers,questions:questions,highlights:highlights,time_taken_seconds:timeTakenSeconds,question_times:questionTimesSeconds,answer_changes:ansChanges}).select('id').single();
 currentVignetteResultId=(ins.data&&ins.data.id)||null;
 if(S.profile?.is_free_tier!==true||isInTrial()){var _vpts=questions.length*2;await sb.from('profiles').update({total_points:(S.profile?.total_points||0)+_vpts}).eq('id',S.user.id);if(S.profile)S.profile.total_points=(S.profile.total_points||0)+_vpts;}
 await updateStreak();
@@ -7645,7 +7683,7 @@ if(currentVignetteResultId){
 }
 inner.innerHTML='';
 inner.append(buildGatedReviewUI({
-  qs:questions,ans:answers,resultId:currentVignetteResultId,errorReasons:errorReasons,
+  qs:questions,ans:answers,resultId:currentVignetteResultId,errorReasons:errorReasons,highlights:highlights,
   title:selTopic||'Answer Review',subLine:questions.length+' questions',
   onExit:function(){showSetup();}
 }));
@@ -9641,7 +9679,7 @@ function openAdminResultReview(result,opts){
   document.body.append(overlay);
   overlay.onclick=function(e){if(e.target===overlay)overlay.remove();};
   function renderAdminReviewQuestions(qs,ans,errorReasons){
-    buildReviewQuestionCards(qs,ans,{errorReasons:errorReasons||{},aiExplain:true}).forEach(function(c){reviewBody.append(c);});
+    buildReviewQuestionCards(qs,ans,{errorReasons:errorReasons||{},aiExplain:true,highlights:(result&&result.highlights)||{}}).forEach(function(c){reviewBody.append(c);});
   }
   var qs=result.questions||[];var ans=result.answers||{};
   if(qs.length){
@@ -11032,7 +11070,7 @@ function openStudent(s){
       var reviewErrorReasons={};
       function renderAdminReviewQuestions(qs,ans){
         fullQs=qs;
-        buildReviewQuestionCards(qs,ans,{errorReasons:reviewErrorReasons,aiExplain:true}).forEach(function(c){reviewBody.append(c);});
+        buildReviewQuestionCards(qs,ans,{errorReasons:reviewErrorReasons,aiExplain:true,highlights:(result&&result.highlights)||{}}).forEach(function(c){reviewBody.append(c);});
       }
       var qs=result.questions||[];var ans=result.answers||{};
       (async function(){
