@@ -532,12 +532,13 @@ function dfWhatsNewCard(kind,opts){
   var items=[];
   if(kind==='admin'){
     items.push({t:'Mailbox',d:'Message students and tutors from the Mail button. Replies arrive on the platform, and every message is also emailed to their registered address, signed with your name.',open:true});
-    if(opts.tutor)items.push({t:'Payout details',d:'Add your bank account once using the Payout details button at the top. Your payouts are sent there.'});
+    if(opts.tutor)items.push({t:'My details',d:'Add your bank account, the date you started and your teaching availability (EST) using the My details button at the top.'});
     if(opts.superAdmin){
       items.push({t:'Account numbers on Payouts',d:'Each tutor\u2019s bank, account name and account number now show beside what you owe them.'});
       items.push({t:'Email student / Email tutors',d:'New buttons on each student profile, the Students list and the Payouts page.'});
       items.push({t:'Evidence Mode',d:'Turn it on per student from their profile. They must mark at least 2 pieces of evidence in a question before they can choose an answer.'});
     }
+    if(opts.availability)items.push({t:'Tutor availability',d:'See each tutor\u2019s weekly hours, current teaching load, and preferred days and times (EST) under Team \u2192 Tutor availability.'});
     items.push({t:'Simple AI explanations',d:'Every revealed answer, and every review, now has a plain-language explanation from Deo Tutor, ending with a \u201cNever miss this again\u201d trick.'});
     items.push({t:'Ask Deo about any question',d:'Under each explanation, students and tutors can ask follow-up questions about that exact question.'});
   }else{
@@ -1282,6 +1283,124 @@ function dfBankLine(b){
     (function(){if(!b.started_at)return null;var d=new Date(b.started_at+'T00:00:00');if(isNaN(d))return null;return h('div',{style:{fontSize:'11px',color:'var(--muted)',marginTop:'3px'}},['With Deo Fortis since '+d.toLocaleDateString(undefined,{day:'numeric',month:'short',year:'numeric'})]);})()
   ]);
 }
+// ───────────────────────────── TUTOR AVAILABILITY ─────────────────────────────
+var DF_DAYS=[{v:'mon',label:'Mon'},{v:'tue',label:'Tue'},{v:'wed',label:'Wed'},{v:'thu',label:'Thu'},{v:'fri',label:'Fri'},{v:'sat',label:'Sat'},{v:'sun',label:'Sun'}];
+var DF_TIMES=[{v:'morning',label:'Morning'},{v:'afternoon',label:'Afternoon'},{v:'evening',label:'Evening'}];
+function dfHours(n){var x=Math.round(Number(n)*10)/10;return isNaN(x)?'-':String(x);}
+// A row of tick-able pills (used for days and times of day).
+function dfChipGroup(options,selected){
+  var sel={};(selected||[]).forEach(function(v){sel[v]=true;});
+  var wrap=div({style:{display:'flex',flexWrap:'wrap',gap:'8px'}},[]);
+  options.forEach(function(o){
+    var b=h('button',{type:'button',style:{padding:'8px 14px',borderRadius:'999px',cursor:'pointer',fontSize:'13px',fontFamily:'inherit',fontWeight:'600'}},[o.label]);
+    function paint(){
+      b.style.background=sel[o.v]?'var(--gold)':'transparent';
+      b.style.color=sel[o.v]?'var(--bg)':'var(--text)';
+      b.style.border='1px solid '+(sel[o.v]?'var(--gold)':'var(--border)');
+      b.setAttribute('aria-pressed',sel[o.v]?'true':'false');
+    }
+    b.addEventListener('click',function(){sel[o.v]=!sel[o.v];paint();});
+    paint();wrap.append(b);
+  });
+  return{el:wrap,get:function(){return options.filter(function(o){return sel[o.v];}).map(function(o){return o.v;});}};
+}
+async function dfFetchTutorDetails(uid){
+  var b=await sb.from('tutor_bank_details').select('tutor_id,bank_name,account_name,account_number,started_at').eq('tutor_id',uid).maybeSingle();
+  var a=await sb.from('tutor_availability').select('*').eq('tutor_id',uid).maybeSingle();
+  return{bank:(b&&b.data)||null,avail:(a&&a.data)||null,error:(b&&b.error)||(a&&a.error)||null};
+}
+function dfMergeDetails(d){return Object.assign({},d.bank||{},d.avail||{});}
+function dfTutorDetailsComplete(bank,avail){
+  return !!(bank&&bank.bank_name&&bank.account_name&&bank.account_number&&bank.started_at&&
+    avail&&avail.weekly_hours_available!=null&&avail.hours_currently_teaching!=null&&
+    avail.preferred_days&&avail.preferred_days.length&&avail.preferred_times&&avail.preferred_times.length);
+}
+// Team -> Tutor availability (admins and managers only; the database enforces this too).
+async function dfRenderAvailabilityTab(container){
+  container.innerHTML='';
+  container.append(skelCard([['40%'],['80%'],['60%']]),skelCard([['60%'],['90%']]));
+  var tutors=await dfFetchTutors();
+  var ar=await sb.from('tutor_availability').select('*');
+  container.innerHTML='';
+  container.append(h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'22px',marginBottom:'6px'}},['Tutor availability']));
+  container.append(h('p',{cls:'muted',style:{fontSize:'13px',marginBottom:'18px'}},['What each tutor told us about their teaching hours and preferred times. All times are in EST.']));
+  if(ar&&ar.error){
+    container.append(div({cls:'card',style:{padding:'24px',textAlign:'center'}},[h('p',{style:{fontSize:'13px',color:'var(--dim)'}},['Could not load tutor availability: '+ar.error.message])]));
+    return;
+  }
+  var map={};((ar&&ar.data)||[]).forEach(function(r){map[r.tutor_id]=r;});
+  var filled=tutors.filter(function(t){return map[t.id];}).sort(function(a,b){return a.name.localeCompare(b.name);});
+  var missing=tutors.filter(function(t){return !map[t.id];}).sort(function(a,b){return a.name.localeCompare(b.name);});
+  var totAvail=0,totTeach=0;
+  filled.forEach(function(t){totAvail+=Number(map[t.id].weekly_hours_available)||0;totTeach+=Number(map[t.id].hours_currently_teaching)||0;});
+  function stat(label,value,color){
+    return div({cls:'card',style:{flex:'1 1 150px',padding:'16px',textAlign:'center'}},[
+      h('div',{cls:'mono',style:{fontSize:'22px',fontWeight:'700',color:color||'var(--text)'}},[value]),
+      h('div',{style:{fontSize:'11px',color:'var(--muted)',marginTop:'4px'}},[label])]);
+  }
+  var free=totAvail-totTeach;
+  container.append(div({style:{display:'flex',gap:'12px',flexWrap:'wrap',marginBottom:'16px'}},[
+    stat('Tutors filled in',filled.length+' of '+tutors.length,missing.length?'var(--gold)':'var(--teal)'),
+    stat('Hours available / week',dfHours(totAvail)),
+    stat('Hours currently teaching',dfHours(totTeach)),
+    stat('Free capacity (hours / week)',dfHours(free),free<0?'#ff6b6b':'var(--teal)')
+  ]));
+  // how many tutors prefer each day / time of day
+  function coverage(title,opts,key){
+    var row=div({style:{display:'flex',gap:'8px',flexWrap:'wrap',alignItems:'center',marginBottom:'8px'}},[h('span',{style:{fontSize:'12px',color:'var(--muted)',minWidth:'92px'}},[title])]);
+    opts.forEach(function(o){
+      var n=filled.filter(function(t){return (map[t.id][key]||[]).indexOf(o.v)!==-1;}).length;
+      row.append(h('span',{style:{fontSize:'12px',padding:'4px 12px',borderRadius:'999px',border:'1px solid var(--border)',background:n?'var(--gold-subtle)':'transparent',color:n?'var(--text)':'var(--dim)'}},[o.label+' \u00b7 '+n]));
+    });
+    return row;
+  }
+  container.append(div({cls:'card',style:{marginBottom:'16px',padding:'16px'}},[
+    h('div',{style:{fontSize:'13px',fontWeight:'700',marginBottom:'10px'}},['Tutors who prefer each day and time (EST)']),
+    coverage('Days',DF_DAYS,'preferred_days'),coverage('Time of day',DF_TIMES,'preferred_times')
+  ]));
+  if(!filled.length){
+    container.append(div({cls:'card',style:{textAlign:'center',padding:'30px'}},[h('p',{style:{fontSize:'13px',color:'var(--dim)'}},['No tutor has filled in their availability yet. They will be asked when they next log in.'])]));
+  }else{
+    var table=h('table',{style:{width:'100%',borderCollapse:'collapse',fontSize:'13px',minWidth:'720px'}},[]);
+    var thead=h('tr',{},[]);
+    ['Tutor','Available / wk','Teaching now','Free','Preferred days','Time of day (EST)','Updated'].forEach(function(c,i){
+      thead.append(h('th',{style:{textAlign:i>0&&i<4?'center':'left',padding:'10px 12px',fontSize:'11px',color:'var(--muted)',fontWeight:'600',borderBottom:'1px solid var(--border)',whiteSpace:'nowrap'}},[c]));
+    });
+    table.append(h('thead',{},[thead]));
+    var tbody=h('tbody',{},[]);
+    function pills(list,opts){
+      var wrapP=div({style:{display:'flex',gap:'4px',flexWrap:'wrap'}},[]);
+      opts.filter(function(o){return (list||[]).indexOf(o.v)!==-1;}).forEach(function(o){
+        wrapP.append(h('span',{style:{fontSize:'11px',padding:'2px 9px',borderRadius:'999px',background:'var(--gold-subtle)',border:'1px solid var(--gold)',color:'var(--text)'}},[o.label]));
+      });
+      return wrapP;
+    }
+    filled.forEach(function(t){
+      var r=map[t.id];var f=(Number(r.weekly_hours_available)||0)-(Number(r.hours_currently_teaching)||0);
+      var tr=h('tr',{style:{borderBottom:'1px solid var(--border)'}},[]);
+      var cell=function(kids,center){return h('td',{style:{padding:'10px 12px',verticalAlign:'middle',textAlign:center?'center':'left'}},kids);};
+      tr.append(
+        cell([h('div',{style:{fontWeight:'600',color:'var(--text)'}},[t.name]),h('div',{style:{fontSize:'11px',color:'var(--muted)'}},[t.email||''])]),
+        cell([dfHours(r.weekly_hours_available)],true),
+        cell([dfHours(r.hours_currently_teaching)],true),
+        cell([h('span',{style:{fontWeight:'700',color:f<0?'#ff6b6b':'var(--teal)'}},[dfHours(f)])],true),
+        cell([pills(r.preferred_days,DF_DAYS)]),
+        cell([pills(r.preferred_times,DF_TIMES)]),
+        cell([h('span',{style:{fontSize:'11px',color:'var(--muted)',whiteSpace:'nowrap'}},[r.updated_at?new Date(r.updated_at).toLocaleDateString():''])])
+      );
+      tbody.append(tr);
+    });
+    table.append(tbody);
+    container.append(div({cls:'card',style:{padding:'0',overflowX:'auto',marginBottom:'16px'}},[table]));
+  }
+  if(missing.length){
+    var miss=div({cls:'card',style:{padding:'16px'}},[h('div',{style:{fontSize:'13px',fontWeight:'700',marginBottom:'10px',color:'#ff6b6b'}},['Not filled in yet ('+missing.length+')'])]);
+    var pw=div({style:{display:'flex',gap:'8px',flexWrap:'wrap'}},[]);
+    missing.forEach(function(t){pw.append(h('span',{style:{fontSize:'12px',padding:'4px 12px',borderRadius:'999px',border:'1px solid #ff6b6b66',color:'var(--text)'}},[t.name]));});
+    miss.append(pw);container.append(miss);
+  }
+}
+
 // Shows the payout-details form. locked=true => full-screen, cannot be dismissed (only log out).
 function dfBankForm(opts){
   opts=opts||{};
@@ -1297,6 +1416,18 @@ function dfBankForm(opts){
     var numInp=inp('Account number','text',ex.account_number||'');
     var _td=new Date();var todayISO=_td.getFullYear()+'-'+String(_td.getMonth()+1).padStart(2,'0')+'-'+String(_td.getDate()).padStart(2,'0');
     var startInp=h('input',{cls:'input',type:'date',max:todayISO,value:ex.started_at||''});
+    var hoursInp=h('input',{cls:'input',type:'number',min:'0',max:'100',step:'0.5',placeholder:'e.g. 15',value:(ex.weekly_hours_available==null?'':String(ex.weekly_hours_available))});
+    var curInp=h('input',{cls:'input',type:'number',min:'0',max:'100',step:'0.5',placeholder:'e.g. 6',value:(ex.hours_currently_teaching==null?'':String(ex.hours_currently_teaching))});
+    var dayChips=dfChipGroup(DF_DAYS,ex.preferred_days);
+    var timeChips=dfChipGroup(DF_TIMES,ex.preferred_times);
+    var availSection=div({style:{marginTop:'6px',paddingTop:'16px',borderTop:'1px solid var(--border)'}},[
+      h('div',{style:{fontWeight:'700',fontSize:'15px',color:'var(--gold)',marginBottom:'4px'}},['Your teaching availability']),
+      h('div',{style:{fontSize:'12px',color:'var(--muted)',marginBottom:'14px',lineHeight:'1.6'}},['All times are in EST.']),
+      field('How many hours a week are you available to teach?',hoursInp),
+      field('How many hours a week are you currently teaching?',curInp),
+      field('Which days of the week do you prefer?',dayChips.el),
+      field('What time of day do you prefer? (EST)',timeChips.el)
+    ]);
     numInp.maxLength=40;
     numInp.oninput=function(){numInp.value=numInp.value.replace(/[^A-Za-z0-9-]/g,'').slice(0,34);};
     var saveBtn=btn(opts.locked?'Save and continue':'Save','btn-gold',async function(){
@@ -1309,6 +1440,10 @@ function dfBankForm(opts){
       else if(!started)msg='Tell us when you started with Deo Fortis.';
       else if(!/^\d{4}-\d{2}-\d{2}$/.test(started)||started<'2000-01-01')msg='Enter a valid start date.';
       else if(started>todayISO)msg='The start date cannot be in the future.';
+      else if(isNaN(parseFloat(hoursInp.value))||parseFloat(hoursInp.value)<0||parseFloat(hoursInp.value)>100)msg='Enter how many hours a week you are available to teach (0 to 100).';
+      else if(isNaN(parseFloat(curInp.value))||parseFloat(curInp.value)<0||parseFloat(curInp.value)>100)msg='Enter how many hours a week you are currently teaching (0 to 100).';
+      else if(!dayChips.get().length)msg='Choose at least one day of the week you prefer.';
+      else if(!timeChips.get().length)msg='Choose at least one time of day you prefer.';
       if(msg){errEl.textContent=msg;errEl.style.display='block';return;}
       saveBtn.disabled=true;saveBtn.textContent='Saving\u2026';
       var up=await sb.from('tutor_bank_details').upsert({tutor_id:S.user.id,bank_name:bank,account_name:nm,account_number:num,started_at:started,updated_at:new Date().toISOString()},{onConflict:'tutor_id'});
@@ -1316,13 +1451,19 @@ function dfBankForm(opts){
         errEl.textContent='Could not save: '+up.error.message;errEl.style.display='block';
         saveBtn.disabled=false;saveBtn.textContent=opts.locked?'Save and continue':'Save';return;
       }
-      overlay.remove();resolve({tutor_id:S.user.id,bank_name:bank,account_name:nm,account_number:num,started_at:started});
+      var wh=Math.round(parseFloat(hoursInp.value)*10)/10,ch=Math.round(parseFloat(curInp.value)*10)/10,days=dayChips.get(),times=timeChips.get();
+      var av=await sb.from('tutor_availability').upsert({tutor_id:S.user.id,weekly_hours_available:wh,hours_currently_teaching:ch,preferred_days:days,preferred_times:times,updated_at:new Date().toISOString()},{onConflict:'tutor_id'});
+      if(av.error){
+        errEl.textContent='Your payout details were saved, but your availability could not be: '+av.error.message;errEl.style.display='block';
+        saveBtn.disabled=false;saveBtn.textContent=opts.locked?'Save and continue':'Save';return;
+      }
+      overlay.remove();resolve({tutor_id:S.user.id,bank_name:bank,account_name:nm,account_number:num,started_at:started,weekly_hours_available:wh,hours_currently_teaching:ch,preferred_days:days,preferred_times:times});
     },{style:{width:'100%',marginTop:'6px'}});
     modal.append(
-      h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'10px',letterSpacing:'2px',textTransform:'uppercase',color:'var(--gold)',marginBottom:'6px'}},[opts.locked?'Required to continue':'Payout details']),
+      h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'10px',letterSpacing:'2px',textTransform:'uppercase',color:'var(--gold)',marginBottom:'6px'}},[opts.locked?'Required to continue':'My details']),
       h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'20px',margin:'0 0 8px'}},['Where should we pay you?']),
-      h('p',{style:{fontSize:'13px',color:'var(--muted)',lineHeight:'1.7',margin:'0 0 16px'}},[opts.locked?'Please add your account details before you continue. This is where your tutor payouts will be sent. Only the Deo Fortis admin can see this.':'Update the account your tutor payouts are sent to. Only the Deo Fortis admin can see this.']),
-      errEl,field('Bank',bankInp),dl,field('Account name',nameInp),field('Account number',numInp),field('When did you start with Deo Fortis?',startInp),saveBtn
+      h('p',{style:{fontSize:'13px',color:'var(--muted)',lineHeight:'1.7',margin:'0 0 16px'}},[opts.locked?'Please add your account details and your teaching availability before you continue. Your account is where your tutor payouts will be sent. Only the Deo Fortis admin can see this.':'Update the account your tutor payouts are sent to, and your teaching availability. Only the Deo Fortis admin can see this.']),
+      errEl,field('Bank',bankInp),dl,field('Account name',nameInp),field('Account number',numInp),field('When did you start with Deo Fortis?',startInp),availSection,saveBtn
     );
     if(opts.locked){
       modal.append(btn('Log out','btn-outline',function(){dfLogout();},{style:{width:'100%',marginTop:'10px',fontSize:'12px'}}));
@@ -1337,11 +1478,10 @@ function dfBankForm(opts){
 // so a database setup problem can never lock everybody out.
 async function dfTutorBankGate(){
   if(!S.user)return;
-  var r=await sb.from('tutor_bank_details').select('tutor_id,bank_name,account_name,account_number,started_at').eq('tutor_id',S.user.id).maybeSingle();
-  if(r.error){console.warn('tutor bank gate skipped:',r.error.message);return;}
-  var d=r.data;
-  if(d&&d.bank_name&&d.account_name&&d.account_number&&d.started_at)return;
-  await dfBankForm({locked:true,existing:d||{},fullName:(S.profile&&S.profile.full_name)||''});
+  var d=await dfFetchTutorDetails(S.user.id);
+  if(d.error){console.warn('tutor bank gate skipped:',d.error.message);return;}
+  if(dfTutorDetailsComplete(d.bank,d.avail))return;
+  await dfBankForm({locked:true,existing:dfMergeDetails(d),fullName:(S.profile&&S.profile.full_name)||''});
 }
 
 // Makes text selection work on touch devices (phones, iPads): long-press + drag handles
@@ -8178,7 +8318,7 @@ try{
 if(!panelIsSuperAdmin&&!panelTeamRole){page.innerHTML='';page.append(h('p',{style:{textAlign:'center',padding:'40px',color:'var(--dim)',fontFamily:'Inter,sans-serif'},html:'Access denied. You do not have a valid admin role.'}));return;}
 if(panelIsTutor){
   await dfTutorBankGate();
-  var _pdBtn=btn('Payout details','btn-outline',async()=>{var cur=await sb.from('tutor_bank_details').select('*').eq('tutor_id',S.user.id).maybeSingle();await dfBankForm({existing:(cur&&cur.data)||{},fullName:(S.profile&&S.profile.full_name)||''});},{style:{padding:'8px 16px'}});dfPutNewOn(_pdBtn);aNRight.prepend(_pdBtn);
+  var _pdBtn=btn('My details','btn-outline',async()=>{var cur=await dfFetchTutorDetails(S.user.id);await dfBankForm({existing:dfMergeDetails(cur),fullName:(S.profile&&S.profile.full_name)||''});},{style:{padding:'8px 16px'}});dfPutNewOn(_pdBtn);aNRight.prepend(_pdBtn);
 }
 if(panelTeamRole&&!panelIsSuperAdmin){
   const workerTabs=['recalls','feynman','riddles','team'];
@@ -8248,7 +8388,7 @@ tabDefs.forEach(([id,label])=>{
 
 // Admin layout — sidebar + content
 const adminLayout=div({cls:'df-admin-layout',style:{display:'flex',minHeight:'calc(100vh - 57px)'}});
-const _adminWn=dfWhatsNewCard('admin',{superAdmin:panelIsSuperAdmin,tutor:panelIsTutor});
+const _adminWn=dfWhatsNewCard('admin',{superAdmin:panelIsSuperAdmin,tutor:panelIsTutor,availability:(panelIsSuperAdmin||panelTeamRole==='manager')});
 adminLayout.append(sidebar,div({style:{flex:'1',overflowY:'auto'}},[tabs,_adminWn?div({style:{padding:'20px 24px 0'}},[_adminWn]):null,content]));
 page.append(adminLayout);
 let currentFilter='pending';
@@ -12243,15 +12383,18 @@ async function showTeamTab(){
   const teamAdminBtn=btn('Team Admin','btn-outline',()=>setActive('teamAdmin'),{style:{padding:'8px 20px',fontSize:'12px'}});
   const historyBtn=btn('Recall History','btn-outline',()=>setActive('history'),{style:{padding:'8px 20px',fontSize:'12px'}});
   const announceBtn=btn('Announcements','btn-outline',()=>setActive('announce'),{style:{padding:'8px 20px',fontSize:'12px'}});
-  subTabs.schedule=scheduleBtn;subTabs.routing=routingBtn;subTabs.teamAdmin=teamAdminBtn;subTabs.history=historyBtn;subTabs.announce=announceBtn;
-  tabBar.append(scheduleBtn,routingBtn,teamAdminBtn,historyBtn,announceBtn);
+  const availBtn=btn('Tutor availability','btn-outline',()=>setActive('availability'),{style:{padding:'8px 20px',fontSize:'12px'}});dfPutNewOn(availBtn);
+  subTabs.schedule=scheduleBtn;subTabs.routing=routingBtn;subTabs.teamAdmin=teamAdminBtn;subTabs.history=historyBtn;subTabs.announce=announceBtn;subTabs.availability=availBtn;
+  tabBar.append(scheduleBtn,routingBtn,teamAdminBtn,historyBtn,announceBtn,availBtn);
   if(!isSuperAdmin&&!isManager)teamAdminBtn.style.display='none';
   if(!isSuperAdmin&&!isManager)historyBtn.style.display='none';
+  if(!isSuperAdmin&&!isManager)availBtn.style.display='none';
   content.append(tabBar);
   const subContent=div({});
   content.append(subContent);
   async function loadSubTab(sub){
     subContent.innerHTML='';
+    if(sub==='availability'){await dfRenderAvailabilityTab(subContent);return;}
     if(sub==='schedule'){
       const days=['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
       const slots=['7am-11am','11am-3pm','3pm-7pm','7pm-11pm'];
