@@ -510,6 +510,58 @@ function dfToast(msg){
   }catch(e){}
 }
 
+
+// ───────────────────────────── "NEW" MARKERS ─────────────────────────────
+// Everything marked NEW is switched off automatically after this date.
+const DF_NEW_UNTIL=new Date('2026-11-01T00:00:00Z').getTime();
+const DF_WN_KEY='df_whatsnew_2026_10';
+function dfIsNew(){return Date.now()<DF_NEW_UNTIL;}
+function dfNew(){return dfIsNew()?newBadge():null;}
+function dfNewSmall(){
+  if(!dfIsNew())return null;
+  ensureNewBadgeStyles();
+  return h('span',{style:{display:'inline-block',background:'var(--gold)',color:'#0F0E0A',fontFamily:'Inter,sans-serif',fontSize:'8px',fontWeight:'800',letterSpacing:'1px',padding:'1px 6px',borderRadius:'999px',marginLeft:'6px',verticalAlign:'middle',textTransform:'none',animation:'dfNewGlow 1.6s ease-in-out infinite'}},['NEW']);
+}
+function dfPutNewOn(el){var p=dfNewSmall();if(p&&el)el.append(p);return el;}
+// "What's new" card. kind: 'student' | 'admin'.  opts for admin: {superAdmin:bool, tutor:bool}
+function dfWhatsNewCard(kind,opts){
+  opts=opts||{};
+  if(!dfIsNew())return null;
+  var key=DF_WN_KEY+'_'+kind;
+  try{if(localStorage.getItem(key)==='1')return null;}catch(e){}
+  var items=[];
+  if(kind==='admin'){
+    items.push({t:'Mailbox',d:'Message students and tutors from the Mail button. Replies arrive on the platform, and every message is also emailed to their registered address, signed with your name.',open:true});
+    if(opts.tutor)items.push({t:'Payout details',d:'Add your bank account once using the Payout details button at the top. Your payouts are sent there.'});
+    if(opts.superAdmin){
+      items.push({t:'Account numbers on Payouts',d:'Each tutor\u2019s bank, account name and account number now show beside what you owe them.'});
+      items.push({t:'Email student / Email tutors',d:'New buttons on each student profile, the Students list and the Payouts page.'});
+      items.push({t:'Evidence Mode',d:'Turn it on per student from their profile. They must mark at least 2 pieces of evidence in a question before they can choose an answer.'});
+    }
+    items.push({t:'Simple AI explanations',d:'Every revealed answer, and every review, now has a plain-language explanation from Deo Tutor.'});
+  }else{
+    items.push({t:'Mailbox',d:'Message your tutors and admins from the Mail button. You can read their replies right here, and each message is also emailed to them.',open:true});
+    items.push({t:'Simple AI explanations',d:'Whenever an answer is revealed, including in your reviews, Deo Tutor explains it in plain medical language.'});
+    items.push({t:'Evidence Mode',d:'If you are in tutoring, your tutor can turn this on. You mark at least 2 pieces of evidence in the question before you can choose an answer.'});
+    items.push({t:'Highlighting on phones and iPads',d:'Press and hold the text in a question, drag to select, then choose how to mark it.'});
+  }
+  var card=div({cls:'card',style:{marginBottom:'16px',border:'1px solid var(--gold)',background:'rgba(184,146,46,0.06)'}},[]);
+  var head=div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'12px'}},[]);
+  head.append(h('div',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'17px',fontWeight:'700',color:'var(--gold)'}},['What\u2019s new',dfNew()]),
+    btn('\u2715','',function(){try{localStorage.setItem(key,'1');}catch(e){}card.remove();},{style:{background:'none',border:'none',color:'var(--muted)',fontSize:'16px',cursor:'pointer',padding:'2px 8px'},title:'Dismiss'}));
+  card.append(head);
+  items.forEach(function(it){
+    var row=div({style:{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:'12px',padding:'10px 0',borderTop:'1px solid var(--border)'}},[]);
+    row.append(div({style:{flex:'1'}},[
+      h('div',{style:{fontSize:'13px',fontWeight:'700',color:'var(--text)'}},[it.t,dfNewSmall()]),
+      h('div',{style:{fontSize:'12px',color:'var(--muted)',lineHeight:'1.6',marginTop:'3px'}},[it.d])
+    ]));
+    if(it.open)row.append(btn('Open','btn-outline',function(){dfMailbox();},{style:{fontSize:'10px',padding:'5px 12px',flexShrink:'0'}}));
+    card.append(row);
+  });
+  return card;
+}
+
 // ───────────────────────────── EVIDENCE MODE ─────────────────────────────
 var dfEvidence={on:false,enabledAt:'',loaded:false};
 async function dfRefreshEvidence(){
@@ -561,7 +613,7 @@ function dfEvidencePaint(){
   el.style.background=ok?'rgba(126,184,164,.10)':'rgba(220,53,69,.08)';
   var left=div({style:{flex:'1',minWidth:'220px'}},[]);
   left.append(
-    h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'10px',letterSpacing:'2px',textTransform:'uppercase',color:ok?'var(--teal)':'#ff6b6b',marginBottom:'4px'}},['Evidence Mode']),
+    h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'10px',letterSpacing:'2px',textTransform:'uppercase',color:ok?'var(--teal)':'#ff6b6b',marginBottom:'4px'}},['Evidence Mode',dfNewSmall()]),
     h('div',{style:{fontSize:'13px',color:'var(--text)',lineHeight:'1.5'}},[ok?'Evidence collected. You can now choose your answer.':'Select text in the question and mark it as Evidence (red). You need at least 2 before you can choose an option.'])
   );
   var right=div({style:{display:'flex',alignItems:'center',gap:'10px'}},[]);
@@ -724,6 +776,7 @@ function dfAiExplanation(q,correct){
   card.append(div({style:{display:'flex',alignItems:'center',gap:'8px',marginBottom:'12px',fontFamily:"'DM Mono',monospace",fontSize:'10px',letterSpacing:'2px',textTransform:'uppercase',color:'var(--gold)'},html:ICONS.brain+' Deo Tutor \u00b7 Simple explanation'}));
   var body=div({cls:'df-ai-body'},[]);
   card.append(body);
+  if(card.firstChild)dfPutNewOn(card.firstChild);
   function paintLoading(){body.innerHTML='';body.append(skel(['40%','100%','92%','96%','70%']));}
   function paintError(){
     body.innerHTML='';
@@ -803,7 +856,18 @@ function dfInitMail(){
   var badge=document.createElement('span');
   badge.style.cssText='display:none;min-width:20px;height:20px;padding:0 6px;border-radius:10px;background:#dc3545;color:#fff;font-size:11px;align-items:center;justify-content:center;box-sizing:border-box;';
   b.appendChild(badge);
-  b.addEventListener('click',function(){dfMailbox();});
+  var mailSeen=false;try{mailSeen=localStorage.getItem('df_mail_intro_seen')==='1';}catch(e){}
+  var mailNew=null;
+  if(!mailSeen&&dfIsNew()){
+    ensureNewBadgeStyles();
+    mailNew=document.createElement('span');mailNew.textContent='NEW';
+    mailNew.style.cssText='background:var(--gold);color:#0F0E0A;font-family:Inter,sans-serif;font-size:9px;font-weight:800;letter-spacing:1px;padding:2px 7px;border-radius:999px;';
+    b.appendChild(mailNew);b.style.animation='dfNewGlow 1.6s ease-in-out infinite';
+  }
+  b.addEventListener('click',function(){
+    if(mailNew){try{localStorage.setItem('df_mail_intro_seen','1');}catch(e){}mailNew.remove();mailNew=null;b.style.animation='';}
+    dfMailbox();
+  });
   document.body.appendChild(b);
   dfMail.btn=b;dfMail.badge=badge;
   setInterval(function(){
@@ -2386,7 +2450,7 @@ function renderDashboard(){
     const firstName=((S.profile&&S.profile.full_name)||'Scholar').split(' ')[0];
     content.append(
       div({style:{marginBottom:'20px'}},[
-        h('h1',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'28px',fontWeight:'700',margin:'0 0 4px'}},[greeting+', ',h('span',{style:{color:'var(--gold)'}},[firstName]),newBadge()]),
+        h('h1',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'28px',fontWeight:'700',margin:'0 0 4px'}},[greeting+', ',h('span',{style:{color:'var(--gold)'}},[firstName])]),
         h('p',{cls:'muted',style:{fontSize:'13px',margin:'0'}},['Let\u2019s keep the momentum going.'])
       ])
     );
@@ -5442,7 +5506,8 @@ nav.append(
 page.append(nav);
 
 const container=div({cls:'inner'});
-const tutHolder=div({});container.append(tutHolder);(async function(){const _te=await sb.from('tutoring_students').select('id').eq('user_id',S.user.id).eq('active',true).maybeSingle();if(!_te||!_te.data)return;const tw=div({cls:'card',style:{marginBottom:'16px',borderColor:'var(--gold)',cursor:'pointer',display:'flex',justifyContent:'space-between',alignItems:'center',gap:'16px',flexWrap:'wrap'}},[div({style:{flex:'1',minWidth:'200px'}},[h('div',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'17px',color:'var(--gold)',marginBottom:'4px'}},['Tutoring Wing',newBadge()]),h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'13px',color:'var(--muted)'}},['Your assigned tests, tasks and results'])]),h('span',{cls:'mono',style:{fontSize:'12px',color:'var(--gold)',flexShrink:'0'}},['Enter →'])]);tw.onclick=function(){go('tutoring');};tutHolder.append(tw);})();
+{const _wn=dfWhatsNewCard('student');if(_wn)container.append(_wn);}
+const tutHolder=div({});container.append(tutHolder);(async function(){const _te=await sb.from('tutoring_students').select('id').eq('user_id',S.user.id).eq('active',true).maybeSingle();if(!_te||!_te.data)return;const tw=div({cls:'card',style:{marginBottom:'16px',borderColor:'var(--gold)',cursor:'pointer',display:'flex',justifyContent:'space-between',alignItems:'center',gap:'16px',flexWrap:'wrap'}},[div({style:{flex:'1',minWidth:'200px'}},[h('div',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'17px',color:'var(--gold)',marginBottom:'4px'}},['Tutoring Wing']),h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'13px',color:'var(--muted)'}},['Your assigned tests, tasks and results'])]),h('span',{cls:'mono',style:{fontSize:'12px',color:'var(--gold)',flexShrink:'0'}},['Enter →'])]);tw.onclick=function(){go('tutoring');};tutHolder.append(tw);})();
 page.append(container);
 
 // STAT CARD HELPER
@@ -5586,7 +5651,7 @@ if(isInTrial()){
   headerRow.append(
     div({style:{display:'flex',alignItems:'center',gap:'10px'}},[
       div({style:{fontSize:'18px'},html:ICONS.alert||' '}),
-      h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'16px',margin:'0'}},['Due Soon',newBadge()])
+      h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'16px',margin:'0'}},['Due Soon'])
     ]),
     btn('\u2715','',function(){try{localStorage.setItem(dismissKey,'1');}catch(e){}dueCard.remove();},{style:{background:'none',border:'none',color:'var(--dim)',cursor:'pointer',fontSize:'14px',padding:'4px 8px'}})
   );
@@ -5764,6 +5829,7 @@ twoCol.append(recentCard);
   const supportEmail=adminData?.support_email||'';
   const studyPartnerLink=adminData?.link_study_partner||'';
   const kahootLink=adminData?.link_kahoot||'';
+  const mailAct=actionButton(ICONS.mail,'Mail',function(){dfMailbox();},dfIsNew());mailAct.style.gridColumn='1 / -1';
   const actionsCard=div({cls:'card',style:{borderRadius:'12px',boxShadow:'0 10px 25px rgba(0,0,0,0.05),0 2px 6px rgba(0,0,0,0.03)'}});
   actionsCard.append(
     h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'18px',marginBottom:'4px'},html:'Quick Actions'}),
@@ -5771,12 +5837,13 @@ twoCol.append(recentCard);
     div({style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'8px'}},[
       actionButton(ICONS.target,'Start Session',()=>go('study')),
       actionButton(ICONS.question,'Q-Bank',()=>go('vignette')),
-      actionButton(ICONS.layers,'Flashcards',()=>go('flashcards'),true),
+      actionButton(ICONS.layers,'Flashcards',()=>go('flashcards')),
       actionButton(ICONS.trophy,'Leaderboard',()=>go('leaderboard')),
       actionButton(ICONS.message,'Community',()=>{if(commLink&&commLink!=='#')window.open(commLink,'_blank');}),
       actionButton(ICONS.brain,'Feynman Arena',()=>go('feynman')),
       actionButton(ICONS.file,'Theory Hub',()=>{if(isFree&&!isInTrial()){showUpgradeModal();return;}go('theory');}),
-      actionButton(ICONS.book,'My Notes',()=>go('notes'),true)
+      actionButton(ICONS.book,'My Notes',()=>go('notes')),
+      mailAct
     ])
   );
   twoCol.append(actionsCard);
@@ -6490,7 +6557,6 @@ function activateTab(activeBtn,showFn){
 }
 const decksTabBtn=btn('Flashcard Decks','btn',()=>activateTab(decksTabBtn,showDecks),{style:{padding:'10px 20px',background:'var(--gold)',color:'var(--bg)',border:'1px solid var(--gold)',borderRadius:'0',fontSize:'12px'}});
 const dailyTabBtn=btn('Daily Review','btn',()=>activateTab(dailyTabBtn,showDailyReview),{style:{padding:'10px 20px',background:'transparent',color:'var(--text)',border:'1px solid var(--border)',borderRadius:'0',fontSize:'12px'}});
-dailyTabBtn.append(newBadge());
 const bitzTabBtn=btn('Riddle & Emoji Bitz','btn',()=>activateTab(bitzTabBtn,showBitz),{style:{padding:'10px 20px',background:'transparent',color:'var(--text)',border:'1px solid var(--border)',borderRadius:'0',fontSize:'12px'}});
 allTabBtns.push(decksTabBtn,dailyTabBtn,bitzTabBtn);
 tabBar.append(decksTabBtn,dailyTabBtn,bitzTabBtn);
@@ -7938,7 +8004,7 @@ try{
 if(!panelIsSuperAdmin&&!panelTeamRole){page.innerHTML='';page.append(h('p',{style:{textAlign:'center',padding:'40px',color:'var(--dim)',fontFamily:'Inter,sans-serif'},html:'Access denied. You do not have a valid admin role.'}));return;}
 if(panelIsTutor){
   await dfTutorBankGate();
-  aNRight.prepend(btn('Payout details','btn-outline',async()=>{var cur=await sb.from('tutor_bank_details').select('*').eq('tutor_id',S.user.id).maybeSingle();await dfBankForm({existing:(cur&&cur.data)||{},fullName:(S.profile&&S.profile.full_name)||''});},{style:{padding:'8px 16px'}}));
+  var _pdBtn=btn('Payout details','btn-outline',async()=>{var cur=await sb.from('tutor_bank_details').select('*').eq('tutor_id',S.user.id).maybeSingle();await dfBankForm({existing:(cur&&cur.data)||{},fullName:(S.profile&&S.profile.full_name)||''});},{style:{padding:'8px 16px'}});dfPutNewOn(_pdBtn);aNRight.prepend(_pdBtn);
 }
 if(panelTeamRole&&!panelIsSuperAdmin){
   const workerTabs=['recalls','feynman','riddles','team'];
@@ -8008,7 +8074,8 @@ tabDefs.forEach(([id,label])=>{
 
 // Admin layout — sidebar + content
 const adminLayout=div({cls:'df-admin-layout',style:{display:'flex',minHeight:'calc(100vh - 57px)'}});
-adminLayout.append(sidebar,div({style:{flex:'1',overflowY:'auto'}},[tabs,content]));
+const _adminWn=dfWhatsNewCard('admin',{superAdmin:panelIsSuperAdmin,tutor:panelIsTutor});
+adminLayout.append(sidebar,div({style:{flex:'1',overflowY:'auto'}},[tabs,_adminWn?div({style:{padding:'20px 24px 0'}},[_adminWn]):null,content]));
 page.append(adminLayout);
 let currentFilter='pending';
 async function loadTab(tab){
@@ -9703,6 +9770,7 @@ function renderStudents(){
   tBody.innerHTML='';
   var enrollRow=div({style:{display:'flex',gap:'8px',flexWrap:'wrap',marginBottom:'16px'}},[btn('+ Enroll student','btn-gold',function(){openEnroll();},{style:{fontSize:'12px',padding:'8px 16px'}})]);
   if(panelIsSuperAdmin)enrollRow.append(btn('\u2709 Email tutors','btn-outline',async function(){var ts=await dfFetchTutors();dfEmailModal({title:'Email tutors',pick:true,recipients:ts});},{style:{fontSize:'12px',padding:'8px 16px'}}));
+  [].slice.call(enrollRow.children).forEach(function(b){if(b.textContent.indexOf('Email tutors')===0)dfPutNewOn(b);});
   tBody.append(enrollRow);
   var listWrap=div({},[]);
   tBody.append(listWrap);
@@ -9847,7 +9915,7 @@ function openStudent(s){
     headBtns.append(btn('\u2709 Email student','btn-outline',function(){dfEmailModal({title:'Email '+s.full_name,recipients:[{id:s.user_id,name:s.full_name}]});},{style:{fontSize:'10px',padding:'6px 12px'}}));
     var evOn=false;
     var evBtn=btn('Evidence mode: \u2026','btn-outline',null,{style:{fontSize:'10px',padding:'6px 12px'}});
-    var paintEv=function(){evBtn.textContent='Evidence mode: '+(evOn?'ON':'OFF');evBtn.style.color=evOn?'#ff6b6b':'';evBtn.style.borderColor=evOn?'#dc3545':'';};
+    var paintEv=function(){evBtn.textContent='Evidence mode: '+(evOn?'ON':'OFF');evBtn.style.color=evOn?'#ff6b6b':'';evBtn.style.borderColor=evOn?'#dc3545':'';dfPutNewOn(evBtn);};
     paintEv();
     (async function(){var er=await sb.from('tutoring_students').select('evidence_mode').eq('user_id',s.user_id).maybeSingle();evOn=!!(er&&er.data&&er.data.evidence_mode);paintEv();})();
     evBtn.onclick=async function(){
@@ -9859,6 +9927,7 @@ function openStudent(s){
       evOn=next;paintEv();
     };
     headBtns.append(evBtn);
+    [].slice.call(headBtns.children).forEach(function(b){if(b.textContent.indexOf('Email student')===0)dfPutNewOn(b);});
   }
   headBtns.append(btn('Unenroll','btn-outline',async function(){if(!confirm('Remove '+s.full_name+' from tutoring? They lose access to the wing. Their tests and results are kept.'))return;var d=await sb.from('tutoring_students').delete().eq('user_id',s.user_id);if(d&&d.error){alert('Failed: '+d.error.message);return;}renderStudents();},{style:{fontSize:'10px',padding:'6px 12px',color:'#ff4444',borderColor:'#ff4444'}}));
   head.append(headBtns);
@@ -10217,7 +10286,7 @@ function openStudent(s){
       sideColAdm.append(attCardAdm);
     }
 
-    var linksSec=adminSection('Class Links',true,true);
+    var linksSec=adminSection('Class Links',true,false);
     linksSec.body.append(h('p',{style:{fontSize:'11px',color:'var(--dim)',marginBottom:'10px'}},['Two permanent backup meeting links for this student \u2014 shared across every class slot below.']));
     var pLink1Inp=h('input',{cls:'input',placeholder:'Link 1 (permanent backup link)',style:{width:'100%',marginBottom:'8px'}});pLink1Inp.value=studentLinks.link1||'';
     var pLink2Inp=h('input',{cls:'input',placeholder:'Link 2 (permanent backup link)',style:{width:'100%',marginBottom:'8px'}});pLink2Inp.value=studentLinks.link2||'';
@@ -10238,7 +10307,7 @@ function openStudent(s){
     body.append(linksSec.wrap);
 
     // CLASS SCHEDULE
-    var scheduleSec=adminSection('Class Schedule',true,true);
+    var scheduleSec=adminSection('Class Schedule',true,false);
     var classWrap=div({style:{marginBottom:'12px',marginTop:'10px'}},[]);
     scheduleSec.body.append(classWrap);
     var addSlotCard=div({cls:'card',style:{padding:'14px',marginBottom:'0'}},[]);
@@ -11545,7 +11614,9 @@ if(!panelIsSuperAdmin){content.append(h('p',{style:{textAlign:'center',padding:'
 content.append(h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'22px',marginBottom:'8px'},html:'Tutor Payouts'}),h('p',{cls:'muted',style:{fontSize:'13px',marginBottom:'20px'},html:'Put a tutor on payroll, attach students to them with what each is owed in ₦, and mark payments as made.'}));
 
 var payoutsListWrap=div({},[]);
-content.append(div({style:{display:'flex',justifyContent:'flex-end',marginBottom:'14px'}},[btn('\u2709 Email tutors','btn-outline',async function(){var ts=await dfFetchTutors();dfEmailModal({title:'Email tutors',pick:true,recipients:ts});},{style:{fontSize:'11px',padding:'8px 16px'}})]));
+var payToolbar=div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',gap:'12px',flexWrap:'wrap',marginBottom:'14px'}},[h('span',{style:{fontSize:'12px',color:'var(--muted)'}},['Each tutor\u2019s account number now shows beside what you owe them.',dfNewSmall()]),btn('\u2709 Email tutors','btn-outline',async function(){var ts=await dfFetchTutors();dfEmailModal({title:'Email tutors',pick:true,recipients:ts});},{style:{fontSize:'11px',padding:'8px 16px'}})]);
+[].slice.call(payToolbar.querySelectorAll('button')).forEach(function(b){dfPutNewOn(b);});
+content.append(payToolbar);
 content.append(payoutsListWrap);
 
 function fmtNaira(n){return '₦'+Number(n||0).toLocaleString();}
@@ -12563,7 +12634,7 @@ let _sessionNoteSaveTimer=null;
 function initSessionNotepad(){
   if(document.getElementById('session-notepad-btn'))return;
   ensureNewBadgeStyles();
-  var introSeen=localStorage.getItem('df_notepad_intro_seen')==='1';
+  var introSeen=true; // old NEW glow/pill/callout retired
   const noteBtn=document.createElement('button');
   noteBtn.id='session-notepad-btn';
   noteBtn.innerHTML=ICONS.file+' Notes';
