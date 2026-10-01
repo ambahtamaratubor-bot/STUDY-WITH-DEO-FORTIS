@@ -712,8 +712,14 @@ function dfAiRender(text,container){
     dfAiInline(line,p);container.appendChild(p);
   });
 }
+function dfAiKey(q){
+  if(q.id!=null&&q.id!=='')return String(q.id);
+  var str=String(q.question||''),hh=0;for(var i=0;i<str.length;i++){hh=((hh<<5)-hh+str.charCodeAt(i))|0;}
+  return 't'+hh;
+}
 function dfAiExplanation(q,correct){
-  var key='df-aiexp-'+q.id;
+  var qk=dfAiKey(q);
+  var key='df-aiexp-'+qk;
   var card=div({style:{background:'var(--card)',border:'1px solid var(--gold)',borderRadius:'4px',padding:'16px',marginTop:'16px'}},[]);
   card.append(div({style:{display:'flex',alignItems:'center',gap:'8px',marginBottom:'12px',fontFamily:"'DM Mono',monospace",fontSize:'10px',letterSpacing:'2px',textTransform:'uppercase',color:'var(--gold)'},html:ICONS.brain+' Deo Tutor \u00b7 Simple explanation'}));
   var body=div({cls:'df-ai-body'},[]);
@@ -732,102 +738,331 @@ function dfAiExplanation(q,correct){
       var data=await res.json();
       var reply=data&&data.reply;
       if(!reply||typeof reply!=='string'){paintError();return;}
-      dfAiMem[q.id]=reply;
+      dfAiMem[qk]=reply;
       try{sessionStorage.setItem(key,reply);}catch(e){}
       dfAiRender(reply,body);
     }catch(err){paintError();}
     finally{clearTimeout(timer);}
   }
-  var cached=dfAiMem[q.id];
+  var cached=dfAiMem[qk];
   if(!cached){try{cached=sessionStorage.getItem(key);}catch(e){}}
   if(cached){dfAiRender(cached,body);}else{load();}
   return card;
 }
 
-// ───────────────────────────── EMAIL FROM THE PLATFORM ─────────────────────────────
+// ───────────────────────────── PLATFORM MAILBOX ─────────────────────────────
+// Every message is saved on the platform (Inbox / Sent) AND emailed to the person's registered
+// email through the Apps Script. Replies made on the platform stay in the platform mailbox.
+
+// A "Reply on Deo Fortis" link in an email arrives as  ?mail=<message id>.  Remember it
+// so the mailbox opens on that conversation as soon as the person is signed in.
+(function dfCaptureMailLink(){
+  try{
+    var u=new URL(window.location.href);
+    var m=u.searchParams.get('mail');
+    if(m&&/^[0-9a-f-]{36}$/i.test(m)){
+      localStorage.setItem('df-open-mail',m);
+      u.searchParams.delete('mail');
+      window.history.replaceState(null,'',u.pathname+(u.search||'')+u.hash);
+    }
+  }catch(e){}
+})();
+
+var dfMail={unread:0,btn:null,badge:null,tick:0,box:null,lastUser:null};
+
 async function dfFetchTutors(){
   var tr=await sb.from('admin_roles').select('user_id,profiles(full_name,email)').eq('is_tutor',true);
-  return (tr.data||[]).filter(function(t){return t.profiles;}).map(function(t){return{user_id:t.user_id,name:t.profiles.full_name||'(no name)',email:t.profiles.email||''};});
+  return (tr.data||[]).filter(function(t){return t.profiles;}).map(function(t){return{id:t.user_id,user_id:t.user_id,name:t.profiles.full_name||'(no name)',email:t.profiles.email||''};});
 }
-async function dfSendEmails(messages){
+function dfMailWhen(iso){
+  try{
+    var d=new Date(iso),n=new Date();
+    if(d.toDateString()===n.toDateString())return d.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'});
+    var opts={month:'short',day:'numeric'};if(d.getFullYear()!==n.getFullYear())opts.year='numeric';
+    return d.toLocaleDateString([], opts);
+  }catch(e){return '';}
+}
+async function dfMailRefreshUnread(){
+  if(!S.user)return;
+  try{
+    var r=await sb.from('messages').select('id',{count:'exact',head:true}).eq('recipient_id',S.user.id).is('read_at',null);
+    if(r&&!r.error){dfMail.unread=r.count||0;dfMailPaintBadge();}
+  }catch(e){}
+}
+function dfMailPaintBadge(){
+  if(!dfMail.badge)return;
+  dfMail.badge.textContent=dfMail.unread>0?String(Math.min(dfMail.unread,99)):'';
+  dfMail.badge.style.display=dfMail.unread>0?'inline-flex':'none';
+}
+function dfInitMail(){
+  if(dfMail.btn)return;
+  var b=document.createElement('button');
+  b.id='df-mail-btn';
+  b.style.cssText='position:fixed;bottom:20px;right:20px;z-index:10000;display:none;align-items:center;gap:8px;padding:12px 18px;background:var(--card);color:var(--gold);border:1px solid var(--gold);border-radius:40px;font-size:13px;font-family:"DM Mono",monospace;font-weight:600;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,0.3);width:auto;';
+  b.appendChild(document.createTextNode('\u2709 Mail'));
+  var badge=document.createElement('span');
+  badge.style.cssText='display:none;min-width:20px;height:20px;padding:0 6px;border-radius:10px;background:#dc3545;color:#fff;font-size:11px;align-items:center;justify-content:center;box-sizing:border-box;';
+  b.appendChild(badge);
+  b.addEventListener('click',function(){dfMailbox();});
+  document.body.appendChild(b);
+  dfMail.btn=b;dfMail.badge=badge;
+  setInterval(function(){
+    var show=!!S.user&&['login','signup','pending'].indexOf(S.page)===-1;
+    b.style.display=show?'inline-flex':'none';
+    if(!show){dfMail.unread=0;dfMailPaintBadge();dfMail.lastUser=null;return;}
+    b.style.right=document.getElementById('ai-chat-btn')?'190px':'20px';
+    if(dfMail.lastUser!==S.user.id){dfMail.lastUser=S.user.id;dfMailRefreshUnread();}
+    dfMail.tick++;if(dfMail.tick%30===0)dfMailRefreshUnread();
+    var pend=null;try{pend=localStorage.getItem('df-open-mail');}catch(e){}
+    if(pend){try{localStorage.removeItem('df-open-mail');}catch(e){}dfMailbox(pend);}
+  },2000);
+}
+
+async function dfMailSendEmails(ids){
+  if(!ids||!ids.length)return{ok:true,sent:0,failed:[]};
   var sess=await sb.auth.getSession();
   var token=sess&&sess.data&&sess.data.session&&sess.data.session.access_token;
   if(!token)throw new Error('Please sign in again.');
-  var res=await fetch(DF_MAIL_URL,{method:'POST',body:JSON.stringify({action:'send_admin_email',token:token,reply_to:(S.user&&S.user.email)||'',messages:messages})});
+  var res=await fetch(DF_MAIL_URL,{method:'POST',body:JSON.stringify({action:'send_platform_email',token:token,message_ids:ids})});
   var data=await res.json();
   if(!data||!data.ok)throw new Error((data&&data.error)||'The email service did not accept the request.');
   return data;
 }
-function dfEmailModal(opts){
-  var recips=(opts.recipients||[]).filter(function(r){return r&&r.email;});
-  var pick=!!opts.pick;
-  var selected={};recips.forEach(function(r){selected[r.email]=!pick;});
-  var overlay=div({cls:'modal-bg',style:{zIndex:'100003'}},[]);
-  var modal=div({cls:'card',style:{maxWidth:'560px',width:'100%',maxHeight:'90vh',overflowY:'auto',position:'relative'}},[]);
+
+// Compose window.
+//  opts.mode: 'fixed'  -> recipients preset (Email student, replies)
+//             'list'   -> choose among opts.recipients with checkboxes (Email tutors)
+//             'search' -> search everyone you are allowed to message
+function dfMailCompose(opts){
+  opts=opts||{};
+  var mode=opts.mode||'fixed';
+  var chosen={};
+  if(mode==='fixed')(opts.recipients||[]).forEach(function(r){chosen[r.id]=r.name;});
+  var overlay=div({cls:'modal-bg',style:{zIndex:'100010'}},[]);
+  var modal=div({cls:'card',style:{maxWidth:'580px',width:'100%',maxHeight:'92vh',overflowY:'auto',position:'relative'}},[]);
   overlay.onclick=function(e){if(e.target===overlay)overlay.remove();};
-  var head=div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'14px'}},[
-    h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'18px',margin:'0'}},[opts.title||'Send email']),
+  modal.append(div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'14px'}},[
+    h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'18px',margin:'0'}},[opts.title||'New message']),
     btn('\u2715','',function(){overlay.remove();},{style:{background:'none',border:'none',color:'var(--muted)',fontSize:'18px',cursor:'pointer',padding:'4px'}})
-  ]);
-  modal.append(head);
-  var countEl=h('div',{cls:'mono',style:{fontSize:'11px',color:'var(--muted)',margin:'6px 0 0'}},['']);
-  function refreshCount(){var n=recips.filter(function(r){return selected[r.email];}).length;countEl.textContent=n+' recipient'+(n===1?'':'s')+' selected';}
-  if(pick){
-    if(!recips.length){modal.append(h('p',{style:{fontSize:'13px',color:'var(--dim)'}},['No tutors with an email address were found.']));}
-    var tools=div({style:{display:'flex',gap:'8px',alignItems:'center',marginBottom:'8px'}},[]);
-    var filter=inp('Search tutors\u2026','text','');filter.style.flex='1';
-    var listBox=div({style:{maxHeight:'220px',overflowY:'auto',border:'1px solid var(--border)',borderRadius:'4px',padding:'6px 10px',background:'var(--bg)'}},[]);
-    var rows=[];
-    recips.forEach(function(r){
-      var cb=h('input',{type:'checkbox',style:{marginRight:'10px'}});cb.checked=!!selected[r.email];
-      cb.onchange=function(){selected[r.email]=cb.checked;refreshCount();};
-      var lab=h('label',{style:{display:'flex',alignItems:'center',padding:'7px 0',borderBottom:'1px solid var(--border)',cursor:'pointer',fontSize:'13px',color:'var(--text)'}},[cb,div({},[h('div',{},[r.name]),h('div',{cls:'mono',style:{fontSize:'11px',color:'var(--muted)'}},[r.email])])]);
-      rows.push({el:lab,cb:cb,hay:(r.name+' '+r.email).toLowerCase(),r:r});listBox.append(lab);
-    });
-    filter.oninput=function(){var q=filter.value.trim().toLowerCase();rows.forEach(function(x){x.el.style.display=(!q||x.hay.indexOf(q)!==-1)?'flex':'none';});};
-    var allBtn=btn('Select all','btn-outline',function(){
-      var visible=rows.filter(function(x){return x.el.style.display!=='none';});
-      var allOn=visible.every(function(x){return x.cb.checked;});
-      visible.forEach(function(x){x.cb.checked=!allOn;selected[x.r.email]=!allOn;});
-      allBtn.textContent=allOn?'Select all':'Clear';refreshCount();
-    },{style:{fontSize:'11px',padding:'7px 12px',whiteSpace:'nowrap'}});
-    tools.append(filter,allBtn);
-    modal.append(lbl('To'),tools,listBox,countEl);
-  }else{
-    var r0=recips[0];
-    modal.append(lbl('To'),div({style:{padding:'10px 12px',border:'1px solid var(--border)',borderRadius:'4px',background:'var(--bg)',fontSize:'13px'}},[r0?(r0.name+' \u00b7 '+r0.email):'No email address on file for this person.']));
+  ]));
+  var countEl=h('div',{cls:'mono',style:{fontSize:'11px',color:'var(--muted)',margin:'6px 0 0',lineHeight:'1.6'}},['']);
+  function refreshCount(){
+    var names=Object.keys(chosen).map(function(k){return chosen[k];});
+    countEl.textContent=names.length?(names.length+' selected: '+names.slice(0,6).join(', ')+(names.length>6?'\u2026':'')):'Nobody selected yet';
   }
-  var subj=inp('Subject','text','');
-  var msg=h('textarea',{cls:'input',placeholder:'Write your message\u2026 Each person gets it addressed to them by first name.',style:{minHeight:'160px',resize:'vertical'}});
-  var status=div({style:{fontSize:'12px',marginTop:'10px',display:'none'}},[]);
-  var sendBtn=btn('Send email','btn-gold',async function(){
-    status.style.display='none';
-    var to=recips.filter(function(r){return selected[r.email];});
-    if(!to.length){status.textContent='Choose at least one recipient.';status.style.color='#ff4444';status.style.display='block';return;}
-    if(!subj.value.trim()){status.textContent='Add a subject.';status.style.color='#ff4444';status.style.display='block';return;}
-    if(!msg.value.trim()){status.textContent='Write a message.';status.style.color='#ff4444';status.style.display='block';return;}
-    if(to.length>1&&!confirm('Send this email to '+to.length+' people?'))return;
-    sendBtn.disabled=true;sendBtn.textContent='Sending\u2026';
-    var body=msg.value.trim();
-    var messages=to.map(function(r){
-      var first=(String(r.name||'').replace(/^\(no name\)$/,'').trim().split(/\s+/)[0])||'there';
-      var html=emailBase('<p style="font-size:15px;line-height:1.7;margin:0 0 16px;color:#E8E4DC">Hi '+dfEsc(first)+',</p><div style="font-size:14px;line-height:1.8;color:#cfcabd">'+dfEsc(body).replace(/\n/g,'<br>')+'</div>');
-      return{to:r.email,subject:subj.value.trim(),html:html,text:'Hi '+first+',\n\n'+body+'\n\nDeo Fortis\ndeofortis.work'};
+  var listBox=null;
+  function paintRows(items){
+    listBox.innerHTML='';
+    if(!items.length){listBox.append(h('p',{style:{fontSize:'13px',color:'var(--dim)',margin:'8px 0'}},['No one found.']));return;}
+    items.forEach(function(r){
+      var cb=h('input',{type:'checkbox',style:{marginRight:'10px'}});cb.checked=!!chosen[r.id];
+      cb.onchange=function(){if(cb.checked)chosen[r.id]=r.name;else delete chosen[r.id];refreshCount();};
+      listBox.append(h('label',{style:{display:'flex',alignItems:'center',padding:'7px 0',borderBottom:'1px solid var(--border)',cursor:'pointer',fontSize:'13px',color:'var(--text)'}},[cb,div({style:{flex:'1'}},[r.name]),r.kind?h('span',{cls:'mono',style:{fontSize:'10px',color:'var(--muted)'}},[r.kind]):null]));
     });
-    try{
-      var out=await dfSendEmails(messages);
-      status.style.color='var(--teal)';
-      status.textContent='\u2713 Sent to '+(out.sent!=null?out.sent:to.length)+' of '+to.length+'.'+((out.failed&&out.failed.length)?' Could not reach: '+out.failed.join(', '):'');
-      status.style.display='block';sendBtn.textContent='Sent';
-      if(!(out.failed&&out.failed.length))setTimeout(function(){overlay.remove();},1800);else{sendBtn.disabled=false;sendBtn.textContent='Send email';}
-    }catch(err){
-      status.style.color='#ff4444';status.textContent='Could not send: '+(err&&err.message?err.message:'unknown error');status.style.display='block';
-      sendBtn.disabled=false;sendBtn.textContent='Send email';
+  }
+  if(mode==='fixed'){
+    modal.append(lbl('To'),div({style:{padding:'10px 12px',border:'1px solid var(--border)',borderRadius:'4px',background:'var(--bg)',fontSize:'13px'}},[(opts.recipients||[]).map(function(r){return r.name;}).join(', ')||'No recipient']));
+  }else{
+    var search=inp(mode==='search'?'Search by name\u2026':'Filter tutors\u2026','text','');
+    listBox=div({style:{maxHeight:'220px',overflowY:'auto',border:'1px solid var(--border)',borderRadius:'4px',padding:'4px 10px',background:'var(--bg)',marginTop:'8px'}},[]);
+    var head=div({style:{display:'flex',gap:'8px',alignItems:'center'}},[]);
+    head.append(search);
+    var items=(opts.recipients||[]).map(function(r){return{id:r.id||r.user_id,name:r.name,kind:r.kind||''};});
+    if(mode==='list'){
+      paintRows(items);
+      search.oninput=function(){var q=search.value.trim().toLowerCase();paintRows(items.filter(function(r){return !q||r.name.toLowerCase().indexOf(q)!==-1;}));};
+      var allBtn=btn('Select all','btn-outline',function(){
+        var q=search.value.trim().toLowerCase();
+        var vis=items.filter(function(r){return !q||r.name.toLowerCase().indexOf(q)!==-1;});
+        var allOn=vis.length&&vis.every(function(r){return chosen[r.id];});
+        vis.forEach(function(r){if(allOn)delete chosen[r.id];else chosen[r.id]=r.name;});
+        allBtn.textContent=allOn?'Select all':'Clear';paintRows(vis);refreshCount();
+      },{style:{fontSize:'11px',padding:'7px 12px',whiteSpace:'nowrap'}});
+      head.append(allBtn);
+    }else{
+      var timer=null,seq=0;
+      var load=async function(){
+        var my=++seq;
+        listBox.innerHTML='';listBox.append(skel(['70%','50%','80%']));
+        var r=await sb.rpc('mail_directory',{p_q:search.value.trim()});
+        if(my!==seq)return;
+        paintRows((r&&r.data||[]).map(function(x){return{id:x.id,name:x.full_name,kind:x.kind};}));
+      };
+      search.oninput=function(){clearTimeout(timer);timer=setTimeout(load,300);};
+      load();
     }
+    modal.append(lbl('To'),head,listBox,countEl);
+    refreshCount();
+  }
+  var subj=inp('Subject','text',opts.subject||'');
+  var msg=h('textarea',{cls:'input',placeholder:'Write your message\u2026',style:{minHeight:'150px',resize:'vertical'}});
+  var status=div({style:{fontSize:'12px',marginTop:'10px',display:'none',lineHeight:'1.6'}},[]);
+  function say(text,color){status.textContent=text;status.style.color=color;status.style.display='block';}
+  var sendBtn=btn('Send','btn-gold',async function(){
+    status.style.display='none';
+    var ids=Object.keys(chosen);
+    if(!ids.length){say('Choose at least one recipient.','#ff4444');return;}
+    if(!subj.value.trim()){say('Add a subject.','#ff4444');return;}
+    if(!msg.value.trim()){say('Write a message.','#ff4444');return;}
+    if(ids.length>1&&!confirm('Send this message to '+ids.length+' people?'))return;
+    sendBtn.disabled=true;sendBtn.textContent='Sending\u2026';
+    var okIds=[],errs=[];
+    for(var i=0;i<ids.length;i++){
+      try{
+        var r=await sb.rpc('mail_send',{p_recipient:ids[i],p_subject:subj.value.trim(),p_body:msg.value.trim(),p_parent:opts.parent||null});
+        if(r.error)throw new Error(r.error.message);
+        okIds.push(r.data);
+      }catch(e){errs.push(chosen[ids[i]]+': '+(e&&e.message?e.message:'failed'));}
+    }
+    var emailNote='';
+    if(okIds.length){
+      try{
+        var out=await dfMailSendEmails(okIds);
+        emailNote=(out.failed&&out.failed.length)?' Their email copy could not be sent to '+out.failed.length+' address(es).':' A copy was emailed to their registered address.';
+      }catch(e){emailNote=' It is in their mailbox, but the email copy could not be sent right now.';}
+    }
+    dfMailRefreshUnread();
+    if(opts.onSent)try{opts.onSent(okIds);}catch(e){}
+    if(!okIds.length){say('Could not send: '+errs.join('; '),'#ff4444');sendBtn.disabled=false;sendBtn.textContent='Send';return;}
+    say('\u2713 Sent to '+okIds.length+' '+(okIds.length===1?'person':'people')+'.'+emailNote+(errs.length?' Not sent: '+errs.join('; '):''),errs.length||/could not/.test(emailNote)?'var(--gold)':'var(--teal)');
+    sendBtn.textContent='Sent';
+    if(!errs.length&&!/could not/.test(emailNote))setTimeout(function(){overlay.remove();},1800);
+    else{sendBtn.disabled=false;sendBtn.textContent='Send';}
   },{style:{width:'100%',marginTop:'14px'}});
   modal.append(div({style:{marginTop:'14px'}},[lbl('Subject'),subj]),div({style:{marginTop:'12px'}},[lbl('Message'),msg]),status,sendBtn);
-  if(pick)refreshCount();
   overlay.append(modal);document.body.appendChild(overlay);
+  return overlay;
+}
+// Used by the existing "Email student" / "Email tutors" buttons.
+function dfEmailModal(opts){
+  opts=opts||{};
+  var recips=(opts.recipients||[]).map(function(r){return{id:r.id||r.user_id,name:r.name||r.full_name||'(no name)'};}).filter(function(r){return r.id;});
+  return dfMailCompose({title:opts.title||'New message',mode:opts.pick?'list':'fixed',recipients:recips});
+}
+
+// The mailbox: Inbox / Sent, conversations, replies.
+async function dfMailbox(openMsgId){
+  if(!S.user)return;
+  if(dfMail.box){dfMail.box.remove();dfMail.box=null;}
+  var me=S.user.id;
+  var state={folder:'inbox',tid:null};
+  var narrow=window.innerWidth<720;
+  var overlay=div({cls:'modal-bg',style:{zIndex:'100006',padding:narrow?'0':'24px'}},[]);
+  var card=div({cls:'card',style:{width:'100%',maxWidth:'980px',height:narrow?'100vh':'86vh',display:'flex',flexDirection:'column',padding:'0',overflow:'hidden',borderRadius:narrow?'0':''}},[]);
+  overlay.onclick=function(e){if(e.target===overlay)close();};
+  function close(){overlay.remove();dfMail.box=null;dfMailRefreshUnread();}
+  var head=div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',gap:'8px',padding:'14px 18px',borderBottom:'1px solid var(--border)'}},[]);
+  head.append(
+    h('div',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'18px',fontWeight:'700'}},['Mailbox']),
+    div({style:{display:'flex',gap:'8px'}},[
+      btn('\u270E New message','btn-gold',function(){dfMailCompose({title:'New message',mode:'search',onSent:function(){loadList();}});},{style:{fontSize:'11px',padding:'7px 14px'}}),
+      btn('\u2715','',close,{style:{background:'none',border:'none',color:'var(--muted)',fontSize:'18px',cursor:'pointer',padding:'4px 8px'}})
+    ])
+  );
+  var tabs=div({style:{display:'flex',gap:'8px',padding:'10px 18px',borderBottom:'1px solid var(--border)'}},[]);
+  var body=div({style:{display:'flex',flex:'1',minHeight:'0'}},[]);
+  var listCol=div({style:{width:narrow?'100%':'340px',flexShrink:'0',overflowY:'auto',borderRight:narrow?'none':'1px solid var(--border)'}},[]);
+  var threadCol=div({style:{flex:'1',overflowY:'auto',padding:'18px',display:narrow?'none':'block'}},[]);
+  body.append(listCol,threadCol);
+  card.append(head,tabs,body);overlay.append(card);
+  document.body.appendChild(overlay);dfMail.box=overlay;
+
+  function paintTabs(unread){
+    tabs.innerHTML='';
+    tabs.append(
+      btn('Inbox'+(unread?' ('+unread+')':''),state.folder==='inbox'?'btn-gold':'btn-outline',function(){state.folder='inbox';state.tid=null;showList();loadList();},{style:{fontSize:'11px',padding:'6px 14px'}}),
+      btn('Sent',state.folder==='sent'?'btn-gold':'btn-outline',function(){state.folder='sent';state.tid=null;showList();loadList();},{style:{fontSize:'11px',padding:'6px 14px'}})
+    );
+  }
+  function showList(){
+    if(narrow){listCol.style.display='block';threadCol.style.display='none';}
+    threadCol.innerHTML='';
+    if(!narrow)threadCol.append(h('p',{style:{color:'var(--dim)',fontSize:'13px',textAlign:'center',marginTop:'60px'}},['Select a conversation to read it.']));
+  }
+  async function loadList(){
+    listCol.innerHTML='';listCol.append(div({style:{padding:'14px'}},[skel(['60%','90%','50%','70%','85%'])]));
+    var q=sb.from('messages').select('id,thread_id,sender_id,recipient_id,sender_name,recipient_name,subject,body,created_at,read_at');
+    q=state.folder==='inbox'?q.eq('recipient_id',me):q.eq('sender_id',me);
+    var r=await q.order('created_at',{ascending:false}).limit(300);
+    var rows=(r&&r.data)||[];
+    var groups={},order=[];
+    rows.forEach(function(m){
+      var g=groups[m.thread_id];
+      if(!g){g=groups[m.thread_id]={latest:m,unread:0};order.push(m.thread_id);}
+      if(m.recipient_id===me&&!m.read_at)g.unread++;
+    });
+    var totalUnread=0;
+    if(state.folder==='inbox')order.forEach(function(t){totalUnread+=groups[t].unread;});
+    paintTabs(state.folder==='inbox'?totalUnread:0);
+    listCol.innerHTML='';
+    if(!order.length){listCol.append(h('p',{style:{color:'var(--dim)',fontSize:'13px',textAlign:'center',padding:'40px 16px'}},[state.folder==='inbox'?'Your inbox is empty.':'You have not sent anything yet.']));return;}
+    order.forEach(function(t){
+      var g=groups[t],m=g.latest,unread=g.unread>0;
+      var who=state.folder==='inbox'?m.sender_name:'To: '+m.recipient_name;
+      var row=div({style:{padding:'12px 16px',borderBottom:'1px solid var(--border)',cursor:'pointer',background:state.tid===t?'var(--gold-subtle)':'transparent'}},[
+        div({style:{display:'flex',justifyContent:'space-between',gap:'8px',alignItems:'center'}},[
+          h('span',{style:{fontSize:'13px',fontWeight:unread?'700':'500',color:'var(--text)',display:'flex',alignItems:'center',gap:'6px'}},[unread?h('span',{style:{width:'8px',height:'8px',borderRadius:'50%',background:'#dc3545',display:'inline-block'}}):null,who]),
+          h('span',{cls:'mono',style:{fontSize:'10px',color:'var(--muted)',flexShrink:'0'}},[dfMailWhen(m.created_at)])
+        ]),
+        h('div',{style:{fontSize:'12px',fontWeight:unread?'600':'400',color:'var(--text)',marginTop:'3px',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}},[m.subject]),
+        h('div',{style:{fontSize:'12px',color:'var(--muted)',marginTop:'2px',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}},[m.body.replace(/\s+/g,' ').slice(0,90)])
+      ]);
+      row.onclick=function(){openThread(t);};
+      listCol.append(row);
+    });
+  }
+  async function openThread(tid){
+    state.tid=tid;
+    if(narrow){listCol.style.display='none';threadCol.style.display='block';}
+    threadCol.innerHTML='';threadCol.append(skel(['40%','100%','90%','100%','60%']));
+    var r=await sb.from('messages').select('*').eq('thread_id',tid).order('created_at',{ascending:true});
+    var msgs=(r&&r.data)||[];
+    threadCol.innerHTML='';
+    if(narrow)threadCol.append(btn('\u2190 Back','btn-outline',function(){state.tid=null;showList();loadList();},{style:{fontSize:'11px',padding:'6px 12px',marginBottom:'14px'}}));
+    if(!msgs.length){threadCol.append(h('p',{style:{color:'var(--dim)',fontSize:'13px'}},['This conversation could not be found.']));return;}
+    var unreadIds=msgs.filter(function(m){return m.recipient_id===me&&!m.read_at;}).map(function(m){return m.id;});
+    if(unreadIds.length){
+      sb.rpc('mail_mark_read',{p_ids:unreadIds}).then(function(){dfMailRefreshUnread();loadList();});
+      msgs.forEach(function(m){if(unreadIds.indexOf(m.id)!==-1)m.read_at=new Date().toISOString();});
+    }
+    var first=msgs[0],last=msgs[msgs.length-1];
+    threadCol.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'18px',margin:'0 0 14px'}},[first.subject]));
+    msgs.forEach(function(m){
+      var mine=m.sender_id===me;
+      var bubble=div({style:{border:'1px solid '+(mine?'var(--gold)':'var(--border)'),background:mine?'var(--gold-subtle)':'var(--card)',borderRadius:'6px',padding:'12px 14px',marginBottom:'12px',marginLeft:mine?'40px':'0',marginRight:mine?'0':'40px'}},[]);
+      bubble.append(
+        div({style:{display:'flex',justifyContent:'space-between',gap:'8px',marginBottom:'8px',flexWrap:'wrap'}},[
+          h('span',{style:{fontSize:'12px',fontWeight:'700',color:'var(--text)'}},[(mine?'You':m.sender_name)+' ']),
+          h('span',{cls:'mono',style:{fontSize:'10px',color:'var(--muted)'}},[(mine?'':m.sender_role+' \u00b7 ')+new Date(m.created_at).toLocaleString([], {month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})])
+        ]),
+        h('div',{style:{fontSize:'13px',color:'var(--text)',lineHeight:'1.7',whiteSpace:'pre-wrap',wordBreak:'break-word'}},[m.body])
+      );
+      threadCol.append(bubble);
+    });
+    var otherId=last.sender_id===me?last.recipient_id:last.sender_id;
+    var otherName=last.sender_id===me?last.recipient_name:last.sender_name;
+    var reply=h('textarea',{cls:'input',placeholder:'Reply to '+otherName+'\u2026',style:{minHeight:'100px',resize:'vertical',marginTop:'6px'}});
+    var st=div({style:{fontSize:'12px',marginTop:'8px',display:'none',lineHeight:'1.6'}},[]);
+    var rb=btn('Send reply','btn-gold',async function(){
+      st.style.display='none';
+      if(!reply.value.trim()){st.textContent='Write a reply first.';st.style.color='#ff4444';st.style.display='block';return;}
+      rb.disabled=true;rb.textContent='Sending\u2026';
+      var subj=/^re:/i.test(first.subject)?first.subject:'Re: '+first.subject;
+      var rr=await sb.rpc('mail_send',{p_recipient:otherId,p_subject:subj,p_body:reply.value.trim(),p_parent:last.id});
+      if(rr.error){st.textContent='Could not send: '+rr.error.message;st.style.color='#ff4444';st.style.display='block';rb.disabled=false;rb.textContent='Send reply';return;}
+      try{await dfMailSendEmails([rr.data]);}catch(e){}
+      openThread(tid);loadList();
+    },{style:{marginTop:'8px',fontSize:'12px',padding:'9px 20px'}});
+    threadCol.append(div({style:{borderTop:'1px solid var(--border)',paddingTop:'14px',marginTop:'6px'}},[reply,st,rb]));
+    try{threadCol.scrollTop=threadCol.scrollHeight;}catch(e){}
+  }
+  paintTabs(0);showList();
+  if(openMsgId){
+    var mr=await sb.from('messages').select('thread_id,recipient_id,sender_id').eq('id',openMsgId).maybeSingle();
+    var md=mr&&mr.data;
+    if(md){state.folder=md.recipient_id===me?'inbox':'sent';await loadList();openThread(md.thread_id);return;}
+  }
+  loadList();
 }
 
 // ───────────────────────────── TUTOR PAYOUT DETAILS ─────────────────────────────
@@ -1150,6 +1385,7 @@ function buildGatedReviewUI(opts){
       if(isUser&&!isCorr)row.append(h('span',{style:{marginLeft:'auto',color:'#ff8888',fontSize:'11px'}},['Your answer']));
       qCard.append(row);
     });
+    qCard.append(dfAiExplanation(q,correct));
     if(q.explanation){
       var expWrap=div({style:{background:'var(--correct-bg)',border:'1px solid var(--teal-border)',borderRadius:'2px',padding:'14px',marginTop:'12px'}},[]);
       expWrap.append(div({style:{fontFamily:'Inter,sans-serif',fontSize:'9px',color:'var(--teal)',letterSpacing:'2px',textTransform:'uppercase',marginBottom:'6px'}},['Explanation']));
@@ -1217,6 +1453,7 @@ function buildReviewQuestionCards(qs,ans,opts){
       if(isUser&&!isCorr)row.append(h('span',{style:{marginLeft:'auto',color:'#ff8888',fontSize:'11px'},html:'Your answer'}));
       qCard.append(row);
     });
+    if(opts.aiExplain&&!opts.previewMode)qCard.append(dfAiExplanation(q,correct));
     if(q.explanation){
       var expWrap=div({style:{background:'var(--correct-bg)',border:'1px solid var(--teal-border)',borderRadius:'2px',padding:'12px',marginTop:'10px'}},[]);
       expWrap.append(div({style:{fontFamily:'Inter,sans-serif',fontSize:'9px',color:'var(--teal)',letterSpacing:'2px',textTransform:'uppercase',marginBottom:'6px'},html:'Explanation'}));
@@ -9237,7 +9474,7 @@ function openAdminResultReview(result,opts){
   document.body.append(overlay);
   overlay.onclick=function(e){if(e.target===overlay)overlay.remove();};
   function renderAdminReviewQuestions(qs,ans,errorReasons){
-    buildReviewQuestionCards(qs,ans,{errorReasons:errorReasons||{}}).forEach(function(c){reviewBody.append(c);});
+    buildReviewQuestionCards(qs,ans,{errorReasons:errorReasons||{},aiExplain:true}).forEach(function(c){reviewBody.append(c);});
   }
   var qs=result.questions||[];var ans=result.answers||{};
   if(qs.length){
@@ -9607,7 +9844,7 @@ function openStudent(s){
   var headBtns=div({style:{display:'flex',gap:'6px',flexWrap:'wrap'}},[]);
   headBtns.append(btn('Assign test','btn-gold',function(){openAssign({studentId:s.user_id,studentName:s.full_name});},{style:{fontSize:'10px',padding:'6px 12px'}}));
   if(panelIsSuperAdmin){
-    headBtns.append(btn('\u2709 Email student','btn-outline',function(){dfEmailModal({title:'Email '+s.full_name,recipients:[{name:s.full_name,email:s.email}]});},{style:{fontSize:'10px',padding:'6px 12px'}}));
+    headBtns.append(btn('\u2709 Email student','btn-outline',function(){dfEmailModal({title:'Email '+s.full_name,recipients:[{id:s.user_id,name:s.full_name}]});},{style:{fontSize:'10px',padding:'6px 12px'}}));
     var evOn=false;
     var evBtn=btn('Evidence mode: \u2026','btn-outline',null,{style:{fontSize:'10px',padding:'6px 12px'}});
     var paintEv=function(){evBtn.textContent='Evidence mode: '+(evOn?'ON':'OFF');evBtn.style.color=evOn?'#ff6b6b':'';evBtn.style.borderColor=evOn?'#dc3545':'';};
@@ -10626,7 +10863,7 @@ function openStudent(s){
       var reviewErrorReasons={};
       function renderAdminReviewQuestions(qs,ans){
         fullQs=qs;
-        buildReviewQuestionCards(qs,ans,{errorReasons:reviewErrorReasons}).forEach(function(c){reviewBody.append(c);});
+        buildReviewQuestionCards(qs,ans,{errorReasons:reviewErrorReasons,aiExplain:true}).forEach(function(c){reviewBody.append(c);});
       }
       var qs=result.questions||[];var ans=result.answers||{};
       (async function(){
@@ -12415,4 +12652,5 @@ function buildNotePanel(){
 
 function getCurrentMonday(){var now=new Date();var day=now.getDay();var diff=day===0?6:day-1;var mon=new Date(now);mon.setDate(now.getDate()-diff);mon.setHours(0,0,0,0);return mon.toISOString().split('T')[0];}
 
+dfInitMail();
 render();
