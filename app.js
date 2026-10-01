@@ -484,7 +484,7 @@ if(after.trim()){var pAfter=h('p',{style:{fontSize:'15px',color:'var(--text)',li
 // ═══════════════════════════════════════════════════════════════════════════
 // ADDED: Evidence Mode · AI explanations · Email composer · Tutor payout details
 // ═══════════════════════════════════════════════════════════════════════════
-const DF_MAIL_URL='https://script.google.com/macros/s/AKfycbxh_qahHUtBuc3IlYDTeWPlp4GG_zksJWUA5ewLijK1mEmd5FynsttlCRJqgkhqE4QQCg/exec';
+const DF_MAIL_URL='https://script.google.com/macros/s/AKfycbwCm46tVsb4EObYoFqI3Su50vLhrzNC_BLiPiXI7puqzousfK6BTNjRV3Hg7WP8nqVU9g/exec';
 const DF_AI_URL='https://ai-tutor.ambahtamaratubor.workers.dev';
 
 (function dfInjectNewStyles(){
