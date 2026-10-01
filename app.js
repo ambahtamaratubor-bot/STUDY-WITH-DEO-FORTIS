@@ -5056,6 +5056,11 @@ page.append(plansSection);
 const tutSection=div({cls:'section',id:'tutoring'});
 tutSection.append(div({cls:'divider'}),h('br'),h('span',{cls:'chapter',html:'Chapter II — Personal Tutoring'}),h('h2',{cls:'big',style:{marginBottom:'12px'},html:'Work With Our<br><em class="gold-em">Tutors</em>'}),h('p',{cls:'muted',style:{maxWidth:'500px',fontSize:'15px',marginBottom:'8px'},html:"Book a session with one of our tutors — we'll work through it with you at your pace."}),div({cls:'quote',style:{maxWidth:'480px',marginBottom:'40px',marginTop:'24px'},html:'"The right guidance at the right time changes everything."'}));
 tutSection.append(div({cls:'grid-auto',id:'pkg-grid'}));
+tutSection.append(div({style:{maxWidth:'720px',margin:'28px auto 0',background:'rgba(184,146,46,0.08)',border:'1px solid var(--gold-border)',borderRadius:'4px',padding:'18px 22px',textAlign:'center'}},[
+  div({cls:'mono',style:{marginBottom:'8px',color:'var(--gold)'}},['Pricing']),
+  div({style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'20px',fontWeight:'700',color:'var(--text)',marginBottom:'8px'}},['Standard USMLE preparation plan: $200']),
+  h('p',{style:{fontFamily:'Inter,sans-serif',fontSize:'13px',color:'var(--muted)',lineHeight:'1.8',margin:'0'}},['If your preparation does not fall under the standard plan, a custom session price may be allocated to you instead.'])
+]));
 page.append(tutSection);
 // WHY
 const whySection=div({cls:'section',id:'why'});
@@ -5181,12 +5186,12 @@ if(pg){
 const customCard=div({cls:'plan-card',style:{borderTopWidth:'3px',borderTopColor:'var(--gold)',borderColor:'var(--gold-border)'}});
 customCard.append(
 div({cls:'mono',style:{marginBottom:'8px'},html:'Custom Session'}),
-div({style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'48px',color:'var(--gold)',lineHeight:'1',fontWeight:'700',marginBottom:'8px'},html:'$15'}),
-div({style:{fontFamily:"Inter,sans-serif",fontSize:'11px',color:'var(--gold)',letterSpacing:'1px',marginBottom:'24px',opacity:'.8'},html:'per session'}),
+div({style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'48px',color:'var(--gold)',lineHeight:'1',fontWeight:'700',marginBottom:'8px'},html:'From $15'}),
+div({style:{fontFamily:"Inter,sans-serif",fontSize:'11px',color:'var(--gold)',letterSpacing:'1px',marginBottom:'24px',opacity:'.8'},html:'per session \u00b7 price may vary'}),
 h('hr',{style:{border:'none',borderTop:'1px solid var(--border)',marginBottom:'20px'}}),
 h('p',{style:{fontSize:'14px',color:'var(--muted)',lineHeight:'1.8',marginBottom:'28px'},html:"Need help with a specific topic, your study timetable, or just not sure where to start? Book a single session with one of our tutors — we'll figure it out together. No commitment, no package required."})
 );
-const customBtn=h('a',{cls:'btn',style:{background:'var(--gold)',color:'#0F0E0A',width:'100%',textAlign:'center',display:'block'},html:'Book a Session — $15',id:'custom-session-btn'});
+const customBtn=h('a',{cls:'btn',style:{background:'var(--gold)',color:'#0F0E0A',width:'100%',textAlign:'center',display:'block'},html:'Book a Session — from $15',id:'custom-session-btn'});
 customBtn.href=s?.link_custom||'#';customBtn.target='_blank';
 customCard.append(customBtn,h('p',{style:{fontFamily:"Inter,sans-serif",fontSize:'10px',color:'var(--dim)',textAlign:'center',marginTop:'12px',letterSpacing:'1px',textTransform:'uppercase'},html:'One session · No commitment'}));
 pg.append(customCard);
@@ -8776,7 +8781,7 @@ card.append(field('Demo Video URL',vI),h('p',{cls:'mono',style:{marginBottom:'20
 // Payment links
 card.append(h('hr',{style:{border:'none',borderTop:'1px solid var(--border)',margin:'24px 0'}}),h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'18px',marginBottom:'16px'},html:'Study Portal Payment Links'}));
 const lIs={};
-[['link_monthly','Monthly ($10)'],['link_sixmonth','6 Months ($49)'],['link_yearly','1 Year ($79)'],['link_custom','Custom Session ($15)']].forEach(([k,l])=>{const i=inp('https://selar.co/...','text',set[k]||'');lIs[k]=i;card.append(field(l,i));});
+[['link_monthly','Monthly ($10)'],['link_sixmonth','6 Months ($49)'],['link_yearly','1 Year ($79)'],['link_custom','Custom Session (from $15)']].forEach(([k,l])=>{const i=inp('https://selar.co/...','text',set[k]||'');lIs[k]=i;card.append(field(l,i));});
 // Community & support
 card.append(h('hr',{style:{border:'none',borderTop:'1px solid var(--border)',margin:'24px 0'}}));
 card.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'18px',marginBottom:'16px'},html:'Platform Links'}));
