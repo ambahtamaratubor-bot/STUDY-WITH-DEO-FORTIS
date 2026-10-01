@@ -1034,12 +1034,44 @@ function dfMailReadB64(file){
     r.readAsDataURL(file);
   });
 }
+// Screenshots and photos are often several MB. Shrink them in the browser (max 1600px, JPEG) so the
+// upload is small and fast. Other file types, GIFs and SVGs go up untouched.
+function dfMailShrinkImage(file){
+  return new Promise(function(resolve){
+    try{
+      if(!/^image\/(png|jpe?g|webp|bmp)$/i.test(file.type||'')||file.size<300*1024){resolve(file);return;}
+      var url=URL.createObjectURL(file);
+      var img=new Image();
+      img.onload=function(){
+        try{
+          var max=1600,w=img.naturalWidth,hh=img.naturalHeight;
+          var k=Math.min(1,max/Math.max(w,hh));
+          var cv=document.createElement('canvas');
+          cv.width=Math.max(1,Math.round(w*k));cv.height=Math.max(1,Math.round(hh*k));
+          var cx=cv.getContext('2d');
+          cx.fillStyle='#ffffff';cx.fillRect(0,0,cv.width,cv.height);
+          cx.drawImage(img,0,0,cv.width,cv.height);
+          URL.revokeObjectURL(url);
+          cv.toBlob(function(b){
+            if(!b||b.size>=file.size){resolve(file);return;}
+            var nm=String(file.name).replace(/\.[^.]+$/,'')+'.jpg';
+            resolve(new File([b],nm,{type:'image/jpeg'}));
+          },'image/jpeg',0.82);
+        }catch(e){resolve(file);}
+      };
+      img.onerror=function(){try{URL.revokeObjectURL(url);}catch(e){}resolve(file);};
+      img.src=url;
+    }catch(e){resolve(file);}
+  });
+}
 async function dfMailUploadFile(file){
   var sess=await sb.auth.getSession();
   var token=sess&&sess.data&&sess.data.session&&sess.data.session.access_token;
   if(!token)throw new Error('Please sign in again.');
   var b64=await dfMailReadB64(file);
-  var res=await fetch(DF_MAIL_URL,{method:'POST',body:JSON.stringify({action:'upload_mail_attachment',token:token,name:file.name,mime:file.type||'application/octet-stream',data:b64})});
+  var res;
+  try{res=await fetch(DF_MAIL_URL,{method:'POST',body:JSON.stringify({action:'upload_mail_attachment',token:token,name:file.name,mime:file.type||'application/octet-stream',data:b64})});}
+  catch(e){throw new Error('could not reach the upload service. In Apps Script, open Executions to see the error, run dfmAuthorize, then deploy a New version.');}
   var raw=await res.text();
   var data=null;try{data=JSON.parse(raw);}catch(e){}
   if(!data)throw new Error('The upload service sent back something unexpected. Check that the latest Apps Script version is deployed.');
@@ -1101,11 +1133,12 @@ function dfMailAttachPicker(){
     for(var i=0;i<picked.length;i++){
       var f=picked[i];
       if(state.files.length+state.busy>=DF_MAIL_MAX_FILES){problems.push('Only '+DF_MAIL_MAX_FILES+' attachments per message.');break;}
-      if(f.size>DF_MAIL_MAX_FILE){problems.push(f.name+' is larger than '+Math.round(DF_MAIL_MAX_FILE/1048576)+' MB.');continue;}
       state.busy++;
       say('Uploading '+f.name+'\u2026','var(--muted)');
       try{
-        var up=await dfMailUploadFile(f);
+        var toSend=await dfMailShrinkImage(f);
+        if(toSend.size>DF_MAIL_MAX_FILE)throw new Error('larger than '+Math.round(DF_MAIL_MAX_FILE/1048576)+' MB');
+        var up=await dfMailUploadFile(toSend);
         state.files.push(up);
         paint();
       }catch(e){problems.push(f.name+': '+(e&&e.message?e.message:'upload failed'));}
