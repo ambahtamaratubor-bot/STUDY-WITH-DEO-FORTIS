@@ -538,10 +538,12 @@ function dfWhatsNewCard(kind,opts){
       items.push({t:'Email student / Email tutors',d:'New buttons on each student profile, the Students list and the Payouts page.'});
       items.push({t:'Evidence Mode',d:'Turn it on per student from their profile. They must mark at least 2 pieces of evidence in a question before they can choose an answer.'});
     }
-    items.push({t:'Simple AI explanations',d:'Every revealed answer, and every review, now has a plain-language explanation from Deo Tutor.'});
+    items.push({t:'Simple AI explanations',d:'Every revealed answer, and every review, now has a plain-language explanation from Deo Tutor, ending with a \u201cNever miss this again\u201d trick.'});
+    items.push({t:'Ask Deo about any question',d:'Under each explanation, students and tutors can ask follow-up questions about that exact question.'});
   }else{
     items.push({t:'Mailbox',d:'Message your tutors and admins from the Mail button. You can read their replies right here, and each message is also emailed to them.',open:true});
-    items.push({t:'Simple AI explanations',d:'Whenever an answer is revealed, including in your reviews, Deo Tutor explains it in plain medical language.'});
+    items.push({t:'Simple AI explanations',d:'Whenever an answer is revealed, including in your reviews, Deo Tutor explains it in plain medical language and gives you a \u201cNever miss this again\u201d trick.'});
+    items.push({t:'Ask Deo about any question',d:'Still unsure? Ask a follow-up right under the explanation and Deo will explain it further.'});
     items.push({t:'Evidence Mode',d:'If you are in tutoring, your tutor can turn this on. You mark at least 2 pieces of evidence in the question before you can choose an answer.'});
     items.push({t:'Highlighting on phones and iPads',d:'Press and hold the text in a question, drag to select, then choose how to mark it.'});
   }
@@ -706,6 +708,7 @@ function dfAiPrompt(q,correct){
   return [
     'You are Deo Tutor, explaining a USMLE-style question to a medical student right after they see the answer.',
     'Write in SIMPLE, clear language. Keep the correct medical terms, but explain any technical term in a few plain words the first time it appears. Do not talk down to the student and do not oversimplify the science.',
+    'Always finish with the "Never miss this again" trick: it is the most important part for helping the student get this kind of question right every time.',
     'Use EXACTLY this layout, plain text only, no tables, no extra intro or outro:',
     '**Answer: '+(correct||'?')+' \u2014 <name the answer in a few words>**',
     '**Why this is right**',
@@ -717,6 +720,8 @@ function dfAiPrompt(q,correct){
     '- <letter>: <one short reason>',
     '**Remember this**',
     '<one memorable take-home sentence>',
+    '**Never miss this again**',
+    '<ONE practical trick for spotting this type of question next time: a mnemonic, a memory hook, a pattern ("when you see X, think Y") or a quick elimination rule. Make it concrete and easy to recall, 1 to 3 short sentences.>',
     '',
     'QUESTION:',String(q.question||''),
     '',
@@ -735,13 +740,13 @@ function dfAiInline(str,parent){
 }
 function dfAiRender(text,container){
   container.innerHTML='';
-  var list=null;
+  var list=null,target=container;
   String(text||'').replace(/\r/g,'').split('\n').forEach(function(raw){
     var line=raw.trim();
     if(!line){list=null;return;}
     var li=/^([-\u2022*]|\d+[.)])\s+(.*)$/.exec(line);
     if(li){
-      if(!list){list=document.createElement('ul');list.style.cssText='margin:0 0 12px;padding-left:20px;';container.appendChild(list);}
+      if(!list){list=document.createElement('ul');list.style.cssText='margin:0 0 12px;padding-left:20px;';target.appendChild(list);}
       var item=document.createElement('li');item.style.cssText='font-size:13px;color:var(--muted);line-height:1.75;margin-bottom:4px;';
       dfAiInline(li[2],item);list.appendChild(item);return;
     }
@@ -752,16 +757,23 @@ function dfAiRender(text,container){
       if(/^answer\b/i.test(txt)){
         var ans=document.createElement('div');
         ans.style.cssText='background:rgba(126,184,164,.14);border:1px solid var(--teal);border-radius:4px;padding:10px 14px;margin-bottom:14px;font-family:"Plus Jakarta Sans",sans-serif;font-size:14px;font-weight:700;color:var(--teal);';
-        ans.textContent='\u2713 '+txt;container.appendChild(ans);
+        ans.textContent='\u2713 '+txt;container.appendChild(ans);target=container;
+      }else if(/never miss/i.test(txt)){
+        var box=document.createElement('div');
+        box.className='df-ai-trick';
+        box.style.cssText='background:rgba(184,146,46,.10);border:1px solid var(--gold);border-radius:6px;padding:12px 14px;margin:16px 0 4px;';
+        var bh=document.createElement('div');
+        bh.style.cssText='font-family:inherit;font-size:13px;font-weight:700;color:var(--gold);margin-bottom:6px;';
+        bh.textContent='\u26A1 '+txt;box.appendChild(bh);container.appendChild(box);target=box;
       }else{
         var hh=document.createElement('div');
-        hh.style.cssText='font-family:"DM Mono",monospace;font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--gold);margin:14px 0 6px;';
-        hh.textContent=txt;container.appendChild(hh);
+        hh.style.cssText='font-family:inherit;font-size:13px;font-weight:700;color:var(--gold);margin:14px 0 6px;';
+        hh.textContent=txt;container.appendChild(hh);target=container;
       }
       return;
     }
-    var p=document.createElement('p');p.style.cssText='font-size:13px;color:var(--muted);line-height:1.8;margin:0 0 10px;';
-    dfAiInline(line,p);container.appendChild(p);
+    var p=document.createElement('p');p.style.cssText='font-size:13px;color:'+(target!==container?'var(--text)':'var(--muted)')+';line-height:1.8;margin:0 0 10px;';
+    dfAiInline(line,p);target.appendChild(p);
   });
 }
 function dfAiKey(q){
@@ -769,14 +781,95 @@ function dfAiKey(q){
   var str=String(q.question||''),hh=0;for(var i=0;i<str.length;i++){hh=((hh<<5)-hh+str.charCodeAt(i))|0;}
   return 't'+hh;
 }
+var dfAskMem={};
+function dfAskContext(q,correct,explanation){
+  var opts=[];
+  ['a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p','q'].forEach(function(o){if(q['option_'+o])opts.push(o.toUpperCase()+'. '+q['option_'+o]);});
+  return [
+    'You are Deo Tutor, a friendly medical tutor. A student is reviewing the question below and is asking follow-up questions about it.',
+    'Answer in SIMPLE, clear language that keeps the proper medical terms (explain a term in a few plain words the first time you use it). Be conversational and concise: short paragraphs or a few bullet points. Do NOT repeat the full explanation layout unless asked. Stay focused on this question and the medicine behind it.',
+    '',
+    'QUESTION:',String(q.question||''),
+    '',
+    'OPTIONS:',opts.join('\n'),
+    '',
+    'CORRECT ANSWER: '+(correct||'unknown'),
+    explanation?('\nYOUR EARLIER EXPLANATION TO THE STUDENT:\n'+String(explanation).slice(0,2500)):''
+  ].join('\n');
+}
 function dfAiExplanation(q,correct){
   var qk=dfAiKey(q);
-  var key='df-aiexp-'+qk;
+  var key='df-aiexp2-'+qk;
   var card=div({style:{background:'var(--card)',border:'1px solid var(--gold)',borderRadius:'4px',padding:'16px',marginTop:'16px'}},[]);
-  card.append(div({style:{display:'flex',alignItems:'center',gap:'8px',marginBottom:'12px',fontFamily:"'DM Mono',monospace",fontSize:'10px',letterSpacing:'2px',textTransform:'uppercase',color:'var(--gold)'},html:ICONS.brain+' Deo Tutor \u00b7 Simple explanation'}));
+  card.append(div({style:{display:'flex',alignItems:'center',gap:'8px',marginBottom:'12px',fontFamily:'inherit',fontSize:'14px',fontWeight:'700',color:'var(--gold)'},html:ICONS.brain+' Deo Tutor \u00b7 Simple explanation'}));
   var body=div({cls:'df-ai-body'},[]);
   card.append(body);
   if(card.firstChild)dfPutNewOn(card.firstChild);
+  var ask=div({cls:'df-ask',style:{marginTop:'18px',paddingTop:'14px',borderTop:'1px solid var(--border)',display:'none'}},[]);
+  card.append(ask);
+
+  // ── "Ask Deo" follow-up chat about THIS question ──
+  var askBuilt=false;
+  function buildAsk(){
+    if(askBuilt)return;askBuilt=true;
+    ask.style.display='block';
+    ask.append(h('div',{style:{fontFamily:'inherit',fontSize:'14px',fontWeight:'700',color:'var(--gold)',marginBottom:'4px'}},['Ask Deo about this question']));
+    ask.append(h('div',{style:{fontSize:'12px',color:'var(--muted)',marginBottom:'10px',lineHeight:'1.6'}},['Still unsure? Ask a follow-up and Deo will explain it further.']));
+    var log=div({style:{display:'flex',flexDirection:'column',gap:'8px',marginBottom:'10px'}},[]);
+    var busy=false;
+    function addBubble(role,content){
+      var mine=role==='user';
+      var bub=div({style:{alignSelf:mine?'flex-end':'flex-start',maxWidth:'92%',background:mine?'var(--gold)':'var(--bg)',color:mine?'var(--bg)':'var(--text)',border:mine?'none':'1px solid var(--border)',padding:'9px 13px',borderRadius:'12px',fontSize:'13px',lineHeight:'1.6',wordBreak:'break-word'}},[]);
+      if(mine){bub.textContent=content;}else{dfAiRender(content,bub);}
+      log.append(bub);
+      return bub;
+    }
+    (dfAskMem[qk]||[]).forEach(function(m){addBubble(m.role,m.content);});
+    var chips=div({style:{display:'flex',flexWrap:'wrap',gap:'6px',marginBottom:'10px'}},[]);
+    ['Explain it more simply','Why is the runner-up option wrong?','Give me another trick','Quiz me on this'].forEach(function(label){
+      chips.append(btn(label,'btn-outline',function(){send(label);},{style:{fontSize:'11px',padding:'5px 11px',borderRadius:'999px'}}));
+    });
+    var input=h('input',{type:'text',placeholder:'Ask Deo anything about this question\u2026',style:{flex:'1',padding:'9px 11px',borderRadius:'4px',border:'1px solid var(--border)',background:'var(--bg)',color:'var(--text)',fontFamily:'inherit',fontSize:'13px',minWidth:'0'}});
+    var sendBtn=btn('Ask','btn-gold',function(){send(input.value);},{style:{padding:'9px 18px',fontSize:'12px'}});
+    input.addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();send(input.value);}});
+    ask.append(log,chips,div({style:{display:'flex',gap:'8px'}},[input,sendBtn]));
+    async function send(text){
+      text=String(text||'').trim();
+      if(!text||busy)return;
+      var isFree=!!(S.profile&&S.profile.is_free_tier===true);
+      var hasCounter=(typeof freeMessagesCount!=='undefined');
+      if(isFree&&hasCounter&&freeMessagesCount>=5){addBubble('assistant','Free tier limit reached (5 messages per session). Upgrade to continue chatting.');return;}
+      if(isFree&&hasCounter)freeMessagesCount++;
+      busy=true;sendBtn.disabled=true;
+      var hist=dfAskMem[qk]||(dfAskMem[qk]=[]);
+      hist.push({role:'user',content:text});
+      addBubble('user',text);input.value='';
+      var thinking=div({style:{alignSelf:'flex-start',fontSize:'12px',color:'var(--dim)',padding:'4px 6px'}},['Deo is thinking\u2026']);
+      log.append(thinking);
+      var ctrl=(typeof AbortController!=='undefined')?new AbortController():null;
+      var timer=setTimeout(function(){try{ctrl&&ctrl.abort();}catch(e){}},45000);
+      try{
+        var ctx=dfAskContext(q,correct,dfAiMem[qk]);
+        var recent=hist.slice(-12);
+        while(recent.length&&recent[0].role!=='user')recent.shift();
+        var messages=recent.map(function(m,i){return i===0?{role:'user',content:ctx+'\n\nSTUDENT QUESTION:\n'+m.content}:{role:m.role,content:m.content};});
+        var res=await fetch(DF_AI_URL,{method:'POST',headers:{'Content-Type':'application/json'},signal:ctrl?ctrl.signal:undefined,body:JSON.stringify({messages:messages,topic:window._currentTopic||'question follow-up'})});
+        var data=await res.json();
+        var reply=data&&data.reply;
+        thinking.remove();
+        if(!reply||typeof reply!=='string')throw new Error('empty');
+        hist.push({role:'assistant',content:reply});
+        addBubble('assistant',reply);
+        try{log.lastChild.scrollIntoView({block:'nearest',behavior:'smooth'});}catch(e){}
+      }catch(err){
+        thinking.remove();
+        hist.pop();
+        addBubble('assistant','Deo could not answer just now. Please try again.');
+        input.value=text;
+      }finally{clearTimeout(timer);busy=false;sendBtn.disabled=false;}
+    }
+  }
+
   function paintLoading(){body.innerHTML='';body.append(skel(['40%','100%','92%','96%','70%']));}
   function paintError(){
     body.innerHTML='';
@@ -794,12 +887,13 @@ function dfAiExplanation(q,correct){
       dfAiMem[qk]=reply;
       try{sessionStorage.setItem(key,reply);}catch(e){}
       dfAiRender(reply,body);
+      buildAsk();
     }catch(err){paintError();}
     finally{clearTimeout(timer);}
   }
   var cached=dfAiMem[qk];
-  if(!cached){try{cached=sessionStorage.getItem(key);}catch(e){}}
-  if(cached){dfAiRender(cached,body);}else{load();}
+  if(!cached){try{cached=sessionStorage.getItem(key);}catch(e){}if(cached)dfAiMem[qk]=cached;}
+  if(cached){dfAiRender(cached,body);buildAsk();}else{load();}
   return card;
 }
 
@@ -1148,7 +1242,8 @@ function dfBankLine(b){
   },{style:{fontSize:'9px',padding:'2px 8px',marginLeft:'8px'}});
   return div({style:{marginTop:'6px',textAlign:'right'}},[
     h('div',{style:{fontSize:'11px',color:'var(--muted)'}},[b.bank_name+' \u00b7 '+b.account_name]),
-    div({style:{display:'flex',justifyContent:'flex-end',alignItems:'center',marginTop:'2px'}},[h('span',{cls:'mono',style:{fontSize:'14px',color:'var(--text)',letterSpacing:'1px'}},[b.account_number]),copy])
+    div({style:{display:'flex',justifyContent:'flex-end',alignItems:'center',marginTop:'2px'}},[h('span',{cls:'mono',style:{fontSize:'14px',color:'var(--text)',letterSpacing:'1px'}},[b.account_number]),copy]),
+    (function(){if(!b.started_at)return null;var d=new Date(b.started_at+'T00:00:00');if(isNaN(d))return null;return h('div',{style:{fontSize:'11px',color:'var(--muted)',marginTop:'3px'}},['With Deo Fortis since '+d.toLocaleDateString(undefined,{day:'numeric',month:'short',year:'numeric'})]);})()
   ]);
 }
 // Shows the payout-details form. locked=true => full-screen, cannot be dismissed (only log out).
@@ -1164,29 +1259,34 @@ function dfBankForm(opts){
     var dl=h('datalist',{id:'df-bank-list'},DF_BANKS.map(function(b){return h('option',{value:b});}));
     var nameInp=inp('Name exactly as on the account','text',ex.account_name||opts.fullName||'');
     var numInp=inp('Account number','text',ex.account_number||'');
+    var _td=new Date();var todayISO=_td.getFullYear()+'-'+String(_td.getMonth()+1).padStart(2,'0')+'-'+String(_td.getDate()).padStart(2,'0');
+    var startInp=h('input',{cls:'input',type:'date',max:todayISO,value:ex.started_at||''});
     numInp.maxLength=40;
     numInp.oninput=function(){numInp.value=numInp.value.replace(/[^A-Za-z0-9-]/g,'').slice(0,34);};
     var saveBtn=btn(opts.locked?'Save and continue':'Save','btn-gold',async function(){
       errEl.style.display='none';
-      var bank=bankInp.value.trim(),nm=nameInp.value.trim(),num=numInp.value.trim();
+      var bank=bankInp.value.trim(),nm=nameInp.value.trim(),num=numInp.value.trim(),started=startInp.value.trim();
       var msg='';
       if(!bank)msg='Enter your bank name.';
       else if(nm.length<3)msg='Enter the account name.';
       else if(!/^[A-Za-z0-9-]{6,34}$/.test(num))msg='Enter a valid account number (6 to 34 letters or digits).';
+      else if(!started)msg='Tell us when you started with Deo Fortis.';
+      else if(!/^\d{4}-\d{2}-\d{2}$/.test(started)||started<'2000-01-01')msg='Enter a valid start date.';
+      else if(started>todayISO)msg='The start date cannot be in the future.';
       if(msg){errEl.textContent=msg;errEl.style.display='block';return;}
       saveBtn.disabled=true;saveBtn.textContent='Saving\u2026';
-      var up=await sb.from('tutor_bank_details').upsert({tutor_id:S.user.id,bank_name:bank,account_name:nm,account_number:num,updated_at:new Date().toISOString()},{onConflict:'tutor_id'});
+      var up=await sb.from('tutor_bank_details').upsert({tutor_id:S.user.id,bank_name:bank,account_name:nm,account_number:num,started_at:started,updated_at:new Date().toISOString()},{onConflict:'tutor_id'});
       if(up.error){
         errEl.textContent='Could not save: '+up.error.message;errEl.style.display='block';
         saveBtn.disabled=false;saveBtn.textContent=opts.locked?'Save and continue':'Save';return;
       }
-      overlay.remove();resolve({tutor_id:S.user.id,bank_name:bank,account_name:nm,account_number:num});
+      overlay.remove();resolve({tutor_id:S.user.id,bank_name:bank,account_name:nm,account_number:num,started_at:started});
     },{style:{width:'100%',marginTop:'6px'}});
     modal.append(
       h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'10px',letterSpacing:'2px',textTransform:'uppercase',color:'var(--gold)',marginBottom:'6px'}},[opts.locked?'Required to continue':'Payout details']),
       h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'20px',margin:'0 0 8px'}},['Where should we pay you?']),
       h('p',{style:{fontSize:'13px',color:'var(--muted)',lineHeight:'1.7',margin:'0 0 16px'}},[opts.locked?'Please add your account details before you continue. This is where your tutor payouts will be sent. Only the Deo Fortis admin can see this.':'Update the account your tutor payouts are sent to. Only the Deo Fortis admin can see this.']),
-      errEl,field('Bank',bankInp),dl,field('Account name',nameInp),field('Account number',numInp),saveBtn
+      errEl,field('Bank',bankInp),dl,field('Account name',nameInp),field('Account number',numInp),field('When did you start with Deo Fortis?',startInp),saveBtn
     );
     if(opts.locked){
       modal.append(btn('Log out','btn-outline',function(){dfLogout();},{style:{width:'100%',marginTop:'10px',fontSize:'12px'}}));
@@ -1201,11 +1301,11 @@ function dfBankForm(opts){
 // so a database setup problem can never lock everybody out.
 async function dfTutorBankGate(){
   if(!S.user)return;
-  var r=await sb.from('tutor_bank_details').select('tutor_id,bank_name,account_name,account_number').eq('tutor_id',S.user.id).maybeSingle();
+  var r=await sb.from('tutor_bank_details').select('tutor_id,bank_name,account_name,account_number,started_at').eq('tutor_id',S.user.id).maybeSingle();
   if(r.error){console.warn('tutor bank gate skipped:',r.error.message);return;}
   var d=r.data;
-  if(d&&d.bank_name&&d.account_name&&d.account_number)return;
-  await dfBankForm({locked:true,fullName:(S.profile&&S.profile.full_name)||''});
+  if(d&&d.bank_name&&d.account_name&&d.account_number&&d.started_at)return;
+  await dfBankForm({locked:true,existing:d||{},fullName:(S.profile&&S.profile.full_name)||''});
 }
 
 // Makes text selection work on touch devices (phones, iPads): long-press + drag handles
