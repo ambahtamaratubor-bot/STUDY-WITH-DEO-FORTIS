@@ -11529,8 +11529,8 @@ if(r.is_free_tier===true){const badge=h('span',{style:{background:'#8B0000',colo
 var dispStatus=r.in_progress_at?'in progress':r.status;
 hdr2.append(div({},[nameDiv,div({style:{fontSize:'12px',color:'var(--muted)'},html:r.user_email||''})]),h('span',{style:{fontFamily:"Inter,sans-serif",fontSize:'10px',letterSpacing:'1px',textTransform:'uppercase',color:r.in_progress_at?'var(--teal)':(r.status==='pending'?'var(--gold)':'var(--teal)')},html:dispStatus}));
 card.append(hdr2);
-const dg=div({style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'12px',marginBottom:'12px'}});
-[[r.topic,'Topic'],[r.style,'Style']].forEach(([v,l])=>{const d=div({});d.append(div({cls:'mono',style:{marginBottom:'4px'},html:l}),div({style:{fontSize:'14px',color:l==='Style'?'var(--gold)':'var(--text)'},html:v||'—'}));dg.append(d);});
+const dg=div({style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(140px,1fr))',gap:'12px',marginBottom:'12px'}});
+[[r.topic,'Topic'],[r.style,'Style'],[r.quantity?String(r.quantity):'—','Quantity']].forEach(([v,l])=>{const d=div({});d.append(div({cls:'mono',style:{marginBottom:'4px'},html:l}),div({style:{fontSize:'14px',color:l==='Style'?'var(--gold)':'var(--text)'},html:v||'—'}));dg.append(d);});
 card.append(dg);
 if(r.details)card.append(div({style:{background:'var(--bg)',border:'1px solid var(--border)',borderRadius:'2px',padding:'12px',marginBottom:'12px'}},[div({cls:'mono',style:{marginBottom:'4px'},html:'Notes'}),h('p',{style:{fontSize:'13px',color:'var(--muted)'},html:r.details})]));
 if(r.attachment_data){const bytes=atob(r.attachment_data);const arr=new Uint8Array(bytes.length);for(let i=0;i<bytes.length;i++)arr[i]=bytes.charCodeAt(i);const mime=r.attachment_name&&r.attachment_name.endsWith('.pdf')?'application/pdf':r.attachment_name&&(r.attachment_name.endsWith('.png')||r.attachment_name.endsWith('.jpg')||r.attachment_name.endsWith('.jpeg'))?'image/'+r.attachment_name.split('.').pop():'application/octet-stream';const blob=new Blob([arr],{type:mime});const blobUrl=URL.createObjectURL(blob);const attachLink=h('a',{style:{fontSize:'12px',color:'var(--teal)',display:'block',marginBottom:'8px'}},['View Attachment: '+(r.attachment_name||'file')]);attachLink.href=blobUrl;attachLink.target='_blank';card.append(attachLink);}
@@ -12725,15 +12725,17 @@ async function showTeamTab(){
       // Determine current shift slot
       // Schedule stores days Monday=0...Sunday=6; JS getDay() is Sunday=0...Saturday=6
       var now=new Date();
-      // Shifts are in AST (UTC-4, no daylight saving) whatever time zone this screen is opened in.
+      // Shifts are in US Eastern Time (America/New_York, follows daylight saving) whatever time zone this screen is opened in.
       // 11pm-7am has no shift of its own: it is covered by the 7am slot (the day-shift person) of the morning it is picked up.
-      var astNow=new Date(Date.now()-4*3600*1000);
-      var hr=astNow.getUTCHours();
-      var astDay=(astNow.getUTCDay()+6)%7; // Monday=0 ... Sunday=6
+      var astNow=new Date(); // kept under this name so it still matches the SQL function email_recall_recipients
+      var etParts={};
+      new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',weekday:'short',hour:'2-digit',hourCycle:'h23'}).formatToParts(astNow).forEach(function(pt){etParts[pt.type]=pt.value;});
+      var hr=parseInt(etParts.hour,10)%24;
+      var astDay=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].indexOf(etParts.weekday); // Monday=0 ... Sunday=6
       var overnight=hr>=23||hr<7;
       var currentDayInt=hr>=23?(astDay+1)%7:astDay;
       var currentSlot=overnight?'7am':hr>=19?'7pm':hr>=15?'3pm':hr>=11?'11am':'7am';
-      var currentSlotLabel=overnight?'overnight 11pm–7am AST, covered by the 7am–7pm shift':hr>=19?'7pm–11pm AST':hr>=15?'3pm–7pm AST':hr>=11?'11am–3pm AST':'7am–11am AST';
+      var currentSlotLabel=overnight?'overnight 11pm–7am ET, covered by the 7am–7pm shift':hr>=19?'7pm–11pm ET':hr>=15?'3pm–7pm ET':hr>=11?'11am–3pm ET':'7am–11am ET';
       var{data:shiftRows}=await sb.from('shift_schedule').select('worker_id').eq('day_of_week',currentDayInt).eq('slot',currentSlot);
       var onShiftIds=(shiftRows||[]).map(function(s){return s.worker_id;});
       var onShiftNames=onShiftIds.map(function(id){return workerMap[id]||'Unknown';});
@@ -12771,7 +12773,7 @@ async function showTeamTab(){
         const headerRow=div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'8px'}});
         const studentInfo=div({});
         studentInfo.append(h('div',{style:{fontWeight:'bold',fontSize:'14px'}},[document.createTextNode(recall.user_name||'Student')]));
-        studentInfo.append(h('div',{style:{fontSize:'12px',color:'var(--muted)'}},[document.createTextNode(recall.topic+' · '+recall.style)]));
+        studentInfo.append(h('div',{style:{fontSize:'12px',color:'var(--muted)'}},[document.createTextNode(recall.topic+' · '+recall.style+(recall.quantity?' · Quantity: '+recall.quantity:''))]));
         headerRow.append(studentInfo,h('div',{style:{fontSize:'11px',color:'var(--dim)'}},[document.createTextNode(new Date(recall.created_at).toLocaleString())]));
         card.append(headerRow);
         const badge=div({style:{display:'inline-block',fontSize:'11px',padding:'2px 8px',borderRadius:'3px',marginBottom:'8px',background:isMyRecall?'rgba(201,150,58,0.15)':'rgba(126,173,168,0.1)',color:isMyRecall?'var(--gold)':'var(--teal)',border:'1px solid '+(isMyRecall?'rgba(201,150,58,0.3)':'rgba(126,173,168,0.2)')}},[document.createTextNode('Assigned to: '+displayNames+(isMyRecall?' (you)':''))]);
