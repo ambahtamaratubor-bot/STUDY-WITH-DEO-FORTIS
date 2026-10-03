@@ -70,3 +70,42 @@ self.addEventListener('fetch',function(event){
     })
   );
 });
+
+
+// ---------------------------------------------------------------------------
+// Web Push (added) — the send-push Edge Function delivers JSON payloads of the
+// form {title, body, url, tag}. Nothing here touches the caching logic above.
+// ---------------------------------------------------------------------------
+self.addEventListener('push',function(event){
+  var data={};
+  try{data=event.data?event.data.json():{};}catch(e){
+    data={title:'Deo Fortis',body:event.data?event.data.text():''};
+  }
+  var title=data.title||'Deo Fortis';
+  var options={
+    body:data.body||'',
+    icon:'/icon-512.png',
+    badge:'/icon-512.png',
+    tag:data.tag||undefined,
+    renotify:false,
+    data:{url:data.url||'/'}
+  };
+  event.waitUntil(self.registration.showNotification(title,options));
+});
+
+self.addEventListener('notificationclick',function(event){
+  event.notification.close();
+  var target=(event.notification.data&&event.notification.data.url)||'/';
+  event.waitUntil(
+    self.clients.matchAll({type:'window',includeUncontrolled:true}).then(function(list){
+      for(var i=0;i<list.length;i++){
+        var c=list[i];
+        if('focus' in c){
+          if('navigate' in c){c.navigate(target).catch(function(){});}
+          return c.focus();
+        }
+      }
+      if(self.clients.openWindow)return self.clients.openWindow(target);
+    })
+  );
+});

@@ -13313,7 +13313,7 @@ function buildNotePanel(){
 
 // PUSH NOTIFICATIONS — Web Push via the service worker (sw.js) + the send-push Edge Function.
 // Paste the public VAPID key here (the private key lives only in Supabase secrets).
-const DF_VAPID_PUBLIC='PASTE_YOUR_VAPID_PUBLIC_KEY_HERE';
+const DF_VAPID_PUBLIC='BD7uHHeVIvmZ3jrHXb62rNpun5p8JUjKrMsj3ydknPUKIGpYzZbHXzkWow6l74D6IVeawVVf86shCNOcyOceXIQ';
 const DF_PUSH_KINDS=[
   {k:'recall',label:'Active recall fulfilled'},
   {k:'feynman',label:'Feynman results'},
