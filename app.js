@@ -158,6 +158,7 @@ async function dfHandleAsyncError(e){
 }
 window.addEventListener('unhandledrejection',function(ev){dfHandleAsyncError(ev.reason);});
 async function dfLogout(){
+  try{await dfPushDetach();}catch(e){}
   try{await sb.auth.signOut();}catch(e){console.warn('signOut (global) failed, forcing local cleanup',e);}
   try{await sb.auth.signOut({scope:'local'});}catch(e){}
   try{localStorage.removeItem('df-auth');}catch(e){}
@@ -484,7 +485,7 @@ if(after.trim()){var pAfter=h('p',{style:{fontSize:'15px',color:'var(--text)',li
 // ═══════════════════════════════════════════════════════════════════════════
 // ADDED: Evidence Mode · AI explanations · Email composer · Tutor payout details
 // ═══════════════════════════════════════════════════════════════════════════
-const DF_MAIL_URL='https://script.google.com/macros/s/AKfycbwCm46tVsb4EObYoFqI3Su50vLhrzNC_BLiPiXI7puqzousfK6BTNjRV3Hg7WP8nqVU9g/exec';
+const DF_MAIL_URL='https://script.google.com/macros/s/AKfycbxZZVMTBqR_9j-88SooNBFJrun82B6V0Wfc9XDhsfzuMTlidgjZ01r_ovXDB1BO0UpXVg/exec';
 const DF_AI_URL='https://ai-tutor.ambahtamaratubor.workers.dev';
 
 (function dfInjectNewStyles(){
@@ -1017,6 +1018,64 @@ async function dfMailSendEmails(ids){
     if(confirmed.length>0)return{ok:true,sent:confirmed.length,failed:ids.filter(function(x){return confirmed.indexOf(x)===-1;}),errors:[]};
   }
   throw new Error(problem);
+}
+
+// ───────────────────────── ASSIGNMENT EMAILS ─────────────────────────
+// When a tutor/admin assigns a test, assessment or task, each student gets a message in their platform
+// mailbox AND an email copy, sent from the assigning tutor's own name. It reuses the normal mailbox path
+// (mail_send, then dfMailSendEmails), so it looks like any other platform message and the student can reply.
+// It never throws: the assignment is already saved by then, so a mail problem only changes the status note.
+function dfAssignBody(kind,first,info){
+  var L=['Hi '+first+',',''];
+  if(kind==='task'){
+    L.push('Your tutor has assigned you a new task:','',info.title);
+    if(info.note)L.push('',info.note);
+  }else{
+    var what=kind==='assessment'?'assessment':'test';
+    L.push('A new '+what+' has been assigned to you: '+(info.title||(kind==='assessment'?'Assessment':'Test'))+'.');
+    var meta=[];
+    if(info.mode)meta.push('Mode: '+(info.mode==='timed'?'Timed':'Tutor'));
+    if(info.mode==='timed'&&info.timeLimit)meta.push('Time limit: '+info.timeLimit+' minutes');
+    if(meta.length)L.push(meta.join(' \u00b7 '));
+  }
+  if(info.dueDate)L.push('',fmtDueDateTime(info.dueDate,info.dueTime||null));
+  L.push('',kind==='task'?'You can mark it done in the Tutoring Wing when you finish.':'Open Deo Fortis and go to the Tutoring Wing to start.');
+  L.push('','Reply to this message if you have any questions.');
+  return L.join('\n');
+}
+async function dfMailAssignment(studentIds,subject,makeBody){
+  var out={sent:0,total:(studentIds||[]).length,note:''};
+  try{
+    if(!out.total)return out;
+    var names={};
+    try{
+      var pr=await sb.from('profiles').select('id,full_name').in('id',studentIds);
+      (pr.data||[]).forEach(function(p){names[p.id]=p.full_name||'';});
+    }catch(e){}
+    var okIds=[];
+    for(var i=0;i<studentIds.length;i++){
+      var first=String(names[studentIds[i]]||'').trim().split(/\s+/)[0]||'there';
+      try{
+        var r=await sb.rpc('mail_send',{p_recipient:studentIds[i],p_subject:subject,p_body:makeBody(first)});
+        if(r.error)throw new Error(r.error.message);
+        okIds.push(r.data);
+      }catch(e){console.warn('assignment mail not saved',e);}
+    }
+    if(okIds.length){
+      try{
+        var res=await dfMailSendEmails(okIds);
+        out.sent=okIds.length-((res&&res.failed)?res.failed.length:0);
+      }catch(e){console.warn('assignment email not sent',e);}
+    }
+    try{dfMailRefreshUnread();}catch(e){}
+    if(out.sent===out.total)out.note=' \u00b7 '+(out.total===1?'student emailed':'students emailed');
+    else if(out.sent>0)out.note=' \u00b7 emailed '+out.sent+' of '+out.total+' (the rest could not be emailed)';
+    else out.note=' \u00b7 the email could not be sent';
+  }catch(e){
+    console.warn('assignment mail failed',e);
+    out.note=' \u00b7 the email could not be sent';
+  }
+  return out;
 }
 
 // ───────────────────────────── MAIL ATTACHMENTS ─────────────────────────────
@@ -5950,6 +6009,7 @@ page.append(nav);
 
 const container=div({cls:'inner'});
 {const _wn=dfWhatsNewCard('student');if(_wn)container.append(_wn);}
+{const _pc=dfPushCard();if(_pc)container.append(_pc);}
 const tutHolder=div({});container.append(tutHolder);(async function(){const _te=await sb.from('tutoring_students').select('id').eq('user_id',S.user.id).eq('active',true).maybeSingle();if(!_te||!_te.data)return;const tw=div({cls:'card',style:{marginBottom:'16px',borderColor:'var(--gold)',cursor:'pointer',display:'flex',justifyContent:'space-between',alignItems:'center',gap:'16px',flexWrap:'wrap'}},[div({style:{flex:'1',minWidth:'200px'}},[h('div',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'17px',color:'var(--gold)',marginBottom:'4px'}},['Tutoring Wing']),h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'13px',color:'var(--muted)'}},['Your assigned tests, tasks and results'])]),h('span',{cls:'mono',style:{fontSize:'12px',color:'var(--gold)',flexShrink:'0'}},['Enter →'])]);tw.onclick=function(){go('tutoring');};tutHolder.append(tw);})();
 page.append(container);
 
@@ -9755,6 +9815,7 @@ function openAssignAssessment(opts){
   function aaSt(m,c){aaStatus.textContent=m;aaStatus.style.color=c||'var(--muted)';aaStatus.style.display='block';}
 
   var assessSel=h('select',{cls:'input',style:{width:'100%',marginBottom:'14px'}},[]);
+  var assessMeta={};
   var studWrap=div({style:{marginBottom:'14px'}},[]);
   var pickedStudents={};
   var dueInput=h('input',{cls:'input',type:'date',style:{width:'220px',marginBottom:'8px'}});
@@ -9768,7 +9829,15 @@ function openAssignAssessment(opts){
     var rows=sids.map(function(sid){return{assessment_id:assessmentId,student_id:sid,due_date:dueInput.value||null,due_time:dueInput.value?(dueTimeInput.value||null):null};});
     var ins=await sb.from('tutoring_assessment_assignments').insert(rows);
     if(ins.error){aaSt('Failed: '+ins.error.message,'#ff4444');assignBtn.disabled=false;return;}
-    aaSt('\u2713 Assigned to '+sids.length+' student'+(sids.length>1?'s':'')+(dueInput.value?' \u00b7 scheduling email will go out shortly':'')+'.','var(--teal)');
+    var aMailNote='';
+    if(dueInput.value){aMailNote=' \u00b7 scheduling email will go out shortly';}
+    else{
+      aaSt('\u2713 Assigned to '+sids.length+' student'+(sids.length>1?'s':'')+'. Sending emails\u2026','var(--teal)');
+      var am=assessMeta[assessmentId]||{};
+      var amail=await dfMailAssignment(sids,'New assessment assigned: '+(am.title||'Assessment'),function(first){return dfAssignBody('assessment',first,{title:am.title,mode:am.mode});});
+      aMailNote=amail.note;
+    }
+    aaSt('\u2713 Assigned to '+sids.length+' student'+(sids.length>1?'s':'')+aMailNote+'.','var(--teal)');
     assignBtn.disabled=false;
     refreshAssignList();
   },{style:{fontSize:'12px',padding:'8px 16px'}});
@@ -9816,7 +9885,7 @@ function openAssignAssessment(opts){
 
   (async function(){
     var a=await sb.from('tutoring_assessments').select('id,title,mode,published').eq('published',true).order('created_at',{ascending:false});
-    (a.data||[]).forEach(function(x){var o=h('option',{value:x.id},[x.title+' \u00b7 '+(x.mode==='timed'?'Timed':'Tutor')]);assessSel.append(o);});
+    (a.data||[]).forEach(function(x){assessMeta[x.id]=x;var o=h('option',{value:x.id},[x.title+' \u00b7 '+(x.mode==='timed'?'Timed':'Tutor')]);assessSel.append(o);});
     if(opts.assessmentId){assessSel.value=opts.assessmentId;assessSel.disabled=true;}
     var students=await fetchEnrolled();
     students.forEach(function(s){studentNameMap[s.user_id]=s.full_name;});
@@ -10352,6 +10421,7 @@ function openAssign(opts){
   function aSt(m,c){aStatus.textContent=m;aStatus.style.color=c||'var(--muted)';aStatus.style.display='block';}
 
   var testSel=h('select',{cls:'input',style:{width:'100%',marginBottom:'14px'}},[]);
+  var testMeta={};
   var studWrap=div({style:{marginBottom:'14px'}},[]);
   var pickedStudents={};
   var dueInput=h('input',{cls:'input',type:'date',style:{width:'220px',marginBottom:'8px'}});
@@ -10365,7 +10435,10 @@ function openAssign(opts){
     var rows=sids.map(function(sid){return{test_id:testId,student_id:sid,assigned_by:S.user.id,due_date:dueInput.value||null,due_time:dueInput.value?(dueTimeInput.value||null):null};});
     var ins=await sb.from('tutoring_assignments').insert(rows);
     if(ins.error){aSt('Failed: '+ins.error.message,'#ff4444');assignBtn.disabled=false;return;}
-    aSt('\u2713 Assigned to '+sids.length+' student'+(sids.length>1?'s':'')+'.','var(--teal)');
+    aSt('\u2713 Assigned to '+sids.length+' student'+(sids.length>1?'s':'')+'. Sending emails\u2026','var(--teal)');
+    var tm=testMeta[testId]||{};
+    var tmail=await dfMailAssignment(sids,'New test assigned: '+(tm.title||'Test'),function(first){return dfAssignBody('test',first,{title:tm.title,mode:tm.mode,timeLimit:tm.time_limit,dueDate:dueInput.value,dueTime:dueTimeInput.value});});
+    aSt('\u2713 Assigned to '+sids.length+' student'+(sids.length>1?'s':'')+tmail.note+'.','var(--teal)');
     assignBtn.disabled=false;
   },{style:{fontSize:'12px',padding:'8px 16px'}});
 
@@ -10378,7 +10451,7 @@ function openAssign(opts){
 
   (async function(){
     var t=await sb.from('tutoring_tests').select('id,title,mode,time_limit').order('created_at',{ascending:false});
-    (t.data||[]).forEach(function(x){var o=h('option',{value:x.id},[x.title+' \u00b7 '+(x.mode==='timed'?'Timed':'Tutor')]);testSel.append(o);});
+    (t.data||[]).forEach(function(x){testMeta[x.id]=x;var o=h('option',{value:x.id},[x.title+' \u00b7 '+(x.mode==='timed'?'Timed':'Tutor')]);testSel.append(o);});
     if(opts.testId){testSel.value=opts.testId;testSel.disabled=true;}
     var students=await fetchEnrolled();
     studWrap.innerHTML='';
@@ -11485,7 +11558,7 @@ function openStudent(s){
     var kNote=h('input',{cls:'input',placeholder:'Note (optional)',style:{width:'100%',marginBottom:'8px'}});
     var kDue=h('input',{cls:'input',type:'date',style:{width:'200px',marginBottom:'8px'}});
     var kSt=div({style:{display:'none',fontSize:'12px',marginBottom:'8px'}},[]);
-    var addBtn=btn('Add task','btn-gold',async function(){var title=kTitle.value.trim();if(!title){kSt.textContent='Add a task title.';kSt.style.color='#ff4444';kSt.style.display='block';return;}addBtn.disabled=true;var ins=await sb.from('tutoring_tasks').insert({student_id:s.user_id,assigned_by:S.user.id,title:title,note:kNote.value.trim()||null,due_date:kDue.value||null}).select().single();addBtn.disabled=false;if(ins.error||!ins.data){kSt.textContent='Failed: '+(ins.error&&ins.error.message||'unknown');kSt.style.color='#ff4444';kSt.style.display='block';return;}tasks.unshift(ins.data);renderTaskList(tasks);kTitle.value='';kNote.value='';kDue.value='';kSt.textContent='\u2713 Task added.';kSt.style.color='var(--teal)';kSt.style.display='block';},{style:{fontSize:'12px',padding:'8px 16px'}});
+    var addBtn=btn('Add task','btn-gold',async function(){var title=kTitle.value.trim();if(!title){kSt.textContent='Add a task title.';kSt.style.color='#ff4444';kSt.style.display='block';return;}addBtn.disabled=true;var ins=await sb.from('tutoring_tasks').insert({student_id:s.user_id,assigned_by:S.user.id,title:title,note:kNote.value.trim()||null,due_date:kDue.value||null}).select().single();addBtn.disabled=false;if(ins.error||!ins.data){kSt.textContent='Failed: '+(ins.error&&ins.error.message||'unknown');kSt.style.color='#ff4444';kSt.style.display='block';return;}tasks.unshift(ins.data);renderTaskList(tasks);var tkNote=kNote.value.trim(),tkDue=kDue.value;kTitle.value='';kNote.value='';kDue.value='';kSt.textContent='\u2713 Task added. Sending email\u2026';kSt.style.color='var(--teal)';kSt.style.display='block';addBtn.disabled=true;var tkMail=await dfMailAssignment([s.user_id],'New task assigned',function(first){return dfAssignBody('task',first,{title:title,note:tkNote,dueDate:tkDue});});addBtn.disabled=false;kSt.textContent='\u2713 Task added'+tkMail.note+'.';},{style:{fontSize:'12px',padding:'8px 16px'}});
     form.append(kTitle,kNote,kDue,div({},[addBtn]),kSt);
     body.append(form);
   })();
@@ -13236,6 +13309,135 @@ function buildNotePanel(){
     },1200);
   });
   return panelDiv;
+}
+
+// PUSH NOTIFICATIONS — Web Push via the service worker (sw.js) + the send-push Edge Function.
+// Paste the public VAPID key here (the private key lives only in Supabase secrets).
+const DF_VAPID_PUBLIC='PASTE_YOUR_VAPID_PUBLIC_KEY_HERE';
+const DF_PUSH_KINDS=[
+  {k:'recall',label:'Active recall fulfilled'},
+  {k:'feynman',label:'Feynman results'},
+  {k:'class',label:'Class reminders'},
+  {k:'goal',label:'Daily study goal reached'},
+  {k:'weekly',label:'Weekly study summary'},
+  {k:'streak',label:'Streak reminders'}
+];
+function dfPushSupported(){return('serviceWorker' in navigator)&&('PushManager' in window)&&('Notification' in window);}
+function dfPushIsIOS(){return /iphone|ipad|ipod/i.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);}
+function dfPushIsStandalone(){return(window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches)||window.navigator.standalone===true;}
+function dfPushKeyToBytes(b64){
+  var pad='='.repeat((4-b64.length%4)%4);
+  var raw=atob((b64+pad).replace(/-/g,'+').replace(/_/g,'/'));
+  var out=new Uint8Array(raw.length);
+  for(var i=0;i<raw.length;i++)out[i]=raw.charCodeAt(i);
+  return out;
+}
+// navigator.serviceWorker.ready never resolves when no worker is registered, so cap the wait.
+function dfPushReady(){
+  return Promise.race([
+    navigator.serviceWorker.ready,
+    new Promise(function(res){setTimeout(function(){res(null);},4000);})
+  ]);
+}
+async function dfPushSaveSub(sub){
+  var j=sub.toJSON();
+  var tz='UTC';
+  try{tz=Intl.DateTimeFormat().resolvedOptions().timeZone||'UTC';}catch(e){}
+  return sb.rpc('df_push_upsert',{p_endpoint:j.endpoint,p_p256dh:j.keys.p256dh,p_auth:j.keys.auth,p_tz:tz,p_ua:(navigator.userAgent||'').slice(0,200)});
+}
+async function dfPushEnable(){
+  if(!dfPushSupported())return{ok:false,msg:'This browser does not support notifications.'};
+  if(dfPushIsIOS()&&!dfPushIsStandalone())return{ok:false,msg:'On iPhone, tap Share, then Add to Home Screen. Open Deo Fortis from your Home Screen and turn notifications on there.'};
+  if(DF_VAPID_PUBLIC.indexOf('PASTE_')===0)return{ok:false,msg:'Notifications are not configured yet.'};
+  var perm=await Notification.requestPermission();
+  if(perm!=='granted')return{ok:false,msg:perm==='denied'?'Notifications are blocked. Allow them in your browser or phone settings, then try again.':'Permission was not granted.'};
+  var reg=await dfPushReady();
+  if(!reg)return{ok:false,msg:'The app is still loading. Refresh the page and try again.'};
+  var sub=await reg.pushManager.getSubscription();
+  if(!sub)sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:dfPushKeyToBytes(DF_VAPID_PUBLIC)});
+  var r=await dfPushSaveSub(sub);
+  if(r.error)return{ok:false,msg:'Could not save your notification settings. Try again.'};
+  return{ok:true};
+}
+async function dfPushDisable(){
+  var reg=await dfPushReady();
+  if(!reg)return;
+  var sub=await reg.pushManager.getSubscription();
+  if(!sub)return;
+  await sb.from('push_subscriptions').delete().eq('endpoint',sub.endpoint);
+  await sub.unsubscribe();
+}
+// Called on logout: stop this device receiving the signed-out user's pushes (browser subscription is kept).
+async function dfPushDetach(){
+  if(!dfPushSupported()||!S.user)return;
+  var reg=await dfPushReady();
+  if(!reg)return;
+  var sub=await reg.pushManager.getSubscription();
+  if(sub)await sb.from('push_subscriptions').delete().eq('endpoint',sub.endpoint);
+}
+async function dfPushStatus(){
+  if(!dfPushSupported())return{supported:false,enabled:false,prefs:{}};
+  if(Notification.permission!=='granted')return{supported:true,enabled:false,prefs:{}};
+  var reg=await dfPushReady();
+  if(!reg)return{supported:true,enabled:false,prefs:{}};
+  var sub=await reg.pushManager.getSubscription();
+  if(!sub)return{supported:true,enabled:false,prefs:{}};
+  var row=await sb.from('push_subscriptions').select('prefs').eq('endpoint',sub.endpoint).maybeSingle();
+  if(!row.data){
+    // Permission and browser subscription exist but the server row is missing (e.g. after logout/login): re-sync it.
+    await dfPushSaveSub(sub);
+    return{supported:true,enabled:true,prefs:{}};
+  }
+  return{supported:true,enabled:true,prefs:row.data.prefs||{}};
+}
+function dfPushCard(){
+  if(!S.user)return null;
+  // Hide entirely where push can never work (unless it is iPhone, where we explain Add to Home Screen).
+  if(!dfPushSupported()&&!dfPushIsIOS())return null;
+  var card=div({cls:'card',style:{marginBottom:'16px'}},[]);
+  var title=h('div',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'17px',color:'var(--gold)',marginBottom:'4px'}},['Notifications']);
+  var blurb=h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'13px',color:'var(--muted)',lineHeight:'1.6',marginBottom:'12px'}},['Get alerts for class reminders, finished active recall requests, Feynman results and your study progress.']);
+  var msg=h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'12px',color:'var(--gold)',lineHeight:'1.5',marginBottom:'10px',display:'none'}},['']);
+  var body=div({},[]);
+  card.append(title,blurb,msg,body);
+  function showMsg(t){msg.textContent=t||'';msg.style.display=t?'block':'none';}
+  async function paint(){
+    var st={supported:false,enabled:false,prefs:{}};
+    try{st=await dfPushStatus();}catch(e){console.warn('push status failed',e);}
+    body.innerHTML='';
+    if(!st.enabled){
+      body.append(btn('Turn on notifications','btn-gold',async function(){
+        showMsg('');
+        var r=await dfPushEnable();
+        if(!r.ok){showMsg(r.msg);return;}
+        await paint();
+      },{style:{padding:'8px 16px',fontSize:'12px'}}));
+      return;
+    }
+    var prefs=Object.assign({},st.prefs);
+    var list=div({style:{display:'flex',flexDirection:'column',gap:'8px',marginBottom:'12px'}},[]);
+    DF_PUSH_KINDS.forEach(function(kind){
+      var row=div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',gap:'12px'}},[]);
+      var label=h('span',{style:{fontFamily:'Inter,sans-serif',fontSize:'13px',color:'var(--text)'}},[kind.label]);
+      var toggle=btn(prefs[kind.k]===false?'Off':'On',prefs[kind.k]===false?'btn-outline':'btn-teal',async function(){
+        prefs[kind.k]=prefs[kind.k]===false?true:false;
+        var res=await sb.from('push_subscriptions').update({prefs:prefs}).eq('user_id',S.user.id);
+        if(res.error){prefs[kind.k]=prefs[kind.k]===false?true:false;showMsg('Could not save that change. Try again.');return;}
+        showMsg('');
+        toggle.textContent=prefs[kind.k]===false?'Off':'On';
+        toggle.className=prefs[kind.k]===false?'btn btn-outline':'btn btn-teal';
+      },{style:{padding:'4px 14px',fontSize:'11px',minWidth:'52px'}});
+      row.append(label,toggle);
+      list.append(row);
+    });
+    body.append(list);
+    body.append(btn('Turn off on this device','btn-outline',async function(){
+      await dfPushDisable();
+      await paint();
+    },{style:{padding:'6px 14px',fontSize:'11px'}}));
+  }
+  paint();
+  return card;
 }
 
 function getCurrentMonday(){var now=new Date();var day=now.getDay();var diff=day===0?6:day-1;var mon=new Date(now);mon.setDate(now.getDate()-diff);mon.setHours(0,0,0,0);return mon.toISOString().split('T')[0];}
