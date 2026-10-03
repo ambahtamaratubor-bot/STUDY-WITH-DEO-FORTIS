@@ -1,6 +1,6 @@
 const SURL='https://yygjkqkzbdjnyyrrhdku.supabase.co';
 const SKEY='sb_publishable_b83FyTbx9QbFYiJQNQE2Cg_ZnWFoN9F';
-const ADMIN_EMAIL='deofortistutors@gmail.com';
+const ADMIN_EMAIL='noreply.deofortis@gmail.com';
 const sb=window.supabase.createClient(SURL,SKEY,{auth:{persistSession:true,autoRefreshToken:true,storageKey:'df-auth',detectSessionInUrl:false,storage:window.localStorage},global:{headers:{'apikey':SKEY}}});
 // Apps Script web app URL for tutor payout notifications — deploy Payout_Notify.gs and paste the /exec URL here.
 const PAYOUT_NOTIFY_URL='PASTE_YOUR_PAYOUT_NOTIFY_SCRIPT_URL_HERE';
@@ -485,7 +485,8 @@ if(after.trim()){var pAfter=h('p',{style:{fontSize:'15px',color:'var(--text)',li
 // ═══════════════════════════════════════════════════════════════════════════
 // ADDED: Evidence Mode · AI explanations · Email composer · Tutor payout details
 // ═══════════════════════════════════════════════════════════════════════════
-const DF_MAIL_URL='https://script.google.com/macros/s/AKfycbxZZVMTBqR_9j-88SooNBFJrun82B6V0Wfc9XDhsfzuMTlidgjZ01r_ovXDB1BO0UpXVg/exec';
+// All platform email (mailbox messages, assignment emails, signup and reset codes) is sent by this Supabase Edge Function via Resend.
+const DF_EMAIL_FN=SURL+'/functions/v1/send-email';
 const DF_AI_URL='https://ai-tutor.ambahtamaratubor.workers.dev';
 
 (function dfInjectNewStyles(){
@@ -1001,15 +1002,15 @@ async function dfMailSendEmails(ids){
   if(!token)throw new Error('Please sign in again.');
   var problem=null,unreadable=false;
   try{
-    var res=await fetch(DF_MAIL_URL,{method:'POST',body:JSON.stringify({action:'send_platform_email',token:token,message_ids:ids})});
+    var res=await fetch(DF_EMAIL_FN,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify({action:'mailbox',message_ids:ids})});
     var raw=await res.text();
     var data=null;try{data=JSON.parse(raw);}catch(e){}
     if(data&&data.ok)return data;
     if(data){problem=(data.error||'The email service refused the request.');}
-    else{unreadable=true;problem='The email service sent back something unexpected. Check that the Apps Script is deployed as a Web app with access set to Anyone, and that its latest version is deployed.';}
+    else{unreadable=true;problem='The email service sent back something unexpected. Please try again in a moment.';}
   }catch(e){
     unreadable=true;
-    problem='Could not reach the email service. Check that the Apps Script address is correct and deployed with access set to Anyone.';
+    problem='Could not reach the email service. Check your internet connection and try again.';
   }
   if(unreadable){
     // The request may still have gone through even though the browser could not read the reply.
@@ -1019,63 +1020,22 @@ async function dfMailSendEmails(ids){
   }
   throw new Error(problem);
 }
-
-// ───────────────────────── ASSIGNMENT EMAILS ─────────────────────────
-// When a tutor/admin assigns a test, assessment or task, each student gets a message in their platform
-// mailbox AND an email copy, sent from the assigning tutor's own name. It reuses the normal mailbox path
-// (mail_send, then dfMailSendEmails), so it looks like any other platform message and the student can reply.
-// It never throws: the assignment is already saved by then, so a mail problem only changes the status note.
-function dfAssignBody(kind,first,info){
-  var L=['Hi '+first+',',''];
-  if(kind==='task'){
-    L.push('Your tutor has assigned you a new task:','',info.title);
-    if(info.note)L.push('',info.note);
-  }else{
-    var what=kind==='assessment'?'assessment':'test';
-    L.push('A new '+what+' has been assigned to you: '+(info.title||(kind==='assessment'?'Assessment':'Test'))+'.');
-    var meta=[];
-    if(info.mode)meta.push('Mode: '+(info.mode==='timed'?'Timed':'Tutor'));
-    if(info.mode==='timed'&&info.timeLimit)meta.push('Time limit: '+info.timeLimit+' minutes');
-    if(meta.length)L.push(meta.join(' \u00b7 '));
-  }
-  if(info.dueDate)L.push('',fmtDueDateTime(info.dueDate,info.dueTime||null));
-  L.push('',kind==='task'?'You can mark it done in the Tutoring Wing when you finish.':'Open Deo Fortis and go to the Tutoring Wing to start.');
-  L.push('','Reply to this message if you have any questions.');
-  return L.join('\n');
-}
-async function dfMailAssignment(studentIds,subject,makeBody){
-  var out={sent:0,total:(studentIds||[]).length,note:''};
+// Signup / password-reset codes: the code is already saved in the database by the app; this asks the
+// email service to send the newest active one. Returns true when the email went out (or was already sent).
+async function dfSendCodeEmail(email,kind,name){
+  var msg='';
   try{
-    if(!out.total)return out;
-    var names={};
-    try{
-      var pr=await sb.from('profiles').select('id,full_name').in('id',studentIds);
-      (pr.data||[]).forEach(function(p){names[p.id]=p.full_name||'';});
-    }catch(e){}
-    var okIds=[];
-    for(var i=0;i<studentIds.length;i++){
-      var first=String(names[studentIds[i]]||'').trim().split(/\s+/)[0]||'there';
-      try{
-        var r=await sb.rpc('mail_send',{p_recipient:studentIds[i],p_subject:subject,p_body:makeBody(first)});
-        if(r.error)throw new Error(r.error.message);
-        okIds.push(r.data);
-      }catch(e){console.warn('assignment mail not saved',e);}
-    }
-    if(okIds.length){
-      try{
-        var res=await dfMailSendEmails(okIds);
-        out.sent=okIds.length-((res&&res.failed)?res.failed.length:0);
-      }catch(e){console.warn('assignment email not sent',e);}
-    }
-    try{dfMailRefreshUnread();}catch(e){}
-    if(out.sent===out.total)out.note=' \u00b7 '+(out.total===1?'student emailed':'students emailed');
-    else if(out.sent>0)out.note=' \u00b7 emailed '+out.sent+' of '+out.total+' (the rest could not be emailed)';
-    else out.note=' \u00b7 the email could not be sent';
+    var res=await fetch(DF_EMAIL_FN,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'code',kind:kind,email:email,name:name||''})});
+    var d=null;try{d=await res.json();}catch(e){}
+    if(d&&d.ok)return true;
+    if(d&&d.error==='rate_limited')msg='Too many codes were requested. Please wait a few minutes and try again.';
+    else if(d&&d.error==='no_active_code')msg='';
+    else msg='We could not send the email just now. Please tap Resend code in a minute.';
   }catch(e){
-    console.warn('assignment mail failed',e);
-    out.note=' \u00b7 the email could not be sent';
+    msg='We could not send the email just now. Check your connection and tap Resend code.';
   }
-  return out;
+  if(msg){try{dfToast(msg);}catch(e){}}
+  return false;
 }
 
 // ───────────────────────────── MAIL ATTACHMENTS ─────────────────────────────
@@ -5279,7 +5239,7 @@ pricing.append(
 );
 nbd.append(nbdLabel,accName,acc,transit,pricing);
 var emailNote=div({style:{fontFamily:"Inter,sans-serif",fontSize:'12px',color:'var(--muted)',marginBottom:'20px',lineHeight:'1.7'}});
-emailNote.append(document.createTextNode('After paying, email your receipt to '),h('strong',{style:{color:'var(--gold)'}},['deofortistutors@gmail.com']),document.createTextNode('. Also email us there for any payment issues.'));
+emailNote.append(document.createTextNode('After paying, email your receipt to '),h('strong',{style:{color:'var(--gold)'}},['noreply.deofortis@gmail.com']),document.createTextNode('. Also email us there for any payment issues.'));
 box.append(header,notice,nbd,emailNote,btn('Continue to Payment \u2192','btn-gold',function(){ov.remove();onContinue();},{style:{width:'100%',padding:'14px',marginBottom:'8px'}}),btn('Cancel','btn-outline',function(){ov.remove();},{style:{width:'100%',padding:'10px',fontSize:'12px'}}));
 ov.append(box);document.body.append(ov);
 }
@@ -5366,7 +5326,7 @@ const submitBtn=btn('Continue','btn-gold',async()=>{
   var expires=new Date(Date.now()+15*60*1000).toISOString();
   var{error:codeErr}=await sb.from('verification_codes').insert({email:emailI.value.trim(),code,expires_at:expires,is_used:false,attempts:0});
   if(codeErr){errEl.classList.remove('hidden');errEl.textContent='Could not send verification code. Please try again.';submitBtn.textContent='Continue';submitBtn.disabled=false;return;}
-  try{await fetch('https://script.google.com/macros/s/AKfycbxh_qahHUtBuc3IlYDTeWPlp4GG_zksJWUA5ewLijK1mEmd5FynsttlCRJqgkhqE4QQCg/exec',{method:'POST',body:JSON.stringify({action:'send_verification',email:emailI.value.trim(),name:nameI.value.trim(),code})});}catch(e){}
+  await dfSendCodeEmail(emailI.value.trim(),'verify',nameI.value.trim());
   formView.style.display='none';verifyView.style.display='block';
   verifyLbl.textContent='We sent a 6-digit code to '+emailI.value.trim()+'. It may take up to 1 minute.';
   submitBtn.textContent='Continue';submitBtn.disabled=false;
@@ -5402,7 +5362,7 @@ enrolResend.onclick=async function(){
   var newCode=String(Math.floor(100000+Math.random()*900000));
   var newExpires=new Date(Date.now()+15*60*1000).toISOString();
   await sb.from('verification_codes').insert({email:emailI.value.trim(),code:newCode,expires_at:newExpires,is_used:false,attempts:0});
-  try{await fetch('https://script.google.com/macros/s/AKfycbxh_qahHUtBuc3IlYDTeWPlp4GG_zksJWUA5ewLijK1mEmd5FynsttlCRJqgkhqE4QQCg/exec',{method:'POST',body:JSON.stringify({action:'send_verification',email:emailI.value.trim(),name:nameI.value.trim(),code:newCode})});}catch(e){}
+  await dfSendCodeEmail(emailI.value.trim(),'verify',nameI.value.trim());
   verifyErr.classList.remove('hidden');verifyErr.style.background='var(--correct-bg)';verifyErr.style.border='1px solid var(--teal)';verifyErr.style.color='var(--teal)';
   verifyErr.textContent='New code sent. Check your email.';
 };
@@ -5506,9 +5466,7 @@ var code=String(Math.floor(100000+Math.random()*900000));
 var expires=new Date(Date.now()+15*60*1000).toISOString();
 var{error:codeErr}=await sb.from('verification_codes').insert({email:emailVal,code:code,expires_at:expires,is_used:false,attempts:0});
 if(codeErr){errBox.classList.remove('hidden');errBox.textContent='Could not send verification code. Please try again.';submitBtn.textContent=sel?'Continue — '+sel.price:'Continue';submitBtn.disabled=false;return;}
-try{
-  await fetch('https://script.google.com/macros/s/AKfycbxh_qahHUtBuc3IlYDTeWPlp4GG_zksJWUA5ewLijK1mEmd5FynsttlCRJqgkhqE4QQCg/exec',{method:'POST',body:JSON.stringify({action:'send_verification',email:emailVal,name:nameVal,code:code})});
-}catch(e){}
+await dfSendCodeEmail(emailVal,'verify',nameVal);
 pendingSignupData={nameVal,emailVal,passVal,sel};
 fc.style.display='none';
 verifyView.style.display='block';
@@ -5603,7 +5561,7 @@ resendLink.onclick=async function(){
   var newCode=String(Math.floor(100000+Math.random()*900000));
   var newExpires=new Date(Date.now()+15*60*1000).toISOString();
   await sb.from('verification_codes').insert({email:pendingSignupData.emailVal,code:newCode,expires_at:newExpires,is_used:false,attempts:0});
-  try{await fetch('https://script.google.com/macros/s/AKfycbxh_qahHUtBuc3IlYDTeWPlp4GG_zksJWUA5ewLijK1mEmd5FynsttlCRJqgkhqE4QQCg/exec',{method:'POST',body:JSON.stringify({action:'send_verification',email:pendingSignupData.emailVal,name:pendingSignupData.nameVal,code:newCode})});}catch(e){}
+  await dfSendCodeEmail(pendingSignupData.emailVal,'verify',pendingSignupData.nameVal);
   verifyErr.classList.remove('hidden');verifyErr.style.background='var(--correct-bg)';verifyErr.style.border='1px solid var(--teal)';verifyErr.style.color='var(--teal)';
   verifyErr.textContent='New code sent. Check your email.';
 };
@@ -5650,13 +5608,13 @@ function showPrivacyModal(){
   box.append(dfLogo());
   box.append(h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'20px',marginBottom:'20px'},html:'Privacy Policy'}));
   var sections=[
-    {t:'Who We Are',b:'Deo Fortis is a medical education platform at deofortis.work. Contact us at deofortistutors@gmail.com.'},
+    {t:'Who We Are',b:'Deo Fortis is a medical education platform at deofortis.work. Contact us at noreply.deofortis@gmail.com.'},
     {t:'Eligibility',b:'This platform is for users aged 16 and above. By signing up you confirm you meet this requirement.'},
     {t:'What We Collect',b:'We collect your name, email, and study activity (questions answered, flashcard sessions, notes, Feynman submissions, active recall requests, streaks, and points). We do NOT collect payment information — payments are handled entirely by Selar.'},
     {t:'How We Use It',b:'To create and manage your account, deliver platform features, send account emails, calculate your leaderboard ranking, and improve the platform. We do not sell your data.'},
     {t:'Who We Share With',b:'Supabase (database and auth), Google Apps Script (emails), and Cloudflare (AI Tutor). We share no data with any other third parties.'},
     {t:'Data Storage',b:'Your data may be stored in servers worldwide including the US and EU through our service providers. By signing up you consent to this.'},
-    {t:'Your Rights',b:'You can access, correct, or delete your data at any time by emailing deofortistutors@gmail.com. Account deletion is processed within 30 days.'},
+    {t:'Your Rights',b:'You can access, correct, or delete your data at any time by emailing noreply.deofortis@gmail.com. Account deletion is processed within 30 days.'},
     {t:'Cookies',b:'We use browser local storage (not cookies) to remember your session and preferences. We do not use advertising cookies or tracking pixels.'},
   ];
   sections.forEach(function(s){
@@ -5678,11 +5636,11 @@ function showTermsModal(){
     {t:'Eligibility',b:'You must be at least 16 years old to use Deo Fortis.'},
     {t:'What We Provide',b:'Deo Fortis is a study aid — Q-Bank, flashcards, active recall, Feynman Arena, AI Tutor, and progress tracking. It is not a substitute for formal medical education. Passing any licensing examination is not guaranteed.'},
     {t:'Accounts',b:'You are responsible for keeping your credentials secure. Do not share your account. Each subscription is for one individual user only.'},
-    {t:'Subscriptions',b:'Payments are processed by Selar. Subscription fees are non-refundable except where required by law. Contact deofortistutors@gmail.com for concerns.'},
+    {t:'Subscriptions',b:'Payments are processed by Selar. Subscription fees are non-refundable except where required by law. Contact noreply.deofortis@gmail.com for concerns.'},
     {t:'Acceptable Use',b:'Do not share credentials, bypass subscription restrictions, upload harmful content, attempt to hack the platform, or impersonate others. Violations result in immediate account termination without refund.'},
     {t:'Our Content',b:'All Q-Bank questions, flashcard decks, theory notes, and educational materials are our intellectual property. You may not copy or distribute them outside the platform.'},
     {t:'Limitation of Liability',b:'Deo Fortis is not liable for failure to pass any examination, loss of study data due to technical issues beyond our control, or any indirect loss from use of the platform.'},
-    {t:'Contact',b:'For questions about these Terms email deofortistutors@gmail.com.'},
+    {t:'Contact',b:'For questions about these Terms email noreply.deofortis@gmail.com.'},
   ];
   sections.forEach(function(s){
     box.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'13px',fontWeight:'700',color:'var(--gold)',marginBottom:'4px',marginTop:'16px'},html:s.t}));
@@ -5771,6 +5729,7 @@ const fpSendBtn=btn('Send Reset Code','btn-gold',async()=>{
   const code=String(Math.floor(100000+Math.random()*900000));
   const expires=new Date(Date.now()+15*60*1000).toISOString();
   await sb.from('reset_codes').insert({email:em.toLowerCase().trim(),code,expires_at:expires,is_used:false,email_sent:false,attempts:0});
+  await dfSendCodeEmail(em,'reset');
   fpSendBtn.textContent='Send Reset Code';fpSendBtn.disabled=false;
   otpLabel.textContent='We sent a 6-digit code to '+em+'. It may take up to 1 minute to arrive.';
   show('otp');
@@ -5806,7 +5765,8 @@ otpResend.onclick=async()=>{
   const em=fpEmailI.value.trim();
   const code=String(Math.floor(100000+Math.random()*900000));
   const expires=new Date(Date.now()+15*60*1000).toISOString();
-  await sb.from('reset_codes').insert({email:em,code,expires_at:expires,is_used:false,email_sent:false,attempts:0});
+  await sb.from('reset_codes').insert({email:em.toLowerCase().trim(),code,expires_at:expires,is_used:false,email_sent:false,attempts:0});
+  await dfSendCodeEmail(em,'reset');
   otpErr.classList.remove('hidden');otpErr.style.background='var(--correct-bg)';otpErr.style.border='1px solid var(--teal)';otpErr.style.color='var(--teal)';
   otpErr.textContent='New code sent. Check your email.';
 };
@@ -8831,7 +8791,7 @@ const lIs={};
 card.append(h('hr',{style:{border:'none',borderTop:'1px solid var(--border)',margin:'24px 0'}}));
 card.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'18px',marginBottom:'16px'},html:'Platform Links'}));
 const comI=inp('https://...','text',set.community_link||'');
-const supI=inp('deofortistutors@gmail.com','email',set.support_email||'');
+const supI=inp('noreply.deofortis@gmail.com','email',set.support_email||'');
 const spI=inp('https://... (study partner matching form or link)','text',set.link_study_partner||'');
 const khI=inp('https://... (Kahoot signup form or link)','text',set.link_kahoot||'');
 card.append(field('Community Link (Forum / Discord / WhatsApp)',comI),field('Support Email (shown on dashboard)',supI),field('Study Partner Matching Link',spI),field('Bimonthly Kahoot Link',khI));
@@ -9815,7 +9775,6 @@ function openAssignAssessment(opts){
   function aaSt(m,c){aaStatus.textContent=m;aaStatus.style.color=c||'var(--muted)';aaStatus.style.display='block';}
 
   var assessSel=h('select',{cls:'input',style:{width:'100%',marginBottom:'14px'}},[]);
-  var assessMeta={};
   var studWrap=div({style:{marginBottom:'14px'}},[]);
   var pickedStudents={};
   var dueInput=h('input',{cls:'input',type:'date',style:{width:'220px',marginBottom:'8px'}});
@@ -9829,15 +9788,7 @@ function openAssignAssessment(opts){
     var rows=sids.map(function(sid){return{assessment_id:assessmentId,student_id:sid,due_date:dueInput.value||null,due_time:dueInput.value?(dueTimeInput.value||null):null};});
     var ins=await sb.from('tutoring_assessment_assignments').insert(rows);
     if(ins.error){aaSt('Failed: '+ins.error.message,'#ff4444');assignBtn.disabled=false;return;}
-    var aMailNote='';
-    if(dueInput.value){aMailNote=' \u00b7 scheduling email will go out shortly';}
-    else{
-      aaSt('\u2713 Assigned to '+sids.length+' student'+(sids.length>1?'s':'')+'. Sending emails\u2026','var(--teal)');
-      var am=assessMeta[assessmentId]||{};
-      var amail=await dfMailAssignment(sids,'New assessment assigned: '+(am.title||'Assessment'),function(first){return dfAssignBody('assessment',first,{title:am.title,mode:am.mode});});
-      aMailNote=amail.note;
-    }
-    aaSt('\u2713 Assigned to '+sids.length+' student'+(sids.length>1?'s':'')+aMailNote+'.','var(--teal)');
+    aaSt('\u2713 Assigned to '+sids.length+' student'+(sids.length>1?'s':'')+' \u00b7 they will be emailed.','var(--teal)');
     assignBtn.disabled=false;
     refreshAssignList();
   },{style:{fontSize:'12px',padding:'8px 16px'}});
@@ -9846,7 +9797,7 @@ function openAssignAssessment(opts){
   card.append(h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--muted)',marginBottom:'6px',textTransform:'uppercase',letterSpacing:'1px'},html:'Students'}),studWrap);
   card.append(h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--muted)',marginBottom:'6px',textTransform:'uppercase',letterSpacing:'1px'},html:'Due date (optional)'}),dueInput);
   card.append(h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--muted)',marginBottom:'6px',textTransform:'uppercase',letterSpacing:'1px'},html:'Due time (optional)'}),dueTimeInput);
-  card.append(h('div',{style:{fontSize:'11px',color:'var(--dim)',marginBottom:'14px'}},['Students can only start on the due date shown above. If you set a due date, a scheduling notice email goes out automatically within a few minutes. Use \u201cUnlock now\u201d below to open it early for a specific student.']));
+  card.append(h('div',{style:{fontSize:'11px',color:'var(--dim)',marginBottom:'14px'}},['Students can only start on the due date shown above. Students are emailed as soon as you assign it. Use \u201cUnlock now\u201d below to open it early for a specific student.']));
   card.append(div({},[assignBtn]),aaStatus);
   tBody.append(card);
 
@@ -9885,7 +9836,7 @@ function openAssignAssessment(opts){
 
   (async function(){
     var a=await sb.from('tutoring_assessments').select('id,title,mode,published').eq('published',true).order('created_at',{ascending:false});
-    (a.data||[]).forEach(function(x){assessMeta[x.id]=x;var o=h('option',{value:x.id},[x.title+' \u00b7 '+(x.mode==='timed'?'Timed':'Tutor')]);assessSel.append(o);});
+    (a.data||[]).forEach(function(x){var o=h('option',{value:x.id},[x.title+' \u00b7 '+(x.mode==='timed'?'Timed':'Tutor')]);assessSel.append(o);});
     if(opts.assessmentId){assessSel.value=opts.assessmentId;assessSel.disabled=true;}
     var students=await fetchEnrolled();
     students.forEach(function(s){studentNameMap[s.user_id]=s.full_name;});
@@ -10421,7 +10372,6 @@ function openAssign(opts){
   function aSt(m,c){aStatus.textContent=m;aStatus.style.color=c||'var(--muted)';aStatus.style.display='block';}
 
   var testSel=h('select',{cls:'input',style:{width:'100%',marginBottom:'14px'}},[]);
-  var testMeta={};
   var studWrap=div({style:{marginBottom:'14px'}},[]);
   var pickedStudents={};
   var dueInput=h('input',{cls:'input',type:'date',style:{width:'220px',marginBottom:'8px'}});
@@ -10435,10 +10385,7 @@ function openAssign(opts){
     var rows=sids.map(function(sid){return{test_id:testId,student_id:sid,assigned_by:S.user.id,due_date:dueInput.value||null,due_time:dueInput.value?(dueTimeInput.value||null):null};});
     var ins=await sb.from('tutoring_assignments').insert(rows);
     if(ins.error){aSt('Failed: '+ins.error.message,'#ff4444');assignBtn.disabled=false;return;}
-    aSt('\u2713 Assigned to '+sids.length+' student'+(sids.length>1?'s':'')+'. Sending emails\u2026','var(--teal)');
-    var tm=testMeta[testId]||{};
-    var tmail=await dfMailAssignment(sids,'New test assigned: '+(tm.title||'Test'),function(first){return dfAssignBody('test',first,{title:tm.title,mode:tm.mode,timeLimit:tm.time_limit,dueDate:dueInput.value,dueTime:dueTimeInput.value});});
-    aSt('\u2713 Assigned to '+sids.length+' student'+(sids.length>1?'s':'')+tmail.note+'.','var(--teal)');
+    aSt('\u2713 Assigned to '+sids.length+' student'+(sids.length>1?'s':'')+' \u00b7 they will be emailed.','var(--teal)');
     assignBtn.disabled=false;
   },{style:{fontSize:'12px',padding:'8px 16px'}});
 
@@ -10451,7 +10398,7 @@ function openAssign(opts){
 
   (async function(){
     var t=await sb.from('tutoring_tests').select('id,title,mode,time_limit').order('created_at',{ascending:false});
-    (t.data||[]).forEach(function(x){testMeta[x.id]=x;var o=h('option',{value:x.id},[x.title+' \u00b7 '+(x.mode==='timed'?'Timed':'Tutor')]);testSel.append(o);});
+    (t.data||[]).forEach(function(x){var o=h('option',{value:x.id},[x.title+' \u00b7 '+(x.mode==='timed'?'Timed':'Tutor')]);testSel.append(o);});
     if(opts.testId){testSel.value=opts.testId;testSel.disabled=true;}
     var students=await fetchEnrolled();
     studWrap.innerHTML='';
@@ -11558,7 +11505,7 @@ function openStudent(s){
     var kNote=h('input',{cls:'input',placeholder:'Note (optional)',style:{width:'100%',marginBottom:'8px'}});
     var kDue=h('input',{cls:'input',type:'date',style:{width:'200px',marginBottom:'8px'}});
     var kSt=div({style:{display:'none',fontSize:'12px',marginBottom:'8px'}},[]);
-    var addBtn=btn('Add task','btn-gold',async function(){var title=kTitle.value.trim();if(!title){kSt.textContent='Add a task title.';kSt.style.color='#ff4444';kSt.style.display='block';return;}addBtn.disabled=true;var ins=await sb.from('tutoring_tasks').insert({student_id:s.user_id,assigned_by:S.user.id,title:title,note:kNote.value.trim()||null,due_date:kDue.value||null}).select().single();addBtn.disabled=false;if(ins.error||!ins.data){kSt.textContent='Failed: '+(ins.error&&ins.error.message||'unknown');kSt.style.color='#ff4444';kSt.style.display='block';return;}tasks.unshift(ins.data);renderTaskList(tasks);var tkNote=kNote.value.trim(),tkDue=kDue.value;kTitle.value='';kNote.value='';kDue.value='';kSt.textContent='\u2713 Task added. Sending email\u2026';kSt.style.color='var(--teal)';kSt.style.display='block';addBtn.disabled=true;var tkMail=await dfMailAssignment([s.user_id],'New task assigned',function(first){return dfAssignBody('task',first,{title:title,note:tkNote,dueDate:tkDue});});addBtn.disabled=false;kSt.textContent='\u2713 Task added'+tkMail.note+'.';},{style:{fontSize:'12px',padding:'8px 16px'}});
+    var addBtn=btn('Add task','btn-gold',async function(){var title=kTitle.value.trim();if(!title){kSt.textContent='Add a task title.';kSt.style.color='#ff4444';kSt.style.display='block';return;}addBtn.disabled=true;var ins=await sb.from('tutoring_tasks').insert({student_id:s.user_id,assigned_by:S.user.id,title:title,note:kNote.value.trim()||null,due_date:kDue.value||null}).select().single();addBtn.disabled=false;if(ins.error||!ins.data){kSt.textContent='Failed: '+(ins.error&&ins.error.message||'unknown');kSt.style.color='#ff4444';kSt.style.display='block';return;}tasks.unshift(ins.data);renderTaskList(tasks);kTitle.value='';kNote.value='';kDue.value='';kSt.textContent='\u2713 Task added \u00b7 the student will be emailed.';kSt.style.color='var(--teal)';kSt.style.display='block';},{style:{fontSize:'12px',padding:'8px 16px'}});
     form.append(kTitle,kNote,kDue,div({},[addBtn]),kSt);
     body.append(form);
   })();
@@ -12778,10 +12725,15 @@ async function showTeamTab(){
       // Determine current shift slot
       // Schedule stores days Monday=0...Sunday=6; JS getDay() is Sunday=0...Saturday=6
       var now=new Date();
-      var currentDayInt=(now.getDay()+6)%7;
-      var hr=now.getHours();
-      var currentSlot=hr>=19?'7pm':hr>=15?'3pm':hr>=11?'11am':'7am';
-      var currentSlotLabel=hr>=19?'7pm–11pm':hr>=15?'3pm–7pm':hr>=11?'11am–3pm':'7am–11am';
+      // Shifts are in AST (UTC-4, no daylight saving) whatever time zone this screen is opened in.
+      // 11pm-7am has no shift of its own: it is covered by the 7am slot (the day-shift person) of the morning it is picked up.
+      var astNow=new Date(Date.now()-4*3600*1000);
+      var hr=astNow.getUTCHours();
+      var astDay=(astNow.getUTCDay()+6)%7; // Monday=0 ... Sunday=6
+      var overnight=hr>=23||hr<7;
+      var currentDayInt=hr>=23?(astDay+1)%7:astDay;
+      var currentSlot=overnight?'7am':hr>=19?'7pm':hr>=15?'3pm':hr>=11?'11am':'7am';
+      var currentSlotLabel=overnight?'overnight 11pm–7am AST, covered by the 7am–7pm shift':hr>=19?'7pm–11pm AST':hr>=15?'3pm–7pm AST':hr>=11?'11am–3pm AST':'7am–11am AST';
       var{data:shiftRows}=await sb.from('shift_schedule').select('worker_id').eq('day_of_week',currentDayInt).eq('slot',currentSlot);
       var onShiftIds=(shiftRows||[]).map(function(s){return s.worker_id;});
       var onShiftNames=onShiftIds.map(function(id){return workerMap[id]||'Unknown';});
