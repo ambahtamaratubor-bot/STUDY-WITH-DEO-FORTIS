@@ -6000,7 +6000,7 @@ nav.append(
   dfLogo(),
   div({cls:'df-nav-btns',style:{display:'flex',gap:'8px'}},[
     btn('Leaderboard','btn-outline',()=>go('leaderboard'),{style:{padding:'8px 16px'}}),
-    makeThemeBtn(),
+    dfSettingsNavBtn(),
     isFree?btn('⬆ Upgrade','btn-gold',()=>showUpgradeModal(),{style:{padding:'8px 16px'}}):null,
     btn('Log Out','btn-outline',()=>dfLogout(),{style:{padding:'8px 16px'}})
   ].filter(Boolean))
@@ -6008,8 +6008,8 @@ nav.append(
 page.append(nav);
 
 const container=div({cls:'inner'});
+{const _pa=dfPushAnnounceCard();if(_pa)container.append(_pa);}
 {const _wn=dfWhatsNewCard('student');if(_wn)container.append(_wn);}
-{const _pc=dfPushCard();if(_pc)container.append(_pc);}
 const tutHolder=div({});container.append(tutHolder);(async function(){const _te=await sb.from('tutoring_students').select('id').eq('user_id',S.user.id).eq('active',true).maybeSingle();if(!_te||!_te.data)return;const tw=div({cls:'card',style:{marginBottom:'16px',borderColor:'var(--gold)',cursor:'pointer',display:'flex',justifyContent:'space-between',alignItems:'center',gap:'16px',flexWrap:'wrap'}},[div({style:{flex:'1',minWidth:'200px'}},[h('div',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'17px',color:'var(--gold)',marginBottom:'4px'}},['Tutoring Wing']),h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'13px',color:'var(--muted)'}},['Your assigned tests, tasks and results'])]),h('span',{cls:'mono',style:{fontSize:'12px',color:'var(--gold)',flexShrink:'0'}},['Enter →'])]);tw.onclick=function(){go('tutoring');};tutHolder.append(tw);})();
 page.append(container);
 
@@ -13390,53 +13390,182 @@ async function dfPushStatus(){
   }
   return{supported:true,enabled:true,prefs:row.data.prefs||{}};
 }
-function dfPushCard(){
-  if(!S.user)return null;
-  // Hide entirely where push can never work (unless it is iPhone, where we explain Add to Home Screen).
-  if(!dfPushSupported()&&!dfPushIsIOS())return null;
-  var card=div({cls:'card',style:{marginBottom:'16px'}},[]);
-  var title=h('div',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'17px',color:'var(--gold)',marginBottom:'4px'}},['Notifications']);
-  var blurb=h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'13px',color:'var(--muted)',lineHeight:'1.6',marginBottom:'12px'}},['Get alerts for class reminders, finished active recall requests, Feynman results and your study progress.']);
-  var msg=h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'12px',color:'var(--gold)',lineHeight:'1.5',marginBottom:'10px',display:'none'}},['']);
-  var body=div({},[]);
-  card.append(title,blurb,msg,body);
+// ───────────────────────────── SETTINGS (theme + notifications) ─────────────────────────────
+var _dfSetStyled=false;
+function dfEnsureSettingsStyles(){
+  if(_dfSetStyled)return;
+  _dfSetStyled=true;
+  var st=document.createElement('style');
+  st.textContent=
+    '.df-set-h{font-family:"DM Mono",monospace;font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin:0 0 4px;}'+
+    '.df-set-row{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:13px 0;border-bottom:1px solid var(--border);}'+
+    '.df-set-row:last-child{border-bottom:none;}'+
+    '.df-set-t{font-family:Inter,sans-serif;font-size:14px;font-weight:600;color:var(--text);}'+
+    '.df-set-d{font-family:Inter,sans-serif;font-size:12px;color:var(--muted);line-height:1.5;margin-top:2px;}'+
+    '.df-switch{position:relative;width:44px;height:24px;border-radius:999px;border:1px solid var(--border);background:var(--card2);cursor:pointer;flex-shrink:0;padding:0;transition:background .2s,border-color .2s;}'+
+    '.df-switch::after{content:"";position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;background:var(--muted);transition:transform .2s,background .2s;}'+
+    '.df-switch.on{background:var(--gold);border-color:var(--gold);}'+
+    '.df-switch.on::after{transform:translateX(20px);background:#0F0E0A;}'+
+    '.df-switch:disabled{opacity:.5;cursor:default;}'+
+    '.df-seg{display:inline-flex;border:1px solid var(--border);border-radius:999px;overflow:hidden;flex-shrink:0;}'+
+    '.df-seg-b{border:none;background:transparent;color:var(--muted);font-family:Inter,sans-serif;font-size:12px;font-weight:600;padding:7px 16px;cursor:pointer;}'+
+    '.df-seg-b.on{background:var(--gold);color:#0F0E0A;}'+
+    '.btn.df-set-nav{padding:8px 14px;display:inline-flex;align-items:center;gap:8px;}'+
+    '@media(max-width:600px){.btn.df-set-nav{padding:6px 8px;}.btn.df-set-nav svg{width:16px;height:16px;}}'+
+    '.df-set-note{font-family:Inter,sans-serif;font-size:12px;line-height:1.6;color:var(--muted);background:var(--card2);border-radius:8px;padding:12px 14px;margin-top:10px;}';
+  document.head.append(st);
+}
+function dfSwitch(on,onToggle){
+  var sw=h('button',{cls:'df-switch'+(on?' on':''),type:'button'},[]);
+  sw.setAttribute('role','switch');
+  sw.setAttribute('aria-checked',on?'true':'false');
+  sw.onclick=function(){onToggle(sw);};
+  return sw;
+}
+function dfSwitchSet(sw,on){
+  sw.className='df-switch'+(on?' on':'');
+  sw.setAttribute('aria-checked',on?'true':'false');
+}
+function dfSettingsRow(title,desc,control){
+  return div({cls:'df-set-row'},[
+    div({style:{flex:'1',minWidth:'0'}},[h('div',{cls:'df-set-t'},[title]),(desc?h('div',{cls:'df-set-d'},[desc]):null)]),
+    control
+  ]);
+}
+// Nav button for the student dashboard (carries a NEW pill while the feature is new).
+function dfSettingsNavBtn(){
+  // Gear icon on phones (the nav hides text spans there), gear + "Settings" on larger screens.
+  dfEnsureSettingsStyles();
+  var b=btn('','btn-outline df-set-nav',function(){dfOpenSettings();},{title:'Settings'});
+  b.setAttribute('aria-label','Settings');
+  var ic=document.createElement('div');
+  ic.style.cssText='display:inline-flex;align-items:center;';
+  ic.innerHTML='<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>';
+  b.append(ic,h('span',{},['Settings']));
+  var pill=dfNewSmall();
+  if(pill)b.append(pill);
+  return b;
+}
+var _dfSettingsOverlay=null;
+var _dfPushAnnounceDismiss=null;
+// opts.onEnabled: called once the student successfully turns notifications on.
+function dfOpenSettings(opts){
+  opts=opts||{};
+  if(_dfSettingsOverlay&&_dfSettingsOverlay.isConnected)return;
+  dfEnsureSettingsStyles();
+  var overlay=div({cls:'modal-bg',style:{zIndex:'100015'}},[]);
+  _dfSettingsOverlay=overlay;
+  var modal=div({cls:'card',style:{maxWidth:'460px',width:'100%',maxHeight:'90vh',overflowY:'auto',position:'relative'}},[]);
+  overlay.append(modal);
+  overlay.onclick=function(e){if(e.target===overlay)overlay.remove();};
+  modal.append(div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'18px'}},[
+    h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'24px',color:'var(--gold)',margin:'0'}},['Settings']),
+    btn('\u2715','',function(){overlay.remove();},{style:{background:'none',border:'none',color:'var(--muted)',fontSize:'18px',cursor:'pointer',padding:'4px 8px'}})
+  ]));
+
+  // Appearance
+  var themeNow=document.documentElement.getAttribute('data-theme')==='light'?'light':'dark';
+  var darkB=h('button',{cls:'df-seg-b'+(themeNow==='dark'?' on':''),type:'button'},['Dark']);
+  var lightB=h('button',{cls:'df-seg-b'+(themeNow==='light'?' on':''),type:'button'},['Light']);
+  function pickTheme(mode){
+    if((document.documentElement.getAttribute('data-theme')||'dark')!==mode)toggleTheme();
+    darkB.className='df-seg-b'+(mode==='dark'?' on':'');
+    lightB.className='df-seg-b'+(mode==='light'?' on':'');
+  }
+  darkB.onclick=function(){pickTheme('dark');};
+  lightB.onclick=function(){pickTheme('light');};
+  var appearance=div({style:{marginBottom:'26px'}},[
+    h('div',{cls:'df-set-h'},['Appearance']),
+    dfSettingsRow('Theme','Switch between dark and light mode.',div({cls:'df-seg'},[darkB,lightB]))
+  ]);
+  modal.append(appearance);
+
+  // Notifications
+  var notifBox=div({},[]);
+  var msg=h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'12px',color:'var(--gold)',lineHeight:'1.5',margin:'10px 0 0',display:'none'}},['']);
+  modal.append(div({},[h('div',{cls:'df-set-h'},['Notifications']),notifBox,msg]));
   function showMsg(t){msg.textContent=t||'';msg.style.display=t?'block':'none';}
+  var KIND_DESC={
+    recall:'When a request you made is ready.',
+    feynman:'When your submission is reviewed.',
+    class:'Shortly before your class starts.',
+    goal:'When you reach your daily study goal.',
+    weekly:'Your hours and streak, Sunday evening.',
+    streak:'An evening nudge if you have not studied yet.'
+  };
   async function paint(){
     var st={supported:false,enabled:false,prefs:{}};
     try{st=await dfPushStatus();}catch(e){console.warn('push status failed',e);}
-    body.innerHTML='';
-    if(!st.enabled){
-      body.append(btn('Turn on notifications','btn-gold',async function(){
-        showMsg('');
-        var r=await dfPushEnable();
-        if(!r.ok){showMsg(r.msg);return;}
-        await paint();
-      },{style:{padding:'8px 16px',fontSize:'12px'}}));
+    notifBox.innerHTML='';
+    if(dfPushIsIOS()&&!dfPushIsStandalone()){
+      notifBox.append(h('div',{cls:'df-set-note'},['On iPhone and iPad, notifications work once Deo Fortis is on your Home Screen. Tap the Share button in Safari, choose Add to Home Screen, then open Deo Fortis from there and come back to Settings.']));
       return;
     }
-    var prefs=Object.assign({},st.prefs);
-    var list=div({style:{display:'flex',flexDirection:'column',gap:'8px',marginBottom:'12px'}},[]);
-    DF_PUSH_KINDS.forEach(function(kind){
-      var row=div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',gap:'12px'}},[]);
-      var label=h('span',{style:{fontFamily:'Inter,sans-serif',fontSize:'13px',color:'var(--text)'}},[kind.label]);
-      var toggle=btn(prefs[kind.k]===false?'Off':'On',prefs[kind.k]===false?'btn-outline':'btn-teal',async function(){
-        prefs[kind.k]=prefs[kind.k]===false?true:false;
-        var res=await sb.from('push_subscriptions').update({prefs:prefs}).eq('user_id',S.user.id);
-        if(res.error){prefs[kind.k]=prefs[kind.k]===false?true:false;showMsg('Could not save that change. Try again.');return;}
-        showMsg('');
-        toggle.textContent=prefs[kind.k]===false?'Off':'On';
-        toggle.className=prefs[kind.k]===false?'btn btn-outline':'btn btn-teal';
-      },{style:{padding:'4px 14px',fontSize:'11px',minWidth:'52px'}});
-      row.append(label,toggle);
-      list.append(row);
-    });
-    body.append(list);
-    body.append(btn('Turn off on this device','btn-outline',async function(){
-      await dfPushDisable();
+    if(!dfPushSupported()){
+      notifBox.append(h('div',{cls:'df-set-note'},['This browser does not support notifications. Try Chrome, Edge, Firefox or Safari on a recent device.']));
+      return;
+    }
+    if(Notification.permission==='denied'){
+      notifBox.append(h('div',{cls:'df-set-note'},['Notifications are blocked for Deo Fortis. Allow them in your browser or phone settings, then come back here to turn them on.']));
+      return;
+    }
+    var master=dfSwitch(st.enabled,async function(sw){
+      showMsg('');
+      sw.disabled=true;
+      try{
+        if(st.enabled){await dfPushDisable();}
+        else{
+          var r=await dfPushEnable();
+          if(!r.ok){showMsg(r.msg);}
+          else{
+            try{if(_dfPushAnnounceDismiss)_dfPushAnnounceDismiss();}catch(e){}
+            if(opts.onEnabled){try{opts.onEnabled();}catch(e){}}
+          }
+        }
+      }catch(e){showMsg('Something went wrong. Please try again.');}
       await paint();
-    },{style:{padding:'6px 14px',fontSize:'11px'}}));
+    });
+    notifBox.append(dfSettingsRow('Notifications',st.enabled?'On for this device.':'Class reminders, results and study updates.',master));
+    if(!st.enabled)return;
+    var prefs=Object.assign({},st.prefs);
+    DF_PUSH_KINDS.forEach(function(kind){
+      var on=prefs[kind.k]!==false;
+      var sw=dfSwitch(on,async function(sw2){
+        var next=prefs[kind.k]===false;
+        prefs[kind.k]=next;
+        dfSwitchSet(sw2,next);
+        var res=await sb.from('push_subscriptions').update({prefs:prefs}).eq('user_id',S.user.id);
+        if(res.error){prefs[kind.k]=!next;dfSwitchSet(sw2,!next);showMsg('Could not save that change. Try again.');return;}
+        showMsg('');
+      });
+      notifBox.append(dfSettingsRow(kind.label,KIND_DESC[kind.k]||'',sw));
+    });
+    notifBox.append(h('div',{cls:'df-set-d',style:{marginTop:'12px'}},['Notifications are set per device. Turn them on again on each phone or computer you use.']));
   }
   paint();
+  document.body.append(overlay);
+}
+// One-time announcement on the student dashboard pointing to Settings.
+function dfPushAnnounceCard(){
+  if(!S.user)return null;
+  try{if(localStorage.getItem('df_push_announce_v1')==='1')return null;}catch(e){}
+  if(!dfPushSupported()&&!dfPushIsIOS())return null;
+  var card=div({cls:'card',style:{marginBottom:'16px',border:'1px solid var(--gold)',background:'rgba(184,146,46,0.06)'}},[]);
+  function dismiss(){try{localStorage.setItem('df_push_announce_v1','1');}catch(e){}card.remove();}
+  _dfPushAnnounceDismiss=dismiss;
+  card.append(div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'8px'}},[
+    h('div',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'17px',fontWeight:'700',color:'var(--gold)'}},['Notifications are here',dfNew()]),
+    btn('\u2715','',dismiss,{style:{background:'none',border:'none',color:'var(--muted)',fontSize:'16px',cursor:'pointer',padding:'2px 8px'},title:'Dismiss'})
+  ]));
+  card.append(h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'13px',color:'var(--muted)',lineHeight:'1.6',marginBottom:'14px'}},['Get class reminders, results from your tutors and study updates, even when the app is closed. Turn them on in Settings.']));
+  card.append(div({style:{display:'flex',gap:'8px',flexWrap:'wrap'}},[
+    btn('Open Settings','btn-gold',function(){dfOpenSettings({onEnabled:dismiss});},{style:{padding:'8px 16px',fontSize:'12px'}}),
+    btn('Not now','btn-outline',dismiss,{style:{padding:'8px 16px',fontSize:'12px'}})
+  ]));
+  // Already on? Then there is nothing to announce.
+  (async function(){
+    try{var st=await dfPushStatus();if(st.enabled)dismiss();}catch(e){}
+  })();
   return card;
 }
 
