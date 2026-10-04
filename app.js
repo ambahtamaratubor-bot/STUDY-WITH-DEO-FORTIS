@@ -148,10 +148,14 @@ async function dfHandleAsyncError(e){
   try{
     var _rs=await Promise.race([sb.auth.getSession(),new Promise(function(_,rej){setTimeout(function(){rej(new Error('timeout'));},6000);})]);
     var _sess=_rs&&_rs.data&&_rs.data.session;
-    if(!_sess){alert('Your session has expired. Please sign in again.');await dfLogout();}
+    if(!_sess){
+      // One more try to refresh before giving up, and never log out while offline.
+      try{var _rf=await sb.auth.refreshSession();_sess=_rf&&_rf.data&&_rf.data.session;}catch(e4){}
+      if(!_sess&&navigator.onLine!==false){alert('Your session has expired. Please sign in again.');await dfLogout();}
+    }
   }catch(e2){
-    alert('Your session has expired. Please sign in again.');
-    try{await dfLogout();}catch(e3){}
+    // Timeout or network trouble (common when a phone or iPad wakes up). The session is still stored: stay signed in.
+    console.warn('df: session check inconclusive, staying signed in',e2);
   }finally{
     window._dfRecovering=false;
   }
@@ -159,25 +163,42 @@ async function dfHandleAsyncError(e){
 window.addEventListener('unhandledrejection',function(ev){dfHandleAsyncError(ev.reason);});
 async function dfLogout(){
   try{await dfPushDetach();}catch(e){}
-  try{await sb.auth.signOut();}catch(e){console.warn('signOut (global) failed, forcing local cleanup',e);}
-  try{await sb.auth.signOut({scope:'local'});}catch(e){}
+  // scope:'local' signs out THIS device only. The default (global) revoked every other device's session too,
+  // which is why logging out on a laptop signed the phone and iPad out as well.
+  try{await sb.auth.signOut({scope:'local'});}catch(e){console.warn('signOut failed, forcing local cleanup',e);}
   try{localStorage.removeItem('df-auth');}catch(e){}
+  try{localStorage.removeItem('df-admin-session');}catch(e){}
+  window._dfTeamPush=false;
   S.user=null;S.profile=null;
   go('landing');
 }
 async function getProfile(id){
-let data,error;
-try{
-  var _r0=await sb.from('profiles').select('*').eq('id',id).single();
-  data=_r0.data;error=_r0.error;
-  if(!data&&error){
-    await sb.auth.refreshSession();
-    const retry=await sb.from('profiles').select('*').eq('id',id).single();
-    data=retry.data;
+let data,error,netFail=false;
+for(var _try=0;_try<3&&!data;_try++){
+  try{
+    var _r0=await sb.from('profiles').select('*').eq('id',id).single();
+    data=_r0.data;error=_r0.error;
+    if(!data&&error){
+      var _msg=String(error.message||'');
+      if(error.code==='PGRST116'||/JWT|expired|invalid|unauthor/i.test(_msg)){
+        try{await sb.auth.refreshSession();}catch(e0){}
+        const retry=await sb.from('profiles').select('*').eq('id',id).single();
+        data=retry.data;netFail=false;
+        break;
+      }
+      netFail=true;
+    }else{netFail=false;}
+  }catch(e){
+    console.warn('getProfile: failed to load/refresh profile',e);
+    data=null;netFail=true;
   }
-}catch(e){
-  console.warn('getProfile: failed to load/refresh profile',e);
-  data=null;
+  if(!data&&netFail&&_try<2)await new Promise(function(r){setTimeout(r,1000*(_try+1));});
+}
+if(!data&&netFail){
+  // Connection problem, not a bad session. Stay signed in and try again when the app comes back to the foreground.
+  console.warn('getProfile: connection problem, keeping the session');
+  try{dfToast('Connection problem. Reconnecting...');}catch(e){}
+  return;
 }
 if(!data){
   console.warn('getProfile: no profile after retry, signing out to reset state');
@@ -236,7 +257,8 @@ if(data){
   }
   if(requiredPage){if(S.page!==requiredPage)go(requiredPage);return;}
   var validPages=['dashboard','study','flashcards','vignette','feynman','theory','notes','leaderboard','tutoring'];
-  if(!validPages.includes(S.page)){go('dashboard');}
+  var _admKeep=false;try{_admKeep=S.page==='admin'&&localStorage.getItem('df-admin-session')==='1';}catch(e){}
+  if(!_admKeep&&!validPages.includes(S.page)){go('dashboard');}
 }
 }
 function h(tag,attr,kids){
@@ -569,19 +591,58 @@ function dfWhatsNewCard(kind,opts){
 }
 
 // ───────────────────────────── EVIDENCE MODE ─────────────────────────────
-var dfEvidence={on:false,enabledAt:'',loaded:false};
-async function dfRefreshEvidence(){
+var dfEvidence={on:false,enabledAt:'',loaded:false,fresh:false,uid:''};
+var _dfEvInflight=null;
+function dfEvidenceCacheKey(uid){return 'df-ev-state-'+uid;}
+// Load the last known state from this device immediately, so Evidence Mode is correct on the very first
+// question, before the network answers. The server value then confirms or corrects it.
+function dfEvidenceHydrate(){
+  if(!S.user)return;
+  if(dfEvidence.uid===S.user.id)return;
+  dfEvidence.uid=S.user.id;dfEvidence.on=false;dfEvidence.enabledAt='';dfEvidence.loaded=false;dfEvidence.fresh=false;
   try{
-    if(!S.user){dfEvidence.on=false;return;}
-    var r=await sb.from('tutoring_students').select('evidence_mode,evidence_enabled_at').eq('user_id',S.user.id).maybeSingle();
-    if(r&&r.error)return; // column/table missing or no access: keep previous state
-    var d=r&&r.data;
-    dfEvidence.on=!!(d&&d.evidence_mode);
-    dfEvidence.enabledAt=(d&&d.evidence_enabled_at)||'';
-    dfEvidence.loaded=true;
+    var c=JSON.parse(localStorage.getItem(dfEvidenceCacheKey(S.user.id))||'null');
+    if(c){dfEvidence.on=c.on===true;dfEvidence.enabledAt=c.at||'';dfEvidence.loaded=true;}
   }catch(e){}
 }
-function dfEvidenceActive(){return dfEvidence.on===true;}
+function dfEvidenceSleep(ms){return new Promise(function(res){setTimeout(res,ms);});}
+function dfRefreshEvidence(){
+  if(_dfEvInflight)return _dfEvInflight;
+  _dfEvInflight=(async function(){
+    try{
+      if(!S.user)return;
+      dfEvidenceHydrate();
+      var uid=S.user.id;
+      var rows=null;
+      for(var i=0;i<3;i++){
+        var r=await sb.from('tutoring_students').select('evidence_mode,evidence_enabled_at').eq('user_id',uid);
+        if(r&&!r.error){
+          rows=r.data||[];
+          // An empty answer while this device believes Evidence Mode is ON is usually a request that ran before the
+          // login token was attached. Ask again before believing it.
+          if(rows.length===0&&dfEvidence.on===true&&i<2){rows=null;await dfEvidenceSleep(1200*(i+1));continue;}
+          break;
+        }
+        await dfEvidenceSleep(800*(i+1));
+      }
+      if(rows===null&&dfEvidence.on===true){return;} // could not confirm: keep what we had
+      if(rows===null)return;
+      if(!S.user||S.user.id!==uid)return;
+      // A student can have more than one tutoring_students row. ON if any row says ON.
+      var on=false,at='';
+      rows.forEach(function(x){if(x&&x.evidence_mode===true){on=true;if(x.evidence_enabled_at&&x.evidence_enabled_at>at)at=x.evidence_enabled_at;}});
+      dfEvidence.on=on;dfEvidence.enabledAt=at;dfEvidence.loaded=true;dfEvidence.fresh=true;
+      try{localStorage.setItem(dfEvidenceCacheKey(uid),JSON.stringify({on:on,at:at}));}catch(e){}
+    }catch(e){}
+    finally{_dfEvInflight=null;}
+  })();
+  return _dfEvInflight;
+}
+function dfEvidenceActive(){
+  dfEvidenceHydrate();
+  if(S.user&&!dfEvidence.fresh&&!_dfEvInflight)dfRefreshEvidence();
+  return dfEvidence.on===true;
+}
 function dfEvidenceCount(store,qid){
   return ((store&&store[qid])||[]).filter(function(x){return x&&x.kind==='evidence';}).length;
 }
@@ -2520,14 +2581,14 @@ if(!S.user){
     ]);
     _rsess=_rs&&_rs.data&&_rs.data.session;
   }catch(e){
-    console.warn('df-auth: session check failed, clearing stale session',e);
-    try{await sb.auth.signOut({scope:'local'});}catch(e2){}
-    try{localStorage.removeItem('df-auth');}catch(e2){}
+    // Slow or failed check (typical when a phone or iPad wakes up). Keep the stored login; do not clear it.
+    console.warn('df-auth: session check inconclusive, keeping stored session',e);
   }
   if(_rsess&&_rsess.user){
     S.user=_rsess.user;
     var _savedPage=localStorage.getItem('df-page');
-    if(_savedPage&&_savedPage!=='landing'&&_savedPage!=='login'&&_savedPage!=='signup'&&_savedPage!=='admin'){S.page=_savedPage;}
+    var _admOk=false;try{_admOk=localStorage.getItem('df-admin-session')==='1';}catch(e){}
+    if(_savedPage&&_savedPage!=='landing'&&_savedPage!=='login'&&_savedPage!=='signup'&&(_savedPage!=='admin'||_admOk)){S.page=_savedPage;}
     if(!S.profile){await getProfile(_rsess.user.id);render();return;}return;
   }
 }
@@ -8409,7 +8470,7 @@ const tmBtn=btn('Team Login','btn-teal',async()=>{
     const{data,error}=await sb.auth.signInWithPassword({email,password});
     if(error){tmErr.classList.remove('hidden');tmErr.textContent='Invalid email or password.';return;}
     const{data:roleData}=await sb.from('admin_roles').select('role').eq('user_id',data.user.id).single();
-    if(!roleData){tmErr.classList.remove('hidden');tmErr.textContent='You do not have team access.';await sb.auth.signOut();return;}
+    if(!roleData){tmErr.classList.remove('hidden');tmErr.textContent='You do not have team access.';await sb.auth.signOut({scope:'local'});return;}
     S.user=data.user;
     const{data:teamProfile}=await sb.from('profiles').select('*').eq('id',data.user.id).single();
     S.profile=teamProfile||{};
@@ -8444,7 +8505,7 @@ wrap.append(tmCard);page.append(wrap);
 async function showAdminPanel(){
 page.innerHTML='';
 const aN=div({style:{background:'var(--nav-bg)',borderBottom:'1px solid var(--border)',padding:'16px 24px',display:'flex',alignItems:'center',justifyContent:'space-between',position:'sticky',top:'0',zIndex:'100'}});
-const aNRight=div({style:{display:'flex',gap:'8px'}},[makeThemeBtn(),btn('← Site','btn-outline',()=>go('landing'),{style:{padding:'8px 16px'}})]);aN.append(dfLogo(),aNRight);
+const aNRight=div({style:{display:'flex',gap:'8px'}},[makeThemeBtn(),btn('Notifications','btn-outline',function(){dfOpenSettings();},{style:{padding:'8px 16px'}}),btn('← Site','btn-outline',()=>go('landing'),{style:{padding:'8px 16px'}})]);aN.append(dfLogo(),aNRight);
 page.append(aN);
 const tabs=div({style:{display:'none'}});
 const content=div({cls:'inner-md',style:{padding:'24px'}});
@@ -8464,7 +8525,10 @@ try{
   panelIsSuperAdmin=false;
   panelIsTutor=false;
 }
-if(!panelIsSuperAdmin&&!panelTeamRole){page.innerHTML='';page.append(h('p',{style:{textAlign:'center',padding:'40px',color:'var(--dim)',fontFamily:'Inter,sans-serif'},html:'Access denied. You do not have a valid admin role.'}));return;}
+if(!panelIsSuperAdmin&&!panelTeamRole){page.innerHTML='';page.append(h('p',{style:{textAlign:'center',padding:'40px',color:'var(--dim)',fontFamily:'Inter,sans-serif'},html:'Access denied. You do not have a valid admin role.'}));try{localStorage.removeItem('df-admin-session');}catch(e){}return;}
+try{localStorage.setItem('df-admin-session','1');}catch(e){}
+window._dfTeamPush=true;
+try{dfPushStatus();}catch(e){} // re-attach this device's push subscription if the server row went missing
 if(panelIsTutor){
   await dfTutorBankGate();
   var _pdBtn=btn('My details','btn-outline',async()=>{var cur=await dfFetchTutorDetails(S.user.id);await dfBankForm({existing:dfMergeDetails(cur),fullName:(S.profile&&S.profile.full_name)||''});},{style:{padding:'8px 16px'}});dfPutNewOn(_pdBtn);aNRight.prepend(_pdBtn);
@@ -8538,7 +8602,8 @@ tabDefs.forEach(([id,label])=>{
 // Admin layout — sidebar + content
 const adminLayout=div({cls:'df-admin-layout',style:{display:'flex',minHeight:'calc(100vh - 57px)'}});
 const _adminWn=dfWhatsNewCard('admin',{superAdmin:panelIsSuperAdmin,tutor:panelIsTutor,availability:(panelIsSuperAdmin||panelTeamRole==='manager')});
-adminLayout.append(sidebar,div({style:{flex:'1',overflowY:'auto'}},[tabs,_adminWn?div({style:{padding:'20px 24px 0'}},[_adminWn]):null,content]));
+const _adminPa=dfPushAnnounceCard(true);
+adminLayout.append(sidebar,div({style:{flex:'1',overflowY:'auto'}},[tabs,_adminPa?div({style:{padding:'20px 24px 0'}},[_adminPa]):null,_adminWn?div({style:{padding:'20px 24px 0'}},[_adminWn]):null,content]));
 page.append(adminLayout);
 let currentFilter='pending';
 async function loadTab(tab){
@@ -10451,7 +10516,7 @@ function openStudent(s){
     var evBtn=btn('Evidence mode: \u2026','btn-outline',null,{style:{fontSize:'10px',padding:'6px 12px'}});
     var paintEv=function(){evBtn.textContent='Evidence mode: '+(evOn?'ON':'OFF');evBtn.style.color=evOn?'#ff6b6b':'';evBtn.style.borderColor=evOn?'#dc3545':'';dfPutNewOn(evBtn);};
     paintEv();
-    (async function(){var er=await sb.from('tutoring_students').select('evidence_mode').eq('user_id',s.user_id).maybeSingle();evOn=!!(er&&er.data&&er.data.evidence_mode);paintEv();})();
+    (async function(){var er=await sb.from('tutoring_students').select('evidence_mode').eq('user_id',s.user_id);evOn=!!(er&&er.data&&er.data.some(function(x){return x&&x.evidence_mode===true;}));paintEv();})();
     evBtn.onclick=async function(){
       var next=!evOn;
       if(next&&!confirm('Turn ON Evidence Mode for '+s.full_name+'? They must mark at least 2 pieces of evidence in each question before they can choose an answer, and they will see a step-by-step guide.'))return;
@@ -13096,7 +13161,18 @@ async function showTeamTab(){
   setActive('schedule');
 }
 }
-showLogin();return page;
+// Already signed in with an admin/team role? Go straight to the panel instead of asking for the password again.
+page.append(h('p',{style:{textAlign:'center',padding:'60px 24px',color:'var(--dim)',fontFamily:'Inter,sans-serif'}},['Loading...']));
+(async function(){
+  try{
+    if(S.user){
+      var _ar=await sb.from('admin_roles').select('role').eq('user_id',S.user.id).maybeSingle();
+      if(_ar&&_ar.data&&_ar.data.role){authed=true;showAdminPanel();return;}
+    }
+  }catch(e){console.warn('admin auto-login check failed',e);}
+  showLogin();
+})();
+return page;
 }
 // ═══════════════════════════════
 // AI TUTOR CHAT PANEL
@@ -13276,6 +13352,16 @@ const DF_PUSH_KINDS=[
   {k:'weekly',label:'Weekly study summary'},
   {k:'streak',label:'Streak reminders'}
 ];
+// Kinds shown to tutors and team members. The send-push function must use these same keys.
+const DF_PUSH_KINDS_TEAM=[
+  {k:'t_results',label:'Test results'},
+  {k:'t_assessment',label:'Assessment results'},
+  {k:'t_task',label:'Tasks completed'},
+  {k:'t_mail',label:'New mail'},
+  {k:'t_feynman',label:'Feynman submissions'},
+  {k:'t_recall',label:'Active recall requests'},
+  {k:'t_class',label:'Class reminders'}
+];
 function dfPushSupported(){return('serviceWorker' in navigator)&&('PushManager' in window)&&('Notification' in window);}
 function dfPushIsIOS(){return /iphone|ipad|ipod/i.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);}
 function dfPushIsStandalone(){return(window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches)||window.navigator.standalone===true;}
@@ -13445,7 +13531,14 @@ function dfOpenSettings(opts){
     class:'Shortly before your class starts.',
     goal:'When you reach your daily study goal.',
     weekly:'Your hours and streak, Sunday evening.',
-    streak:'An evening nudge if you have not studied yet.'
+    streak:'An evening nudge if you have not studied yet.',
+    t_results:'When one of your students finishes a test.',
+    t_assessment:'When one of your students finishes an assessment.',
+    t_task:'When a student marks a task as done.',
+    t_mail:'When someone sends you a message in the mailbox.',
+    t_feynman:'When a student submits a Feynman explanation.',
+    t_recall:'When a new active recall request comes in.',
+    t_class:'Shortly before one of your sessions starts.'
   };
   async function paint(){
     var st={supported:false,enabled:false,prefs:{}};
@@ -13482,7 +13575,7 @@ function dfOpenSettings(opts){
     notifBox.append(dfSettingsRow('Notifications',st.enabled?'On for this device.':'Class reminders, results and study updates.',master));
     if(!st.enabled)return;
     var prefs=Object.assign({},st.prefs);
-    DF_PUSH_KINDS.forEach(function(kind){
+    (window._dfTeamPush?DF_PUSH_KINDS_TEAM:DF_PUSH_KINDS).forEach(function(kind){
       var on=prefs[kind.k]!==false;
       var sw=dfSwitch(on,async function(sw2){
         var next=prefs[kind.k]===false;
@@ -13500,18 +13593,19 @@ function dfOpenSettings(opts){
   document.body.append(overlay);
 }
 // One-time announcement on the student dashboard pointing to Settings.
-function dfPushAnnounceCard(){
+function dfPushAnnounceCard(team){
   if(!S.user)return null;
-  try{if(localStorage.getItem('df_push_announce_v1')==='1')return null;}catch(e){}
+  var _akey=team?'df_push_announce_team_v1':'df_push_announce_v1';
+  try{if(localStorage.getItem(_akey)==='1')return null;}catch(e){}
   if(!dfPushSupported()&&!dfPushIsIOS())return null;
   var card=div({cls:'card',style:{marginBottom:'16px',border:'1px solid var(--gold)',background:'rgba(184,146,46,0.06)'}},[]);
-  function dismiss(){try{localStorage.setItem('df_push_announce_v1','1');}catch(e){}card.remove();}
+  function dismiss(){try{localStorage.setItem(_akey,'1');}catch(e){}card.remove();}
   _dfPushAnnounceDismiss=dismiss;
   card.append(div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'8px'}},[
     h('div',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'17px',fontWeight:'700',color:'var(--gold)'}},['Notifications are here',dfNew()]),
     btn('\u2715','',dismiss,{style:{background:'none',border:'none',color:'var(--muted)',fontSize:'16px',cursor:'pointer',padding:'2px 8px'},title:'Dismiss'})
   ]));
-  card.append(h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'13px',color:'var(--muted)',lineHeight:'1.6',marginBottom:'14px'}},['Get class reminders, results from your tutors and study updates, even when the app is closed. Turn them on in Settings.']));
+  card.append(h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'13px',color:'var(--muted)',lineHeight:'1.6',marginBottom:'14px'}},[team?'Get a notification on this device for test results, assessment results, new mail and more, even when the app is closed. Turn them on here.':'Get class reminders, results from your tutors and study updates, even when the app is closed. Turn them on in Settings.']));
   card.append(div({style:{display:'flex',gap:'8px',flexWrap:'wrap'}},[
     btn('Open Settings','btn-gold',function(){dfOpenSettings({onEnabled:dismiss});},{style:{padding:'8px 16px',fontSize:'12px'}}),
     btn('Not now','btn-outline',dismiss,{style:{padding:'8px 16px',fontSize:'12px'}})
@@ -13524,6 +13618,22 @@ function dfPushAnnounceCard(){
 }
 
 function getCurrentMonday(){var now=new Date();var day=now.getDay();var diff=day===0?6:day-1;var mon=new Date(now);mon.setDate(now.getDate()-diff);mon.setHours(0,0,0,0);return mon.toISOString().split('T')[0];}
+
+// Phones and iPads freeze the page in the background. When it wakes, refresh the login, the profile, push
+// and Evidence Mode instead of treating the pause as a logged-out session.
+try{if(navigator.storage&&navigator.storage.persist)navigator.storage.persist();}catch(e){}
+function dfOnForeground(){
+  try{sb.auth.startAutoRefresh();}catch(e){}
+  (async function(){
+    try{await sb.auth.getSession();}catch(e){}
+    try{if(S.user&&!S.profile)getProfile(S.user.id);}catch(e){}
+    try{if(S.user){dfRefreshEvidence();dfPushStatus();}}catch(e){}
+  })();
+}
+document.onvisibilitychange=function(){if(document.visibilityState==='visible')dfOnForeground();};
+window.onpageshow=function(){dfOnForeground();};
+window.ononline=function(){dfOnForeground();};
+setInterval(function(){if(document.visibilityState==='visible'&&S.user)dfRefreshEvidence();},45000);
 
 dfInitMail();
 render();
