@@ -556,14 +556,14 @@ function dfWhatsNewCard(kind,opts){
   var items=[];
   if(kind==='admin'){
     items.push({t:'Mailbox',d:'Message students and tutors from the Mail button. Replies arrive on the platform, and every message is also emailed to their registered address, signed with your name.',open:true});
-    if(opts.tutor)items.push({t:'My details',d:'Add your bank account, the date you started and your teaching availability (EST) using the My details button at the top.'});
+    if(opts.tutor)items.push({t:'My details',d:'Add your bank account, the date you started and your teaching availability (AST) using the My details button at the top.'});
     if(opts.superAdmin){
       items.push({t:'Payment periods',d:'Tutoring payments now show each period from its start date to one month later, with Paid, Owing, Part-paid, Overdue or Waived. Selar payments are recorded and receipted automatically, and the next period opens when one is paid or waived.'});
       items.push({t:'Account numbers on Payouts',d:'Each tutor\u2019s bank, account name and account number now show beside what you owe them.'});
       items.push({t:'Email student / Email tutors',d:'New buttons on each student profile, the Students list and the Payouts page.'});
       items.push({t:'Evidence Mode',d:'Turn it on per student from their profile. They must mark at least 2 pieces of evidence in a question before they can choose an answer.'});
     }
-    if(opts.availability)items.push({t:'Tutor availability',d:'See each tutor\u2019s weekly hours, current teaching load, and preferred days and times (EST) under Team \u2192 Tutor availability.'});
+    if(opts.availability)items.push({t:'Tutor availability',d:'See each tutor\u2019s weekly hours, current teaching load, and preferred days and times (AST) under Team \u2192 Tutor availability.'});
     items.push({t:'Simple AI explanations',d:'Every revealed answer, and every review, now has a plain-language explanation from Deo Tutor, ending with a \u201cNever miss this again\u201d trick.'});
     items.push({t:'Ask Deo about any question',d:'Under each explanation, students and tutors can ask follow-up questions about that exact question.'});
   }else{
@@ -1531,7 +1531,7 @@ async function dfRenderAvailabilityTab(container){
   var ar=await sb.from('tutor_availability').select('*');
   container.innerHTML='';
   container.append(h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'22px',marginBottom:'6px'}},['Tutor availability']));
-  container.append(h('p',{cls:'muted',style:{fontSize:'13px',marginBottom:'18px'}},['What each tutor told us about their teaching hours and preferred times. All times are in EST.']));
+  container.append(h('p',{cls:'muted',style:{fontSize:'13px',marginBottom:'18px'}},['What each tutor told us about their teaching hours and preferred times. All times are in AST.']));
   if(ar&&ar.error){
     container.append(div({cls:'card',style:{padding:'24px',textAlign:'center'}},[h('p',{style:{fontSize:'13px',color:'var(--dim)'}},['Could not load tutor availability: '+ar.error.message])]));
     return;
@@ -1563,7 +1563,7 @@ async function dfRenderAvailabilityTab(container){
     return row;
   }
   container.append(div({cls:'card',style:{marginBottom:'16px',padding:'16px'}},[
-    h('div',{style:{fontSize:'13px',fontWeight:'700',marginBottom:'10px'}},['Tutors who prefer each day and time (EST)']),
+    h('div',{style:{fontSize:'13px',fontWeight:'700',marginBottom:'10px'}},['Tutors who prefer each day and time (AST)']),
     coverage('Days',DF_DAYS,'preferred_days'),coverage('Time of day',DF_TIMES,'preferred_times')
   ]));
   if(!filled.length){
@@ -1571,7 +1571,7 @@ async function dfRenderAvailabilityTab(container){
   }else{
     var table=h('table',{style:{width:'100%',borderCollapse:'collapse',fontSize:'13px',minWidth:'720px'}},[]);
     var thead=h('tr',{},[]);
-    ['Tutor','Available / wk','Teaching now','Free','Preferred days','Time of day (EST)','Updated'].forEach(function(c,i){
+    ['Tutor','Available / wk','Teaching now','Free','Preferred days','Time of day (AST)','Updated'].forEach(function(c,i){
       thead.append(h('th',{style:{textAlign:i>0&&i<4?'center':'left',padding:'10px 12px',fontSize:'11px',color:'var(--muted)',fontWeight:'600',borderBottom:'1px solid var(--border)',whiteSpace:'nowrap'}},[c]));
     });
     table.append(h('thead',{},[thead]));
@@ -1630,11 +1630,11 @@ function dfBankForm(opts){
     var timeChips=dfChipGroup(DF_TIMES,ex.preferred_times);
     var availSection=div({style:{marginTop:'6px',paddingTop:'16px',borderTop:'1px solid var(--border)'}},[
       h('div',{style:{fontWeight:'700',fontSize:'15px',color:'var(--gold)',marginBottom:'4px'}},['Your teaching availability']),
-      h('div',{style:{fontSize:'12px',color:'var(--muted)',marginBottom:'14px',lineHeight:'1.6'}},['All times are in EST.']),
+      h('div',{style:{fontSize:'12px',color:'var(--muted)',marginBottom:'14px',lineHeight:'1.6'}},['All times are in AST.']),
       field('How many hours a week are you available to teach?',hoursInp),
       field('How many hours a week are you currently teaching?',curInp),
       field('Which days of the week do you prefer?',dayChips.el),
-      field('What time of day do you prefer? (EST)',timeChips.el)
+      field('What time of day do you prefer? (AST)',timeChips.el)
     ]);
     numInp.maxLength=40;
     numInp.oninput=function(){numInp.value=numInp.value.replace(/[^A-Za-z0-9-]/g,'').slice(0,34);};
@@ -3041,6 +3041,7 @@ function renderDashboard(){
     DATA.assessAssignments.forEach(function(a){if(a.due_date===today&&resultsForAssessAssignment(a.id).length===0)upcoming.push({title:(a.tutoring_assessments&&a.tutoring_assessments.title)||'Assessment',time:a.due_time,type:'Assessment',onClick:function(){goTab('assessments');}});});
     DATA.tasks.forEach(function(k){if(k.due_date===today&&!k.done)upcoming.push({title:k.title,time:null,type:'Task',onClick:function(){goTab('tasks');}});});
 
+    const classConfirmBox=div({});content.append(classConfirmBox);dfLoadClassConfirm(classConfirmBox);
     const heroRow=div({style:{display:'flex',gap:'16px',flexWrap:'wrap',marginBottom:'20px'}},[]);
 
     const sortedSlots=slots.slice().sort(function(a,b){return new Date(a.next_class_date)-new Date(b.next_class_date);});
@@ -7437,7 +7438,7 @@ front.append(div({cls:'mono',style:{marginBottom:'16px'},html:'Question — tap 
 const back=div({cls:'flip-back card',style:{position:'absolute',width:'100%',height:'100%',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:'32px',background:'var(--correct-bg)',borderColor:'var(--teal)'}});
 back.append(div({style:{fontFamily:"Inter,sans-serif",fontSize:'10px',color:'var(--teal)',letterSpacing:'2px',textTransform:'uppercase',marginBottom:'16px'},html:'Answer'}),h('p',{style:{fontSize:'16px',color:'var(--teal)',textAlign:'center',lineHeight:'1.7'},html:card.answer}));
 fi.append(front,back);fw.append(fi);
-fw.onclick=()=>{flipped=!flipped;fi.classList.toggle('flipped',flipped);mbtns.style.display=flipped?'grid':'none';flipBtn.style.display=flipped?'none':'block';};
+fw.onclick=()=>{flipped=!flipped;fi.classList.toggle('flipped',flipped);mbtns.style.display=flipped?'grid':'none';flipBtn.style.display=flipped?'none':'block';explainWrap.style.display=flipped?'block':'none';};
 inner.append(fw);
 const mbtns=div({style:{display:'none',gridTemplateColumns:'1fr 1fr 1fr',gap:'12px'}});
 [['easy',' ','EASY','var(--easy-bg)','#7EB8A4','var(--easy-bg)'],['iffy',' ','IFFY','var(--iffy-bg)','var(--gold)','var(--iffy-bg)'],['hard',' ','HARD','var(--hard-bg)','#ff8888','var(--hard-bg)']].forEach(([d,ico,lbl2,bg,color,border])=>{
@@ -7445,8 +7446,10 @@ const b=btn(ico+'\n'+lbl2,'',()=>markCard(d),{style:{background:bg,color,border:
 mbtns.append(b);
 });
 inner.append(mbtns);
-const flipBtn=btn('Flip Card →','btn-outline',()=>{flipped=true;fi.classList.add('flipped');mbtns.style.display='grid';flipBtn.style.display='none';},{style:{width:'100%'}});
+const flipBtn=btn('Flip Card →','btn-outline',()=>{flipped=true;fi.classList.add('flipped');mbtns.style.display='grid';explainWrap.style.display='block';flipBtn.style.display='none';},{style:{width:'100%'}});
 inner.append(flipBtn);
+const explainWrap=div({style:{display:'none',marginTop:'16px'}},[dfFlashExplain(card,selDeck&&(selDeck.topic||selDeck.name))]);
+inner.append(explainWrap);
 }
 function markCard(d){
 const cur=queue[curIdx];
@@ -8532,6 +8535,9 @@ try{dfPushStatus();}catch(e){} // re-attach this device's push subscription if t
 if(panelIsTutor){
   await dfTutorBankGate();
   var _pdBtn=btn('My details','btn-outline',async()=>{var cur=await dfFetchTutorDetails(S.user.id);await dfBankForm({existing:dfMergeDetails(cur),fullName:(S.profile&&S.profile.full_name)||''});},{style:{padding:'8px 16px'}});dfPutNewOn(_pdBtn);aNRight.prepend(_pdBtn);
+}else if(panelTeamRole&&!panelIsSuperAdmin){
+  await dfStaffBankGate();
+  var _sdBtn=btn('My details','btn-outline',async()=>{var cur=await dfFetchStaffBank(S.user.id);await dfStaffBankForm({existing:cur.bank||{},fullName:(S.profile&&S.profile.full_name)||''});},{style:{padding:'8px 16px'}});dfPutNewOn(_sdBtn);aNRight.prepend(_sdBtn);
 }
 if(panelTeamRole&&!panelIsSuperAdmin){
   const workerTabs=['recalls','feynman','riddles','team'];
@@ -10274,9 +10280,11 @@ function renderScheduleBoard(){
     var slotIds=allSlots.map(function(sl){return sl.id;});
     var[profRes,attRes]=await Promise.all([
       sb.from('profiles').select('id,full_name').in('id',studentIds),
-      sb.from('tutoring_class_attendance').select('slot_id,class_date,status').in('slot_id',slotIds).order('class_date',{ascending:false})
+      sb.from('tutoring_class_attendance').select('slot_id,class_date,status,tutor_id').in('slot_id',slotIds).order('class_date',{ascending:false})
     ]);
     var nameById={};(profRes.data||[]).forEach(function(p){nameById[p.id]=p.full_name||'(no name)';});
+    var tutorNm=await dfNamesFor(allSlots.reduce(function(a,x){return a.concat([x.tutor_id,x.cover_tutor_id]);},[]).concat((attRes.data||[]).map(function(a){return a.tutor_id;})));
+    var boardCells=[];
     var today=todayStrBoard();
     var todayD=new Date(today+'T00:00:00');
     var weekStart=new Date(todayD);weekStart.setDate(weekStart.getDate()-weekStart.getDay());
@@ -10341,12 +10349,18 @@ function renderScheduleBoard(){
         dayEntries.forEach(function(entry){
           var sl=entry.sl;var st=entry.info.status;
           var sty=STATUS_STYLE[st];
+          var attWk=attThisWeekBySlot[sl.id];
+          var effT=(st==='done'||st==='missed')?((attWk&&attWk.tutor_id)||sl.tutor_id):dfEffTutor(sl);
+          var isCover=effT!==sl.tutor_id;
+          var effLabel=(tutorNm[effT]||'Tutor ?')+(isCover?' (stand-in)':'');
           var cell=div({style:{border:'1px solid '+sty.border,background:sty.bg,borderRadius:'6px',padding:'8px 10px',marginBottom:'8px',cursor:'pointer'}},[
             h('div',{style:{fontSize:'12px',color:'var(--text)',fontWeight:'600',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}},[nameById[sl.student_id]||'(unknown)']),
             h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--muted)',marginTop:'2px'}},[fmtTimeBoard(sl.class_time)]),
+            h('div',{style:{fontSize:'10px',color:'var(--gold)',marginTop:'2px',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}},[effLabel]),
             h('div',{style:{fontSize:'9px',fontWeight:'700',letterSpacing:'0.5px',textTransform:'uppercase',color:sty.border,marginTop:'4px'}},[sty.label])
           ]);
           if(sty.blink)cell.classList.add('df-board-blink');
+          boardCells.push({el:cell,tutor:effT});
           cell.onclick=function(){
             var enrolled={user_id:sl.student_id,full_name:nameById[sl.student_id]||'(no name)',email:''};
             sb.from('tutoring_students').select('*').eq('user_id',sl.student_id).maybeSingle().then(function(res){
@@ -10360,6 +10374,11 @@ function renderScheduleBoard(){
         daysGrid.append(col);
       })(dow);
     }
+    var tutorIdsOnBoard=[];boardCells.forEach(function(c){if(tutorIdsOnBoard.indexOf(c.tutor)===-1)tutorIdsOnBoard.push(c.tutor);});
+    tutorIdsOnBoard.sort(function(a,b){return (tutorNm[a]||'').localeCompare(tutorNm[b]||'');});
+    var tutorFilter=h('select',{cls:'input',style:{width:'220px'}},[h('option',{value:''},['All tutors'])].concat(tutorIdsOnBoard.map(function(t){return h('option',{value:t},[tutorNm[t]||'Tutor ?']);})));
+    tutorFilter.onchange=function(){boardCells.forEach(function(c){c.el.style.display=(!tutorFilter.value||c.tutor===tutorFilter.value)?'':'none';});};
+    boardWrap.append(div({style:{marginBottom:'14px'}},[tutorFilter]));
     boardWrap.append(daysGrid);
   })();
 }
@@ -10907,12 +10926,19 @@ function openStudent(s){
 
     // CLASS SCHEDULE
     var scheduleSec=adminSection('Class Schedule',true,false);
+    var canAssign=!!(panelIsSuperAdmin||panelTeamRole==='manager');
+    var tutorOptsP=dfFetchTutors();
     var classWrap=div({style:{marginBottom:'12px',marginTop:'10px'}},[]);
     scheduleSec.body.append(classWrap);
     var addSlotCard=div({cls:'card',style:{padding:'14px',marginBottom:'0'}},[]);
     var DOW_NAMES=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
     var dowSel=h('select',{cls:'input',style:{width:'160px'}},DOW_NAMES.map(function(n,i){return h('option',{value:String(i)},[n]);}));
     var timeSel=h('input',{cls:'input',type:'time',style:{width:'140px'}});
+    var slotTutorSel=null;
+    if(canAssign){
+      slotTutorSel=h('select',{cls:'input',style:{width:'220px'}},[h('option',{value:''},['Tutor: me'])]);
+      tutorOptsP.then(function(list){list.forEach(function(t){if(t.id!==S.user.id)slotTutorSel.append(h('option',{value:t.id},['Tutor: '+t.name]));});});
+    }
     var slotSt=div({style:{fontSize:'11px',marginTop:'8px',display:'none'}},[]);
     var addSlotBtn=btn('Add class slot','btn-gold',async function(){
       var activeSlots=(await sb.from('tutoring_class_slots').select('id').eq('student_id',s.user_id).eq('active',true)).data||[];
@@ -10924,32 +10950,35 @@ function openStudent(s){
       var nextD=new Date(todayD);nextD.setDate(todayD.getDate()+diff);
       var nextDateStr=nextD.getFullYear()+'-'+String(nextD.getMonth()+1).padStart(2,'0')+'-'+String(nextD.getDate()).padStart(2,'0');
       addSlotBtn.disabled=true;
-      var ins=await sb.from('tutoring_class_slots').insert({student_id:s.user_id,tutor_id:S.user.id,day_of_week:dow,class_time:timeVal,next_class_date:nextDateStr,active:true});
+      var ins=await sb.from('tutoring_class_slots').insert({student_id:s.user_id,tutor_id:(slotTutorSel&&slotTutorSel.value)?slotTutorSel.value:S.user.id,day_of_week:dow,class_time:timeVal,next_class_date:nextDateStr,active:true});
       addSlotBtn.disabled=false;
       if(ins.error){slotSt.textContent='Failed: '+ins.error.message;slotSt.style.color='#ff4444';slotSt.style.display='block';return;}
       slotSt.style.display='none';
       loadClassSlots();
     },{style:{marginTop:'10px',fontSize:'12px',padding:'8px 16px'}});
-    addSlotCard.append(h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--muted)',marginBottom:'6px',textTransform:'uppercase',letterSpacing:'1px'},html:'Add a recurring weekly slot (max 5 per student)'}),div({style:{display:'flex',gap:'8px',flexWrap:'wrap'}},[dowSel,timeSel]),addSlotBtn,slotSt);
+    addSlotCard.append(h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--muted)',marginBottom:'6px',textTransform:'uppercase',letterSpacing:'1px'},html:'Add a recurring weekly slot (max 5 per student)'}),div({style:{display:'flex',gap:'8px',flexWrap:'wrap'}},[dowSel,timeSel,slotTutorSel]),addSlotBtn,slotSt);
     scheduleSec.body.append(addSlotCard);
     async function loadClassSlots(){
       classWrap.innerHTML='';
       var slotsRes=await sb.from('tutoring_class_slots').select('*').eq('student_id',s.user_id).eq('active',true).order('day_of_week',{ascending:true});
       var slots=slotsRes.data||[];
       if(!slots.length){classWrap.append(h('div',{style:{fontSize:'12px',color:'var(--dim)'},html:'No class slots scheduled yet.'}));return;}
+      var slotNames=await dfNamesFor(slots.reduce(function(a,x){return a.concat([x.tutor_id,x.cover_tutor_id]);},[]));
+      var tutorOpts=await tutorOptsP;
       slots.forEach(function(slot){
         var row=div({cls:'card',style:{padding:'12px',marginBottom:'8px'}},[]);
         var topRow=div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',gap:'12px',flexWrap:'wrap'}},[]);
         var leftInfo=div({style:{flex:'1',minWidth:'220px'}},[]);
         leftInfo.append(
           h('div',{style:{fontSize:'14px',color:'var(--text)',fontWeight:'600'}},[DOW_NAMES[new Date(slot.next_class_date+'T00:00:00').getDay()]+' \u00b7 '+fmtTimeShortAdmin(slot.class_time)]),
-          h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--muted)',marginTop:'2px'}},['Next class: '+new Date(slot.next_class_date+'T00:00:00').toLocaleDateString()])
+          h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--muted)',marginTop:'2px'}},['Next class: '+new Date(slot.next_class_date+'T00:00:00').toLocaleDateString()]),
+          h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--gold)',marginTop:'2px'}},['Tutor: '+(slotNames[dfEffTutor(slot)]||'(unknown)')+((slot.cover_tutor_id&&slot.cover_for_date===slot.next_class_date)?' (stand-in for this class; usual tutor: '+(slotNames[slot.tutor_id]||'?')+')':'')])
         );
         var actions=div({style:{display:'flex',gap:'8px',flexShrink:'0',flexWrap:'wrap'}},[]);
         var markDoneBtn=btn('Mark Class Done','btn-teal',async function(){
           if(!confirm('Mark the '+DOW_NAMES[new Date(slot.next_class_date+'T00:00:00').getDay()]+' class ('+new Date(slot.next_class_date+'T00:00:00').toLocaleDateString()+') as done? This logs 2 hours of attendance and rolls the slot to next week.'))return;
           markDoneBtn.disabled=true;
-          var att=await sb.from('tutoring_class_attendance').insert({slot_id:slot.id,student_id:s.user_id,tutor_id:slot.tutor_id,class_date:slot.next_class_date,duration_hours:2,status:'attended',marked_by:S.user.id});
+          var att=await sb.from('tutoring_class_attendance').insert({slot_id:slot.id,student_id:s.user_id,tutor_id:dfEffTutor(slot),class_date:slot.next_class_date,duration_hours:2,status:'attended',marked_by:S.user.id});
           if(att.error){alert('Failed: '+att.error.message);markDoneBtn.disabled=false;return;}
           var curProf=await sb.from('profiles').select('total_study_minutes').eq('id',s.user_id).maybeSingle();
           var curMins=(curProf&&curProf.data&&curProf.data.total_study_minutes)||0;
@@ -10957,18 +10986,18 @@ function openStudent(s){
           await creditStreakForStudent(s.user_id);
           var nd=new Date(slot.next_class_date+'T00:00:00');nd.setDate(nd.getDate()+7);
           var ndStr=nd.getFullYear()+'-'+String(nd.getMonth()+1).padStart(2,'0')+'-'+String(nd.getDate()).padStart(2,'0');
-          var rollUpd=await sb.from('tutoring_class_slots').update({next_class_date:ndStr}).eq('id',slot.id);
+          var rollUpd=await sb.from('tutoring_class_slots').update(dfRollPatch(slot)).eq('id',slot.id);
           if(rollUpd.error)alert('Attendance was logged, but the class did not roll to next week: '+rollUpd.error.message+'. Please refresh the page and try again, or contact an admin.');
           loadClassSlots();
         },{style:{fontSize:'10px',padding:'6px 12px'}});
         var markMissedBtn=btn('Mark Missed','btn-outline',async function(){
           if(!confirm('Mark the '+DOW_NAMES[new Date(slot.next_class_date+'T00:00:00').getDay()]+' class ('+new Date(slot.next_class_date+'T00:00:00').toLocaleDateString()+') as missed? No hours are logged, and the slot still rolls to next week.'))return;
           markMissedBtn.disabled=true;
-          var att=await sb.from('tutoring_class_attendance').insert({slot_id:slot.id,student_id:s.user_id,tutor_id:slot.tutor_id,class_date:slot.next_class_date,duration_hours:0,status:'missed',marked_by:S.user.id});
+          var att=await sb.from('tutoring_class_attendance').insert({slot_id:slot.id,student_id:s.user_id,tutor_id:dfEffTutor(slot),class_date:slot.next_class_date,duration_hours:0,status:'missed',marked_by:S.user.id});
           if(att.error){alert('Failed: '+att.error.message);markMissedBtn.disabled=false;return;}
           var nd=new Date(slot.next_class_date+'T00:00:00');nd.setDate(nd.getDate()+7);
           var ndStr=nd.getFullYear()+'-'+String(nd.getMonth()+1).padStart(2,'0')+'-'+String(nd.getDate()).padStart(2,'0');
-          var rollUpd=await sb.from('tutoring_class_slots').update({next_class_date:ndStr}).eq('id',slot.id);
+          var rollUpd=await sb.from('tutoring_class_slots').update(dfRollPatch(slot)).eq('id',slot.id);
           if(rollUpd.error)alert('Attendance was logged, but the class did not roll to next week: '+rollUpd.error.message+'. Please refresh the page and try again, or contact an admin.');
           loadClassSlots();
         },{style:{fontSize:'10px',padding:'6px 12px',color:'#e08a3c',borderColor:'#e08a3c'}});
@@ -10988,11 +11017,13 @@ function openStudent(s){
         var rescheduleForm=div({style:{display:'none',marginTop:'12px',paddingTop:'12px',borderTop:'1px solid var(--border)'}},[]);
         var rDateInp=h('input',{cls:'input',type:'date',style:{width:'160px'}});rDateInp.value=slot.next_class_date;
         var rTimeInp=h('input',{cls:'input',type:'time',style:{width:'140px'}});rTimeInp.value=slot.class_time;
+        var rKeep=h('input',{type:'checkbox'});rKeep.checked=true;
+        var rCover=null;
         var rSt=div({style:{fontSize:'11px',marginTop:'8px',display:'none'}},[]);
         var rSaveBtn=btn('Save New Time','btn-gold',async function(){
           if(!rDateInp.value){rSt.textContent='Pick a date.';rSt.style.color='#ff4444';rSt.style.display='block';return;}
           rSaveBtn.disabled=true;
-          var upd=await sb.from('tutoring_class_slots').update({next_class_date:rDateInp.value,class_time:rTimeInp.value||slot.class_time}).eq('id',slot.id);
+          var upd=await dfRescheduleSlot(slot,rDateInp.value,rTimeInp.value||slot.class_time,rKeep.checked,rCover?rCover.value:undefined);
           rSaveBtn.disabled=false;
           if(upd.error){rSt.textContent='Failed: '+upd.error.message;rSt.style.color='#ff4444';rSt.style.display='block';return;}
           loadClassSlots();
@@ -11000,8 +11031,28 @@ function openStudent(s){
         rescheduleForm.append(
           h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--muted)',marginBottom:'8px',textTransform:'uppercase',letterSpacing:'1px'}},['Reschedule next class']),
           div({style:{display:'flex',gap:'8px',flexWrap:'wrap',alignItems:'center'}},[rDateInp,rTimeInp,rSaveBtn]),
+          h('label',{style:{display:'flex',gap:'8px',alignItems:'center',fontSize:'12px',color:'var(--muted)',marginTop:'10px'}},[rKeep,'Only this class moves. The weekly time stays the same afterwards.']),
           rSt
         );
+        if(canAssign){
+          var coverOptions=[h('option',{value:''},['Usual tutor ('+(slotNames[slot.tutor_id]||'unknown')+')'])];
+          tutorOpts.forEach(function(t){if(t.id!==slot.tutor_id)coverOptions.push(h('option',{value:t.id},['Stand-in: '+t.name]));});
+          rCover=h('select',{cls:'input',style:{width:'260px',marginTop:'10px'}},coverOptions);
+          rCover.value=(slot.cover_tutor_id&&slot.cover_for_date===slot.next_class_date)?slot.cover_tutor_id:'';
+          rescheduleForm.append(h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--muted)',marginTop:'10px',textTransform:'uppercase',letterSpacing:'1px'}},['Who takes this class?']),rCover);
+          var changeTutorBtn=btn('Change usual tutor','btn-outline',async function(){
+            var opts=tutorOpts.filter(function(t){return t.id!==slot.tutor_id;});
+            if(!opts.length){alert('There is no other tutor to choose.');return;}
+            var pick=prompt('Type the number of the new usual tutor for this weekly slot:\n'+opts.map(function(t,i){return (i+1)+'. '+t.name;}).join('\n'),'');
+            var idx=parseInt(pick,10);
+            if(!pick||isNaN(idx)||idx<1||idx>opts.length)return;
+            if(!confirm('Make '+opts[idx-1].name+' the usual tutor for every '+DOW_NAMES[slot.day_of_week]+' class from now on?'))return;
+            var up=await sb.from('tutoring_class_slots').update({tutor_id:opts[idx-1].id}).eq('id',slot.id);
+            if(up.error){alert('Failed: '+up.error.message);return;}
+            loadClassSlots();
+          },{style:{fontSize:'10px',padding:'6px 12px',marginTop:'12px'}});
+          rescheduleForm.append(div({},[changeTutorBtn]));
+        }
         row.append(rescheduleForm);
         classWrap.append(row);
       });
@@ -11012,6 +11063,8 @@ function openStudent(s){
     // no attendance logged, the whole student page is blurred/locked until every overdue
     // class is marked (attended/missed) or rescheduled to a non-overdue time.
     async function checkOverdueLock(){
+      // A student's page is never locked any more. Unmarked classes lock the TUTOR's profile instead (see dfTutorLockCheck).
+      removeOverdueLock();return;
       var slotsRes=await sb.from('tutoring_class_slots').select('*').eq('student_id',s.user_id).eq('active',true);
       var slots=slotsRes.data||[];
       if(!slots.length){removeOverdueLock();return;}
@@ -11052,11 +11105,11 @@ function openStudent(s){
         function rollForward(onErr){
           var nd=new Date(slot.next_class_date+'T00:00:00');nd.setDate(nd.getDate()+7);
           var ndStr=nd.getFullYear()+'-'+String(nd.getMonth()+1).padStart(2,'0')+'-'+String(nd.getDate()).padStart(2,'0');
-          return sb.from('tutoring_class_slots').update({next_class_date:ndStr}).eq('id',slot.id).then(function(res){if(res.error&&onErr)onErr(res.error);});
+          return sb.from('tutoring_class_slots').update(dfRollPatch(slot)).eq('id',slot.id).then(function(res){if(res.error&&onErr)onErr(res.error);});
         }
         var doneBtn=btn('Attended','btn-teal',async function(){
           doneBtn.disabled=true;
-          var att=await sb.from('tutoring_class_attendance').insert({slot_id:slot.id,student_id:s.user_id,tutor_id:slot.tutor_id,class_date:slot.next_class_date,duration_hours:2,status:'attended',marked_by:S.user.id});
+          var att=await sb.from('tutoring_class_attendance').insert({slot_id:slot.id,student_id:s.user_id,tutor_id:dfEffTutor(slot),class_date:slot.next_class_date,duration_hours:2,status:'attended',marked_by:S.user.id});
           if(att.error){alert('Failed: '+att.error.message);doneBtn.disabled=false;return;}
           var curProf=await sb.from('profiles').select('total_study_minutes').eq('id',s.user_id).maybeSingle();
           var curMins=(curProf&&curProf.data&&curProf.data.total_study_minutes)||0;
@@ -11067,7 +11120,7 @@ function openStudent(s){
         },{style:{fontSize:'10px',padding:'6px 12px'}});
         var missedBtn=btn('Missed','btn-outline',async function(){
           missedBtn.disabled=true;
-          var att=await sb.from('tutoring_class_attendance').insert({slot_id:slot.id,student_id:s.user_id,tutor_id:slot.tutor_id,class_date:slot.next_class_date,duration_hours:0,status:'missed',marked_by:S.user.id});
+          var att=await sb.from('tutoring_class_attendance').insert({slot_id:slot.id,student_id:s.user_id,tutor_id:dfEffTutor(slot),class_date:slot.next_class_date,duration_hours:0,status:'missed',marked_by:S.user.id});
           if(att.error){alert('Failed: '+att.error.message);missedBtn.disabled=false;return;}
           await rollForward(function(e){alert('Attendance was logged, but the class did not roll to next week: '+e.message+'. Please refresh and try again.');});
           loadClassSlots();checkOverdueLock();
@@ -11083,7 +11136,7 @@ function openStudent(s){
         var rSaveBtn=btn('Save New Time','btn-gold',async function(){
           if(!rDateInp.value)return;
           rSaveBtn.disabled=true;
-          var upd=await sb.from('tutoring_class_slots').update({next_class_date:rDateInp.value,class_time:rTimeInp.value||slot.class_time}).eq('id',slot.id);
+          var upd=await dfRescheduleSlot(slot,rDateInp.value,rTimeInp.value||slot.class_time,false);
           rSaveBtn.disabled=false;
           if(upd.error){alert('Failed: '+upd.error.message);return;}
           loadClassSlots();checkOverdueLock();
@@ -12395,6 +12448,7 @@ async function renderPayoutsBody(){
     }
     payoutsListWrap.append(tCard);
   });
+  await dfRenderStaffPayouts(payoutsListWrap,bankMap);
 }
 await renderPayoutsBody();
 }
@@ -12651,7 +12705,7 @@ async function showTeamTab(){
   const isManager=userRole==='manager';
   const isWorker=userRole==='worker';
   const canWrite=isSuperAdmin||isManager;
-  const tabBar=div({style:{display:'flex',gap:'8px',marginBottom:'24px',borderBottom:'1px solid var(--border)',paddingBottom:'12px'}});
+  const tabBar=div({style:{display:'flex',flexWrap:'wrap',gap:'8px',marginBottom:'24px',borderBottom:'1px solid var(--border)',paddingBottom:'12px'}});
   const subTabs={};
   let activeSub='schedule';
   function setActive(sub){
@@ -12669,16 +12723,25 @@ async function showTeamTab(){
   const historyBtn=btn('Recall History','btn-outline',()=>setActive('history'),{style:{padding:'8px 20px',fontSize:'12px'}});
   const announceBtn=btn('Announcements','btn-outline',()=>setActive('announce'),{style:{padding:'8px 20px',fontSize:'12px'}});
   const availBtn=btn('Tutor availability','btn-outline',()=>setActive('availability'),{style:{padding:'8px 20px',fontSize:'12px'}});dfPutNewOn(availBtn);
-  subTabs.schedule=scheduleBtn;subTabs.routing=routingBtn;subTabs.teamAdmin=teamAdminBtn;subTabs.history=historyBtn;subTabs.announce=announceBtn;subTabs.availability=availBtn;
-  tabBar.append(scheduleBtn,routingBtn,teamAdminBtn,historyBtn,announceBtn,availBtn);
+  const reviewsBtn=btn('Tutor reviews','btn-outline',()=>setActive('tutorReviews'),{style:{padding:'8px 20px',fontSize:'12px'}});dfPutNewOn(reviewsBtn);
+  const classCheckBtn=btn('Class check','btn-outline',()=>setActive('classCheck'),{style:{padding:'8px 20px',fontSize:'12px'}});dfPutNewOn(classCheckBtn);
+  const followBtn=btn('Assessment follow-up','btn-outline',()=>setActive('assessFollow'),{style:{padding:'8px 20px',fontSize:'12px'}});dfPutNewOn(followBtn);
+  subTabs.schedule=scheduleBtn;subTabs.routing=routingBtn;subTabs.teamAdmin=teamAdminBtn;subTabs.history=historyBtn;subTabs.announce=announceBtn;subTabs.availability=availBtn;subTabs.tutorReviews=reviewsBtn;subTabs.classCheck=classCheckBtn;subTabs.assessFollow=followBtn;
+  tabBar.append(scheduleBtn,routingBtn,teamAdminBtn,historyBtn,announceBtn,availBtn,reviewsBtn,classCheckBtn,followBtn);
   if(!isSuperAdmin&&!isManager)teamAdminBtn.style.display='none';
   if(!isSuperAdmin&&!isManager)historyBtn.style.display='none';
   if(!isSuperAdmin&&!isManager)availBtn.style.display='none';
+  if(!isSuperAdmin&&!isManager)reviewsBtn.style.display='none';
+  if(!isSuperAdmin&&!isManager)classCheckBtn.style.display='none';
+  if(!isSuperAdmin&&!isManager)followBtn.style.display='none';
   content.append(tabBar);
   const subContent=div({});
   content.append(subContent);
   async function loadSubTab(sub){
     subContent.innerHTML='';
+    if(sub==='assessFollow'){await dfRenderAssessmentFollowTab(subContent);return;}
+    if(sub==='classCheck'){await dfRenderClassCheckTab(subContent);return;}
+    if(sub==='tutorReviews'){await dfRenderTutorReviewsTab(subContent);return;}
     if(sub==='availability'){await dfRenderAvailabilityTab(subContent);return;}
     if(sub==='schedule'){
       const days=['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
@@ -12790,17 +12853,17 @@ async function showTeamTab(){
       // Determine current shift slot
       // Schedule stores days Monday=0...Sunday=6; JS getDay() is Sunday=0...Saturday=6
       var now=new Date();
-      // Shifts are in US Eastern Time (America/New_York, follows daylight saving) whatever time zone this screen is opened in.
+      // Shifts are in AST (America/Dominica, UTC-4 all year, no daylight saving) whatever time zone this screen is opened in.
       // 11pm-7am has no shift of its own: it is covered by the 7am slot (the day-shift person) of the morning it is picked up.
       var astNow=new Date(); // kept under this name so it still matches the SQL function email_recall_recipients
       var etParts={};
-      new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',weekday:'short',hour:'2-digit',hourCycle:'h23'}).formatToParts(astNow).forEach(function(pt){etParts[pt.type]=pt.value;});
+      new Intl.DateTimeFormat('en-US',{timeZone:'America/Dominica',weekday:'short',hour:'2-digit',hourCycle:'h23'}).formatToParts(astNow).forEach(function(pt){etParts[pt.type]=pt.value;});
       var hr=parseInt(etParts.hour,10)%24;
       var astDay=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].indexOf(etParts.weekday); // Monday=0 ... Sunday=6
       var overnight=hr>=23||hr<7;
       var currentDayInt=hr>=23?(astDay+1)%7:astDay;
       var currentSlot=overnight?'7am':hr>=19?'7pm':hr>=15?'3pm':hr>=11?'11am':'7am';
-      var currentSlotLabel=overnight?'overnight 11pm–7am ET, covered by the 7am–7pm shift':hr>=19?'7pm–11pm ET':hr>=15?'3pm–7pm ET':hr>=11?'11am–3pm ET':'7am–11am ET';
+      var currentSlotLabel=overnight?'overnight 11pm–7am AST, covered by the 7am–7pm shift':hr>=19?'7pm–11pm AST':hr>=15?'3pm–7pm AST':hr>=11?'11am–3pm AST':'7am–11am AST';
       var{data:shiftRows}=await sb.from('shift_schedule').select('worker_id').eq('day_of_week',currentDayInt).eq('slot',currentSlot);
       var onShiftIds=(shiftRows||[]).map(function(s){return s.worker_id;});
       var onShiftNames=onShiftIds.map(function(id){return workerMap[id]||'Unknown';});
@@ -13622,12 +13685,1113 @@ function getCurrentMonday(){var now=new Date();var day=now.getDay();var diff=day
 // Phones and iPads freeze the page in the background. When it wakes, refresh the login, the profile, push
 // and Evidence Mode instead of treating the pause as a logged-out session.
 try{if(navigator.storage&&navigator.storage.persist)navigator.storage.persist();}catch(e){}
+// ───────────────────────────── TUTOR REVIEWS ─────────────────────────────
+// Students rate their tutors. A manager or super admin switches a round on; until a student has reviewed
+// each of their tutors, a full-screen form blocks the platform. Only managers and super admins can read the
+// answers (enforced by the database, not just this screen). The check fails open: if it cannot run,
+// nobody is locked out.
+var dfReview={overlay:null,lastUser:null,tick:0,checking:false};
+var DF_REVIEW_CRITERIA=[
+  ['preparation','Prepared for the class','Prep'],
+  ['clarity','Explains things clearly','Clarity'],
+  ['punctuality','Starts and ends on time','Time'],
+  ['schedule','Keeps to the agreed schedule','Schedule']
+];
+function dfReviewOverlay(){
+  if(dfReview.overlay)return dfReview.overlay;
+  var o=div({style:{position:'fixed',top:'0',left:'0',right:'0',bottom:'0',background:'rgba(0,0,0,0.93)',zIndex:'20000',display:'none',alignItems:'center',justifyContent:'center',padding:'20px',overflowY:'auto'}});
+  document.body.append(o);
+  dfReview.overlay=o;
+  return o;
+}
+function dfReviewHide(){
+  var o=dfReview.overlay;
+  if(o){o.style.display='none';o.replaceChildren();}
+}
+function dfReviewShow(item,remaining){
+  var o=dfReviewOverlay();
+  var scores={};
+  DF_REVIEW_CRITERIA.forEach(function(c){scores[c[0]]=0;});
+  var submit=null;
+  function refresh(){
+    var ok=DF_REVIEW_CRITERIA.every(function(c){return scores[c[0]]>0;});
+    if(submit){submit.disabled=!ok;submit.style.opacity=ok?'1':'0.5';}
+  }
+  var card=div({cls:'card',style:{maxWidth:'520px',width:'100%',padding:'28px',maxHeight:'92vh',overflowY:'auto'}});
+  card.append(
+    h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--gold)',letterSpacing:'2px',textTransform:'uppercase',marginBottom:'10px'}},['Tutor review'+(remaining>1?' \u00b7 '+remaining+' to go':'')]),
+    h('div',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'22px',fontWeight:'700',color:'var(--text)',marginBottom:'6px'}},['How is '+item.tutor_name+' doing?']),
+    h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'13px',color:'var(--dim)',lineHeight:'1.7',marginBottom:'22px'}},['Please rate each area from 1 to 5 stars. Your answers are private: your tutor will not see them. You can use the platform again as soon as you submit.'])
+  );
+  DF_REVIEW_CRITERIA.forEach(function(c){
+    var key=c[0];
+    var stars=[];
+    var line=div({style:{display:'flex',gap:'4px'}});
+    function paint(){stars.forEach(function(s,i){s.style.color=i<scores[key]?'var(--gold)':'var(--border)';});}
+    for(var i=1;i<=5;i++){
+      (function(n){
+        var s=h('button',{style:{background:'none',border:'none',fontSize:'32px',lineHeight:'1',cursor:'pointer',padding:'0 2px',color:'var(--border)'}},['\u2605']);
+        s.title=n+' of 5';
+        s.onclick=function(){scores[key]=n;paint();refresh();};
+        stars.push(s);line.append(s);
+      })(i);
+    }
+    card.append(div({style:{marginBottom:'16px'}},[
+      h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'13px',color:'var(--text)',marginBottom:'4px'}},[c[1]]),
+      line
+    ]));
+  });
+  var ta=h('textarea',{cls:'input',placeholder:'Anything else you want us to know? (optional)',maxLength:2000,style:{width:'100%',minHeight:'90px',resize:'vertical',boxSizing:'border-box',marginBottom:'14px'}});
+  var msg=h('div',{style:{display:'none',fontFamily:'Inter,sans-serif',fontSize:'12px',color:'#ff4444',marginBottom:'10px'}},[]);
+  submit=btn('Submit review','btn-gold',async function(){
+    msg.style.display='none';
+    submit.disabled=true;submit.textContent='Sending...';
+    var res=await sb.rpc('submit_tutor_review',{p_tutor:item.tutor_id,p_preparation:scores.preparation,p_clarity:scores.clarity,p_punctuality:scores.punctuality,p_schedule:scores.schedule,p_comment:ta.value.trim()});
+    if(res.error){
+      msg.textContent='Could not send your review: '+res.error.message;msg.style.display='block';
+      submit.disabled=false;submit.textContent='Submit review';
+      return;
+    }
+    dfReviewHide();
+    dfReviewCheck();
+  },{disabled:true,style:{width:'100%',opacity:'0.5'}});
+  card.append(ta,msg,submit);
+  o.replaceChildren(card);
+  o.style.display='flex';
+}
+async function dfReviewCheck(){
+  if(dfReview.checking)return;
+  if(dfReview.overlay&&dfReview.overlay.style.display==='flex')return;
+  if(!S.user||['login','signup','pending'].indexOf(S.page)!==-1)return;
+  dfReview.checking=true;
+  try{
+    var r=await sb.rpc('my_pending_tutor_reviews');
+    if(r&&!r.error&&r.data&&r.data.length)dfReviewShow(r.data[0],r.data.length);
+  }catch(e){}
+  dfReview.checking=false;
+}
+function dfInitReviewLock(){
+  setInterval(function(){
+    if(!S.user){dfReview.lastUser=null;dfReview.tick=0;return;}
+    if(dfReview.lastUser!==S.user.id){dfReview.lastUser=S.user.id;dfReview.tick=0;dfReviewCheck();return;}
+    dfReview.tick++;
+    if(dfReview.tick%30===0)dfReviewCheck(); // every minute, so a newly opened round reaches students quickly
+  },2000);
+}
+
+// Manager / super admin screen: switch rounds on and off, see who is still blocked, read the results.
+function dfAvg(list){
+  if(!list.length)return 0;
+  var t=0;list.forEach(function(n){t+=Number(n)||0;});
+  return t/list.length;
+}
+async function dfRenderTutorReviewsTab(box){
+  box.append(h('p',{style:{fontSize:'13px',color:'var(--dim)'}},['Loading...']));
+  var roleRes=await sb.from('admin_roles').select('role').eq('user_id',S.user?S.user.id:'').maybeSingle();
+  var myRole=roleRes&&roleRes.data?roleRes.data.role:null;
+  box.replaceChildren();
+  if(myRole!=='super_admin'&&myRole!=='manager'){
+    box.append(div({cls:'card',style:{textAlign:'center',padding:'40px'}},[h('p',{style:{fontSize:'14px',color:'var(--dim)'}},['Access restricted to Super Admins and Managers.'])]));
+    return;
+  }
+  var stRes=await sb.from('tutor_review_settings').select('*').eq('id',1).maybeSingle();
+  var st=(stRes&&stRes.data)||{is_open:false,round:0};
+  var slotsRes=await sb.from('tutoring_class_slots').select('student_id,tutor_id').eq('active',true);
+  var revRes=await sb.from('tutor_reviews').select('*').order('created_at',{ascending:false});
+  var slots=(slotsRes&&slotsRes.data)||[];
+  var revs=(revRes&&revRes.data)||[];
+  var idSet={};
+  slots.forEach(function(s){idSet[s.student_id]=1;idSet[s.tutor_id]=1;});
+  revs.forEach(function(r){idSet[r.student_id]=1;idSet[r.tutor_id]=1;});
+  var names={};
+  var idList=Object.keys(idSet);
+  if(idList.length){
+    var pr=await sb.from('profiles').select('id,full_name').in('id',idList);
+    ((pr&&pr.data)||[]).forEach(function(p){names[p.id]=p.full_name||'(no name)';});
+  }
+  function nameOf(id){return names[id]||'(unknown)';}
+
+  // ---- control card ----
+  var ctl=div({cls:'card',style:{marginBottom:'20px'}});
+  ctl.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'18px',marginBottom:'8px'}},['Tutor review round']));
+  var pairs={};
+  slots.forEach(function(s){pairs[s.student_id+'|'+s.tutor_id]={student:s.student_id,tutor:s.tutor_id};});
+  var pairKeys=Object.keys(pairs);
+  if(st.is_open){
+    var done={};
+    revs.filter(function(r){return r.round===st.round;}).forEach(function(r){done[r.student_id+'|'+r.tutor_id]=1;});
+    var pending=pairKeys.filter(function(k){return !done[k];});
+    ctl.append(h('p',{style:{fontSize:'13px',color:'var(--text)',lineHeight:'1.7',marginBottom:'8px'}},['Round '+st.round+' is OPEN. Students are blocked until they review each of their tutors. '+(pairKeys.length-pending.length)+' of '+pairKeys.length+' reviews are in.']));
+    if(pending.length){
+      var who={};
+      pending.forEach(function(k){who[pairs[k].student]=1;});
+      ctl.append(h('p',{style:{fontSize:'12px',color:'var(--muted)',lineHeight:'1.7',marginBottom:'12px'}},['Still to do: '+Object.keys(who).map(nameOf).join(', ')]));
+    }
+    ctl.append(btn('Close round','btn-outline',async function(){
+      var r=await sb.rpc('tutor_review_set_open',{p_open:false});
+      if(r.error){alert('Could not close the round: '+r.error.message);return;}
+      box.replaceChildren();
+      await dfRenderTutorReviewsTab(box);
+    },{style:{padding:'8px 18px',fontSize:'12px'}}));
+  }else{
+    ctl.append(h('p',{style:{fontSize:'13px',color:'var(--dim)',lineHeight:'1.7',marginBottom:'12px'}},[st.round>0?'No round is open. The last one was round '+st.round+'.':'No round has been run yet.']));
+    ctl.append(btn('Turn on (new round)','btn-gold',async function(){
+      if(!confirm('This starts a new review round and blocks the platform for every tutored student until they have reviewed each of their tutors. Continue?'))return;
+      var r=await sb.rpc('tutor_review_set_open',{p_open:true});
+      if(r.error){alert('Could not start the round: '+r.error.message);return;}
+      box.replaceChildren();
+      await dfRenderTutorReviewsTab(box);
+    },{style:{padding:'8px 18px',fontSize:'12px'}}));
+  }
+  box.append(ctl);
+
+  // ---- results ----
+  box.append(h('p',{style:{fontSize:'12px',color:'var(--muted)',lineHeight:'1.7',marginBottom:'12px'}},['Only managers and super admins can see these results, with student names. Tutors cannot see any of it.']));
+  var roundsWithData=[];
+  revs.forEach(function(r){if(roundsWithData.indexOf(r.round)===-1)roundsWithData.push(r.round);});
+  roundsWithData.sort(function(a,b){return b-a;});
+  var results=div({});
+  var roundBar=div({style:{display:'flex',gap:'8px',flexWrap:'wrap',marginBottom:'14px'}});
+  function paintResults(round){
+    results.replaceChildren();
+    var rows=revs.filter(function(r){return r.round===round;});
+    if(!rows.length){
+      results.append(div({cls:'card',style:{textAlign:'center',padding:'30px'}},[h('p',{style:{fontSize:'13px',color:'var(--dim)'}},['No reviews in this round yet.'])]));
+      return;
+    }
+    var byTutor={};
+    rows.forEach(function(r){(byTutor[r.tutor_id]=byTutor[r.tutor_id]||[]).push(r);});
+    Object.keys(byTutor).sort(function(a,b){return nameOf(a).localeCompare(nameOf(b));}).forEach(function(tid){
+      var list=byTutor[tid];
+      var overall=dfAvg(list.map(function(r){return dfAvg([r.preparation,r.clarity,r.punctuality,r.schedule]);}));
+      var card=div({cls:'card',style:{marginBottom:'14px'}});
+      card.append(div({style:{display:'flex',justifyContent:'space-between',alignItems:'baseline',gap:'12px',marginBottom:'10px'}},[
+        h('div',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'16px',fontWeight:'700',color:'var(--text)'}},[nameOf(tid)]),
+        h('div',{style:{fontFamily:'Georgia,serif',fontSize:'28px',fontWeight:'700',color:'var(--gold)'}},[overall.toFixed(1)+' / 5'])
+      ]));
+      card.append(h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--muted)',marginBottom:'10px'}},[list.length+(list.length===1?' review':' reviews')]));
+      DF_REVIEW_CRITERIA.forEach(function(c){
+        card.append(div({style:{display:'flex',justifyContent:'space-between',fontFamily:'Inter,sans-serif',fontSize:'13px',color:'var(--text)',padding:'3px 0'}},[
+          h('span',{},[c[1]]),
+          h('span',{style:{color:'var(--gold)',fontWeight:'600'}},[dfAvg(list.map(function(r){return r[c[0]];})).toFixed(1)])
+        ]));
+      });
+      var withText=list.filter(function(r){return r.comment;}).length;
+      var detail=div({style:{display:'none',marginTop:'12px',borderTop:'1px solid var(--border)',paddingTop:'10px'}});
+      list.forEach(function(r){
+        var when=new Date(r.created_at).toLocaleDateString('en-US',{month:'short',day:'numeric'});
+        var scoreLine=DF_REVIEW_CRITERIA.map(function(c){return c[2]+' '+r[c[0]];}).join(' \u00b7 ');
+        detail.append(div({style:{marginBottom:'12px'}},[
+          h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'12px',color:'var(--text)',fontWeight:'600'}},[nameOf(r.student_id)+' \u00b7 '+when]),
+          h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--muted)',margin:'2px 0 4px'}},[scoreLine]),
+          h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'13px',color:r.comment?'var(--text)':'var(--dim)',lineHeight:'1.7',whiteSpace:'pre-wrap',wordBreak:'break-word'}},[r.comment||'No comment.'])
+        ]));
+      });
+      var toggle=btn('Show individual reviews'+(withText?' ('+withText+' with comments)':''),'btn-outline',function(){
+        var open=detail.style.display==='none';
+        detail.style.display=open?'block':'none';
+        toggle.textContent=open?'Hide individual reviews':'Show individual reviews'+(withText?' ('+withText+' with comments)':'');
+      },{style:{padding:'6px 14px',fontSize:'11px',marginTop:'10px'}});
+      card.append(toggle,detail);
+      results.append(card);
+    });
+  }
+  if(roundsWithData.length>1){
+    roundsWithData.forEach(function(rn){
+      roundBar.append(btn('Round '+rn,'btn-outline',function(){paintResults(rn);},{style:{padding:'6px 14px',fontSize:'11px'}}));
+    });
+    box.append(roundBar);
+  }
+  box.append(results);
+  paintResults(roundsWithData.length?roundsWithData[0]:st.round);
+}
+
+// ───────────────────────────── CLASS CHECK ─────────────────────────────
+// Students confirm whether each class happened, without seeing what the tutor marked. After 48 hours, classes
+// whose records disagree or are incomplete show up for managers and super admins, and the student and the
+// tutor each get one neutral email asking what happened. Tutors never see the students' answers.
+async function dfIsReviewStaff(){
+  var r=await sb.from('admin_roles').select('role').eq('user_id',S.user?S.user.id:'').maybeSingle();
+  var role=r&&r.data?r.data.role:null;
+  return role==='super_admin'||role==='manager';
+}
+function dfClassTime(t){
+  try{
+    var parts=String(t).split(':');var hh=parseInt(parts[0],10);var mm=parts[1]||'00';
+    var h12=hh%12;if(h12===0)h12=12;
+    return h12+':'+mm+' '+(hh>=12?'PM':'AM');
+  }catch(e){return '';}
+}
+function dfClassWhen(dateStr,timeStr){
+  var d=new Date(dateStr+'T00:00:00');
+  return d.toLocaleDateString('en-US',{weekday:'long',month:'short',day:'numeric'})+' \u00b7 '+dfClassTime(timeStr);
+}
+
+// Student dashboard: "Did this class happen?"
+async function dfLoadClassConfirm(box){
+  var r=null;
+  try{r=await sb.rpc('my_pending_class_confirmations');}catch(e){return;}
+  if(!r||r.error||!r.data||!r.data.length)return;
+  var remaining=r.data.length;
+  var card=div({cls:'card',style:{padding:'20px',marginBottom:'20px',borderColor:'var(--gold)'}});
+  card.append(
+    h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--gold)',letterSpacing:'1.5px',textTransform:'uppercase',marginBottom:'8px',fontWeight:'700'}},['Confirm your class']),
+    h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'13px',color:'var(--dim)',lineHeight:'1.7',marginBottom:'10px'}},['Please tell us whether each class took place. This helps us make sure every class is being held. Your answer is private and cannot be changed afterwards.'])
+  );
+  r.data.forEach(function(item){
+    var when=dfClassWhen(item.class_date,item.class_time);
+    var row=div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',gap:'12px',flexWrap:'wrap',padding:'10px 0',borderTop:'1px solid var(--border)'}});
+    var yes=null;var no=null;
+    async function send(val){
+      yes.disabled=true;no.disabled=true;
+      var res=await sb.rpc('submit_class_answer',{p_slot:item.slot_id,p_date:item.class_date,p_answer:val});
+      if(res.error){alert('Could not save your answer: '+res.error.message);yes.disabled=false;no.disabled=false;return;}
+      row.replaceChildren(h('div',{style:{fontSize:'13px',color:'var(--teal)'}},['Thanks, recorded: '+when]));
+      remaining--;
+      if(remaining<=0)setTimeout(function(){card.style.display='none';},2000);
+    }
+    yes=btn('Class happened','btn-teal',async function(){
+      if(!confirm('Confirm that your class on '+when+' took place? You cannot change this afterwards.'))return;
+      await send('attended');
+    },{style:{fontSize:'11px',padding:'7px 14px'}});
+    no=btn("Class didn't happen",'btn-outline',async function(){
+      if(!confirm('Confirm that your class on '+when+' did NOT take place? You cannot change this afterwards.'))return;
+      await send('missed');
+    },{style:{fontSize:'11px',padding:'7px 14px',color:'#e08a3c',borderColor:'#e08a3c'}});
+    row.append(
+      div({style:{flex:'1',minWidth:'200px'}},[
+        h('div',{style:{fontSize:'14px',fontWeight:'600',color:'var(--text)'}},[when]),
+        h('div',{style:{fontSize:'12px',color:'var(--muted)',marginTop:'2px'}},['with '+item.tutor_name])
+      ]),
+      div({style:{display:'flex',gap:'8px',flexWrap:'wrap'}},[yes,no])
+    );
+    card.append(row);
+  });
+  box.append(card);
+}
+
+// Manager / super admin report.
+var DF_CLASS_ISSUES={
+  mismatch:'The tutor and the student disagree',
+  unconfirmed:'The tutor marked it attended; the student has not confirmed',
+  tutor_unmarked:'The student says it happened; the tutor has not marked it',
+  unrecorded:'Nobody has recorded this class'
+};
+function dfMarkText(v){return v==='attended'?'attended':v==='missed'?'missed':'no answer';}
+async function dfRenderClassCheckTab(box,showResolved){
+  box.append(h('p',{style:{fontSize:'13px',color:'var(--dim)'}},['Loading...']));
+  if(!(await dfIsReviewStaff())){
+    box.replaceChildren(div({cls:'card',style:{textAlign:'center',padding:'40px'}},[h('p',{style:{fontSize:'14px',color:'var(--dim)'}},['Access restricted to Super Admins and Managers.'])]));
+    return;
+  }
+  var stRes=await sb.from('class_check_settings').select('launch_date').eq('id',1).maybeSingle();
+  var launch=stRes&&stRes.data?stRes.data.launch_date:null;
+  var rep=launch?await sb.rpc('class_check_report',{p_include_resolved:!!showResolved}):{data:[]};
+  box.replaceChildren();
+  function refresh(keep){box.replaceChildren();dfRenderClassCheckTab(box,keep);}
+
+  var ctl=div({cls:'card',style:{marginBottom:'20px'}});
+  ctl.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'18px',marginBottom:'8px'}},['Class check']));
+  ctl.append(h('p',{style:{fontSize:'13px',color:'var(--dim)',lineHeight:'1.7',marginBottom:'10px'}},['Students confirm each class without seeing what the tutor marked. Once 48 hours have passed after a class, anything that disagrees or is incomplete appears below, and the student and the tutor each get one neutral email asking what happened. Tutors never see the students\u2019 answers.']));
+  if(launch){
+    ctl.append(h('p',{style:{fontSize:'12px',color:'var(--muted)',marginBottom:'12px'}},['ON. Checking classes from '+new Date(launch+'T00:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})+' onwards.']));
+    ctl.append(btn('Switch off','btn-outline',async function(){
+      if(!confirm('Switch the class check off? Students will no longer be asked, and no emails will go out. Switching it on again later starts fresh from the next day.'))return;
+      var r=await sb.rpc('class_check_set_enabled',{p_on:false});
+      if(r.error){alert('Could not switch it off: '+r.error.message);return;}
+      refresh(false);
+    },{style:{padding:'8px 18px',fontSize:'12px'}}));
+  }else{
+    ctl.append(h('p',{style:{fontSize:'12px',color:'var(--muted)',marginBottom:'12px'}},['OFF. Students are not being asked and nothing is being checked. Switching on starts from tomorrow, so no earlier class is ever flagged.']));
+    ctl.append(btn('Switch on','btn-gold',async function(){
+      if(!confirm('Switch the class check on? From tomorrow, students will be asked to confirm each class, and the student and tutor will be emailed about any class that does not add up after 48 hours.'))return;
+      var r=await sb.rpc('class_check_set_enabled',{p_on:true});
+      if(r.error){alert('Could not switch it on: '+r.error.message);return;}
+      refresh(false);
+    },{style:{padding:'8px 18px',fontSize:'12px'}}));
+  }
+  box.append(ctl);
+  await dfClassSettingsCard(box,refresh);
+  if(!launch)return;
+
+  if(rep.error){
+    box.append(div({cls:'card',style:{padding:'20px'}},[h('p',{style:{fontSize:'13px',color:'#ff4444'}},['Could not load the report: '+rep.error.message])]));
+    return;
+  }
+  var rows=rep.data||[];
+  var open=rows.filter(function(r){return !r.resolved_at;}).length;
+  box.append(div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',gap:'12px',flexWrap:'wrap',marginBottom:'12px'}},[
+    h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'14px',fontWeight:'600',color:'var(--text)'}},[open+(open===1?' class needs attention':' classes need attention')]),
+    btn(showResolved?'Hide reviewed':'Show reviewed','btn-outline',function(){refresh(!showResolved);},{style:{padding:'6px 14px',fontSize:'11px'}})
+  ]));
+  if(!rows.length){
+    box.append(div({cls:'card',style:{textAlign:'center',padding:'30px'}},[h('p',{style:{fontSize:'13px',color:'var(--dim)'}},['Nothing to review. Every class that has passed the 48-hour mark adds up.'])]));
+    return;
+  }
+  rows.forEach(function(r){
+    var done=!!r.resolved_at;
+    var card=div({cls:'card',style:{marginBottom:'12px',padding:'16px',opacity:done?'0.6':'1'}});
+    card.append(
+      h('div',{style:{display:'flex',justifyContent:'space-between',gap:'12px',flexWrap:'wrap',marginBottom:'6px'}},[
+        h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'14px',fontWeight:'700',color:'var(--text)'}},[dfClassWhen(r.class_date,r.class_time)]),
+        h('div',{cls:'mono',style:{fontSize:'10px',color:done?'var(--teal)':'var(--gold)',letterSpacing:'1px',textTransform:'uppercase'}},[done?'Reviewed':'Needs review'])
+      ]),
+      h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'13px',color:'var(--text)',marginBottom:'6px'}},['Student: '+r.student_name+'  \u00b7  Tutor: '+r.tutor_name]),
+      h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'13px',color:'var(--gold)',marginBottom:'6px'}},[DF_CLASS_ISSUES[r.issue]||r.issue]),
+      h('div',{cls:'mono',style:{fontSize:'11px',color:'var(--muted)',lineHeight:'1.7'}},['Tutor marked: '+dfMarkText(r.tutor_mark)+'  \u00b7  Student answered: '+dfMarkText(r.student_answer)]),
+      h('div',{cls:'mono',style:{fontSize:'11px',color:'var(--muted)',marginBottom:'8px'}},[r.notified_at?'Both emailed '+new Date(r.notified_at).toLocaleDateString('en-US',{month:'short',day:'numeric'}):'Emails go out within the hour'])
+    );
+    if(done&&r.resolved_note)card.append(h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'12px',color:'var(--dim)',lineHeight:'1.7',whiteSpace:'pre-wrap',wordBreak:'break-word'}},['Note: '+r.resolved_note]));
+    if(!done){
+      card.append(btn('Mark as reviewed','btn-outline',async function(){
+        var note=prompt('Add a note about what you found (optional):','');
+        if(note===null)return;
+        var res=await sb.rpc('class_check_resolve',{p_slot:r.slot_id,p_date:r.class_date,p_note:note});
+        if(res.error){alert('Could not save: '+res.error.message);return;}
+        refresh(!!showResolved);
+      },{style:{padding:'6px 14px',fontSize:'11px'}}));
+    }
+    box.append(card);
+  });
+}
+
+// ───────────────────────────── TUTORS PER CLASS · STAND-INS · MARK LOCK ─────────────────────────────
+// Every class slot has its own tutor, and one class can have a stand-in. One hour after a class ends, the
+// tutor who was scheduled for it (or the stand-in) is locked out of the whole platform until they mark it
+// attended or missed. The lock is switched on by a manager or super admin (Team > Class check) and fails
+// open: if the check cannot run, nobody is locked out.
+var dfTutorLockOn=false;
+var dfTutorLock={overlay:null,tick:0,lastUser:null,isStaff:false,checking:false};
+function dfEffTutor(slot){
+  return (slot.cover_tutor_id&&slot.cover_for_date&&slot.cover_for_date===slot.next_class_date)?slot.cover_tutor_id:slot.tutor_id;
+}
+function dfYmd(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+async function dfNamesFor(ids){
+  var uniq=[];
+  ids.forEach(function(i){if(i&&uniq.indexOf(i)===-1)uniq.push(i);});
+  var map={};
+  if(!uniq.length)return map;
+  var r=await sb.from('profiles').select('id,full_name').in('id',uniq);
+  ((r&&r.data)||[]).forEach(function(p){map[p.id]=p.full_name||'(no name)';});
+  return map;
+}
+// What to write to a slot once its current class has been marked: resume the weekly rhythm (after a
+// one-off reschedule) or move on seven days. Any stand-in is cleared.
+function dfRollPatch(slot){
+  if(slot.resume_date){
+    return{next_class_date:slot.resume_date,class_time:slot.resume_time||slot.class_time,resume_date:null,resume_time:null,cover_tutor_id:null,cover_for_date:null};
+  }
+  var nd=new Date(slot.next_class_date+'T00:00:00');nd.setDate(nd.getDate()+7);
+  return{next_class_date:dfYmd(nd),cover_tutor_id:null,cover_for_date:null};
+}
+// keepWeekly=true: only this class moves and the weekly time carries on afterwards.
+// keepWeekly=false: the weekly time moves for good.
+// coverTutorId: a tutor id attaches a stand-in for this class; '' removes any stand-in; undefined leaves it as it is.
+function dfReschedulePatch(slot,newDate,newTime,keepWeekly,coverTutorId){
+  var patch={next_class_date:newDate,class_time:newTime||slot.class_time};
+  if(keepWeekly){
+    var resume=slot.resume_date||null;var rtime=slot.resume_time||null;
+    if(!resume){
+      var r=new Date(slot.next_class_date+'T00:00:00');r.setDate(r.getDate()+7);
+      var nd=new Date(newDate+'T00:00:00');
+      while(r<=nd)r.setDate(r.getDate()+7);
+      resume=dfYmd(r);rtime=slot.class_time;
+    }
+    patch.resume_date=resume;patch.resume_time=rtime;
+  }else{
+    patch.resume_date=null;patch.resume_time=null;
+  }
+  if(coverTutorId){patch.cover_tutor_id=coverTutorId;patch.cover_for_date=newDate;}
+  else if(coverTutorId===''){patch.cover_tutor_id=null;patch.cover_for_date=null;}
+  else if(slot.cover_tutor_id){patch.cover_for_date=newDate;}
+  return patch;
+}
+function dfRescheduleSlot(slot,newDate,newTime,keepWeekly,coverTutorId){
+  return sb.from('tutoring_class_slots').update(dfReschedulePatch(slot,newDate,newTime,keepWeekly,coverTutorId)).eq('id',slot.id);
+}
+// Mark one class (used by the lock screen). Records attendance under the tutor who was due to take it.
+async function dfMarkClassNow(slotId,classDate,status){
+  var sres=await sb.from('tutoring_class_slots').select('*').eq('id',slotId).maybeSingle();
+  var slot=sres&&sres.data;
+  if(!slot)throw new Error('This class could not be found.');
+  if(slot.next_class_date!==classDate)return;
+  var ex=await sb.from('tutoring_class_attendance').select('id').eq('slot_id',slot.id).eq('class_date',slot.next_class_date).limit(1);
+  if(!(ex.data&&ex.data.length)){
+    var att=await sb.from('tutoring_class_attendance').insert({slot_id:slot.id,student_id:slot.student_id,tutor_id:dfEffTutor(slot),class_date:slot.next_class_date,duration_hours:status==='attended'?2:0,status:status,marked_by:S.user.id});
+    if(att.error)throw new Error('Could not save: '+att.error.message);
+    if(status==='attended'){
+      var cp=await sb.from('profiles').select('total_study_minutes').eq('id',slot.student_id).maybeSingle();
+      var cm=(cp&&cp.data&&cp.data.total_study_minutes)||0;
+      await sb.from('profiles').update({total_study_minutes:cm+120}).eq('id',slot.student_id);
+      await creditStreakForStudent(slot.student_id);
+    }
+  }
+  var up=await sb.from('tutoring_class_slots').update(dfRollPatch(slot)).eq('id',slot.id);
+  if(up.error)throw new Error('The class was marked, but could not move on to next week: '+up.error.message);
+}
+function dfTutorLockOverlay(){
+  if(dfTutorLock.overlay)return dfTutorLock.overlay;
+  var o=div({style:{position:'fixed',top:'0',left:'0',right:'0',bottom:'0',background:'rgba(0,0,0,0.94)',zIndex:'30000',display:'none',alignItems:'center',justifyContent:'center',padding:'20px',overflowY:'auto'}});
+  document.body.append(o);
+  dfTutorLock.overlay=o;
+  return o;
+}
+function dfTutorLockHide(){
+  var o=dfTutorLock.overlay;
+  if(o){o.style.display='none';o.replaceChildren();}
+}
+// Plan upload / supervisor-release items shown on the tutor lock screen.
+function dfAssessLockItem(it){
+  var box=div({style:{padding:'16px 0',borderTop:'1px solid var(--border)'}});
+  var pctTxt=Math.round(Number(it.pct))+'% ('+it.score+'/'+it.total+')';
+  var when=new Date(it.taken_at).toLocaleDateString('en-US',{month:'short',day:'numeric'});
+  function lab(t){return h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--muted)',textTransform:'uppercase',letterSpacing:'1px',margin:'12px 0 4px'}},[t]);}
+  if(it.lock_type==='remediation'){
+    box.append(
+      h('div',{style:{fontSize:'14px',fontWeight:'700',color:'#e08a3c',marginBottom:'4px'}},['Contact your supervisor']),
+      h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'13px',color:'var(--text)',lineHeight:'1.7'}},[it.student_name+' scored '+pctTxt+' on '+it.assessment_title+' ('+when+'). Please contact your supervisor with your remediation plan. Your profile stays locked until your supervisor releases it.'])
+    );
+    if(dfTutorLock.role==='super_admin'){
+      box.append(btn('Release (I am the supervisor)','btn-outline',async function(){
+        var note=prompt('Add a note (optional):','');
+        if(note===null)return;
+        var r=await sb.rpc('assessment_lock_release',{p_result:it.result_id,p_tutor:S.user.id,p_note:note});
+        if(r.error){alert('Could not release: '+r.error.message);return;}
+        dfTutorLockHide();dfTutorLockCheck();
+      },{style:{fontSize:'11px',padding:'7px 14px',marginTop:'10px'}}));
+    }
+    return box;
+  }
+  var labelI=inp('e.g. Block 4','text','');
+  var startI=h('input',{cls:'input',type:'date',style:{width:'100%',boxSizing:'border-box'}});
+  var endI=h('input',{cls:'input',type:'date',style:{width:'100%',boxSizing:'border-box'}});
+  var fileI=h('input',{type:'file',accept:'.pdf,.doc,.docx,.png,.jpg,.jpeg,.txt',style:{fontSize:'12px',color:'var(--text)',maxWidth:'100%'}});
+  var notesI=h('textarea',{cls:'input',placeholder:'Anything else your supervisor should know (optional)',maxLength:1000,style:{width:'100%',minHeight:'60px',resize:'vertical',boxSizing:'border-box'}});
+  var msg=h('div',{style:{display:'none',fontFamily:'Inter,sans-serif',fontSize:'12px',color:'#ff4444',margin:'8px 0'}},[]);
+  function fail(t){msg.textContent=t;msg.style.display='block';}
+  var go=btn('Upload plan','btn-gold',async function(){
+    msg.style.display='none';
+    var file=fileI.files&&fileI.files[0];
+    if(labelI.value.trim().length<2){fail('Say which block the plan is for.');return;}
+    if(!startI.value||!endI.value){fail('Enter the start and end dates of the plan.');return;}
+    if(endI.value<startI.value){fail('The end date must be on or after the start date.');return;}
+    if(!file){fail('Choose your plan file.');return;}
+    if(file.size>10*1024*1024){fail('The file is larger than 10 MB.');return;}
+    if(!/\.(pdf|docx?|png|jpe?g|txt)$/i.test(file.name)){fail('Use a PDF, Word document, image or text file.');return;}
+    go.disabled=true;go.textContent='Uploading...';
+    var safe=file.name.replace(/[^A-Za-z0-9._-]/g,'_').slice(-80);
+    var path=S.user.id+'/'+it.result_id+'/'+Date.now()+'-'+safe;
+    var up=await sb.storage.from('block-plans').upload(path,file,{upsert:false});
+    if(up.error){fail('Could not upload the file: '+up.error.message);go.disabled=false;go.textContent='Upload plan';return;}
+    var res=await sb.rpc('submit_block_plan',{p_result:it.result_id,p_label:labelI.value.trim(),p_start:startI.value,p_end:endI.value,p_file_path:path,p_file_name:file.name,p_notes:notesI.value.trim()});
+    if(res.error){fail(res.error.message);go.disabled=false;go.textContent='Upload plan';return;}
+    dfTutorLockHide();dfTutorLockCheck();
+  },{style:{width:'100%',marginTop:'12px'}});
+  box.append(
+    h('div',{style:{fontSize:'14px',fontWeight:'700',color:'var(--gold)',marginBottom:'4px'}},['Upload your plan for the next block']),
+    h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'13px',color:'var(--text)',lineHeight:'1.7'}},[it.student_name+' took '+it.assessment_title+' ('+when+') and scored '+pctTxt+'. Upload a detailed plan for the next block, including dates.']),
+    lab('Which block is this plan for?'),labelI,
+    div({style:{display:'flex',gap:'10px',flexWrap:'wrap'}},[
+      div({style:{flex:'1',minWidth:'140px'}},[lab('Plan starts'),startI]),
+      div({style:{flex:'1',minWidth:'140px'}},[lab('Plan ends'),endI])
+    ]),
+    lab('Plan file (PDF, Word, image or text, up to 10 MB)'),fileI,
+    lab('Notes'),notesI,msg,go
+  );
+  return box;
+}
+function dfTutorLockShow(items,aItems){
+  items=items||[];aItems=aItems||[];
+  var o=dfTutorLockOverlay();
+  var card=div({cls:'card',style:{maxWidth:'560px',width:'100%',padding:'28px',maxHeight:'92vh',overflowY:'auto',borderColor:'var(--gold)'}});
+  var onlyClasses=items.length>0&&aItems.length===0;
+  var total=items.length+aItems.length;
+  card.append(
+    h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--gold)',letterSpacing:'2px',textTransform:'uppercase',marginBottom:'10px'}},[onlyClasses?'Class not marked':'Action needed']),
+    h('div',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'22px',fontWeight:'700',color:'var(--text)',marginBottom:'6px'}},[onlyClasses?'Mark your class to continue':'Complete this to continue']),
+    h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'13px',color:'var(--dim)',lineHeight:'1.7',marginBottom:'18px'}},[onlyClasses?('A class has to be marked one hour after it ends. Your profile stays locked until you mark '+(items.length>1?'each of these classes':'this class')+' as attended or missed.'):('Your profile stays locked until '+(total>1?'everything below is':'this is')+' dealt with.')])
+  );
+  items.forEach(function(it){
+    var when=dfClassWhen(it.class_date,it.class_time);
+    var row=div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',gap:'12px',flexWrap:'wrap',padding:'12px 0',borderTop:'1px solid var(--border)'}});
+    var yes=null;var no=null;
+    async function send(status){
+      yes.disabled=true;no.disabled=true;
+      try{await dfMarkClassNow(it.slot_id,it.class_date,status);}
+      catch(e){alert(e.message||'Could not mark this class.');yes.disabled=false;no.disabled=false;return;}
+      dfTutorLockHide();
+      dfTutorLockCheck();
+    }
+    yes=btn('Attended','btn-teal',async function(){
+      if(!confirm('Mark the class with '+it.student_name+' ('+when+') as ATTENDED? This logs 2 hours of attendance.'))return;
+      await send('attended');
+    },{style:{fontSize:'11px',padding:'8px 16px'}});
+    no=btn('Missed','btn-outline',async function(){
+      if(!confirm('Mark the class with '+it.student_name+' ('+when+') as MISSED? No hours are logged.'))return;
+      await send('missed');
+    },{style:{fontSize:'11px',padding:'8px 16px',color:'#e08a3c',borderColor:'#e08a3c'}});
+    row.append(
+      div({style:{flex:'1',minWidth:'180px'}},[
+        h('div',{style:{fontSize:'14px',fontWeight:'600',color:'var(--text)'}},[it.student_name]),
+        h('div',{cls:'mono',style:{fontSize:'11px',color:'var(--muted)',marginTop:'2px'}},[when])
+      ]),
+      div({style:{display:'flex',gap:'8px',flexWrap:'wrap'}},[yes,no])
+    );
+    card.append(row);
+  });
+  aItems.forEach(function(it){card.append(dfAssessLockItem(it));});
+  o.replaceChildren(card);
+  o.style.display='flex';
+}
+async function dfTutorLockCheck(){
+  if(dfTutorLock.checking)return;
+  if(!S.user||['login','signup','pending'].indexOf(S.page)!==-1)return;
+  dfTutorLock.checking=true;
+  try{
+    var on=await sb.rpc('tutor_lock_enabled');
+    dfTutorLockOn=!!(on&&!on.error&&on.data===true);
+    var rs=await Promise.all([sb.rpc('my_unmarked_classes'),sb.rpc('my_assessment_locks')]);
+    var cls=(rs[0]&&!rs[0].error&&rs[0].data)?rs[0].data:[];
+    var asm=(rs[1]&&!rs[1].error&&rs[1].data)?rs[1].data:[];
+    if(cls.length||asm.length){
+      var vis=dfTutorLock.overlay&&dfTutorLock.overlay.style.display==='flex';
+      if(!vis)dfTutorLockShow(cls,asm);
+    }else{dfTutorLockHide();}
+  }catch(e){}
+  dfTutorLock.checking=false;
+}
+function dfInitTutorLock(){
+  setInterval(async function(){
+    if(!S.user){dfTutorLock.lastUser=null;dfTutorLock.isStaff=false;dfTutorLockOn=false;return;}
+    if(dfTutorLock.lastUser!==S.user.id){
+      dfTutorLock.lastUser=S.user.id;dfTutorLock.isStaff=false;dfTutorLock.tick=0;
+      try{
+        var r=await sb.from('admin_roles').select('role').eq('user_id',S.user.id).maybeSingle();
+        dfTutorLock.isStaff=!!(r&&r.data&&r.data.role);dfTutorLock.role=(r&&r.data&&r.data.role)||null;
+      }catch(e){}
+      if(dfTutorLock.isStaff)dfTutorLockCheck();
+      return;
+    }
+    if(!dfTutorLock.isStaff)return;
+    dfTutorLock.tick++;
+    if(dfTutorLock.tick%15===0)dfTutorLockCheck(); // about every 30 seconds
+  },2000);
+}
+
+// Team > Class check: time zone, class length and the mark-lock switch.
+async function dfClassSettingsCard(box,refresh){
+  var cfgRes=await sb.from('class_check_settings').select('tz,class_hours,lock_after_hours,tutor_lock_since').eq('id',1).maybeSingle();
+  var cfg=(cfgRes&&cfgRes.data)||{tz:'America/Dominica',class_hours:2,lock_after_hours:1,tutor_lock_since:null};
+  var staleRes=await sb.from('tutoring_class_slots').select('id',{count:'exact',head:true}).eq('active',true).lt('next_class_date',dfYmd(new Date()));
+  var stale=(staleRes&&staleRes.count)||0;
+  var card=div({cls:'card',style:{marginBottom:'20px'}});
+  card.append(
+    h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'18px',marginBottom:'8px'}},['Class times and the mark lock']),
+    h('p',{style:{fontSize:'13px',color:'var(--dim)',lineHeight:'1.7',marginBottom:'12px'}},['Class times are read in the time zone below, and a class is treated as lasting the length below. The mark lock locks the scheduled tutor\u2019s whole profile a set time after their class ends, until they mark it. Check the time zone before you switch the lock on.'])
+  );
+  var zones=['America/Dominica','Africa/Lagos','Europe/London','America/New_York','America/Toronto','America/Chicago','America/Denver','America/Los_Angeles'];
+  if(zones.indexOf(cfg.tz)===-1)zones.unshift(cfg.tz);
+  var tzSel=h('select',{cls:'input',style:{width:'220px'}},zones.map(function(z){return h('option',{value:z},[z==='America/Dominica'?'AST (Atlantic Standard Time, UTC-4)':z]);}));
+  tzSel.value=cfg.tz;
+  var lenInp=h('input',{cls:'input',type:'number',step:'0.5',min:'0.5',max:'6',style:{width:'90px'}});lenInp.value=String(cfg.class_hours);
+  var delayInp=h('input',{cls:'input',type:'number',step:'0.5',min:'0',max:'24',style:{width:'90px'}});delayInp.value=String(cfg.lock_after_hours);
+  function lab(t){return h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--muted)',textTransform:'uppercase',letterSpacing:'1px',marginBottom:'4px'}},[t]);}
+  card.append(div({style:{display:'flex',gap:'14px',flexWrap:'wrap',alignItems:'flex-end',marginBottom:'12px'}},[
+    div({},[lab('Time zone of class times'),tzSel]),
+    div({},[lab('Class length (hours)'),lenInp]),
+    div({},[lab('Lock after class ends (hours)'),delayInp]),
+    btn('Save','btn-outline',async function(){
+      var r=await sb.rpc('class_check_update_settings',{p_tz:tzSel.value,p_class_hours:parseFloat(lenInp.value),p_lock_after_hours:parseFloat(delayInp.value)});
+      if(r.error){alert('Could not save: '+r.error.message);return;}
+      alert('Saved.');
+    },{style:{padding:'8px 18px',fontSize:'12px'}})
+  ]));
+  if(cfg.tutor_lock_since){
+    card.append(h('p',{style:{fontSize:'12px',color:'var(--muted)',lineHeight:'1.7',marginBottom:'10px'}},['Mark lock: ON, for classes from '+new Date(cfg.tutor_lock_since+'T00:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})+' onwards.']));
+    card.append(btn('Switch lock off','btn-outline',async function(){
+      if(!confirm('Switch the mark lock off? Tutors will no longer be locked out for unmarked classes.'))return;
+      var r=await sb.rpc('tutor_lock_set_enabled',{p_on:false});
+      if(r.error){alert('Could not switch it off: '+r.error.message);return;}
+      refresh(false);
+    },{style:{padding:'8px 18px',fontSize:'12px'}}));
+  }else{
+    card.append(h('p',{style:{fontSize:'12px',color:'var(--muted)',lineHeight:'1.7',marginBottom:'10px'}},['Mark lock: OFF. Switching it on starts from tomorrow, so no class that is already overdue locks anyone.'+(stale>0?' '+stale+' active class '+(stale===1?'slot is':'slots are')+' already behind on marking. They will not lock anyone, but they still show as "Not marked" on the Schedule Board and need clearing.':'')]));
+    card.append(btn('Switch lock on','btn-gold',async function(){
+      if(!confirm('Switch the mark lock on? From tomorrow, a tutor is locked out of the whole platform one hour after a class ends until they mark it. Have you checked the time zone above?'))return;
+      var r=await sb.rpc('tutor_lock_set_enabled',{p_on:true});
+      if(r.error){alert('Could not switch it on: '+r.error.message);return;}
+      refresh(false);
+    },{style:{padding:'8px 18px',fontSize:'12px'}}));
+  }
+  box.append(card);
+}
+
+// Team > Assessment follow-up: switch, pass mark, open locks, uploaded plans.
+async function dfRenderAssessmentFollowTab(box){
+  box.append(h('p',{style:{fontSize:'13px',color:'var(--dim)'}},['Loading...']));
+  if(!(await dfIsReviewStaff())){
+    box.replaceChildren(div({cls:'card',style:{textAlign:'center',padding:'40px'}},[h('p',{style:{fontSize:'14px',color:'var(--dim)'}},['Access restricted to Super Admins and Managers.'])]));
+    return;
+  }
+  var cfgRes=await sb.from('class_check_settings').select('assessment_lock_since,assessment_pass_pct,assessment_lock_after_hours').eq('id',1).maybeSingle();
+  var cfg=(cfgRes&&cfgRes.data)||{assessment_lock_since:null,assessment_pass_pct:70,assessment_lock_after_hours:24};
+  var openRes=cfg.assessment_lock_since?await sb.rpc('assessment_locks_open'):{data:[]};
+  var plansRes=await sb.from('block_plans').select('*').order('uploaded_at',{ascending:false}).limit(60);
+  var open=(openRes&&openRes.data)||[];
+  var plans=(plansRes&&plansRes.data)||[];
+  var titles={};
+  if(plans.length){
+    var tr=await sb.from('tutoring_assessment_results').select('id,assessment_title,score,total').in('id',plans.map(function(p){return p.result_id;}));
+    ((tr&&tr.data)||[]).forEach(function(x){titles[x.id]=x;});
+  }
+  var names=await dfNamesFor(plans.reduce(function(a,p){return a.concat([p.tutor_id,p.student_id]);},[]));
+  box.replaceChildren();
+  function refresh(){box.replaceChildren();dfRenderAssessmentFollowTab(box);}
+  function lab(t){return h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--muted)',textTransform:'uppercase',letterSpacing:'1px',marginBottom:'4px'}},[t]);}
+
+  var ctl=div({cls:'card',style:{marginBottom:'20px'}});
+  ctl.append(
+    h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'18px',marginBottom:'8px'}},['Assessment follow-up lock']),
+    h('p',{style:{fontSize:'13px',color:'var(--dim)',lineHeight:'1.7',marginBottom:'12px'}},['A set time after a student takes an assessment, each of their tutors is locked out of the platform. If the student scored at or above the pass mark (for example exactly 70%), the tutor must upload a detailed plan for the next block, including dates. If the student scored below it, the tutor must contact a supervisor with a remediation plan, and stays locked until a supervisor releases them here.'])
+  );
+  var passI=h('input',{cls:'input',type:'number',min:'1',max:'99',step:'1',style:{width:'90px'}});passI.value=String(cfg.assessment_pass_pct);
+  var hoursI=h('input',{cls:'input',type:'number',min:'0',max:'168',step:'1',style:{width:'90px'}});hoursI.value=String(cfg.assessment_lock_after_hours);
+  ctl.append(div({style:{display:'flex',gap:'14px',flexWrap:'wrap',alignItems:'flex-end',marginBottom:'12px'}},[
+    div({},[lab('Pass mark (%)'),passI]),
+    div({},[lab('Lock after the assessment (hours)'),hoursI]),
+    btn('Save','btn-outline',async function(){
+      var r=await sb.rpc('assessment_lock_update_settings',{p_pass_pct:parseInt(passI.value,10),p_after_hours:parseFloat(hoursI.value)});
+      if(r.error){alert('Could not save: '+r.error.message);return;}
+      alert('Saved.');
+    },{style:{padding:'8px 18px',fontSize:'12px'}})
+  ]));
+  if(cfg.assessment_lock_since){
+    ctl.append(h('p',{style:{fontSize:'12px',color:'var(--muted)',marginBottom:'10px'}},['ON, for assessments taken from '+new Date(cfg.assessment_lock_since+'T00:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})+' onwards.']));
+    ctl.append(btn('Switch off','btn-outline',async function(){
+      if(!confirm('Switch the assessment follow-up lock off? Tutors with an open lock are freed straight away.'))return;
+      var r=await sb.rpc('assessment_lock_set_enabled',{p_on:false});
+      if(r.error){alert('Could not switch it off: '+r.error.message);return;}
+      refresh();
+    },{style:{padding:'8px 18px',fontSize:'12px'}}));
+  }else{
+    ctl.append(h('p',{style:{fontSize:'12px',color:'var(--muted)',marginBottom:'10px'}},['OFF. Switching on starts from tomorrow and applies only to assessments taken from then on.']));
+    ctl.append(btn('Switch on','btn-gold',async function(){
+      if(!confirm('Switch the assessment follow-up lock on? From tomorrow, a tutor is locked out of the platform one day after their student takes an assessment, until they upload a plan or a supervisor releases them.'))return;
+      var r=await sb.rpc('assessment_lock_set_enabled',{p_on:true});
+      if(r.error){alert('Could not switch it on: '+r.error.message);return;}
+      refresh();
+    },{style:{padding:'8px 18px',fontSize:'12px'}}));
+  }
+  box.append(ctl);
+
+  box.append(h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'14px',fontWeight:'600',color:'var(--text)',margin:'6px 0 10px'}},['Open locks ('+open.length+')']));
+  if(!cfg.assessment_lock_since){
+    box.append(h('p',{style:{fontSize:'12px',color:'var(--dim)',marginBottom:'16px'}},['Nothing is being locked while this is off.']));
+  }else if(!open.length){
+    box.append(div({cls:'card',style:{textAlign:'center',padding:'24px',marginBottom:'16px'}},[h('p',{style:{fontSize:'13px',color:'var(--dim)'}},['No tutor is locked right now.'])]));
+  }
+  open.forEach(function(r){
+    var rem=r.lock_type==='remediation';
+    var card=div({cls:'card',style:{marginBottom:'10px',padding:'14px'}});
+    card.append(
+      h('div',{style:{display:'flex',justifyContent:'space-between',gap:'12px',flexWrap:'wrap',marginBottom:'4px'}},[
+        h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'14px',fontWeight:'700',color:'var(--text)'}},[r.tutor_name]),
+        h('div',{cls:'mono',style:{fontSize:'10px',color:rem?'#e08a3c':'var(--gold)',letterSpacing:'1px',textTransform:'uppercase'}},[rem?'Needs supervisor release':'Needs next-block plan'])
+      ]),
+      h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'13px',color:'var(--text)',marginBottom:'4px'}},[r.student_name+' \u00b7 '+r.assessment_title+' \u00b7 '+Math.round(Number(r.pct))+'% ('+r.score+'/'+r.total+')']),
+      h('div',{cls:'mono',style:{fontSize:'11px',color:'var(--muted)',marginBottom:'8px'}},['Locked since '+new Date(r.lock_at).toLocaleDateString('en-US',{month:'short',day:'numeric'})+' '+new Date(r.lock_at).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})])
+    );
+    card.append(btn(rem?'Release':'Waive the plan','btn-outline',async function(){
+      var note=prompt((rem?'Release ':'Waive the plan for ')+r.tutor_name+'? Add a note (optional):','');
+      if(note===null)return;
+      var res=await sb.rpc('assessment_lock_release',{p_result:r.result_id,p_tutor:r.tutor_id,p_note:note});
+      if(res.error){alert('Could not do that: '+res.error.message);return;}
+      refresh();
+    },{style:{padding:'6px 14px',fontSize:'11px'}}));
+    box.append(card);
+  });
+
+  box.append(h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'14px',fontWeight:'600',color:'var(--text)',margin:'20px 0 10px'}},['Uploaded plans ('+plans.length+')']));
+  if(!plans.length)box.append(div({cls:'card',style:{textAlign:'center',padding:'24px'}},[h('p',{style:{fontSize:'13px',color:'var(--dim)'}},['No plans uploaded yet.'])]));
+  plans.forEach(function(p){
+    var t=titles[p.result_id]||{};
+    var card=div({cls:'card',style:{marginBottom:'10px',padding:'14px'}});
+    card.append(
+      h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'14px',fontWeight:'700',color:'var(--text)',marginBottom:'4px'}},[(names[p.tutor_id]||'Tutor')+' \u2192 '+(names[p.student_id]||'Student')]),
+      h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'13px',color:'var(--text)',marginBottom:'4px'}},[(p.block_label||'Next block')+' \u00b7 '+new Date(p.plan_start+'T00:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'})+' to '+new Date(p.plan_end+'T00:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})]),
+      h('div',{cls:'mono',style:{fontSize:'11px',color:'var(--muted)',marginBottom:'6px'}},[(t.assessment_title?t.assessment_title+' \u00b7 ':'')+'uploaded '+new Date(p.uploaded_at).toLocaleDateString('en-US',{month:'short',day:'numeric'})])
+    );
+    if(p.notes)card.append(h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'12px',color:'var(--dim)',lineHeight:'1.7',whiteSpace:'pre-wrap',wordBreak:'break-word',marginBottom:'6px'}},['Note: '+p.notes]));
+    card.append(btn('Open plan','btn-outline',async function(){
+      var s=await sb.storage.from('block-plans').createSignedUrl(p.file_path,300);
+      if(s.error||!s.data){alert('Could not open the file: '+(s.error?s.error.message:'unknown error'));return;}
+      window.open(s.data.signedUrl,'_blank');
+    },{style:{padding:'6px 14px',fontSize:'11px'}}));
+    box.append(card);
+  });
+}
+
+// ───────────────────────────── NON-TUTOR STAFF PAYOUTS ─────────────────────────────
+// Team members who are not tutors give their account details once (same table tutors use) and are paid from
+// Payouts > "Non-tutor staff". Only the super admin can add or mark payouts.
+function dfNaira(n){return '\u20a6'+Number(n||0).toLocaleString();}
+async function dfFetchStaffBank(uid){
+  try{
+    var r=await sb.from('tutor_bank_details').select('tutor_id,bank_name,account_name,account_number,started_at').eq('tutor_id',uid).maybeSingle();
+    if(r.error)return{error:r.error,bank:null};
+    return{error:null,bank:r.data||null};
+  }catch(e){return{error:e,bank:null};}
+}
+function dfStaffBankComplete(b){
+  return !!(b&&b.bank_name&&b.account_name&&/^[A-Za-z0-9-]{6,34}$/.test(String(b.account_number||''))&&b.started_at);
+}
+function dfStaffBankForm(opts){
+  opts=opts||{};
+  return new Promise(function(resolve){
+    var ex=opts.existing||{};
+    var overlay=div({cls:'modal-bg',style:{zIndex:'100010'}},[]);
+    var modal=div({cls:'card',style:{maxWidth:'460px',width:'100%',maxHeight:'92vh',overflowY:'auto'}},[]);
+    var errEl=div({style:{fontSize:'12px',color:'#ff4444',margin:'0 0 12px',display:'none'}},[]);
+    var bankInp=inp('Select or type your bank','text',ex.bank_name||'');
+    bankInp.setAttribute('list','df-staff-bank-list');
+    var dl=h('datalist',{id:'df-staff-bank-list'},DF_BANKS.map(function(b){return h('option',{value:b});}));
+    var nameInp=inp('Name exactly as on the account','text',ex.account_name||opts.fullName||'');
+    var numInp=inp('Account number','text',ex.account_number||'');
+    var _td=new Date();var todayISO=_td.getFullYear()+'-'+String(_td.getMonth()+1).padStart(2,'0')+'-'+String(_td.getDate()).padStart(2,'0');
+    var startInp=h('input',{cls:'input',type:'date',max:todayISO,value:ex.started_at||''});
+    numInp.maxLength=40;
+    numInp.oninput=function(){numInp.value=numInp.value.replace(/[^A-Za-z0-9-]/g,'').slice(0,34);};
+    function closeIt(val){overlay.style.display='none';overlay.replaceChildren();resolve(val);}
+    var saveBtn=btn(opts.locked?'Save and continue':'Save','btn-gold',async function(){
+      errEl.style.display='none';
+      var bank=bankInp.value.trim(),nm=nameInp.value.trim(),num=numInp.value.trim(),started=startInp.value.trim();
+      var msg='';
+      if(!bank)msg='Enter your bank name.';
+      else if(nm.length<3)msg='Enter the account name.';
+      else if(!/^[A-Za-z0-9-]{6,34}$/.test(num))msg='Enter a valid account number (6 to 34 letters or digits).';
+      else if(!started)msg='Tell us when you started with Deo Fortis.';
+      else if(!/^\d{4}-\d{2}-\d{2}$/.test(started)||started<'2000-01-01')msg='Enter a valid start date.';
+      else if(started>todayISO)msg='The start date cannot be in the future.';
+      if(msg){errEl.textContent=msg;errEl.style.display='block';return;}
+      saveBtn.disabled=true;saveBtn.textContent='Saving\u2026';
+      var up=await sb.from('tutor_bank_details').upsert({tutor_id:S.user.id,bank_name:bank,account_name:nm,account_number:num,started_at:started,updated_at:new Date().toISOString()},{onConflict:'tutor_id'});
+      if(up.error){
+        errEl.textContent='Could not save: '+up.error.message;errEl.style.display='block';
+        saveBtn.disabled=false;saveBtn.textContent=opts.locked?'Save and continue':'Save';return;
+      }
+      closeIt({tutor_id:S.user.id,bank_name:bank,account_name:nm,account_number:num,started_at:started});
+    },{style:{width:'100%',marginTop:'6px'}});
+    modal.append(
+      h('div',{style:{fontFamily:"'DM Mono',monospace",fontSize:'10px',letterSpacing:'2px',textTransform:'uppercase',color:'var(--gold)',marginBottom:'6px'}},[opts.locked?'Required to continue':'My details']),
+      h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'20px',margin:'0 0 8px'}},['Where should we pay you?']),
+      h('p',{style:{fontSize:'13px',color:'var(--muted)',lineHeight:'1.7',margin:'0 0 16px'}},[opts.locked?'Please add your account details before you continue. This is where your payouts will be sent. Only the super admin can see them.':'This is where your payouts are sent. Only the super admin can see these details.']),
+      errEl,field('Bank',bankInp),dl,field('Account name',nameInp),field('Account number',numInp),field('When did you start with Deo Fortis?',startInp),saveBtn
+    );
+    if(opts.locked){
+      modal.append(btn('Log out','btn-outline',function(){dfLogout();},{style:{width:'100%',marginTop:'10px',fontSize:'12px'}}));
+    }else{
+      modal.append(btn('Cancel','btn-outline',function(){closeIt(null);},{style:{width:'100%',marginTop:'10px',fontSize:'12px'}}));
+      overlay.onclick=function(e){if(e.target===overlay)closeIt(null);};
+    }
+    overlay.append(modal);document.body.append(overlay);
+  });
+}
+// Blocks a non-tutor team member until payout details are saved. Fails open if the table is unreachable.
+async function dfStaffBankGate(){
+  if(!S.user)return;
+  var d=await dfFetchStaffBank(S.user.id);
+  if(d.error){console.warn('staff bank gate skipped:',d.error.message||d.error);return;}
+  if(dfStaffBankComplete(d.bank))return;
+  await dfStaffBankForm({locked:true,existing:d.bank||{},fullName:(S.profile&&S.profile.full_name)||''});
+}
+// Payouts tab section for everyone who is on the team but is not a tutor.
+async function dfRenderStaffPayouts(container,bankMap){
+  var sec=div({style:{marginTop:'32px'}});
+  sec.append(
+    h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'22px',marginBottom:'8px'}},['Non-tutor staff payouts']),
+    h('p',{cls:'muted',style:{fontSize:'13px',marginBottom:'16px',lineHeight:'1.7'}},['Team members who are not tutors. Their account number shows beside what you owe them. They add their own details the first time they log in, and they get an email when you mark a payout paid.'])
+  );
+  container.append(sec);
+  var rr=await sb.from('admin_roles').select('user_id,role,profiles(full_name,email)').eq('is_tutor',false).in('role',['worker','manager']);
+  var staff=((rr&&rr.data)||[]).filter(function(x){return x.profiles;}).map(function(x){
+    return{user_id:x.user_id,role:x.role,full_name:x.profiles.full_name||'(no name)',email:x.profiles.email||''};
+  }).sort(function(a,b){return a.full_name.localeCompare(b.full_name);});
+  var pr=await sb.from('staff_payouts').select('*').order('created_at',{ascending:false});
+  if(pr.error){sec.append(div({cls:'card',style:{padding:'20px'}},[h('p',{style:{fontSize:'13px',color:'#ff4444'}},['Could not load staff payouts: '+pr.error.message])]));return;}
+  var byStaff={};
+  (pr.data||[]).forEach(function(r){(byStaff[r.staff_id]=byStaff[r.staff_id]||[]).push(r);});
+  if(!staff.length){
+    sec.append(div({cls:'card',style:{textAlign:'center',padding:'24px'}},[h('p',{style:{fontSize:'13px',color:'var(--dim)'}},['No non-tutor team members yet.'])]));
+    return;
+  }
+  function refreshStaff(){sec.replaceChildren(sec.children[0],sec.children[1]);dfRenderStaffPayoutsBody();}
+  async function dfRenderStaffPayoutsBody(){
+    var rr2=await sb.from('staff_payouts').select('*').order('created_at',{ascending:false});
+    var bm=await dfFetchBankMap();
+    var grouped={};
+    ((rr2&&rr2.data)||[]).forEach(function(r){(grouped[r.staff_id]=grouped[r.staff_id]||[]).push(r);});
+    staff.forEach(function(p){
+      var rows=grouped[p.user_id]||[];
+      var active=rows.filter(function(r){return !r.archived;});
+      var history=rows.filter(function(r){return r.archived;});
+      var owed=active.filter(function(r){return r.status==='unpaid';}).reduce(function(s,r){return s+Number(r.amount_naira||0);},0);
+      var card=div({cls:'card fade',style:{marginBottom:'18px'}});
+      card.append(div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:'8px',marginBottom:'14px'}},[
+        div({},[h('div',{style:{fontSize:'16px',color:'var(--text)',fontWeight:'600'}},[p.full_name]),h('div',{style:{fontSize:'12px',color:'var(--muted)'}},[p.email+(p.role==='manager'?' \u00b7 Manager':' \u00b7 Team member')])]),
+        div({style:{textAlign:'right'}},[h('div',{cls:'mono',style:{fontSize:'15px',fontWeight:'700',color:owed>0?'var(--gold)':'var(--dim)'}},[owed>0?dfNaira(owed)+' owed':'All settled']),dfBankLine(bm[p.user_id])])
+      ]));
+      var amtInp=inp('e.g. 150000','number','');
+      var perInp=inp('e.g. October 2026','text','');
+      var noteInp=inp('Note (optional)','text','');
+      var addMsg=div({style:{fontSize:'11px',marginTop:'8px',display:'none'}});
+      var addBtn=btn('+ Add payout','btn-gold',async function(){
+        addMsg.style.display='none';
+        var amt=parseFloat(amtInp.value);
+        if(!amtInp.value||isNaN(amt)||amt<=0){addMsg.textContent='Enter a valid amount.';addMsg.style.color='#ff4444';addMsg.style.display='block';return;}
+        addBtn.disabled=true;
+        var ins=await sb.from('staff_payouts').insert({staff_id:p.user_id,amount_naira:amt,period_label:perInp.value.trim()||null,note:noteInp.value.trim()||null,created_by:S.user.id});
+        addBtn.disabled=false;
+        if(ins.error){addMsg.textContent='Failed: '+ins.error.message;addMsg.style.color='#ff4444';addMsg.style.display='block';return;}
+        refreshStaff();
+      },{style:{fontSize:'11px',padding:'7px 14px'}});
+      card.append(div({style:{display:'flex',gap:'8px',flexWrap:'wrap',alignItems:'flex-end'}},[
+        div({style:{flex:'1',minWidth:'110px'}},[h('label',{cls:'label',html:'Amount (\u20a6)'}),amtInp]),
+        div({style:{flex:'1',minWidth:'140px'}},[h('label',{cls:'label',html:'For'}),perInp]),
+        div({style:{flex:'1',minWidth:'140px'}},[h('label',{cls:'label',html:'Note'}),noteInp]),
+        addBtn
+      ]),addMsg);
+      card.append(h('hr',{style:{border:'none',borderTop:'1px solid var(--border)',margin:'16px 0'}}));
+      function buildRow(r,isHistory){
+        var rowEl=div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:'10px',padding:'10px 0',borderBottom:'1px solid var(--border)'}});
+        var left=div({});
+        left.append(h('div',{style:{fontSize:'13px',color:'var(--text)'}},[r.period_label||'Payout']),h('div',{cls:'mono',style:{fontSize:'12px',color:'var(--muted)',marginTop:'2px'}},[dfNaira(r.amount_naira)+(r.status==='paid'&&r.paid_at?' \u00b7 paid '+new Date(r.paid_at).toLocaleDateString():'')]));
+        if(r.note)left.append(h('div',{style:{fontSize:'11px',color:'var(--dim)',fontStyle:'italic',marginTop:'2px'}},[r.note]));
+        var right=div({style:{display:'flex',gap:'6px',alignItems:'center',flexWrap:'wrap'}});
+        right.append(h('span',{cls:'mono',style:{fontSize:'10px',letterSpacing:'1px',textTransform:'uppercase',color:r.status==='paid'?'var(--teal)':'var(--gold)'}},[r.status]));
+        function receiptLink(){if(r.receipt_url)right.append(h('a',{href:r.receipt_url,target:'_blank',rel:'noopener',cls:'mono',style:{fontSize:'10px',color:'var(--teal)',textDecoration:'underline'}},['View Receipt']));}
+        var delBtn=btn('Delete','btn-outline',async function(){
+          if(!confirm('Permanently delete this payout record?'))return;
+          var d=await sb.from('staff_payouts').delete().eq('id',r.id);
+          if(d.error){alert('Could not delete: '+d.error.message);return;}
+          refreshStaff();
+        },{style:{fontSize:'10px',padding:'6px 12px',color:'#ff4444',borderColor:'#ff4444'}});
+        if(isHistory){receiptLink();right.append(delBtn);rowEl.append(left,right);return rowEl;}
+        if(r.status!=='paid'){
+          var receiptInp=h('input',{type:'file',accept:'image/*,.pdf',style:{fontSize:'10px',maxWidth:'150px',color:'var(--dim)'}});
+          var payStatus=div({style:{fontSize:'10px',marginTop:'4px',display:'none'}});
+          var markPaidBtn=btn('Mark Paid','btn-teal',async function(){
+            markPaidBtn.disabled=true;
+            var receiptUrl=null;
+            var file=receiptInp.files&&receiptInp.files[0];
+            if(file){
+              payStatus.style.display='block';payStatus.style.color='var(--dim)';payStatus.textContent='Uploading receipt\u2026';
+              var ext=(file.name.split('.').pop()||'file').toLowerCase();
+              var path='staff-'+r.id+'-'+Date.now()+'.'+ext;
+              var up=await sb.storage.from('payout-receipts').upload(path,file,{contentType:file.type||undefined});
+              if(up.error){payStatus.textContent='Receipt upload failed: '+up.error.message;payStatus.style.color='#ff4444';markPaidBtn.disabled=false;return;}
+              receiptUrl=sb.storage.from('payout-receipts').getPublicUrl(path).data.publicUrl;
+            }
+            var upd={status:'paid',paid_at:new Date().toISOString()};
+            if(receiptUrl)upd.receipt_url=receiptUrl;
+            var u=await sb.from('staff_payouts').update(upd).eq('id',r.id);
+            if(u.error){payStatus.style.display='block';payStatus.textContent='Could not save: '+u.error.message;payStatus.style.color='#ff4444';markPaidBtn.disabled=false;return;}
+            refreshStaff();
+          },{style:{fontSize:'10px',padding:'6px 12px'}});
+          right.append(div({style:{display:'flex',flexDirection:'column',alignItems:'flex-end',gap:'4px'}},[div({style:{display:'flex',gap:'6px',alignItems:'center'}},[receiptInp,markPaidBtn]),payStatus]));
+        }else{
+          receiptLink();
+          var nextBtn=btn('Next Payment','btn-outline',async function(){
+            nextBtn.disabled=true;
+            var ins=await sb.from('staff_payouts').insert({staff_id:r.staff_id,amount_naira:r.amount_naira,period_label:null,note:r.note||null,created_by:S.user.id});
+            if(ins.error){alert('Failed to create the next payment: '+ins.error.message);nextBtn.disabled=false;return;}
+            var arch=await sb.from('staff_payouts').update({archived:true}).eq('id',r.id);
+            if(arch.error)alert('Next payment created, but this one could not be archived: '+arch.error.message);
+            refreshStaff();
+          },{style:{fontSize:'10px',padding:'6px 12px'}});
+          right.append(nextBtn);
+        }
+        right.append(delBtn);
+        rowEl.append(left,right);
+        return rowEl;
+      }
+      if(!active.length)card.append(h('p',{style:{fontSize:'12px',color:'var(--dim)',textAlign:'center',padding:'10px'}},['No payouts yet.']));
+      else active.forEach(function(r){card.append(buildRow(r,false));});
+      if(history.length){
+        var open=false;
+        var histBody=div({style:{display:'none'}});
+        history.forEach(function(r){histBody.append(buildRow(r,true));});
+        var chev=h('span',{style:{fontSize:'11px',color:'var(--dim)',display:'inline-block'}},['\u25b6']);
+        var head=div({style:{display:'flex',alignItems:'center',gap:'8px',cursor:'pointer',padding:'8px 0',borderTop:'1px solid var(--border)',marginTop:'12px'}},[chev,h('span',{cls:'mono',style:{fontSize:'11px',letterSpacing:'1px',textTransform:'uppercase',color:'var(--dim)'}},['History ('+history.length+')'])]);
+        head.onclick=function(){open=!open;histBody.style.display=open?'block':'none';chev.style.transform=open?'rotate(90deg)':'rotate(0deg)';};
+        card.append(head,histBody);
+      }
+      sec.append(card);
+    });
+  }
+  await dfRenderStaffPayoutsBody();
+}
+
+// ───────────────────────────── FLASHCARDS: ASK FOR MORE EXPLANATION ─────────────────────────────
+// A button under a flipped card. It asks Deo Tutor (the same AI worker the Q-Bank uses) to explain the concept
+// the way a senior clinician would teach a medical student, then lets the student ask follow-ups.
+var dfFlashMem={};
+var dfFlashChat={};
+function dfStripHtml(t){
+  return String(t==null?'':t).replace(/<[^>]+>/g,' ').replace(/&nbsp;/g,' ').replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/\s+/g,' ').trim();
+}
+function dfFlashKey(card){
+  if(card&&card.id!=null&&card.id!=='')return String(card.id);
+  var str=dfStripHtml(card&&card.question),hh=0;
+  for(var i=0;i<str.length;i++){hh=((hh<<5)-hh+str.charCodeAt(i))|0;}
+  return 'f'+hh;
+}
+function dfFlashPrompt(card,topic){
+  return [
+    'You are Deo Tutor, a physician-educator. A medical student preparing for the USMLE has just flipped the flashcard below and wants a fuller explanation of the concept behind it.',
+    'Speak to them the way a good senior resident or attending teaches: direct, precise and clinically grounded. Use the correct medical terms without apologising for them, and define a term only when it is genuinely uncommon, in a few words. Explain the mechanism, the "why" behind the fact, so it makes sense instead of being memorised.',
+    'Do not use childish analogies, cute language, emojis, praise or filler. Do not write a textbook chapter either. Be focused and high-yield, roughly 150 to 250 words. Do not just repeat the card: add the reasoning, the clinical picture and the exam angle.',
+    'Only state what you are confident is correct. If the card is incomplete or ambiguous, say what is missing. Never invent values, doses or facts.',
+    'Use EXACTLY this layout, plain text only, no tables, no intro or outro:',
+    '**The concept**',
+    '<2 to 4 sentences: what it is and the mechanism behind it>',
+    '**Why it matters clinically**',
+    '- <point>',
+    '- <point>',
+    '**How it is tested**',
+    '- <the classic clue or vignette pattern, and the common trap>',
+    '**Never miss this again**',
+    '<ONE concrete mnemonic, memory hook or "when you see X, think Y" rule, 1 to 3 short sentences>',
+    '',
+    'DECK TOPIC: '+(topic||'general medicine'),
+    '',
+    'FLASHCARD FRONT (question):',
+    dfStripHtml(card.question),
+    '',
+    'FLASHCARD BACK (answer):',
+    dfStripHtml(card.answer)
+  ].join('\n');
+}
+function dfFlashAskContext(card,topic,explanation){
+  return [
+    'You are Deo Tutor, a physician-educator. A medical student is asking follow-up questions about the flashcard below.',
+    'Answer the way a senior clinician teaches a medical student: precise terminology, mechanism first, concise (short paragraphs or a few bullet points). No childish analogies, no emojis, no praise or filler. Only state what you are confident is correct. Stay on this concept and the medicine around it. Do NOT repeat the full explanation layout unless asked.',
+    '',
+    'DECK TOPIC: '+(topic||'general medicine'),
+    'FLASHCARD FRONT: '+dfStripHtml(card.question),
+    'FLASHCARD BACK: '+dfStripHtml(card.answer),
+    explanation?('\nYOUR EARLIER EXPLANATION TO THE STUDENT:\n'+String(explanation).slice(0,2500)):''
+  ].join('\n');
+}
+async function dfFlashCallAi(messages,topic){
+  var ctrl=(typeof AbortController!=='undefined')?new AbortController():null;
+  var timer=setTimeout(function(){try{ctrl&&ctrl.abort();}catch(e){}},45000);
+  try{
+    var res=await fetch(DF_AI_URL,{method:'POST',headers:{'Content-Type':'application/json'},signal:ctrl?ctrl.signal:undefined,body:JSON.stringify({messages:messages,topic:topic||'flashcard explanation'})});
+    var data=await res.json();
+    var reply=data&&data.reply;
+    if(!reply||typeof reply!=='string')throw new Error('empty');
+    return reply;
+  }finally{clearTimeout(timer);}
+}
+function dfFlashExplain(card,topic){
+  var ck=dfFlashKey(card);
+  var key='df-aiflash-'+ck;
+  var wrap=div({style:{width:'100%'}},[]);
+  var openBtn=btn('Ask for more explanation','btn-outline',function(){open();},{style:{width:'100%',borderColor:'var(--gold)',color:'var(--gold)'}});
+  wrap.append(openBtn);
+  function open(){
+    openBtn.style.display='none';
+    var panel=div({style:{background:'var(--card)',border:'1px solid var(--gold)',borderRadius:'4px',padding:'16px'}},[]);
+    panel.append(div({style:{display:'flex',alignItems:'center',gap:'8px',marginBottom:'12px',fontFamily:'inherit',fontSize:'14px',fontWeight:'700',color:'var(--gold)'},html:ICONS.brain+' Deo Tutor \u00b7 More explanation'}));
+    var body=div({cls:'df-ai-body'},[]);
+    var ask=div({style:{marginTop:'18px',paddingTop:'14px',borderTop:'1px solid var(--border)',display:'none'}},[]);
+    panel.append(body,ask);
+    wrap.append(panel);
+    var askBuilt=false;
+    function buildAsk(){
+      if(askBuilt)return;askBuilt=true;
+      ask.style.display='block';
+      ask.append(h('div',{style:{fontFamily:'inherit',fontSize:'14px',fontWeight:'700',color:'var(--gold)',marginBottom:'4px'}},['Ask Deo about this card']));
+      var log=div({style:{display:'flex',flexDirection:'column',gap:'8px',marginBottom:'10px'}},[]);
+      var busy=false;
+      function addBubble(role,content){
+        var mine=role==='user';
+        var bub=div({style:{alignSelf:mine?'flex-end':'flex-start',maxWidth:'92%',background:mine?'var(--gold)':'var(--bg)',color:mine?'var(--bg)':'var(--text)',border:mine?'none':'1px solid var(--border)',padding:'9px 13px',borderRadius:'12px',fontSize:'13px',lineHeight:'1.6',wordBreak:'break-word'}},[]);
+        if(mine){bub.textContent=content;}else{dfAiRender(content,bub);}
+        log.append(bub);
+        return bub;
+      }
+      (dfFlashChat[ck]||[]).forEach(function(m){addBubble(m.role,m.content);});
+      var input=h('input',{type:'text',placeholder:'Ask anything about this concept\u2026',style:{flex:'1',padding:'9px 11px',borderRadius:'4px',border:'1px solid var(--border)',background:'var(--bg)',color:'var(--text)',fontFamily:'inherit',fontSize:'13px',minWidth:'0'}});
+      var sendBtn=btn('Ask','btn-gold',function(){send(input.value);},{style:{padding:'9px 18px',fontSize:'12px'}});
+      input.onkeydown=function(e){if(e.key==='Enter'){e.preventDefault();send(input.value);}};
+      var chips=div({style:{display:'flex',flexWrap:'wrap',gap:'6px',marginBottom:'10px'}},[]);
+      ['Go deeper into the mechanism','Give me a different mnemonic','What else is commonly confused with this?','Quiz me on this'].forEach(function(label){
+        chips.append(btn(label,'btn-outline',function(){send(label);},{style:{fontSize:'11px',padding:'5px 11px',borderRadius:'999px'}}));
+      });
+      ask.append(log,chips,div({style:{display:'flex',gap:'8px'}},[input,sendBtn]));
+      async function send(text){
+        text=String(text||'').trim();
+        if(!text||busy)return;
+        var isFree=!!(S.profile&&S.profile.is_free_tier===true);
+        var hasCounter=(typeof freeMessagesCount!=='undefined');
+        if(isFree&&hasCounter&&freeMessagesCount>=5){addBubble('assistant','Free tier limit reached (5 messages per session). Upgrade to continue chatting.');return;}
+        if(isFree&&hasCounter)freeMessagesCount++;
+        busy=true;sendBtn.disabled=true;
+        var hist=dfFlashChat[ck]||(dfFlashChat[ck]=[]);
+        hist.push({role:'user',content:text});
+        addBubble('user',text);input.value='';
+        var thinking=div({style:{alignSelf:'flex-start',fontSize:'12px',color:'var(--dim)',padding:'4px 6px'}},['Deo is thinking\u2026']);
+        log.append(thinking);
+        try{
+          var ctx=dfFlashAskContext(card,topic,dfFlashMem[ck]);
+          var recent=hist.slice(-12);
+          while(recent.length&&recent[0].role!=='user')recent.shift();
+          var messages=recent.map(function(m,i){return i===0?{role:'user',content:ctx+'\n\nSTUDENT QUESTION:\n'+m.content}:{role:m.role,content:m.content};});
+          var reply=await dfFlashCallAi(messages,topic);
+          thinking.style.display='none';
+          hist.push({role:'assistant',content:reply});
+          addBubble('assistant',reply);
+          try{log.lastChild.scrollIntoView({block:'nearest',behavior:'smooth'});}catch(e){}
+        }catch(err){
+          thinking.style.display='none';
+          hist.pop();
+          addBubble('assistant','Deo could not answer just now. Please try again.');
+          input.value=text;
+        }finally{busy=false;sendBtn.disabled=false;}
+      }
+    }
+    function paintError(){
+      body.replaceChildren(
+        h('p',{style:{fontSize:'13px',color:'var(--muted)',margin:'0 0 10px'}},['Deo could not write an explanation just now.']),
+        btn('Try again','btn-outline',function(){load();},{style:{fontSize:'11px',padding:'6px 14px'}})
+      );
+    }
+    async function load(){
+      body.replaceChildren(skel(['40%','100%','92%','96%','70%']));
+      try{
+        var reply=await dfFlashCallAi([{role:'user',content:dfFlashPrompt(card,topic)}],topic);
+        dfFlashMem[ck]=reply;
+        try{sessionStorage.setItem(key,reply);}catch(e){}
+        dfAiRender(reply,body);
+        buildAsk();
+      }catch(err){paintError();}
+    }
+    var cached=dfFlashMem[ck];
+    if(!cached){try{cached=sessionStorage.getItem(key);}catch(e){}if(cached)dfFlashMem[ck]=cached;}
+    if(cached){dfAiRender(cached,body);buildAsk();}else{load();}
+  }
+  return wrap;
+}
+
 function dfOnForeground(){
   try{sb.auth.startAutoRefresh();}catch(e){}
   (async function(){
     try{await sb.auth.getSession();}catch(e){}
     try{if(S.user&&!S.profile)getProfile(S.user.id);}catch(e){}
     try{if(S.user){dfRefreshEvidence();dfPushStatus();}}catch(e){}
+    try{if(S.user)dfReviewCheck();}catch(e){}
+    try{if(S.user)dfTutorLockCheck();}catch(e){}
   })();
 }
 document.onvisibilitychange=function(){if(document.visibilityState==='visible')dfOnForeground();};
@@ -13636,4 +14800,6 @@ window.ononline=function(){dfOnForeground();};
 setInterval(function(){if(document.visibilityState==='visible'&&S.user)dfRefreshEvidence();},45000);
 
 dfInitMail();
+dfInitReviewLock();
+dfInitTutorLock();
 render();
