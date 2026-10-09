@@ -2626,13 +2626,14 @@ function dfPaySummary(rows,today){
 // the current cycle, and the next one. red = owing, yellow = next payment within 7 days, green = paid up.
 function dfPayBill(rows,today){
   var started=rows.filter(function(r){var s=r.period_start||r.due_date;return s&&s<=today;});
+  var dueRows=rows.filter(function(r){var dd=r.due_date||r.period_start;return dd&&dd<=today;});
   var lines=[],bill=0;
-  started.forEach(function(r){var st=dfPayStatus(r,today);if(st.open&&st.owing>0){lines.push({r:r,owing:st.owing,paid:Number(r.amount_paid||0),due:Number(r.amount_due||0)});bill+=st.owing;}});
+  dueRows.forEach(function(r){var st=dfPayStatus(r,today);if(st.open&&st.owing>0){lines.push({r:r,owing:st.owing,paid:Number(r.amount_paid||0),due:Number(r.amount_due||0)});bill+=st.owing;}});
   var cur=null;
   rows.forEach(function(r){var s=r.period_start||r.due_date,e=r.period_end||s;if(s&&s<=today&&today<=e)cur=r;});
   if(!cur&&started.length)cur=started[started.length-1];
   var next=null;
-  rows.forEach(function(r){var s=r.period_start||r.due_date;if(s&&s>today&&!next)next=r;});
+  rows.forEach(function(r){var dd=r.due_date||r.period_start;if(dd&&dd>today&&!next&&r.status!=='paid')next=r;});
   var nextSt=next?dfPayStatus(next,today):null;
   var state;
   if(!rows.length)state={key:'none',label:'No cycle yet',color:DF_PAY.grey,tint:'transparent'};
@@ -9045,6 +9046,20 @@ async function openStudentSheet(studentId,name,email){
           btn('Cancel','btn-outline',function(){refresh();},{style:{fontSize:'10px',padding:'6px 12px'}}));
       },{style:{fontSize:'10px',padding:'4px 10px'}}));
     priceWrap.append(priceRow);
+    var modeRes=await sb.from('tutoring_students').select('pay_at_end').eq('user_id',studentId);
+    var atEnd=!!(modeRes.data&&modeRes.data.some(function(x){return x&&x.pay_at_end===true;}));
+    var modeRow=div({style:{display:'flex',alignItems:'center',gap:'10px',flexWrap:'wrap',marginTop:'8px'}});
+    modeRow.append(h('span',{cls:'mono',style:{fontSize:'12px',color:'var(--muted)'}},['Payment due: '+(atEnd?'at the END of each cycle':'at the START of each cycle')]),
+      btn(atEnd?'Make it start of cycle':'Allow paying at end of cycle','btn-outline',async function(){
+        var to=!atEnd;
+        if(!confirm((to?'Let this student pay at the end of each cycle?':'Make this student pay at the start of each cycle?')+' Open cycles will get new due dates.'))return;
+        var u=await sb.from('tutoring_students').update({pay_at_end:to}).eq('user_id',studentId);
+        if(u.error){alert('Could not save: '+u.error.message);return;}
+        var openRows=rows.filter(function(r){return r.status==='unpaid'||r.status==='partial';});
+        for(var i=0;i<openRows.length;i++){var r2=openRows[i];await sb.from('tutoring_payments').update({due_date:to?(r2.period_end||r2.period_start):(r2.period_start||r2.due_date)}).eq('id',r2.id);}
+        await refresh();
+      },{style:{fontSize:'10px',padding:'4px 10px'}}));
+    priceWrap.append(modeRow);
     tableWrap.append(dfPayTable(rows,today,{
       txnAction:function(t){
         var line=div({style:{display:'flex',alignItems:'center',gap:'8px',marginBottom:'6px',flexWrap:'wrap'}});
