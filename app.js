@@ -558,6 +558,7 @@ function dfWhatsNewCard(kind,opts){
     items.push({t:'Mailbox',d:'Message students and tutors from the Mail button. Replies arrive on the platform, and every message is also emailed to their registered address, signed with your name.',open:true});
     if(opts.tutor)items.push({t:'My details',d:'Add your bank account, the date you started and your teaching availability (AST) using the My details button at the top.'});
     if(opts.superAdmin){
+      items.push({t:'Student payment sheets',d:'Bookings now opens with every student, worst first. Tap a name to open their own sheet: each billing cycle, what was paid and when, what is owing, with Record payment, Waive and Resend receipt. Selar payments that cannot be matched to a student wait at the top for you to assign.'});
       items.push({t:'Payment periods',d:'Tutoring payments now show each period from its start date to one month later, with Paid, Owing, Part-paid, Overdue or Waived. Selar payments are recorded and receipted automatically, and the next period opens when one is paid or waived.'});
       items.push({t:'Account numbers on Payouts',d:'Each tutor\u2019s bank, account name and account number now show beside what you owe them.'});
       items.push({t:'Email student / Email tutors',d:'New buttons on each student profile, the Students list and the Payouts page.'});
@@ -568,6 +569,7 @@ function dfWhatsNewCard(kind,opts){
     items.push({t:'Ask Deo about any question',d:'Under each explanation, students and tutors can ask follow-up questions about that exact question.'});
   }else{
     items.push({t:'Mailbox',d:'Message your tutors and admins from the Mail button. You can read their replies right here, and each message is also emailed to them.',open:true});
+    items.push({t:'My Payments',d:'If you are in tutoring, your dashboard now shows each billing cycle, what you have paid, what is owing and when it is due. A reminder banner appears 3 days before a payment is due, with a direct link to pay.'});
     items.push({t:'Simple AI explanations',d:'Whenever an answer is revealed, including in your reviews, Deo Tutor explains it in plain medical language and gives you a \u201cNever miss this again\u201d trick.'});
     items.push({t:'Ask Deo about any question',d:'Still unsure? Ask a follow-up right under the explanation and Deo will explain it further.'});
     items.push({t:'Evidence Mode',d:'If you are in tutoring, your tutor can turn this on. You mark at least 2 pieces of evidence in the question before you can choose an answer.'});
@@ -2518,11 +2520,171 @@ function adjustFixedBannerMargin(){
   var root=document.getElementById('root');if(!root)return;
   var ann=document.getElementById('df-announce-banner');
   var streakB=document.getElementById('df-streak-banner');
+  var payB=(window._dfPayBannerEl&&window._dfPayBannerEl.style.display!=='none')?window._dfPayBannerEl:null;
   if(streakB)streakB.style.top=(ann?ann.offsetHeight:0)+'px';
-  var total=(ann?ann.offsetHeight:0)+(streakB?streakB.offsetHeight:0);
+  if(payB)payB.style.top=((ann?ann.offsetHeight:0)+(streakB?streakB.offsetHeight:0))+'px';
+  var total=(ann?ann.offsetHeight:0)+(streakB?streakB.offsetHeight:0)+(payB?payB.offsetHeight:0);
   root.style.marginTop=total+'px';
   root.style.transition='margin-top 0.2s ease';
 }
+// ═══════════════════════════════
+// PAYMENT CYCLES — shared helpers (student card, global banner, admin student sheet)
+// A cycle's due date is its start date: the next cycle is paid before it begins.
+// ═══════════════════════════════
+var DF_PAY={green:'#5fb37c',red:'#ff5f5f',amber:'var(--gold)',grey:'var(--dim)'};
+function dfPayToday(){var d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+function dfPayDays(a,b){var x=String(a).slice(0,10).split('-'),y=String(b).slice(0,10).split('-');return Math.round((Date.UTC(+x[0],+x[1]-1,+x[2])-Date.UTC(+y[0],+y[1]-1,+y[2]))/86400000);}
+function dfPayDate(d){try{var x=new Date(String(d).slice(0,10)+'T00:00:00');if(isNaN(x))return String(d);return x.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'});}catch(e){return String(d);}}
+function dfPayShort(d){try{var x=new Date(String(d).slice(0,10)+'T00:00:00');if(isNaN(x))return String(d);return x.toLocaleDateString('en-GB',{day:'numeric',month:'short'});}catch(e){return String(d);}}
+function dfPayMoney(n){n=Number(n||0);return '$'+(n%1===0?n.toLocaleString():n.toFixed(2));}
+function dfPayStatus(r,today){
+  var due=Number(r.amount_due||0),paid=Number(r.amount_paid||0);
+  var owing=Math.max(due-paid,0);
+  var dd=r.due_date||r.period_start||null;
+  var daysTo=dd?dfPayDays(dd,today):null;
+  var base={owing:owing,daysTo:daysTo,dueDate:dd};
+  if(r.status==='paid'&&r.waived_at)return Object.assign(base,{key:'waived',label:'Waived',color:DF_PAY.grey,tint:'transparent',open:false,owing:0});
+  if(r.status==='paid')return Object.assign(base,{key:'paid',label:'Paid',color:DF_PAY.green,tint:'rgba(95,179,124,0.10)',open:false,owing:0});
+  if(daysTo!==null&&daysTo<0)return Object.assign(base,{key:'overdue',label:paid>0?'Part-paid · overdue':'Overdue',color:DF_PAY.red,tint:'rgba(255,95,95,0.10)',open:true});
+  if(paid>0)return Object.assign(base,{key:'partial',label:'Part-paid',color:DF_PAY.amber,tint:'rgba(201,150,58,0.10)',open:true});
+  if(daysTo===0)return Object.assign(base,{key:'soon',label:'Due today',color:DF_PAY.amber,tint:'rgba(201,150,58,0.10)',open:true});
+  if(daysTo!==null&&daysTo<=7)return Object.assign(base,{key:'soon',label:'Due soon',color:DF_PAY.amber,tint:'rgba(201,150,58,0.10)',open:true});
+  return Object.assign(base,{key:'upcoming',label:'Upcoming',color:DF_PAY.grey,tint:'transparent',open:true});
+}
+function dfPaySortKey(r){return r.period_start||r.due_date||String(r.created_at||'').slice(0,10)||'';}
+// All of one student's cycles (oldest first), each with its payments attached as r.txns.
+async function dfPayLoadFor(studentId,withTxns){
+  var pr=await sb.from('tutoring_payments').select('*').eq('student_id',studentId);
+  var rows=(pr.data||[]).slice().sort(function(a,b){return dfPaySortKey(a)<dfPaySortKey(b)?-1:dfPaySortKey(a)>dfPaySortKey(b)?1:0;});
+  rows.forEach(function(r){r.txns=[];});
+  if(!rows.length||!withTxns)return rows;
+  var tx=await sb.from('tutoring_payment_transactions').select('id,payment_id,amount,source,paid_at,receipt_no,receipt_sent_at').in('payment_id',rows.map(function(r){return r.id;})).order('paid_at',{ascending:true});
+  var byId={};rows.forEach(function(r){byId[r.id]=r;});
+  (tx.data||[]).forEach(function(t){if(byId[t.payment_id])byId[t.payment_id].txns.push(t);});
+  return rows;
+}
+async function dfPaySelarLink(){
+  if(window._dfPayLink!==undefined)return window._dfPayLink;
+  var res=await sb.from('tutoring_packages').select('selar_link').order('id',{ascending:true}).limit(1);
+  var link=(res.data&&res.data[0]&&res.data[0].selar_link)||'';
+  window._dfPayLink=/^https:\/\//.test(link)?link:'';
+  return window._dfPayLink;
+}
+// The sheet: one row per cycle. opts.actions(row,status) may return an extra element for the last column.
+function dfPayTable(rows,today,opts){
+  opts=opts||{};
+  var wrap=div({style:{overflowX:'auto',WebkitOverflowScrolling:'touch'}});
+  var table=h('table',{style:{width:'100%',minWidth:opts.actions?'860px':'640px',borderCollapse:'collapse',fontSize:'13px'}});
+  var heads=['Cycle','Billing cycle','Amount','Paid','Paid on','Owing','Pay by','Status'];
+  if(opts.actions)heads.push('');
+  var trh=h('tr',{});
+  heads.forEach(function(t){trh.append(h('th',{cls:'mono',style:{textAlign:'left',padding:'8px 10px',fontSize:'10px',letterSpacing:'1px',textTransform:'uppercase',color:'var(--dim)',borderBottom:'1px solid var(--border)',fontWeight:'500',whiteSpace:'nowrap'}},[t]));});
+  table.append(h('thead',{},[trh]));
+  var tb=h('tbody',{});
+  rows.forEach(function(r,i){
+    var st=dfPayStatus(r,today);
+    var per=r.period_start?(dfPayDate(r.period_start)+' → '+dfPayDate(r.period_end||r.period_start)):'No period set';
+    var td=function(kids,extra){return h('td',{style:Object.assign({padding:'10px',verticalAlign:'top',borderBottom:'1px solid var(--border)'},extra||{})},kids);};
+    var paidOn=div({});
+    if(st.key==='waived'){paidOn.append(h('div',{cls:'mono',style:{fontSize:'11px',color:'var(--dim)'}},['Waived'+(r.waived_at?' · '+dfPayShort(String(r.waived_at).slice(0,10)):'')]));if(r.waived_reason)paidOn.append(h('div',{style:{fontSize:'11px',color:'var(--dim)',fontStyle:'italic'}},[r.waived_reason]));}
+    else if(!(r.txns&&r.txns.length)){paidOn.append(h('span',{style:{color:'var(--dim)'}},[Number(r.amount_paid||0)>0?'Recorded earlier':'—']));}
+    else r.txns.forEach(function(t){
+      var line=h('div',{cls:'mono',style:{fontSize:'11px',color:'var(--muted)',marginBottom:'2px'}},[dfPayMoney(t.amount)+' · '+dfPayShort(String(t.paid_at).slice(0,10))+(t.source==='selar'?' · Selar':' · manual')]);
+      paidOn.append(line);
+      if(opts.txnAction){var ta=opts.txnAction(t,r);if(ta)paidOn.append(ta);}
+    });
+    if(r.txns&&r.txns.length&&st.key!=='waived'){
+      var logged=r.txns.reduce(function(a,t){return a+Number(t.amount||0);},0);
+      var gap=Number(r.amount_paid||0)-logged;
+      if(gap>0.009)paidOn.append(h('div',{cls:'mono',style:{fontSize:'11px',color:'var(--dim)',marginBottom:'2px'}},[dfPayMoney(gap)+' · recorded earlier']));
+    }
+    var tr=h('tr',{style:{background:st.tint}});
+    tr.append(
+      td([String(i+1)],{fontFamily:'Georgia,serif',fontSize:'15px',color:st.color,fontWeight:'700',borderLeft:'3px solid '+st.color}),
+      td([per],{whiteSpace:'nowrap',color:'var(--text)'}),
+      td([dfPayMoney(r.amount_due)],{color:'var(--muted)'}),
+      td([dfPayMoney(r.amount_paid)],{color:st.key==='paid'?DF_PAY.green:'var(--text)'}),
+      td([paidOn]),
+      td([st.key==='waived'?'—':dfPayMoney(st.owing)],{color:st.owing>0?st.color:'var(--dim)',fontWeight:st.owing>0?'700':'400'}),
+      td([st.dueDate?dfPayDate(st.dueDate):'—'],{whiteSpace:'nowrap',color:'var(--muted)'}),
+      td([h('span',{cls:'mono',style:{fontSize:'10px',letterSpacing:'1px',textTransform:'uppercase',color:st.color,fontWeight:'700',whiteSpace:'nowrap'}},[st.label])])
+    );
+    if(opts.actions)tr.append(td([opts.actions(r,st)||'']));
+    tb.append(tr);
+  });
+  table.append(tb);wrap.append(table);
+  return wrap;
+}
+// One-line summary of where a student stands: the earliest open cycle, total owing across all open cycles.
+function dfPaySummary(rows,today){
+  var open=rows.map(function(r){return{r:r,s:dfPayStatus(r,today)};}).filter(function(x){return x.s.open;});
+  var owing=open.reduce(function(a,x){return a+((x.s.key==='overdue'||x.s.key==='partial'||x.s.key==='soon')?x.s.owing:0);},0);
+  var cur=open[0]||null;
+  return{open:open,owing:owing,cur:cur,state:cur?cur.s:{key:'paid',label:'Paid up',color:DF_PAY.green}};
+}
+// Student's "My payments" card (dashboard)
+async function dfRenderMyPayments(holder){
+  var today=dfPayToday();
+  var rows=await dfPayLoadFor(S.user.id,true);
+  if(!rows.length)return;
+  var sm=dfPaySummary(rows,today);
+  var link=await dfPaySelarLink();
+  var card=div({cls:'card',style:{marginBottom:'16px'}});
+  card.append(h('div',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'17px',color:'var(--gold)',marginBottom:'4px'}},['My Payments']));
+  var line;
+  if(sm.cur){
+    var s=sm.cur.s,r=sm.cur.r;
+    line=(sm.owing>0?'Owing '+dfPayMoney(sm.owing):'Next payment '+dfPayMoney(s.owing))+' · Billing cycle '+dfPayDate(r.period_start||s.dueDate)+' → '+dfPayDate(r.period_end||r.period_start||s.dueDate)+' · Pay by '+dfPayDate(s.dueDate);
+  }else line='You are all paid up. Thank you.';
+  card.append(h('div',{style:{fontSize:'13px',color:sm.state.color,marginBottom:'14px',fontWeight:'600'}},[sm.state.label+' — '+line]));
+  card.append(dfPayTable(rows,today,{}));
+  if(link&&sm.cur){card.append(h('a',{cls:'btn btn-gold',href:link,target:'_blank',rel:'noopener',style:{display:'inline-block',marginTop:'14px',fontSize:'12px',padding:'9px 18px',textDecoration:'none'}},['Pay on Selar →']));}
+  holder.append(card);
+}
+// Persistent banner: from 3 days before a cycle's due date until it is paid.
+async function mountGlobalPaymentBanner(){
+  if(window._dfPayTimer){clearInterval(window._dfPayTimer);window._dfPayTimer=null;}
+  var el=window._dfPayBannerEl;
+  function hide(){if(el){el.style.display='none';el.innerHTML='';}adjustFixedBannerMargin();}
+  if(!S.user){hide();return;}
+  async function paint(){
+    try{
+      if(!S.user){hide();return;}
+      var today=dfPayToday();
+      var rows=await dfPayLoadFor(S.user.id,false);
+      var sm=dfPaySummary(rows,today);
+      var cur=sm.cur;
+      if(!cur||cur.s.daysTo===null||cur.s.daysTo>3){hide();return;}
+      var link=await dfPaySelarLink();
+      if(!el){
+        el=div({style:{position:'fixed',top:'0',left:'0',width:'100%',zIndex:'9997',display:'none',alignItems:'center',justifyContent:'center',gap:'16px',flexWrap:'wrap',padding:'10px 20px',boxSizing:'border-box',boxShadow:'0 2px 12px rgba(0,0,0,0.2)'}});
+        el.id='df-pay-banner';
+        document.body.prepend(el);
+        window._dfPayBannerEl=el;
+      }
+      var s=cur.s,r=cur.r;
+      var dueNow=sm.open.filter(function(x){return x.s.daysTo!==null&&x.s.daysTo<=3;}).reduce(function(a,x){return a+x.s.owing;},0);
+      var late=s.daysTo<0;
+      var color=(late||s.daysTo===0)?DF_PAY.red:'var(--gold)';
+      var title=late?('Payment overdue by '+Math.abs(s.daysTo)+(Math.abs(s.daysTo)===1?' day':' days')):s.daysTo===0?'Payment due today':s.daysTo===1?'Payment almost due · tomorrow':'Payment almost due · in '+s.daysTo+' days';
+      el.innerHTML='';
+      el.style.borderBottom='1px solid '+color;
+      el.style.background=(late||s.daysTo===0)?'rgba(255,95,95,0.12)':'var(--gold-subtle)';
+      var left=div({style:{display:'flex',alignItems:'center',gap:'12px',flexWrap:'wrap',minWidth:'0'}});
+      left.append(
+        h('span',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'13px',fontWeight:'700',color:color}},[title]),
+        h('span',{style:{fontSize:'12px',color:'var(--muted)'}},['Billing cycle '+dfPayDate(r.period_start||s.dueDate)+' → '+dfPayDate(r.period_end||r.period_start||s.dueDate)+' · Owing '+dfPayMoney(dueNow)+' · Due '+dfPayDate(s.dueDate)])
+      );
+      el.append(left);
+      if(link)el.append(h('a',{cls:'btn btn-gold',href:link,target:'_blank',rel:'noopener',style:{fontSize:'11px',padding:'7px 16px',textDecoration:'none',flexShrink:'0'}},['Pay now →']));
+      el.style.display='flex';
+      requestAnimationFrame(adjustFixedBannerMargin);
+    }catch(e){console.warn('payment banner failed',e);}
+  }
+  await paint();
+  window._dfPayTimer=setInterval(paint,300000);
+}
+
 // STREAK RISK BANNER — global, fixed-position so it shows on every page/tab (not just the
 // tutoring dashboard), and warns before the streak breaks at local midnight.
 function mountGlobalStreakBanner(){
@@ -4403,11 +4565,13 @@ try{
     // including inside Q-Bank/vignette question review — it only depends on being logged in.
     initSessionNotepad();
     mountGlobalStreakBanner();
+    mountGlobalPaymentBanner();
     if(window.activeSessionId){showNoiseBar();showTimerBar();}else{removeNoiseBar();removeTimerBar();}
   }else{
     removeNoiseBar();removeTimerBar();removeSessionNotepad();
     var _existingStreakB=document.getElementById('df-streak-banner');if(_existingStreakB)_existingStreakB.remove();
     if(window._dfStreakBannerTimer){clearInterval(window._dfStreakBannerTimer);window._dfStreakBannerTimer=null;}
+    mountGlobalPaymentBanner();
     adjustFixedBannerMargin();
   }
 }catch(err){
@@ -6032,7 +6196,7 @@ page.append(nav);
 const container=div({cls:'inner'});
 {const _pa=dfPushAnnounceCard();if(_pa)container.append(_pa);}
 {const _wn=dfWhatsNewCard('student');if(_wn)container.append(_wn);}
-const tutHolder=div({});container.append(tutHolder);(async function(){const _te=await sb.from('tutoring_students').select('id').eq('user_id',S.user.id).eq('active',true).maybeSingle();if(!_te||!_te.data)return;const tw=div({cls:'card',style:{marginBottom:'16px',borderColor:'var(--gold)',cursor:'pointer',display:'flex',justifyContent:'space-between',alignItems:'center',gap:'16px',flexWrap:'wrap'}},[div({style:{flex:'1',minWidth:'200px'}},[h('div',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'17px',color:'var(--gold)',marginBottom:'4px'}},['Tutoring Wing']),h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'13px',color:'var(--muted)'}},['Your assigned tests, tasks and results'])]),h('span',{cls:'mono',style:{fontSize:'12px',color:'var(--gold)',flexShrink:'0'}},['Enter →'])]);tw.onclick=function(){go('tutoring');};tutHolder.append(tw);})();
+const tutHolder=div({});container.append(tutHolder);(async function(){const _te=await sb.from('tutoring_students').select('id').eq('user_id',S.user.id).eq('active',true).maybeSingle();if(!_te||!_te.data)return;const tw=div({cls:'card',style:{marginBottom:'16px',borderColor:'var(--gold)',cursor:'pointer',display:'flex',justifyContent:'space-between',alignItems:'center',gap:'16px',flexWrap:'wrap'}},[div({style:{flex:'1',minWidth:'200px'}},[h('div',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'17px',color:'var(--gold)',marginBottom:'4px'}},['Tutoring Wing']),h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'13px',color:'var(--muted)'}},['Your assigned tests, tasks and results'])]),h('span',{cls:'mono',style:{fontSize:'12px',color:'var(--gold)',flexShrink:'0'}},['Enter →'])]);tw.onclick=function(){go('tutoring');};tutHolder.append(tw);try{await dfRenderMyPayments(tutHolder);}catch(e){console.warn('my payments failed',e);}})();
 page.append(container);
 
 // STAT CARD HELPER
@@ -8845,6 +9009,168 @@ async function renderTutoringPaymentsSection(content){
     });
   }
   await renderPaymentsList();
+}
+// ── Unmatched Selar payments: assign to a student (remembers the buyer's email) or dismiss ──
+async function renderUnmatchedSelar(content){
+  var res=await sb.from('selar_events').select('*').eq('status','unmatched').order('created_at',{ascending:false});
+  var rows=res.data||[];
+  if(!rows.length)return;
+  var students=await fetchEnrolled();
+  var card=div({cls:'card fade',style:{marginBottom:'24px',borderColor:'#ff5f5f'}});
+  card.append(h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'20px',marginBottom:'6px',color:'#ff6b6b'},html:'Selar payments needing a student ('+rows.length+')'}),h('p',{cls:'muted',style:{fontSize:'13px',marginBottom:'16px'},html:'These came in on Selar but could not be placed automatically. Pick the student once and that buyer email is remembered for next time.'}));
+  rows.forEach(function(e){
+    var row=div({style:{padding:'12px 0',borderTop:'1px solid var(--border)'}});
+    row.append(
+      h('div',{style:{fontSize:'14px',color:'var(--text)'}},[(e.buyer_name||'Unknown buyer')+(e.buyer_email?' · '+e.buyer_email:'')]),
+      h('div',{cls:'mono',style:{fontSize:'11px',color:'var(--gold)',marginTop:'3px'}},[(e.amount!=null?dfPayMoney(e.amount):'Amount unknown')+' · '+(e.paid_at?dfPayDate(String(e.paid_at).slice(0,10)):'')+' · ref '+e.reference]),
+      h('div',{style:{fontSize:'12px',color:'var(--dim)',fontStyle:'italic',marginTop:'3px'}},[e.reason||''])
+    );
+    var sel=h('select',{cls:'input',style:{maxWidth:'280px'}},[h('option',{value:''},['Assign to student…'])]);
+    students.forEach(function(s){sel.append(h('option',{value:s.user_id},[s.full_name+(s.email?' · '+s.email:'')]));});
+    var ctl=div({style:{display:'flex',gap:'8px',flexWrap:'wrap',alignItems:'center',marginTop:'10px'}});
+    ctl.append(sel,
+      btn('Assign','btn-gold',async function(){
+        if(!sel.value){alert('Pick a student first.');return;}
+        if(e.amount==null){alert('This email could not be read, so it has no amount. Enter the payment by hand on the student sheet, then dismiss this.');return;}
+        var ok=await payRpc('resolve_selar_event',{p_reference:e.reference,p_student_id:sel.value});
+        if(ok)loadTab('bookings');
+      },{style:{fontSize:'10px',padding:'6px 12px'}}),
+      btn('Dismiss','btn-outline',async function(){
+        if(!confirm('Dismiss this payment without recording it?'))return;
+        var ok=await payRpc('dismiss_selar_event',{p_reference:e.reference,p_note:null});
+        if(ok)loadTab('bookings');
+      },{style:{fontSize:'10px',padding:'6px 12px'}})
+    );
+    row.append(ctl);card.append(row);
+  });
+  content.append(card);
+}
+// ── Master sheet: every student, worst first. Tap a name to open that student's own sheet page. ──
+async function renderPaymentsMaster(content){
+  var today=dfPayToday();
+  var card=div({cls:'card fade',style:{marginBottom:'24px'}});
+  card.append(h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'22px',marginBottom:'8px'},html:'Student Payments'}),h('p',{cls:'muted',style:{fontSize:'13px',marginBottom:'16px'},html:'Tap a student to open their payment sheet. Red is overdue, amber is due soon or part-paid, green is paid up.'}));
+  var holder=div({});card.append(holder);content.append(card);
+  holder.append(skelCard([['40%'],['70%']]));
+  var all=await fetchPayments();
+  holder.innerHTML='';
+  if(!all.length){holder.append(h('p',{style:{fontSize:'13px',color:'var(--dim)',textAlign:'center',padding:'20px'},html:'No payment cycles yet. Add one below.'}));return;}
+  var byStu={};
+  all.forEach(function(r){(byStu[r.student_id]=byStu[r.student_id]||{id:r.student_id,name:r.full_name,email:r.email,rows:[]}).rows.push(r);});
+  var rank={overdue:0,soon:1,partial:1,upcoming:2,paid:3,waived:3};
+  var list=Object.keys(byStu).map(function(k){
+    var s=byStu[k];
+    s.rows.sort(function(a,b){return dfPaySortKey(a)<dfPaySortKey(b)?-1:1;});
+    s.sm=dfPaySummary(s.rows,today);
+    return s;
+  }).sort(function(a,b){var d=rank[a.sm.state.key]-rank[b.sm.state.key];return d!==0?d:String(a.name).localeCompare(String(b.name));});
+  var nOver=list.filter(function(s){return s.sm.state.key==='overdue';}).length;
+  var nSoon=list.filter(function(s){return s.sm.state.key==='soon'||s.sm.state.key==='partial';}).length;
+  var nPaid=list.filter(function(s){return !s.sm.cur;}).length;
+  var totalOwing=list.reduce(function(a,s){return a+s.sm.owing;},0);
+  holder.append(h('div',{cls:'mono',style:{fontSize:'12px',color:'var(--muted)',marginBottom:'12px'}},[nOver+' overdue · '+nSoon+' due soon / part-paid · '+nPaid+' paid up · '+dfPayMoney(totalOwing)+' owing in total']));
+  var wrap=div({style:{overflowX:'auto'}});
+  var table=h('table',{style:{width:'100%',minWidth:'640px',borderCollapse:'collapse',fontSize:'13px'}});
+  var trh=h('tr',{});
+  ['Student','Current cycle','Owing','Pay by','Status'].forEach(function(t){trh.append(h('th',{cls:'mono',style:{textAlign:'left',padding:'8px 10px',fontSize:'10px',letterSpacing:'1px',textTransform:'uppercase',color:'var(--dim)',borderBottom:'1px solid var(--border)',fontWeight:'500'}},[t]));});
+  table.append(h('thead',{},[trh]));
+  var tb=h('tbody',{});
+  list.forEach(function(s){
+    var st=s.sm.state,cur=s.sm.cur;
+    var tr=h('tr',{style:{cursor:'pointer',background:cur?st.tint:'transparent'}});
+    var td=function(kids,extra){return h('td',{style:Object.assign({padding:'11px 10px',borderBottom:'1px solid var(--border)'},extra||{})},kids);};
+    var per=cur?(dfPayShort(cur.r.period_start||cur.s.dueDate)+' → '+dfPayShort(cur.r.period_end||cur.r.period_start||cur.s.dueDate)):'All cycles paid';
+    tr.append(
+      td([h('span',{style:{color:'var(--gold)',textDecoration:'underline',fontWeight:'600'}},[s.name])],{borderLeft:'3px solid '+st.color}),
+      td([per],{color:'var(--muted)',whiteSpace:'nowrap'}),
+      td([s.sm.owing>0?dfPayMoney(s.sm.owing):'—'],{color:s.sm.owing>0?st.color:'var(--dim)',fontWeight:s.sm.owing>0?'700':'400'}),
+      td([cur?dfPayDate(cur.s.dueDate):'—'],{color:'var(--muted)',whiteSpace:'nowrap'}),
+      td([h('span',{cls:'mono',style:{fontSize:'10px',letterSpacing:'1px',textTransform:'uppercase',color:st.color,fontWeight:'700',whiteSpace:'nowrap'}},[st.label])])
+    );
+    tr.onclick=function(){openStudentSheet(s.id,s.name,s.email);};
+    tb.append(tr);
+  });
+  table.append(tb);wrap.append(table);holder.append(wrap);
+}
+// ── One student's payment sheet, opened as its own page ──
+async function openStudentSheet(studentId,name,email){
+  content.innerHTML='';
+  var card=div({cls:'card fade'});
+  var topRow=div({style:{marginBottom:'16px'}});
+  topRow.append(btn('\u2190 Back to Bookings','btn-outline',function(){loadTab('bookings');},{style:{fontSize:'12px',padding:'8px 16px'}}));
+  card.append(topRow,h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'24px',marginBottom:'4px'},html:name||'Student'}),h('div',{cls:'mono',style:{fontSize:'11px',color:'var(--dim)'}},[email||'']));
+  var statWrap=div({style:{display:'flex',gap:'18px',flexWrap:'wrap',padding:'14px',margin:'16px 0',border:'1px solid var(--border)',borderRadius:'4px'}});
+  var tableWrap=div({});
+  card.append(statWrap,tableWrap);content.append(card);
+  function stat(label,val,color){return div({style:{minWidth:'120px'}},[h('div',{cls:'mono',style:{fontSize:'10px',letterSpacing:'1px',textTransform:'uppercase',color:'var(--dim)'}},[label]),h('div',{style:{fontFamily:'Georgia,serif',fontSize:'19px',color:color,marginTop:'2px'}},[val])]);}
+  function editorFor(r,st,cell,mode){
+    var box=div({style:{marginTop:'8px',padding:'10px',background:'var(--bg)',borderRadius:'4px',minWidth:'220px'}});
+    var msg=h('div',{style:{fontSize:'11px',color:'#ff6b6b',marginTop:'6px'}},['']);
+    if(mode==='pay'){
+      var amt=inp('Amount received','number',st.owing>0?String(st.owing):'');
+      var dt=inp('','date',dfPayToday());
+      box.append(h('label',{cls:'label',html:'Received ($)'}),amt,h('label',{cls:'label',html:'Date received',style:{marginTop:'8px'}}),dt,
+        div({style:{display:'flex',gap:'6px',marginTop:'8px'}},[
+          btn('Save','btn-teal',async function(){
+            var v=parseFloat(amt.value);
+            if(isNaN(v)||v<=0){msg.textContent='Enter a valid amount.';return;}
+            var when=dt.value?new Date(dt.value+'T12:00:00').toISOString():new Date().toISOString();
+            var ok=await payRpc('record_tutoring_payment',{p_student_id:r.student_id,p_amount:v,p_currency:null,p_ref:null,p_source:'manual',p_paid_at:when,p_payment_id:r.id});
+            if(ok)await refresh();
+          },{style:{fontSize:'10px',padding:'6px 12px'}}),
+          btn('Cancel','btn-outline',function(){box.innerHTML='';box.style.display='none';},{style:{fontSize:'10px',padding:'6px 12px'}})
+        ]),msg);
+    }else{
+      var reason=inp('Reason (optional) e.g. scholarship','text','');
+      box.append(h('div',{style:{fontSize:'12px',color:'var(--muted)',marginBottom:'8px'}},['Waiving closes this cycle without payment and opens the next one.']),reason,
+        div({style:{display:'flex',gap:'6px',marginTop:'8px'}},[
+          btn('Confirm waive','btn-teal',async function(){
+            var ok=await payRpc('waive_tutoring_payment',{p_payment_id:r.id,p_reason:reason.value.trim()||null});
+            if(ok)await refresh();
+          },{style:{fontSize:'10px',padding:'6px 12px'}}),
+          btn('Cancel','btn-outline',function(){box.innerHTML='';box.style.display='none';},{style:{fontSize:'10px',padding:'6px 12px'}})
+        ]));
+    }
+    return box;
+  }
+  async function refresh(){
+    var today=dfPayToday();
+    tableWrap.innerHTML='';tableWrap.append(skelCard([['40%'],['70%']]));
+    var rows=await dfPayLoadFor(studentId,true);
+    tableWrap.innerHTML='';statWrap.innerHTML='';
+    if(!rows.length){tableWrap.append(h('p',{style:{fontSize:'13px',color:'var(--dim)',textAlign:'center',padding:'20px'},html:'No payment cycles for this student yet. Add one from the form at the bottom of this tab.'}));return;}
+    var sm=dfPaySummary(rows,today);
+    statWrap.append(
+      stat('Status',sm.state.label,sm.state.color),
+      stat('Owing now',sm.owing>0?dfPayMoney(sm.owing):'$0',sm.owing>0?sm.state.color:DF_PAY.green),
+      stat('Current cycle',sm.cur?(dfPayShort(sm.cur.r.period_start||sm.cur.s.dueDate)+' → '+dfPayShort(sm.cur.r.period_end||sm.cur.r.period_start||sm.cur.s.dueDate)):'All paid',sm.cur?'var(--text)':DF_PAY.green),
+      stat('Pay by',sm.cur?dfPayDate(sm.cur.s.dueDate):'—','var(--text)')
+    );
+    tableWrap.append(dfPayTable(rows,today,{
+      txnAction:function(t){
+        var line=div({style:{display:'flex',alignItems:'center',gap:'8px',marginBottom:'6px',flexWrap:'wrap'}});
+        var note=t.receipt_sent_at?('receipt sent '+dfPayShort(String(t.receipt_sent_at).slice(0,10))):(t.source==='selar'?'receipt pending':'no receipt sent');
+        line.append(h('span',{cls:'mono',style:{fontSize:'10px',color:'var(--dim)'}},[note]),
+          btn('Resend receipt','btn-outline',async function(){
+            if(!confirm('Email a receipt for this payment to '+(name||'the student')+'?'))return;
+            var ok=await payRpc('resend_tutoring_receipt',{p_txn:t.id});
+            if(ok){alert('Receipt queued. It goes out within a minute.');await refresh();}
+          },{style:{fontSize:'9px',padding:'3px 8px'}}));
+        return line;
+      },
+      actions:function(r,st){
+        if(!st.open)return null;
+        var cell=div({});
+        var slot=div({});
+        cell.append(div({style:{display:'flex',gap:'6px',flexWrap:'wrap'}},[
+          btn('Record payment','btn-teal',function(){slot.innerHTML='';slot.append(editorFor(r,st,cell,'pay'));},{style:{fontSize:'10px',padding:'5px 10px'}}),
+          btn('Waive','btn-outline',function(){slot.innerHTML='';slot.append(editorFor(r,st,cell,'waive'));},{style:{fontSize:'10px',padding:'5px 10px'}})
+        ]),slot);
+        return cell;
+      }
+    }));
+  }
+  await refresh();
 }
 if(tab==='settings'){
 const{data:s}=await sb.from('admin_settings').select('*').single();
@@ -12257,7 +12583,10 @@ info.append(div({cls:'mono',style:{marginTop:'4px'},html:new Date(b.created_at).
 inner2.append(info,h('span',{style:{fontFamily:"Inter,sans-serif",fontSize:'10px',letterSpacing:'1px',textTransform:'uppercase',color:b.status==='pending'?'var(--gold)':'var(--teal)'},html:b.status}));
 row.append(inner2);card.append(row);
 });
-content.innerHTML='';content.append(card);
+content.innerHTML='';
+await renderUnmatchedSelar(content);
+await renderPaymentsMaster(content);
+content.append(card);
 await renderTutoringPaymentsSection(content);
 }
 if(tab==='payouts'){
