@@ -558,7 +558,7 @@ function dfWhatsNewCard(kind,opts){
     items.push({t:'Mailbox',d:'Message students and tutors from the Mail button. Replies arrive on the platform, and every message is also emailed to their registered address, signed with your name.',open:true});
     if(opts.tutor)items.push({t:'My details',d:'Add your bank account, the date you started and your teaching availability (AST) using the My details button at the top.'});
     if(opts.superAdmin){
-      items.push({t:'Student payment sheets',d:'Bookings now opens with every student, worst first. Tap a name to open their own sheet: each billing cycle, what was paid and when, what is owing, with Record payment, Waive and Resend receipt. Selar payments that cannot be matched to a student wait at the top for you to assign.'});
+      items.push({t:'Student payment sheets',d:'Bookings now opens with every student and a loading bar for their current billing cycle. Tap an amount to see how the bill is made up (unpaid cycles carry over), or a name to open their sheet with Record payment, Waive, Reset and Resend receipt. Selar payments that cannot be matched to a student wait at the top for you to assign.'});
       items.push({t:'Payment periods',d:'Tutoring payments now show each period from its start date to one month later, with Paid, Owing, Part-paid, Overdue or Waived. Selar payments are recorded and receipted automatically, and the next period opens when one is paid or waived.'});
       items.push({t:'Account numbers on Payouts',d:'Each tutor\u2019s bank, account name and account number now show beside what you owe them.'});
       items.push({t:'Email student / Email tutors',d:'New buttons on each student profile, the Students list and the Payouts page.'});
@@ -2587,7 +2587,7 @@ function dfPayTable(rows,today,opts){
     var td=function(kids,extra){return h('td',{style:Object.assign({padding:'10px',verticalAlign:'top',borderBottom:'1px solid var(--border)'},extra||{})},kids);};
     var paidOn=div({});
     if(st.key==='waived'){paidOn.append(h('div',{cls:'mono',style:{fontSize:'11px',color:'var(--dim)'}},['Waived'+(r.waived_at?' · '+dfPayShort(String(r.waived_at).slice(0,10)):'')]));if(r.waived_reason)paidOn.append(h('div',{style:{fontSize:'11px',color:'var(--dim)',fontStyle:'italic'}},[r.waived_reason]));}
-    else if(!(r.txns&&r.txns.length)){paidOn.append(h('span',{style:{color:'var(--dim)'}},[Number(r.amount_paid||0)>0?'Recorded earlier':'—']));}
+    else if(!(r.txns&&r.txns.length)){paidOn.append(h('span',{cls:'mono',style:{color:'var(--dim)',fontSize:'11px'}},[Number(r.amount_paid||0)>0?((r.note&&String(r.note).indexOf('Assumed')===0)?'Assumed paid':'Recorded earlier'):'—']));}
     else r.txns.forEach(function(t){
       var line=h('div',{cls:'mono',style:{fontSize:'11px',color:'var(--muted)',marginBottom:'2px'}},[dfPayMoney(t.amount)+' · '+dfPayShort(String(t.paid_at).slice(0,10))+(t.source==='selar'?' · Selar':' · manual')]);
       paidOn.append(line);
@@ -2622,23 +2622,97 @@ function dfPaySummary(rows,today){
   var cur=open[0]||null;
   return{open:open,owing:owing,cur:cur,state:cur?cur.s:{key:'paid',label:'Paid up',color:DF_PAY.green}};
 }
-// Student's "My payments" card (dashboard)
+// Where a student stands today: what is owing across every cycle that has started (older unpaid cycles carry over),
+// the current cycle, and the next one. red = owing, yellow = next payment within 7 days, green = paid up.
+function dfPayBill(rows,today){
+  var started=rows.filter(function(r){var s=r.period_start||r.due_date;return s&&s<=today;});
+  var lines=[],bill=0;
+  started.forEach(function(r){var st=dfPayStatus(r,today);if(st.open&&st.owing>0){lines.push({r:r,owing:st.owing,paid:Number(r.amount_paid||0),due:Number(r.amount_due||0)});bill+=st.owing;}});
+  var cur=null;
+  rows.forEach(function(r){var s=r.period_start||r.due_date,e=r.period_end||s;if(s&&s<=today&&today<=e)cur=r;});
+  if(!cur&&started.length)cur=started[started.length-1];
+  var next=null;
+  rows.forEach(function(r){var s=r.period_start||r.due_date;if(s&&s>today&&!next)next=r;});
+  var nextSt=next?dfPayStatus(next,today):null;
+  var state;
+  if(!rows.length)state={key:'none',label:'No cycle yet',color:DF_PAY.grey,tint:'transparent'};
+  else if(bill>0)state={key:'red',label:'Owing',color:DF_PAY.red,tint:'rgba(255,95,95,0.10)'};
+  else if(nextSt&&nextSt.open&&nextSt.owing>0&&nextSt.daysTo!==null&&nextSt.daysTo<=7)state={key:'yellow',label:'Due soon',color:DF_PAY.amber,tint:'rgba(201,150,58,0.10)'};
+  else state={key:'green',label:'Paid up',color:DF_PAY.green,tint:'rgba(95,179,124,0.10)'};
+  return{lines:lines,bill:bill,cur:cur,next:next,nextSt:nextSt,state:state};
+}
+// The loading bar: current cycle from its start to its end, with today marked.
+function dfPayBar(r,today,color){
+  var wrap=div({style:{minWidth:'210px'}});
+  if(!r){wrap.append(h('span',{style:{fontSize:'12px',color:'var(--dim)'}},['Starts with their first class or test']));return wrap;}
+  var s=r.period_start||r.due_date,e=r.period_end||s;
+  var total=Math.max(dfPayDays(e,s)+1,1);
+  var day=Math.min(Math.max(dfPayDays(today,s)+1,0),total);
+  var pct=Math.round(day/total*100);
+  var top=div({style:{display:'flex',justifyContent:'space-between',gap:'10px',marginBottom:'6px'}},[
+    h('span',{cls:'mono',style:{fontSize:'11px',color:'var(--muted)',whiteSpace:'nowrap'}},[dfPayShort(s)+' → '+dfPayShort(e)]),
+    h('span',{cls:'mono',style:{fontSize:'11px',color:color,fontWeight:'700',whiteSpace:'nowrap'}},['Day '+day+' of '+total])
+  ]);
+  var track=div({style:{position:'relative',height:'8px',borderRadius:'4px',background:'var(--border)'}});
+  track.append(div({style:{height:'100%',width:pct+'%',borderRadius:'4px',background:color}}));
+  var mark=div({style:{position:'absolute',top:'-3px',left:'calc('+pct+'% - 1px)',width:'2px',height:'14px',background:'var(--text)',borderRadius:'1px'}});
+  mark.title='Today · '+dfPayDate(today);
+  track.append(mark);
+  wrap.append(top,track,h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--dim)',marginTop:'5px'}},['Today · '+dfPayShort(today)]));
+  return wrap;
+}
+// The breakdown shown when the bill amount is tapped.
+function dfPayBreakdown(b,today){
+  var box=div({style:{padding:'12px 14px',background:'var(--bg)',borderRadius:'4px',fontSize:'13px',maxWidth:'520px'}});
+  if(!b.lines.length){
+    var nx=b.next&&b.nextSt?(' Your next payment of '+dfPayMoney(b.nextSt.owing)+' is due '+dfPayDate(b.nextSt.dueDate)+'.'):'';
+    box.append(h('div',{style:{color:'var(--muted)'}},['Nothing owing right now.'+nx]));
+    return box;
+  }
+  b.lines.forEach(function(l){
+    var isCur=b.cur&&l.r.id===b.cur.id;
+    var row=div({style:{display:'flex',justifyContent:'space-between',gap:'16px',padding:'6px 0',borderBottom:'1px solid var(--border)'}});
+    var left=div({});
+    left.append(h('div',{style:{color:'var(--text)',fontWeight:'600'}},[isCur?'Current cycle':'Carried over']),
+      h('div',{cls:'mono',style:{fontSize:'11px',color:'var(--muted)'}},[dfPayShort(l.r.period_start||l.r.due_date)+' → '+dfPayShort(l.r.period_end||l.r.period_start)+(l.paid>0?' · '+dfPayMoney(l.paid)+' of '+dfPayMoney(l.due)+' paid':'')]));
+    row.append(left,h('div',{style:{color:DF_PAY.red,fontWeight:'700',fontFamily:'Georgia,serif',fontSize:'15px',whiteSpace:'nowrap'}},[dfPayMoney(l.owing)]));
+    box.append(row);
+  });
+  box.append(div({style:{display:'flex',justifyContent:'space-between',padding:'8px 0 2px',fontWeight:'700'}},[h('span',{style:{color:'var(--text)'}},['Total owing']),h('span',{style:{color:DF_PAY.red,fontFamily:'Georgia,serif',fontSize:'16px'}},[dfPayMoney(b.bill)])]));
+  box.append(h('div',{style:{fontSize:'11px',color:'var(--dim)',marginTop:'6px'}},['Payments always go to the oldest cycle first.']));
+  return box;
+}
+// A bill amount that opens its breakdown when tapped. Returns {wrap, amt} where wrap holds both.
+function dfPayBillWidget(b,today,big){
+  var wrap=div({});
+  var amt=h('span',{title:'Tap for the breakdown',style:{cursor:'pointer',color:b.state.color,fontFamily:'Georgia,serif',fontSize:big?'26px':'17px',fontWeight:'700',borderBottom:'1px dashed '+b.state.color}},[b.bill>0?dfPayMoney(b.bill):'$0']);
+  var bd=dfPayBreakdown(b,today);bd.style.display='none';bd.style.marginTop='10px';
+  amt.onclick=function(ev){if(ev&&ev.stopPropagation)ev.stopPropagation();bd.style.display=bd.style.display==='none'?'block':'none';};
+  wrap.append(amt);
+  if(b.bill<=0&&b.next&&b.nextSt)wrap.append(h('div',{cls:'mono',style:{fontSize:'11px',color:'var(--muted)',marginTop:'3px'}},['Next '+dfPayMoney(b.nextSt.owing)+' · '+dfPayShort(b.nextSt.dueDate)]));
+  else if(b.lines.length>1)wrap.append(h('div',{cls:'mono',style:{fontSize:'11px',color:'var(--muted)',marginTop:'3px'}},['includes carried over']));
+  wrap.append(bd);
+  return wrap;
+}
+
+// Student's "My Payments" card (dashboard)
 async function dfRenderMyPayments(holder){
   var today=dfPayToday();
   var rows=await dfPayLoadFor(S.user.id,true);
   if(!rows.length)return;
-  var sm=dfPaySummary(rows,today);
+  var b=dfPayBill(rows,today);
   var link=await dfPaySelarLink();
   var card=div({cls:'card',style:{marginBottom:'16px'}});
-  card.append(h('div',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'17px',color:'var(--gold)',marginBottom:'4px'}},['My Payments']));
-  var line;
-  if(sm.cur){
-    var s=sm.cur.s,r=sm.cur.r;
-    line=(sm.owing>0?'Owing '+dfPayMoney(sm.owing):'Next payment '+dfPayMoney(s.owing))+' · Billing cycle '+dfPayDate(r.period_start||s.dueDate)+' → '+dfPayDate(r.period_end||r.period_start||s.dueDate)+' · Pay by '+dfPayDate(s.dueDate);
-  }else line='You are all paid up. Thank you.';
-  card.append(h('div',{style:{fontSize:'13px',color:sm.state.color,marginBottom:'14px',fontWeight:'600'}},[sm.state.label+' — '+line]));
+  card.append(h('div',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'17px',color:'var(--gold)',marginBottom:'12px'}},['My Payments']));
+  var top=div({style:{display:'flex',gap:'28px',flexWrap:'wrap',alignItems:'flex-start',marginBottom:'16px'}});
+  var left=div({});
+  left.append(h('div',{cls:'mono',style:{fontSize:'10px',letterSpacing:'1px',textTransform:'uppercase',color:b.state.color,fontWeight:'700',marginBottom:'4px'}},[b.bill>0?'Amount owing':b.state.label]),dfPayBillWidget(b,today,true));
+  top.append(left,div({style:{flex:'1',minWidth:'220px',maxWidth:'380px'}},[dfPayBar(b.cur,today,b.state.color)]));
+  card.append(top);
+  if(b.bill>0||(b.state.key==='yellow')){
+    if(link)card.append(h('a',{cls:'btn btn-gold',href:link,target:'_blank',rel:'noopener',style:{display:'inline-block',marginBottom:'16px',fontSize:'12px',padding:'9px 18px',textDecoration:'none'}},['Pay on Selar →']));
+  }
   card.append(dfPayTable(rows,today,{}));
-  if(link&&sm.cur){card.append(h('a',{cls:'btn btn-gold',href:link,target:'_blank',rel:'noopener',style:{display:'inline-block',marginTop:'14px',fontSize:'12px',padding:'9px 18px',textDecoration:'none'}},['Pay on Selar →']));}
   holder.append(card);
 }
 // Persistent banner: from 3 days before a cycle's due date until it is paid.
@@ -8820,196 +8894,6 @@ async function payRpc(name,args){
   if(msg){alert('Could not save: '+msg);return false;}
   return true;
 }
-async function renderTutoringPaymentsSection(content){
-  var payCard=div({cls:'card fade',style:{marginTop:'24px'}});
-  payCard.append(h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'22px',marginBottom:'8px'},html:'Tutoring Payments'}),h('p',{cls:'muted',style:{fontSize:'13px',marginBottom:'20px'},html:'Each payment covers one monthly period, from its start date to exactly one month later. Mark it paid, part-paid or waived and the next period opens automatically. Selar payments are recorded and receipted automatically.'}));
-  var studentSel=h('select',{cls:'input'},[h('option',{value:''},['Select enrolled student…'])]);
-  var amountInp=inp('e.g. 200','number','');
-  var dueInp=inp('','date','');
-  var periodHint=div({cls:'mono',style:{fontSize:'11px',color:'var(--gold)',marginTop:'8px'}},['Pick a start date to see the payment period.']);
-  function updatePeriodHint(){periodHint.textContent=dueInp.value?('Period: '+fmtPeriodPay(dueInp.value,periodEndPay(dueInp.value))):'Pick a start date to see the payment period.';}
-  dueInp.onchange=updatePeriodHint;dueInp.oninput=updatePeriodHint;
-  var noteInp=inp('e.g. Month 2 fee (optional)','text','');
-  var recurCheck=h('input',{type:'checkbox',style:{marginRight:'8px',verticalAlign:'middle'}});
-  var recurLabel=h('label',{style:{fontSize:'12px',color:'var(--muted)',display:'flex',alignItems:'center',marginTop:'12px',cursor:'pointer'}},[recurCheck,'Recurring — the next monthly period opens automatically once this one is paid or waived']);
-  var statusMsg=div({style:{fontSize:'12px',marginTop:'10px',display:'none'}});
-  var addRow=div({style:{marginBottom:'8px'}},[
-    h('label',{cls:'label',html:'Student'}),studentSel,
-    div({style:{display:'flex',gap:'10px',flexWrap:'wrap',marginTop:'12px'}},[
-      div({style:{flex:'1',minWidth:'140px'}},[h('label',{cls:'label',html:'Amount Due ($)'}),amountInp]),
-      div({style:{flex:'1',minWidth:'140px'}},[h('label',{cls:'label',html:'Period Start (also the due date)'}),dueInp])
-    ]),
-    periodHint,
-    div({style:{marginTop:'12px'}},[h('label',{cls:'label',html:'Note'}),noteInp]),
-    recurLabel
-  ]);
-  var saveBtn=btn('+ Add Payment','btn-gold',null,{style:{fontSize:'12px',padding:'8px 16px',marginTop:'14px'}});
-  payCard.append(addRow,saveBtn,statusMsg,h('hr',{style:{border:'none',borderTop:'1px solid var(--border)',margin:'22px 0'}}));
-  var listWrap=div({},[]);
-  payCard.append(listWrap);
-  content.append(payCard);
-
-  (async function(){
-    var students=await fetchEnrolled();
-    students.forEach(function(s){studentSel.append(h('option',{value:s.user_id},[s.full_name+(s.email?' · '+s.email:'')]));});
-    if(!students.length){studentSel.disabled=true;saveBtn.disabled=true;}
-  })();
-
-  saveBtn.onclick=async function(){
-    statusMsg.style.display='none';
-    if(!studentSel.value){statusMsg.textContent='Select a student.';statusMsg.style.color='#ff4444';statusMsg.style.display='block';return;}
-    var amt=parseFloat(amountInp.value);
-    if(!amountInp.value||isNaN(amt)||amt<=0){statusMsg.textContent='Enter a valid amount due.';statusMsg.style.color='#ff4444';statusMsg.style.display='block';return;}
-    if(recurCheck.checked&&!dueInp.value){statusMsg.textContent='A recurring payment needs a period start date.';statusMsg.style.color='#ff4444';statusMsg.style.display='block';return;}
-    saveBtn.disabled=true;
-    var ins=await sb.from('tutoring_payments').insert({student_id:studentSel.value,amount_due:amt,due_date:dueInp.value||null,period_start:dueInp.value||null,period_end:dueInp.value?periodEndPay(dueInp.value):null,note:noteInp.value.trim()||null,is_recurring:recurCheck.checked,created_by:S.user.id});
-    saveBtn.disabled=false;
-    if(ins.error){statusMsg.textContent='Failed: '+ins.error.message;statusMsg.style.color='#ff4444';statusMsg.style.display='block';return;}
-    statusMsg.textContent='✓ Payment added.';statusMsg.style.color='var(--teal)';statusMsg.style.display='block';
-    amountInp.value='';dueInp.value='';noteInp.value='';studentSel.value='';recurCheck.checked=false;updatePeriodHint();
-    renderPaymentsList();
-  };
-
-  var filterMode='open';
-  async function renderPaymentsList(){
-    listWrap.innerHTML='';
-    listWrap.append(skelCard([['40%'],['70%']]));
-    var rows=await fetchPayments();
-    listWrap.innerHTML='';
-    if(!rows.length){listWrap.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'16px',marginBottom:'12px'},html:'Payment Records (0)'}),div({cls:'card',style:{textAlign:'center',padding:'30px'}},[h('p',{style:{fontSize:'13px',color:'var(--dim)'},html:'No payments tracked yet. Add one above.'})]));return;}
-    var todayD=new Date();
-    var today=todayD.getFullYear()+'-'+String(todayD.getMonth()+1).padStart(2,'0')+'-'+String(todayD.getDate()).padStart(2,'0');
-    var openRows=rows.filter(function(r){return (r.status||'unpaid')!=='paid';});
-    var owingTotal=openRows.reduce(function(s,r){return s+Math.max(Number(r.amount_due||0)-Number(r.amount_paid||0),0);},0);
-    var overdueRows=openRows.filter(function(r){return r.due_date&&r.due_date<today;});
-    var owingStudents={};openRows.forEach(function(r){owingStudents[r.student_id]=1;});
-    function stat(label,val,color){return div({style:{flex:'1',minWidth:'110px'}},[h('div',{cls:'mono',style:{fontSize:'10px',letterSpacing:'1px',textTransform:'uppercase',color:'var(--dim)'}},[label]),h('div',{style:{fontFamily:'Georgia,serif',fontSize:'20px',color:color,marginTop:'2px'}},[val])]);}
-    listWrap.append(div({cls:'card',style:{display:'flex',gap:'14px',flexWrap:'wrap',padding:'14px',marginBottom:'14px'}},[
-      stat('Total owing',fmtMoneyPay(owingTotal),owingTotal>0?'var(--gold)':'var(--teal)'),
-      stat('Students owing',String(Object.keys(owingStudents).length),'var(--text)'),
-      stat('Overdue periods',String(overdueRows.length),overdueRows.length?'#ff6b6b':'var(--teal)')
-    ]));
-    var filterRow=div({style:{display:'flex',gap:'6px',marginBottom:'12px',flexWrap:'wrap'}});
-    [['open','Open ('+openRows.length+')'],['closed','Paid / Waived ('+(rows.length-openRows.length)+')'],['all','All ('+rows.length+')']].forEach(function(f){
-      filterRow.append(btn(f[1],filterMode===f[0]?'btn-gold':'btn-outline',function(){filterMode=f[0];renderPaymentsList();},{style:{fontSize:'10px',padding:'6px 12px'}}));
-    });
-    var shown=rows.filter(function(r){var closed=(r.status||'unpaid')==='paid';return filterMode==='all'||(filterMode==='open'?!closed:closed);});
-    if(filterMode==='closed')shown=shown.slice().reverse();
-    listWrap.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'16px',marginBottom:'12px'},html:'Payment Records ('+shown.length+')'}),filterRow);
-    if(!shown.length){listWrap.append(div({cls:'card',style:{textAlign:'center',padding:'24px'}},[h('p',{style:{fontSize:'13px',color:'var(--dim)'},html:filterMode==='open'?'Nobody owes anything right now.':'Nothing here yet.'})]));return;}
-    shown.forEach(function(r){
-      var status=r.status||'unpaid';
-      var closed=status==='paid';
-      var waived=closed&&!!r.waived_at;
-      var amtPaid=Number(r.amount_paid||0);
-      var amtDue=Number(r.amount_due||0);
-      var balance=Math.max(amtDue-amtPaid,0);
-      var per=periodOfPay(r);
-      var overdue=!closed&&r.due_date&&r.due_date<today;
-      var hasLater=rows.some(function(o){return o.student_id===r.student_id&&o.id!==r.id&&(periodOfPay(o).start||'')>(per.start||'');});
-      var label=waived?'waived':closed?'paid':status==='partial'?(overdue?'part-paid · overdue':'part-paid'):(overdue?'overdue':'owing');
-      var borderColor=waived?'var(--dim)':closed?'var(--teal)':status==='partial'?'var(--gold)':overdue?'#ff4444':'var(--border)';
-      var row=div({cls:'card',style:{marginBottom:'10px',padding:'14px',borderLeft:'2px solid '+borderColor}});
-      var top=div({style:{display:'flex',justifyContent:'space-between',alignItems:'flex-start',flexWrap:'wrap',gap:'10px'}});
-      var info=div({});
-      info.append(
-        h('div',{style:{fontSize:'14px',color:'var(--text)',fontWeight:'500'}},[r.full_name+(r.is_recurring?'  🔁':'')]),
-        h('div',{cls:'mono',style:{fontSize:'11px',color:'var(--gold)',marginTop:'3px',letterSpacing:'0.5px'}},['PERIOD · '+fmtPeriodPay(per.start,per.end)+(r.is_recurring?' · recurring monthly':'')])
-      );
-      if(waived){
-        info.append(h('div',{cls:'mono',style:{fontSize:'11px',color:'var(--muted)',marginTop:'3px'}},['Waived '+fmtMoneyPay(amtDue-amtPaid>0?amtDue-amtPaid:amtDue)+(r.waived_at?' on '+fmtDateShortPay(String(r.waived_at).slice(0,10)):'')+(r.waived_reason?' · '+r.waived_reason:'')]));
-      }else if(closed){
-        info.append(h('div',{cls:'mono',style:{fontSize:'11px',color:'var(--teal)',marginTop:'3px'}},[fmtMoneyPay(amtDue)+' due · Paid '+fmtMoneyPay(amtPaid)+(r.paid_at?' on '+fmtDateShortPay(String(r.paid_at).slice(0,10)):'')]));
-      }else{
-        info.append(h('div',{cls:'mono',style:{fontSize:'11px',color:'var(--muted)',marginTop:'3px'}},[fmtMoneyPay(amtDue)+' due'+(r.due_date?' · due '+fmtDateShortPay(r.due_date):' · no due date')+(amtPaid>0?' · Paid '+fmtMoneyPay(amtPaid):'')]));
-        info.append(h('div',{cls:'mono',style:{fontSize:'12px',color:overdue?'#ff6b6b':'var(--gold)',marginTop:'3px',fontWeight:'600'}},['Owing '+fmtMoneyPay(balance)+(overdue?' · OVERDUE':'')]));
-        if(r.last_reminder_sent){
-          info.append(h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--dim)',marginTop:'3px'}},['Last reminder: '+(r.last_reminder_type||'sent')+' · '+fmtDateShortPay(String(r.last_reminder_sent).slice(0,10))]));
-        }
-        if(r.is_recurring&&r.paid_at&&!(r.txns&&r.txns.length)){
-          info.append(h('div',{cls:'mono',style:{fontSize:'11px',color:'var(--dim)',marginTop:'2px'}},['Last paid '+fmtDateShortPay(String(r.paid_at).slice(0,10))]));
-        }
-      }
-      (r.txns||[]).forEach(function(t){
-        var src=t.source==='selar'?'Selar':'Manual';
-        var rc=t.source==='selar'?(t.receipt_sent_at?' · receipt sent':' · receipt pending'):'';
-        info.append(h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--dim)',marginTop:'2px'}},['+ '+fmtMoneyPay(t.amount)+' · '+fmtDayPay(String(t.paid_at).slice(0,10))+' · '+src+rc]));
-      });
-      if(r.note)info.append(h('div',{style:{fontSize:'12px',color:'var(--dim)',fontStyle:'italic',marginTop:'4px'}},[r.note]));
-      var pillColor=waived?'var(--dim)':closed?'var(--teal)':status==='partial'?'var(--gold)':overdue?'#ff4444':'var(--dim)';
-      var pill=h('span',{cls:'mono',style:{fontSize:'10px',letterSpacing:'1px',textTransform:'uppercase',color:pillColor}},[label]);
-      top.append(info,pill);
-      row.append(top);
-
-      var editWrap=div({style:{display:'none',marginTop:'10px',padding:'10px',background:'var(--bg)',borderRadius:'4px'}});
-      function closeEdit(){editWrap.innerHTML='';editWrap.style.display='none';}
-      function openPartialEdit(){
-        editWrap.innerHTML='';
-        var recInp=inp('Amount received now','number','');
-        var dueInp2=inp('Total amount due','number',amtDue||'');
-        var saveMsg=div({style:{fontSize:'11px',marginTop:'6px',display:'none'}});
-        var saveBtn2=btn('Save','btn-teal',async function(){
-          var rec=recInp.value===''?0:parseFloat(recInp.value);var d=parseFloat(dueInp2.value);
-          if(isNaN(rec)||rec<0){saveMsg.textContent='Enter a valid amount received.';saveMsg.style.color='#ff4444';saveMsg.style.display='block';return;}
-          if(isNaN(d)||d<=0){saveMsg.textContent='Enter a valid amount due.';saveMsg.style.color='#ff4444';saveMsg.style.display='block';return;}
-          if(d!==amtDue){var u=await sb.from('tutoring_payments').update({amount_due:d}).eq('id',r.id);if(u.error){saveMsg.textContent='Failed: '+u.error.message;saveMsg.style.color='#ff4444';saveMsg.style.display='block';return;}}
-          if(rec>0){var ok=await payRpc('record_tutoring_payment',{p_student_id:r.student_id,p_amount:rec,p_currency:null,p_ref:null,p_source:'manual',p_paid_at:new Date().toISOString(),p_payment_id:r.id});if(!ok)return;}
-          renderPaymentsList();
-        },{style:{fontSize:'10px',padding:'6px 12px'}});
-        var cancelBtn=btn('Cancel','btn-outline',closeEdit,{style:{fontSize:'10px',padding:'6px 12px'}});
-        editWrap.append(
-          div({style:{display:'flex',gap:'10px',flexWrap:'wrap'}},[
-            div({style:{flex:'1',minWidth:'120px'}},[h('label',{cls:'label',html:'Received Now ($)'}),recInp]),
-            div({style:{flex:'1',minWidth:'120px'}},[h('label',{cls:'label',html:'Amount Due ($)'}),dueInp2])
-          ]),
-          div({style:{display:'flex',gap:'6px',marginTop:'8px'}},[saveBtn2,cancelBtn]),
-          saveMsg
-        );
-        editWrap.style.display='block';
-      }
-      function openWaiveEdit(){
-        editWrap.innerHTML='';
-        var reasonInp=inp('Reason (optional) e.g. scholarship, trial month','text','');
-        var waiveBtn=btn('Confirm Waive','btn-teal',async function(){
-          var ok=await payRpc('waive_tutoring_payment',{p_payment_id:r.id,p_reason:reasonInp.value.trim()||null});
-          if(ok)renderPaymentsList();
-        },{style:{fontSize:'10px',padding:'6px 12px'}});
-        var cancelBtn2=btn('Cancel','btn-outline',closeEdit,{style:{fontSize:'10px',padding:'6px 12px'}});
-        editWrap.append(
-          h('p',{style:{fontSize:'12px',color:'var(--muted)',marginBottom:'8px'},html:'Waiving closes this period without payment'+(r.is_recurring?' and opens the next one.':'.')}),
-          reasonInp,
-          div({style:{display:'flex',gap:'6px',marginTop:'8px'}},[waiveBtn,cancelBtn2])
-        );
-        editWrap.style.display='block';
-      }
-
-      var btnRow=div({style:{display:'flex',gap:'6px',marginTop:'10px',flexWrap:'wrap'}});
-      if(!closed){
-        btnRow.append(btn('Mark Paid','btn-teal',async function(){
-          var ok=await payRpc('record_tutoring_payment',{p_student_id:r.student_id,p_amount:balance>0?balance:amtDue,p_currency:null,p_ref:null,p_source:'manual',p_paid_at:new Date().toISOString(),p_payment_id:r.id});
-          if(ok)renderPaymentsList();
-        },{style:{fontSize:'10px',padding:'6px 12px'}}));
-        btnRow.append(btn('Part Payment','btn-outline',openPartialEdit,{style:{fontSize:'10px',padding:'6px 12px'}}));
-        btnRow.append(btn('Waive','btn-outline',openWaiveEdit,{style:{fontSize:'10px',padding:'6px 12px'}}));
-      }
-      if((status!=='unpaid'||waived)&&!hasLater){
-        btnRow.append(btn('Mark Unpaid','btn-outline',async function(){
-          if(!confirm('Reset this period to unpaid? Its payment history will be cleared.'))return;
-          await sb.from('tutoring_payment_transactions').delete().eq('payment_id',r.id);
-          await sb.from('tutoring_payments').update({status:'unpaid',amount_paid:0,paid_at:null,waived_at:null,waived_reason:null}).eq('id',r.id);
-          renderPaymentsList();
-        },{style:{fontSize:'10px',padding:'6px 12px'}}));
-      }
-      if(!closed){
-        btnRow.append(btn(r.is_recurring?'Stop Recurring':'Make Recurring','btn-outline',async function(){await sb.from('tutoring_payments').update({is_recurring:!r.is_recurring}).eq('id',r.id);renderPaymentsList();},{style:{fontSize:'10px',padding:'6px 12px'}}));
-      }
-      btnRow.append(btn('Delete','btn-outline',async function(){if(!confirm('Delete this payment record?'))return;await sb.from('tutoring_payments').delete().eq('id',r.id);renderPaymentsList();},{style:{fontSize:'10px',padding:'6px 12px',color:'#ff4444',borderColor:'#ff4444'}}));
-      row.append(btnRow,editWrap);
-      listWrap.append(row);
-    });
-  }
-  await renderPaymentsList();
-}
 // ── Unmatched Selar payments: assign to a student (remembers the buyer's email) or dismiss ──
 async function renderUnmatchedSelar(content){
   var res=await sb.from('selar_events').select('*').eq('status','unmatched').order('created_at',{ascending:false});
@@ -9045,49 +8929,49 @@ async function renderUnmatchedSelar(content){
   });
   content.append(card);
 }
-// ── Master sheet: every student, worst first. Tap a name to open that student's own sheet page. ──
+// ── Master sheet: every active student with a loading bar for their current cycle, worst first ──
 async function renderPaymentsMaster(content){
   var today=dfPayToday();
+  try{await sb.rpc('ensure_payment_cycles');}catch(e){}
   var card=div({cls:'card fade',style:{marginBottom:'24px'}});
-  card.append(h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'22px',marginBottom:'8px'},html:'Student Payments'}),h('p',{cls:'muted',style:{fontSize:'13px',marginBottom:'16px'},html:'Tap a student to open their payment sheet. Red is overdue, amber is due soon or part-paid, green is paid up.'}));
+  card.append(h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'22px',marginBottom:'8px'},html:'Student Payments'}),h('p',{cls:'muted',style:{fontSize:'13px',marginBottom:'16px'},html:'The bar shows where each student is in their current billing cycle. Tap an amount to see how it is made up, or a name to open their sheet. Red is owing, yellow is due within a week, green is paid up.'}));
   var holder=div({});card.append(holder);content.append(card);
   holder.append(skelCard([['40%'],['70%']]));
+  var enrolled=await fetchEnrolled();
   var all=await fetchPayments();
   holder.innerHTML='';
-  if(!all.length){holder.append(h('p',{style:{fontSize:'13px',color:'var(--dim)',textAlign:'center',padding:'20px'},html:'No payment cycles yet. Add one below.'}));return;}
   var byStu={};
-  all.forEach(function(r){(byStu[r.student_id]=byStu[r.student_id]||{id:r.student_id,name:r.full_name,email:r.email,rows:[]}).rows.push(r);});
-  var rank={overdue:0,soon:1,partial:1,upcoming:2,paid:3,waived:3};
-  var list=Object.keys(byStu).map(function(k){
-    var s=byStu[k];
-    s.rows.sort(function(a,b){return dfPaySortKey(a)<dfPaySortKey(b)?-1:1;});
-    s.sm=dfPaySummary(s.rows,today);
-    return s;
-  }).sort(function(a,b){var d=rank[a.sm.state.key]-rank[b.sm.state.key];return d!==0?d:String(a.name).localeCompare(String(b.name));});
-  var nOver=list.filter(function(s){return s.sm.state.key==='overdue';}).length;
-  var nSoon=list.filter(function(s){return s.sm.state.key==='soon'||s.sm.state.key==='partial';}).length;
-  var nPaid=list.filter(function(s){return !s.sm.cur;}).length;
-  var totalOwing=list.reduce(function(a,s){return a+s.sm.owing;},0);
-  holder.append(h('div',{cls:'mono',style:{fontSize:'12px',color:'var(--muted)',marginBottom:'12px'}},[nOver+' overdue · '+nSoon+' due soon / part-paid · '+nPaid+' paid up · '+dfPayMoney(totalOwing)+' owing in total']));
+  all.forEach(function(r){(byStu[r.student_id]=byStu[r.student_id]||[]).push(r);});
+  var rank={red:0,yellow:1,green:2,none:3};
+  var list=enrolled.map(function(s){
+    var rows=(byStu[s.user_id]||[]).slice().sort(function(a,b){return dfPaySortKey(a)<dfPaySortKey(b)?-1:1;});
+    return{id:s.user_id,name:s.full_name,email:s.email,rows:rows,b:dfPayBill(rows,today)};
+  }).sort(function(a,b){var d=rank[a.b.state.key]-rank[b.b.state.key];if(d!==0)return d;if(a.b.state.key==='red'&&b.b.state.key==='red')return b.b.bill-a.b.bill;return String(a.name).localeCompare(String(b.name));});
+  if(!list.length){holder.append(h('p',{style:{fontSize:'13px',color:'var(--dim)',textAlign:'center',padding:'20px'},html:'No students enrolled in tutoring yet.'}));return;}
+  var nRed=list.filter(function(s){return s.b.state.key==='red';}).length;
+  var nYel=list.filter(function(s){return s.b.state.key==='yellow';}).length;
+  var nGrn=list.filter(function(s){return s.b.state.key==='green';}).length;
+  var total=list.reduce(function(a,s){return a+s.b.bill;},0);
+  var chip=function(n,label,color){return h('span',{cls:'mono',style:{fontSize:'12px',color:color,fontWeight:'700',marginRight:'16px'}},[n+' '+label]);};
+  holder.append(div({style:{marginBottom:'14px'}},[chip(nRed,'owing',DF_PAY.red),chip(nYel,'due soon',DF_PAY.amber),chip(nGrn,'paid up',DF_PAY.green),h('span',{cls:'mono',style:{fontSize:'12px',color:'var(--muted)'}},[dfPayMoney(total)+' owing in total'])]));
   var wrap=div({style:{overflowX:'auto'}});
-  var table=h('table',{style:{width:'100%',minWidth:'640px',borderCollapse:'collapse',fontSize:'13px'}});
+  var table=h('table',{style:{width:'100%',minWidth:'720px',borderCollapse:'collapse',fontSize:'13px'}});
   var trh=h('tr',{});
-  ['Student','Current cycle','Owing','Pay by','Status'].forEach(function(t){trh.append(h('th',{cls:'mono',style:{textAlign:'left',padding:'8px 10px',fontSize:'10px',letterSpacing:'1px',textTransform:'uppercase',color:'var(--dim)',borderBottom:'1px solid var(--border)',fontWeight:'500'}},[t]));});
+  ['Student','Current billing cycle','Bill','Status'].forEach(function(t){trh.append(h('th',{cls:'mono',style:{textAlign:'left',padding:'8px 10px',fontSize:'10px',letterSpacing:'1px',textTransform:'uppercase',color:'var(--dim)',borderBottom:'1px solid var(--border)',fontWeight:'500'}},[t]));});
   table.append(h('thead',{},[trh]));
   var tb=h('tbody',{});
   list.forEach(function(s){
-    var st=s.sm.state,cur=s.sm.cur;
-    var tr=h('tr',{style:{cursor:'pointer',background:cur?st.tint:'transparent'}});
-    var td=function(kids,extra){return h('td',{style:Object.assign({padding:'11px 10px',borderBottom:'1px solid var(--border)'},extra||{})},kids);};
-    var per=cur?(dfPayShort(cur.r.period_start||cur.s.dueDate)+' → '+dfPayShort(cur.r.period_end||cur.r.period_start||cur.s.dueDate)):'All cycles paid';
+    var st=s.b.state;
+    var td=function(kids,extra){return h('td',{style:Object.assign({padding:'12px 10px',borderBottom:'1px solid var(--border)',verticalAlign:'middle'},extra||{})},kids);};
+    var name=h('span',{style:{color:'var(--gold)',textDecoration:'underline',fontWeight:'600',cursor:'pointer'}},[s.name]);
+    name.onclick=function(){openStudentSheet(s.id,s.name,s.email);};
+    var tr=h('tr',{style:{background:st.tint}});
     tr.append(
-      td([h('span',{style:{color:'var(--gold)',textDecoration:'underline',fontWeight:'600'}},[s.name])],{borderLeft:'3px solid '+st.color}),
-      td([per],{color:'var(--muted)',whiteSpace:'nowrap'}),
-      td([s.sm.owing>0?dfPayMoney(s.sm.owing):'—'],{color:s.sm.owing>0?st.color:'var(--dim)',fontWeight:s.sm.owing>0?'700':'400'}),
-      td([cur?dfPayDate(cur.s.dueDate):'—'],{color:'var(--muted)',whiteSpace:'nowrap'}),
+      td([name],{borderLeft:'3px solid '+st.color,whiteSpace:'nowrap'}),
+      td([dfPayBar(s.b.cur,today,st.color)],{minWidth:'240px'}),
+      td([s.rows.length?dfPayBillWidget(s.b,today,false):h('span',{style:{color:'var(--dim)'}},['—'])],{minWidth:'150px'}),
       td([h('span',{cls:'mono',style:{fontSize:'10px',letterSpacing:'1px',textTransform:'uppercase',color:st.color,fontWeight:'700',whiteSpace:'nowrap'}},[st.label])])
     );
-    tr.onclick=function(){openStudentSheet(s.id,s.name,s.email);};
     tb.append(tr);
   });
   table.append(tb);wrap.append(table);holder.append(wrap);
@@ -9099,11 +8983,11 @@ async function openStudentSheet(studentId,name,email){
   var topRow=div({style:{marginBottom:'16px'}});
   topRow.append(btn('\u2190 Back to Bookings','btn-outline',function(){loadTab('bookings');},{style:{fontSize:'12px',padding:'8px 16px'}}));
   card.append(topRow,h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'24px',marginBottom:'4px'},html:name||'Student'}),h('div',{cls:'mono',style:{fontSize:'11px',color:'var(--dim)'}},[email||'']));
-  var statWrap=div({style:{display:'flex',gap:'18px',flexWrap:'wrap',padding:'14px',margin:'16px 0',border:'1px solid var(--border)',borderRadius:'4px'}});
+  var summaryWrap=div({style:{display:'flex',gap:'32px',flexWrap:'wrap',alignItems:'flex-start',padding:'16px',margin:'16px 0',border:'1px solid var(--border)',borderRadius:'4px'}});
+  var priceWrap=div({style:{margin:'0 0 16px'}});
   var tableWrap=div({});
-  card.append(statWrap,tableWrap);content.append(card);
-  function stat(label,val,color){return div({style:{minWidth:'120px'}},[h('div',{cls:'mono',style:{fontSize:'10px',letterSpacing:'1px',textTransform:'uppercase',color:'var(--dim)'}},[label]),h('div',{style:{fontFamily:'Georgia,serif',fontSize:'19px',color:color,marginTop:'2px'}},[val])]);}
-  function editorFor(r,st,cell,mode){
+  card.append(summaryWrap,priceWrap,tableWrap);content.append(card);
+  function editorFor(r,st,mode){
     var box=div({style:{marginTop:'8px',padding:'10px',background:'var(--bg)',borderRadius:'4px',minWidth:'220px'}});
     var msg=h('div',{style:{fontSize:'11px',color:'#ff6b6b',marginTop:'6px'}},['']);
     if(mode==='pay'){
@@ -9122,7 +9006,7 @@ async function openStudentSheet(studentId,name,email){
         ]),msg);
     }else{
       var reason=inp('Reason (optional) e.g. scholarship','text','');
-      box.append(h('div',{style:{fontSize:'12px',color:'var(--muted)',marginBottom:'8px'}},['Waiving closes this cycle without payment and opens the next one.']),reason,
+      box.append(h('div',{style:{fontSize:'12px',color:'var(--muted)',marginBottom:'8px'}},['Waiving closes this cycle without payment.']),reason,
         div({style:{display:'flex',gap:'6px',marginTop:'8px'}},[
           btn('Confirm waive','btn-teal',async function(){
             var ok=await payRpc('waive_tutoring_payment',{p_payment_id:r.id,p_reason:reason.value.trim()||null});
@@ -9135,17 +9019,32 @@ async function openStudentSheet(studentId,name,email){
   }
   async function refresh(){
     var today=dfPayToday();
+    try{await sb.rpc('ensure_payment_cycles');}catch(e){}
     tableWrap.innerHTML='';tableWrap.append(skelCard([['40%'],['70%']]));
     var rows=await dfPayLoadFor(studentId,true);
-    tableWrap.innerHTML='';statWrap.innerHTML='';
-    if(!rows.length){tableWrap.append(h('p',{style:{fontSize:'13px',color:'var(--dim)',textAlign:'center',padding:'20px'},html:'No payment cycles for this student yet. Add one from the form at the bottom of this tab.'}));return;}
-    var sm=dfPaySummary(rows,today);
-    statWrap.append(
-      stat('Status',sm.state.label,sm.state.color),
-      stat('Owing now',sm.owing>0?dfPayMoney(sm.owing):'$0',sm.owing>0?sm.state.color:DF_PAY.green),
-      stat('Current cycle',sm.cur?(dfPayShort(sm.cur.r.period_start||sm.cur.s.dueDate)+' → '+dfPayShort(sm.cur.r.period_end||sm.cur.r.period_start||sm.cur.s.dueDate)):'All paid',sm.cur?'var(--text)':DF_PAY.green),
-      stat('Pay by',sm.cur?dfPayDate(sm.cur.s.dueDate):'—','var(--text)')
-    );
+    tableWrap.innerHTML='';summaryWrap.innerHTML='';priceWrap.innerHTML='';
+    if(!rows.length){tableWrap.append(h('p',{style:{fontSize:'13px',color:'var(--dim)',textAlign:'center',padding:'20px'},html:'No billing cycle yet. It starts automatically the day this student is first scheduled for a class or completes a test.'}));return;}
+    var b=dfPayBill(rows,today);
+    var left=div({});
+    left.append(h('div',{cls:'mono',style:{fontSize:'10px',letterSpacing:'1px',textTransform:'uppercase',color:b.state.color,fontWeight:'700',marginBottom:'4px'}},[b.bill>0?'Amount owing':b.state.label]),dfPayBillWidget(b,today,true));
+    summaryWrap.append(left,div({style:{flex:'1',minWidth:'240px',maxWidth:'420px'}},[dfPayBar(b.cur,today,b.state.color)]));
+    var price=Number(rows[rows.length-1].amount_due||0);
+    var priceRow=div({style:{display:'flex',alignItems:'center',gap:'10px',flexWrap:'wrap'}});
+    priceRow.append(h('span',{cls:'mono',style:{fontSize:'12px',color:'var(--muted)'}},['Plan price per cycle: '+dfPayMoney(price)]),
+      btn('Change','btn-outline',function(){
+        priceRow.innerHTML='';
+        var pin=inp('New price','number',String(price));pin.style.maxWidth='120px';
+        priceRow.append(h('span',{cls:'mono',style:{fontSize:'12px',color:'var(--muted)'}},['New price per cycle ($)']),pin,
+          btn('Save','btn-teal',async function(){
+            var v=parseFloat(pin.value);if(isNaN(v)||v<=0){alert('Enter a valid price.');return;}
+            if(!confirm('Set the price to '+dfPayMoney(v)+' on every cycle that has no payment yet, including future ones?'))return;
+            var u=await sb.from('tutoring_payments').update({amount_due:v}).eq('student_id',studentId).eq('status','unpaid').eq('amount_paid',0);
+            if(u.error){alert('Could not save: '+u.error.message);return;}
+            await refresh();
+          },{style:{fontSize:'10px',padding:'6px 12px'}}),
+          btn('Cancel','btn-outline',function(){refresh();},{style:{fontSize:'10px',padding:'6px 12px'}}));
+      },{style:{fontSize:'10px',padding:'4px 10px'}}));
+    priceWrap.append(priceRow);
     tableWrap.append(dfPayTable(rows,today,{
       txnAction:function(t){
         var line=div({style:{display:'flex',alignItems:'center',gap:'8px',marginBottom:'6px',flexWrap:'wrap'}});
@@ -9159,13 +9058,25 @@ async function openStudentSheet(studentId,name,email){
         return line;
       },
       actions:function(r,st){
-        if(!st.open)return null;
-        var cell=div({});
-        var slot=div({});
-        cell.append(div({style:{display:'flex',gap:'6px',flexWrap:'wrap'}},[
-          btn('Record payment','btn-teal',function(){slot.innerHTML='';slot.append(editorFor(r,st,cell,'pay'));},{style:{fontSize:'10px',padding:'5px 10px'}}),
-          btn('Waive','btn-outline',function(){slot.innerHTML='';slot.append(editorFor(r,st,cell,'waive'));},{style:{fontSize:'10px',padding:'5px 10px'}})
-        ]),slot);
+        var assumed=!!(r.note&&String(r.note).indexOf('Assumed')===0);
+        var hasLater=rows.some(function(o){return o.id!==r.id&&dfPaySortKey(o)>dfPaySortKey(r)&&(Number(o.amount_paid||0)>0||!!o.waived_at);});
+        var canReset=(st.key==='paid'||st.key==='waived'||st.key==='partial'||(st.open&&Number(r.amount_paid||0)>0))&&(assumed||!hasLater);
+        if(!st.open&&!canReset)return null;
+        var cell=div({});var slot=div({});var btns=div({style:{display:'flex',gap:'6px',flexWrap:'wrap'}});
+        if(st.open){
+          btns.append(btn('Record payment','btn-teal',function(){slot.innerHTML='';slot.append(editorFor(r,st,'pay'));},{style:{fontSize:'10px',padding:'5px 10px'}}),
+            btn('Waive','btn-outline',function(){slot.innerHTML='';slot.append(editorFor(r,st,'waive'));},{style:{fontSize:'10px',padding:'5px 10px'}}));
+        }
+        if(canReset){
+          btns.append(btn('Reset','btn-outline',async function(){
+            if(!confirm('Reset this cycle to unpaid? Its payments will be cleared'+(assumed?' (it was assumed paid)':'')+'.'))return;
+            await sb.from('tutoring_payment_transactions').delete().eq('payment_id',r.id);
+            var u=await sb.from('tutoring_payments').update({status:'unpaid',amount_paid:0,paid_at:null,waived_at:null,waived_reason:null,note:null}).eq('id',r.id);
+            if(u.error){alert('Could not reset: '+u.error.message);return;}
+            await refresh();
+          },{style:{fontSize:'10px',padding:'5px 10px'}}));
+        }
+        cell.append(btns,slot);
         return cell;
       }
     }));
@@ -12587,7 +12498,6 @@ content.innerHTML='';
 await renderUnmatchedSelar(content);
 await renderPaymentsMaster(content);
 content.append(card);
-await renderTutoringPaymentsSection(content);
 }
 if(tab==='payouts'){
 content.innerHTML='';
