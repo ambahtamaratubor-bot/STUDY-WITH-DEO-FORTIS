@@ -125,7 +125,7 @@ let S={page:'landing',user:null,profile:null};
 let signingUp=false;
 let payLinks={monthly:'#',sixmonth:'#',yearly:'#'};
 sb.from('admin_settings').select('link_monthly,link_sixmonth,link_yearly').single().then(({data})=>{if(data)payLinks={monthly:data.link_monthly||'#',sixmonth:data.link_sixmonth||'#',yearly:data.link_yearly||'#'};});
-function go(p){dfRefreshEvidence();S.page=p;try{localStorage.setItem('df-page',p);}catch(e){}if(window._goT)clearTimeout(window._goT);window._goT=setTimeout(render,0);}
+function go(p){dfRefreshEvidence();S.page=p;dfStudentLockApply();try{localStorage.setItem('df-page',p);}catch(e){}if(window._goT)clearTimeout(window._goT);window._goT=setTimeout(render,0);}
 function isInTrial(){return S.profile?.is_free_tier===true&&S.inTrial===true;}
 sb.auth.onAuthStateChange(function(event,session){
   if(signingUp)return;
@@ -3717,6 +3717,7 @@ function renderTasks(){
       const up=await sb.from('tutoring_tasks').update({done:true,done_at:new Date().toISOString()}).eq('id',k.id);
       if(up&&up.error){box.style.pointerEvents='auto';return;}
       k.done=true;
+      dfStudentLockRefresh();
       renderTab();
     };
     const body=div({style:{flex:'1'}},[]);
@@ -3898,6 +3899,7 @@ function runQuiz(a,test,questions){
     qCard.append(qHeader);
     appendMediaSafely(qCard,q.media);
     renderQuestionText(q.question,qCard);
+    qCard.append(dfReasoningPad(q.id,'assessment'));
     mainArea.append(qCard);
 
     dfBindSelectOnce(qCard);qCard.onmouseup=function(e){
@@ -4206,6 +4208,7 @@ function runAssessmentQuiz(a,assessment,questions){
     qCard.append(qHeader);
     appendMediaSafely(qCard,q.media);
     renderQuestionText(q.question,qCard);
+    qCard.append(dfReasoningPad(q.id,'tutoring_test'));
     mainArea.append(qCard);
 
     dfBindSelectOnce(qCard);qCard.onmouseup=function(e){
@@ -4500,6 +4503,7 @@ function runBlockedAssessment(a,assessment,allQuestions){
       qCard.append(qHeader);
       appendMediaSafely(qCard,q.media);
       renderQuestionText(q.question,qCard);
+      qCard.append(dfReasoningPad(q.id,'assessment'));
       mainArea.append(qCard);
 
       dfBindSelectOnce(qCard);qCard.onmouseup=function(e){
@@ -7283,6 +7287,7 @@ async function dfQueueFlush(){
       var item=q[i];
       if(item.type==='flashcard_progress'){await sb.from('flashcard_progress').upsert(item.payload,{onConflict:'user_id,flashcard_id'});}
       else if(item.type==='deck_progress'){await sb.from('flashcard_progress').upsert(item.payload);}
+      else if(item.type==='review_log'){await sb.rpc('log_flashcard_review',item.payload);}
     }catch(e){remaining.push(q[i]);}
   }
   dfQueueSave(remaining);
@@ -7301,6 +7306,8 @@ page.append(nav);
 let decks=[],selDeck=null,cards=[],queue=[],curIdx=0,flipped=false,prog={easy:0,iffy:0,hard:0};
 let deckSessionStartedAt=null;
 let dailyReviewActive=false;
+let cardShownAt=0;
+let deckSel={},deckFolderFilter='all';
 const LEITNER_INTERVALS={1:1,2:2,3:4,4:7,5:15};
 function leitnerNext(currentBox,rating){
   var box=currentBox||1;
@@ -7403,15 +7410,92 @@ if(offlineMode){
   inner.append(div({cls:'card',style:{marginBottom:'16px',padding:'12px 16px',border:'1px solid var(--gold)',background:'rgba(184,146,46,0.08)'}},[h('span',{style:{fontFamily:"Inter,sans-serif",fontSize:'12px',color:'var(--gold)'},html:'⚠ Offline — showing your saved decks. New results will sync once you\'re back online.'})]));
 }
 if(!decks.length){inner.append(div({cls:'card',style:{textAlign:'center',padding:'48px'}},[div({style:{fontSize:'40px',marginBottom:'16px'},html:' '}),h('p',{style:{fontSize:'14px',color:'var(--dim)'},html:'No flashcard decks yet.'})]));return;}
+const canGroup=!isFree||isInTrial();
+let _folders=[],_fmap={};
+if(canGroup){
+  try{
+    const _fr=await sb.from('flashcard_folders').select('*').eq('user_id',S.user.id).order('created_at',{ascending:true});
+    _folders=(_fr&&_fr.data)||[];
+    const _fd=await sb.from('flashcard_folder_decks').select('*').eq('user_id',S.user.id);
+    ((_fd&&_fd.data)||[]).forEach(function(r){_fmap[r.deck_id]=r.folder_id;});
+  }catch(e){}
+}
+if(deckFolderFilter!=='all'&&!_folders.some(function(f){return f.id===deckFolderFilter;}))deckFolderFilter='all';
+const shownDecks=deckFolderFilter==='all'?decks:decks.filter(function(d){return _fmap[d.id]===deckFolderFilter;});
+function selIds(){return Object.keys(deckSel).filter(function(k){return deckSel[k];});}
+function startCombined(ids){
+  if(!ids.length){alert('Tick at least one deck first.');return;}
+  const nm=ids.length===1?((decks.find(function(d){return d.id===ids[0];})||{}).topic):('Combined review ('+ids.length+' decks)');
+  loadDeck({id:null,topic:nm||'Review',user_id:S.user.id,_deckIds:ids});
+}
+let reviewSel=null;
+if(canGroup){
+  const tb=div({cls:'card',style:{padding:'14px 16px',marginBottom:'12px'}},[]);
+  const chips=div({style:{display:'flex',gap:'8px',flexWrap:'wrap',marginBottom:'10px'}},[]);
+  function chip(label,val){
+    const on=deckFolderFilter===val;
+    return btn(label,'btn-outline',function(){deckFolderFilter=val;showDecks();},{style:{padding:'5px 12px',fontSize:'11px',background:on?'var(--gold)':'transparent',color:on?'var(--bg)':'var(--text)',border:'1px solid '+(on?'var(--gold)':'var(--border)')}});
+  }
+  chips.append(chip('All decks','all'));
+  _folders.forEach(function(f){chips.append(chip(f.name,f.id));});
+  chips.append(btn('+ New folder','btn-outline',async function(){
+    const nm=(prompt('Folder name')||'').trim();
+    if(!nm)return;
+    const ins=await sb.from('flashcard_folders').insert({user_id:S.user.id,name:nm});
+    if(ins&&ins.error){alert('Could not create the folder: '+ins.error.message);return;}
+    showDecks();
+  },{style:{padding:'5px 12px',fontSize:'11px',color:'var(--gold)',borderColor:'var(--gold)'}}));
+  tb.append(chips);
+  const acts=div({style:{display:'flex',gap:'8px',flexWrap:'wrap',alignItems:'center'}},[]);
+  reviewSel=btn('Review selected ('+selIds().length+')','btn-gold',function(){startCombined(selIds());},{style:{padding:'7px 14px',fontSize:'11px'}});
+  acts.append(reviewSel);
+  acts.append(btn('Select all shown','btn-outline',function(){shownDecks.forEach(function(d){deckSel[d.id]=true;});showDecks();},{style:{padding:'7px 14px',fontSize:'11px'}}));
+  acts.append(btn('Clear','btn-outline',function(){deckSel={};showDecks();},{style:{padding:'7px 14px',fontSize:'11px'}}));
+  if(deckFolderFilter!=='all'){
+    const curF=_folders.find(function(f){return f.id===deckFolderFilter;});
+    acts.append(btn('Review this folder','btn-outline',function(){startCombined(decks.filter(function(d){return _fmap[d.id]===deckFolderFilter;}).map(function(d){return d.id;}));},{style:{padding:'7px 14px',fontSize:'11px',color:'var(--gold)',borderColor:'var(--gold)'}}));
+    acts.append(btn('Rename folder','btn-outline',async function(){
+      const nm=(prompt('New folder name',curF?curF.name:'')||'').trim();
+      if(!nm)return;
+      await sb.from('flashcard_folders').update({name:nm}).eq('id',deckFolderFilter);
+      showDecks();
+    },{style:{padding:'7px 14px',fontSize:'11px'}}));
+    acts.append(btn('Delete folder','btn-outline',async function(){
+      if(!confirm('Delete this folder? Your decks are kept.'))return;
+      await sb.from('flashcard_folders').delete().eq('id',deckFolderFilter);
+      deckFolderFilter='all';
+      showDecks();
+    },{style:{padding:'7px 14px',fontSize:'11px',color:'#ff4444',borderColor:'#ff4444'}}));
+  }
+  tb.append(acts);
+  inner.append(tb);
+}
 const list=div({style:{display:'flex',flexDirection:'column',gap:'10px'}});
-decks.forEach(deck=>{
+if(!shownDecks.length){list.append(div({cls:'card',style:{textAlign:'center',padding:'28px'}},[h('p',{style:{fontSize:'13px',color:'var(--dim)'},html:'No decks in this folder yet. Use the folder menu on a deck to add it.'})]));}
+shownDecks.forEach(deck=>{
 const isPersonal=deck.user_id!==null;
 const card=div({cls:'card',style:{padding:'16px 20px'}});
 const row=div({style:{display:'flex',alignItems:'center',justifyContent:'space-between',gap:'16px',flexWrap:'wrap'}});
 const nameRow=div({style:{display:'flex',alignItems:'center',minWidth:'0',flex:'1 1 220px'}});
+if(canGroup){
+  const _cb=h('input',{type:'checkbox',style:{marginRight:'10px',flexShrink:'0',cursor:'pointer'}},[]);
+  _cb.checked=!!deckSel[deck.id];
+  _cb.onchange=function(){deckSel[deck.id]=_cb.checked;if(reviewSel)reviewSel.textContent='Review selected ('+selIds().length+')';};
+  nameRow.append(_cb);
+}
 nameRow.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'17px',color:'var(--text)',margin:'0',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'},html:deck.topic}));
 if(isPersonal){nameRow.append(h('span',{style:{fontFamily:"Inter,sans-serif",fontSize:'9px',fontWeight:'700',letterSpacing:'1px',color:'var(--gold)',border:'1px solid var(--gold-border)',borderRadius:'2px',padding:'2px 6px',marginLeft:'8px',flexShrink:'0'},html:'PERSONAL'}));}
 const actionsRow=div({style:{display:'flex',gap:'8px',flexShrink:'0'}});
+if(canGroup&&_folders.length){
+  const _fs=h('select',{cls:'input',style:{fontSize:'11px',padding:'6px 8px',maxWidth:'140px'}},[h('option',{value:''},['No folder'])].concat(_folders.map(function(f){return h('option',{value:f.id},[f.name]);})));
+  _fs.value=_fmap[deck.id]||'';
+  _fs.onchange=async function(){
+    if(_fs.value){await sb.from('flashcard_folder_decks').upsert({user_id:S.user.id,folder_id:_fs.value,deck_id:deck.id},{onConflict:'user_id,deck_id'});}
+    else{await sb.from('flashcard_folder_decks').delete().eq('user_id',S.user.id).eq('deck_id',deck.id);}
+    showDecks();
+  };
+  actionsRow.append(_fs);
+}
 actionsRow.append(btn('Start Deck →','btn-gold',async()=>loadDeck(deck),{style:{padding:'8px 18px',fontSize:'12px'}}));
 row.append(nameRow,actionsRow);
 card.append(row);
@@ -7500,6 +7584,11 @@ const newCards=poolCards.filter(function(c){return!progMap[c.id];});
 const availablePool=[...dueCards,...shuffle2(newCards)];
 const card=div({cls:'card',style:{textAlign:'center'}});
 const goalSet=Number.isInteger(S.profile&&S.profile.daily_review_goal)&&S.profile.daily_review_goal>0;
+var tooFastNote=false;
+try{var _cr=await sb.rpc('check_daily_review');tooFastNote=!!(_cr&&!_cr.error&&_cr.data&&_cr.data.too_fast);}catch(e){}
+var lockInfo=null;
+try{var _lr=await sb.rpc('my_flashcard_today');if(_lr&&!_lr.error&&_lr.data&&_lr.data.applies)lockInfo=_lr.data;}catch(e){}
+const ownGoal=goalSet?S.profile.daily_review_goal:20;
 
 function renderGoalSetter(isChange){
   card.innerHTML='';
@@ -7524,7 +7613,7 @@ function renderGoalSetter(isChange){
   inner.append(card);
 }
 
-if(!goalSet){
+if(!goalSet&&!lockInfo){
   renderGoalSetter(false);
   return;
 }
@@ -7532,20 +7621,39 @@ if(!goalSet){
 card.append(h('span',{cls:'chapter',html:'Today\u2019s Session'}));
 card.append(h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'28px',marginBottom:'8px'},html:'Daily Review'}));
 card.append(h('p',{cls:'muted',style:{fontSize:'14px',marginBottom:'8px'},html:dueCards.length+' due \u00b7 '+newCards.length+' new \u00b7 '+poolCards.length+' total across your decks'}));
-if(!availablePool.length){
+var sessionCards=null,lockedSession=false;
+if(lockInfo){
+  var _needed=Math.max(0,lockInfo.required-lockInfo.done);
+  var _doneSet={},_redoSet={};
+  (lockInfo.done_ids||[]).forEach(function(i){_doneSet[i]=1;});
+  (lockInfo.redo_ids||[]).forEach(function(i){_redoSet[i]=1;});
+  card.append(h('p',{style:{fontSize:'13px',marginBottom:'8px',color:'var(--gold)'},html:'Required today: '+lockInfo.done+' of '+lockInfo.required+' cards done.'}));
+  if(tooFastNote){card.append(h('p',{style:{fontSize:'13px',marginBottom:'8px',color:'#ff8888'},html:'Uh oh. Did you really just try to spam the cards? Go back and do it well.'}));}
+  if(_needed>0){
+    var _redo=poolCards.filter(function(c){return _redoSet[c.id];});
+    _redo.forEach(function(c){c._redo=true;});
+    var _rest=poolCards.filter(function(c){return!_doneSet[c.id]&&!_redoSet[c.id];});
+    var _rDue=shuffle2(_rest.filter(function(c){var p=progMap[c.id];return p&&p.due_at&&p.due_at<=today;}));
+    var _rNew=shuffle2(_rest.filter(function(c){return!progMap[c.id];}));
+    var _rOther=_rest.filter(function(c){var p=progMap[c.id];return p&&!(p.due_at&&p.due_at<=today);}).sort(function(a,b){return String(progMap[a.id].due_at||'').localeCompare(String(progMap[b.id].due_at||''));});
+    sessionCards=_redo.concat(_rDue,_rNew,_rOther).slice(0,_needed);
+    lockedSession=sessionCards.length>0;
+  }
+}
+if(!availablePool.length&&!lockedSession){
   card.append(h('p',{style:{fontSize:'13px',color:'var(--dim)',marginTop:'16px'},html:'No cards due today. Check back tomorrow, or study a specific deck.'}));
   card.append(h('div',{style:{marginTop:'20px'}},[]));
-  const changeLink=h('span',{style:{fontSize:'11px',color:'var(--dim)',cursor:'pointer',textDecoration:'underline'}},['Change daily goal ('+S.profile.daily_review_goal+' cards)']);
+  const changeLink=h('span',{style:{fontSize:'11px',color:'var(--dim)',cursor:'pointer',textDecoration:'underline'}},['Change daily goal ('+ownGoal+' cards)']);
   changeLink.onclick=function(){renderGoalSetter(true);};
-  card.append(changeLink);
+  if(!lockInfo)card.append(changeLink);
   inner.append(card);
   return;
 }
-const target=Math.min(S.profile.daily_review_goal,availablePool.length);
+const target=lockedSession?sessionCards.length:Math.min(ownGoal,availablePool.length);
 card.append(h('div',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'40px',color:'var(--gold)',margin:'12px 0'},html:String(target)}));
-card.append(h('p',{cls:'muted',style:{fontSize:'12px',marginBottom:'20px'},html:'cards in today\u2019s session \u00b7 your daily goal is '+S.profile.daily_review_goal}));
+card.append(h('p',{cls:'muted',style:{fontSize:'12px',marginBottom:'20px'},html:lockedSession?'cards to finish today\u2019s requirement':'cards in today\u2019s session \u00b7 your daily goal is '+ownGoal}));
 const startBtn=btn('Start Daily Review \u2192','btn-gold',function(){
-  const selected=availablePool.slice(0,target);
+  const selected=lockedSession?sessionCards:availablePool.slice(0,target);
   selected.forEach(function(c){c._box=boxMap2[c.id]||1;});
   cards=selected;
   queue=[...cards];
@@ -7559,7 +7667,7 @@ const changeLink=h('div',{style:{marginTop:'16px'}},[
   h('span',{style:{fontSize:'11px',color:'var(--dim)',cursor:'pointer',textDecoration:'underline'}},['Change daily goal'])
 ]);
 changeLink.firstChild.onclick=function(){renderGoalSetter(true);};
-card.append(changeLink);
+if(!lockInfo)card.append(changeLink);
 inner.append(card);
 }
 async function loadDeck(deck){
@@ -7580,12 +7688,12 @@ selDeck=deck;
 var allCards=null,deckOffline=false;
 try{
   if(!navigator.onLine)throw new Error('offline');
-  const{data,error}=await sb.from('flashcards').select('*').eq('deck_id',deck.id);
+  const{data,error}=await (deck._deckIds?sb.from('flashcards').select('*').in('deck_id',deck._deckIds):sb.from('flashcards').select('*').eq('deck_id',deck.id));
   if(error)throw error;
   allCards=data;
-  if(allCards)dfOfflineSaveCards(deck.id,allCards);
+  if(allCards&&!deck._deckIds)dfOfflineSaveCards(deck.id,allCards);
 }catch(e){
-  allCards=dfOfflineGetCards(deck.id);
+  allCards=deck._deckIds?[].concat.apply([],deck._deckIds.map(function(i){return dfOfflineGetCards(i)||[];})):dfOfflineGetCards(deck.id);
   deckOffline=true;
 }
 if(!allCards||!allCards.length){alert(deckOffline?'This deck isn\'t saved for offline use yet — connect once to cache it.':'No cards in this deck yet.');return;}
@@ -7660,6 +7768,7 @@ inner.append(card);
 function showCard(){
 inner.innerHTML='';
 if(!queue.length||curIdx>=queue.length){showDone();return;}
+cardShownAt=Date.now();
 const card=queue[curIdx];
 const pct=cards.length>0?Math.round((prog.easy/cards.length)*100):0;
 const hdr=div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'20px'}});
@@ -7692,6 +7801,7 @@ inner.append(explainWrap);
 }
 function markCard(d){
 const cur=queue[curIdx];
+if(selDeck&&selDeck.topic==='Daily Review'&&cardShownAt){window._dfLastLog=dfFlashLogReview(cur.id,(Date.now()-cardShownAt)/1000);}
 const prev=cur._state||'none';
 let nq=[...queue];
 // Increment seen counter
@@ -7703,6 +7813,7 @@ if(prev==='none'){
   else if(d==='iffy'){nq.splice(curIdx,1);nq.push(cur);}
   else{nq.splice(curIdx,1);nq.splice(Math.min(curIdx+2,nq.length),0,cur);}
   (async()=>{
+    if(cur._redo)return;
     var lb=leitnerNext(cur._box,d);
     var payload={user_id:S.user.id,flashcard_id:cur.id,difficulty:d.charAt(0).toUpperCase()+d.slice(1),box:lb.box,due_at:lb.dueAt,updated_at:new Date().toISOString()};
     try{
@@ -7761,6 +7872,18 @@ function showRoundComplete(remainingCards){
 async function showDone(){
 try{localStorage.removeItem('deck_resume_'+(S.user&&S.user.id||'x'));}catch(e){}
 inner.innerHTML='';
+if(selDeck&&selDeck.topic==='Daily Review'){
+  var _tf=await dfDailyReviewCheckTooFast();
+  if(_tf){
+    inner.append(div({cls:'card',style:{textAlign:'center',padding:'36px 24px'}},[
+      h('span',{cls:'chapter',html:'Hold on'}),
+      h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'28px',marginBottom:'8px'},html:'Uh oh.'}),
+      h('p',{cls:'muted',style:{fontSize:'14px',marginBottom:'20px'},html:'Did you really just try to spam the cards? Go back and do it well.'}),
+      btn('Redo today\u2019s cards','btn-gold',()=>showDailyReview(),{style:{width:'100%'}})
+    ]));
+    return;
+  }
+}
 const total=prog.easy+prog.iffy+prog.hard;
 const easyPct=total>0?Math.round((prog.easy/total)*100):0;
 const grade=easyPct>=90?'A':easyPct>=75?'B':easyPct>=60?'C':'D';
@@ -7801,7 +7924,7 @@ const bw=div({style:{display:'grid',gap:'10px'}});
 bw.append(btn('Redo All Cards','btn-gold',()=>{queue=[...cards];curIdx=0;flipped=false;prog={easy:0,iffy:0,hard:0};showCard();}),btn('Back to Decks','btn-outline',()=>showDecks()),btn('Dashboard','btn-outline',()=>go('dashboard')));
 card.append(bw);inner.append(card);
 }
-showDecks();return page;
+if(sessionStorage.getItem('df-open-daily')==='1'){sessionStorage.removeItem('df-open-daily');activateTab(dailyTabBtn,showDailyReview);}else{showDecks();}return page;
 }
 // ═══════════════════════════════
 // VIGNETTE Q-BANK
@@ -8136,7 +8259,7 @@ if(sv){const st=JSON.parse(sv);st.flagged=flagged;sessionStorage.setItem('vignet
 updateQ();
 },{style:{fontSize:'10px',padding:'4px 10px',color:flagged[q.id]?'var(--gold)':'var(--muted)',borderColor:flagged[q.id]?'var(--gold)':'var(--border)'}});
 qHeader.append(flagBtn);
-qCard.append(qHeader);renderQuestionText(q.question,qCard);
+qCard.append(qHeader);renderQuestionText(q.question,qCard);qCard.append(dfReasoningPad(q.id,'vignette'));
 mainArea.append(qCard);
 // Highlight functionality
 function dfHlPersistVignette(){
@@ -11854,6 +11977,7 @@ function openStudent(s){
       })();
     }
 
+    body.append(dfGoalControl(s.user_id));
     body.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'15px',margin:'18px 0 10px'},html:'Tasks'}));
     var taskList=div({},[]);
     body.append(taskList);
@@ -11863,6 +11987,7 @@ function openStudent(s){
       items.forEach(function(k){
         var row=div({cls:'card',style:{marginBottom:'8px',padding:'10px 12px',display:'flex',justifyContent:'space-between',alignItems:'center',gap:'12px',flexWrap:'wrap'}},[]);
         row.append(div({style:{flex:'1',minWidth:'160px'}},[h('div',{style:{fontSize:'13px',color:'var(--text)',textDecoration:k.done?'line-through':'none',opacity:k.done?'0.6':'1',whiteSpace:'pre-wrap'}},[k.title]),(k.note?h('div',{style:{fontSize:'11px',color:'var(--muted)',marginTop:'2px',whiteSpace:'pre-wrap'}},[k.note]):null),(k.due_date?h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--dim)',marginTop:'3px'}},['Due '+new Date(k.due_date+'T00:00:00').toLocaleDateString()+(k.done?' \u00b7 done':'')]):null)].filter(Boolean)));
+        dfTaskLockBits(row,k,function(){renderTaskList(items);});
         row.append(btn('Delete','btn-outline',async function(){if(!confirm('Delete this task?'))return;var d=await sb.from('tutoring_tasks').delete().eq('id',k.id);if(d&&d.error){alert('Failed: '+d.error.message);return;}var idx=items.indexOf(k);if(idx>=0)items.splice(idx,1);renderTaskList(items);},{style:{fontSize:'10px',padding:'5px 10px',color:'#ff4444',borderColor:'#ff4444',flexShrink:'0'}}));
         taskList.append(row);
       });
@@ -11875,8 +12000,11 @@ function openStudent(s){
     var kNote=h('input',{cls:'input',placeholder:'Note (optional)',style:{width:'100%',marginBottom:'8px'}});
     var kDue=h('input',{cls:'input',type:'date',style:{width:'200px',marginBottom:'8px'}});
     var kSt=div({style:{display:'none',fontSize:'12px',marginBottom:'8px'}},[]);
-    var addBtn=btn('Add task','btn-gold',async function(){var title=kTitle.value.trim();if(!title){kSt.textContent='Add a task title.';kSt.style.color='#ff4444';kSt.style.display='block';return;}addBtn.disabled=true;var ins=await sb.from('tutoring_tasks').insert({student_id:s.user_id,assigned_by:S.user.id,title:title,note:kNote.value.trim()||null,due_date:kDue.value||null}).select().single();addBtn.disabled=false;if(ins.error||!ins.data){kSt.textContent='Failed: '+(ins.error&&ins.error.message||'unknown');kSt.style.color='#ff4444';kSt.style.display='block';return;}tasks.unshift(ins.data);renderTaskList(tasks);kTitle.value='';kNote.value='';kDue.value='';kSt.textContent='\u2713 Task added \u00b7 the student will be emailed.';kSt.style.color='var(--teal)';kSt.style.display='block';},{style:{fontSize:'12px',padding:'8px 16px'}});
-    form.append(kTitle,kNote,kDue,div({},[addBtn]),kSt);
+    var addBtn=btn('Add task','btn-gold',async function(){var title=kTitle.value.trim();if(!title){kSt.textContent='Add a task title.';kSt.style.color='#ff4444';kSt.style.display='block';return;}addBtn.disabled=true;var ins=await sb.from('tutoring_tasks').insert({student_id:s.user_id,assigned_by:S.user.id,title:title,note:kNote.value.trim()||null,due_date:kDue.value||null,task_kind:kKind.value,locks_profile:kLock.checked}).select().single();addBtn.disabled=false;if(ins.error||!ins.data){kSt.textContent='Failed: '+(ins.error&&ins.error.message||'unknown');kSt.style.color='#ff4444';kSt.style.display='block';return;}tasks.unshift(ins.data);renderTaskList(tasks);kTitle.value='';kNote.value='';kDue.value='';kSt.textContent='\u2713 Task added \u00b7 the student will be emailed.';kSt.style.color='var(--teal)';kSt.style.display='block';},{style:{fontSize:'12px',padding:'8px 16px'}});
+    var kKind=h('select',{cls:'input',style:{width:'200px',marginBottom:'8px',marginRight:'8px'}},[h('option',{value:'other'},['General task']),h('option',{value:'flashcards'},['Flashcards']),h('option',{value:'qbank'},['Q-bank questions'])]);
+    var kLock=h('input',{type:'checkbox',style:{marginRight:'6px'}},[]);
+    var kLockRow=h('label',{style:{display:'block',fontSize:'12px',color:'var(--muted)',marginBottom:'8px',cursor:'pointer'}},[kLock,'Lock the student’s profile until I release them']);
+    form.append(kTitle,kNote,kDue,kKind,kLockRow,div({},[addBtn]),kSt);
     body.append(form);
   })();
 }
@@ -12980,8 +13108,11 @@ async function showTeamTab(){
   const reviewsBtn=btn('Tutor reviews','btn-outline',()=>setActive('tutorReviews'),{style:{padding:'8px 20px',fontSize:'12px'}});dfPutNewOn(reviewsBtn);
   const classCheckBtn=btn('Class check','btn-outline',()=>setActive('classCheck'),{style:{padding:'8px 20px',fontSize:'12px'}});dfPutNewOn(classCheckBtn);
   const followBtn=btn('Assessment follow-up','btn-outline',()=>setActive('assessFollow'),{style:{padding:'8px 20px',fontSize:'12px'}});dfPutNewOn(followBtn);
+  const flashLockBtn=btn('Flashcard lock','btn-outline',()=>setActive('flashLock'),{style:{padding:'8px 20px',fontSize:'12px'}});dfPutNewOn(flashLockBtn);
   subTabs.schedule=scheduleBtn;subTabs.routing=routingBtn;subTabs.teamAdmin=teamAdminBtn;subTabs.history=historyBtn;subTabs.announce=announceBtn;subTabs.availability=availBtn;subTabs.tutorReviews=reviewsBtn;subTabs.classCheck=classCheckBtn;subTabs.assessFollow=followBtn;
-  tabBar.append(scheduleBtn,routingBtn,teamAdminBtn,historyBtn,announceBtn,availBtn,reviewsBtn,classCheckBtn,followBtn);
+  subTabs.flashLock=flashLockBtn;
+  tabBar.append(scheduleBtn,routingBtn,teamAdminBtn,historyBtn,announceBtn,availBtn,reviewsBtn,classCheckBtn,followBtn,flashLockBtn);
+  if(!isSuperAdmin)flashLockBtn.style.display='none';
   if(!isSuperAdmin&&!isManager)teamAdminBtn.style.display='none';
   if(!isSuperAdmin&&!isManager)historyBtn.style.display='none';
   if(!isSuperAdmin&&!isManager)availBtn.style.display='none';
@@ -12994,6 +13125,7 @@ async function showTeamTab(){
   async function loadSubTab(sub){
     subContent.innerHTML='';
     if(sub==='assessFollow'){await dfRenderAssessmentFollowTab(subContent);return;}
+    if(sub==='flashLock'){await dfRenderFlashLockTab(subContent);return;}
     if(sub==='classCheck'){await dfRenderClassCheckTab(subContent);return;}
     if(sub==='tutorReviews'){await dfRenderTutorReviewsTab(subContent);return;}
     if(sub==='availability'){await dfRenderAvailabilityTab(subContent);return;}
@@ -14383,6 +14515,308 @@ async function dfMarkClassNow(slotId,classDate,status){
   var up=await sb.from('tutoring_class_slots').update(dfRollPatch(slot)).eq('id',slot.id);
   if(up.error)throw new Error('The class was marked, but could not move on to next week: '+up.error.message);
 }
+/* ===================== REASONING PAD (student-only notes under every vignette) ===================== */
+var DF_PAD_CACHE={};
+function dfReasoningPad(qid,ctx){
+  var wrap=div({style:{margin:'14px 0',padding:'10px 12px',border:'1px dashed var(--border)',borderRadius:'4px',background:'var(--bg)'}},[]);
+  if(!S.user||qid===undefined||qid===null)return wrap;
+  var context=ctx||'vignette';
+  var key=context+':'+String(qid);
+  var open=false,saveT=null;
+  var chev=h('span',{style:{fontFamily:"'DM Mono',monospace",fontSize:'12px',color:'var(--gold)',width:'12px'}},['+']);
+  var title=h('span',{cls:'mono',style:{fontSize:'10px',letterSpacing:'2px',textTransform:'uppercase',color:'var(--gold)'}},['Reasoning pad']);
+  var dot=h('span',{style:{display:'none',width:'6px',height:'6px',borderRadius:'50%',background:'var(--gold)'}},[]);
+  var head=div({style:{display:'flex',alignItems:'center',gap:'8px',cursor:'pointer',userSelect:'none'}},[chev,title,dot]);
+  var ta=h('textarea',{cls:'input',placeholder:'Think it through here. Only you can see this.',style:{width:'100%',minHeight:'110px',resize:'vertical',fontFamily:'inherit',fontSize:'13px',lineHeight:'1.7',marginTop:'10px',display:'none'}},[]);
+  var st=h('div',{style:{fontSize:'10px',color:'var(--dim)',marginTop:'4px',display:'none'}},['']);
+  wrap.append(head,ta,st);
+  function toggle(){
+    open=!open;
+    ta.style.display=open?'block':'none';
+    st.style.display=open?'block':'none';
+    chev.textContent=open?'\u2212':'+';
+    if(open)ta.focus();
+  }
+  head.onclick=toggle;
+  function save(){
+    var v=ta.value;
+    DF_PAD_CACHE[key]=v;
+    st.textContent='Saving...';
+    sb.from('reasoning_notes').upsert({student_id:S.user.id,question_id:String(qid),context:context,body:v,updated_at:new Date().toISOString()},{onConflict:'student_id,question_id,context'}).then(function(r){
+      st.textContent=(r&&r.error)?'Not saved. Check your connection.':'Saved';
+    });
+  }
+  ta.oninput=function(){
+    DF_PAD_CACHE[key]=ta.value;
+    dot.style.display=ta.value.trim()?'inline-block':'none';
+    st.textContent='...';
+    if(saveT)clearTimeout(saveT);
+    saveT=setTimeout(save,800);
+  };
+  function apply(v){
+    ta.value=v||'';
+    dot.style.display=ta.value.trim()?'inline-block':'none';
+    if(ta.value.trim()&&!open)toggle();
+  }
+  if(DF_PAD_CACHE[key]!==undefined){apply(DF_PAD_CACHE[key]);}
+  else{
+    sb.from('reasoning_notes').select('body').eq('student_id',S.user.id).eq('question_id',String(qid)).eq('context',context).maybeSingle().then(function(r){
+      var v=(r&&r.data&&r.data.body)||'';
+      if(DF_PAD_CACHE[key]===undefined)DF_PAD_CACHE[key]=v;
+      if(!ta.value)apply(DF_PAD_CACHE[key]);
+    });
+  }
+  return wrap;
+}
+
+/* ===================== DAILY FLASHCARD LOCK: STUDENT SIDE ===================== */
+var dfStudentLock={overlay:null,lastUser:null,tick:0,checking:false,status:null,sig:''};
+function dfStudentLockOverlay(){
+  if(dfStudentLock.overlay)return dfStudentLock.overlay;
+  var o=div({style:{position:'fixed',top:'0',left:'0',right:'0',bottom:'0',background:'rgba(0,0,0,0.95)',zIndex:'25000',display:'none',alignItems:'center',justifyContent:'center',padding:'20px',overflowY:'auto'}},[]);
+  document.body.append(o);
+  dfStudentLock.overlay=o;
+  return o;
+}
+function dfStudentLockHide(){
+  var o=dfStudentLock.overlay;
+  if(o)o.style.display='none';
+  dfStudentLock.sig='';
+}
+// Decides whether the lock screen shows right now. Daily Review (the flashcards page) stays open.
+function dfStudentLockApply(){
+  var st=dfStudentLock.status;
+  var skip=!S.user||['login','signup','pending','landing','admin'].indexOf(S.page)!==-1;
+  if(!st||!st.locked||skip||S.page==='flashcards'){dfStudentLockHide();return;}
+  var o=dfStudentLockOverlay();
+  var sig=JSON.stringify(st.reasons||[]);
+  if(o.style.display==='flex'&&dfStudentLock.sig===sig)return;
+  dfStudentLock.sig=sig;
+  dfStudentLockBuild(o,st);
+  o.style.display='flex';
+}
+function dfStudentLockBuild(o,st){
+  var reasons=st.reasons||[];
+  var flash=null;var tasks=[];
+  reasons.forEach(function(r){if(r.type==='flashcards')flash=r;else if(r.type==='task')tasks.push(r);});
+  var card=div({cls:'card',style:{maxWidth:'560px',width:'100%',padding:'28px',maxHeight:'92vh',overflowY:'auto',borderColor:'var(--gold)'}},[]);
+  card.append(
+    h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--gold)',letterSpacing:'2px',textTransform:'uppercase',marginBottom:'10px'}},['Profile locked']),
+    h('div',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'22px',fontWeight:'700',color:'var(--text)',marginBottom:'14px'}},['Finish what is due to continue'])
+  );
+  if(flash){
+    card.append(div({style:{padding:'14px 0',borderTop:'1px solid var(--border)'}},[
+      h('div',{style:{fontSize:'14px',color:'var(--text)',marginBottom:'6px'}},[(flash.overdue?'You did not finish yesterday\u2019s Daily Review. Finish today\u2019s cards to unlock your profile. ':'')+'Daily Review: '+flash.done+' of '+flash.required+' cards done today.']),
+      h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'13px',color:'var(--muted)',lineHeight:'1.7'}},['This lock is for your own good. Reviewing a little every day with spaced repetition is what keeps you from forgetting what you have learned, and it is what will carry you through your exam. Take your time with each card.'])
+    ]));
+  }
+  tasks.forEach(function(t){
+    var kind=t.kind==='flashcards'?'Flashcards task':(t.kind==='qbank'?'Q-bank task':'Task from your tutor');
+    var row=div({style:{padding:'14px 0',borderTop:'1px solid var(--border)'}},[]);
+    row.append(h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--dim)',letterSpacing:'1px',textTransform:'uppercase',marginBottom:'4px'}},[kind]));
+    row.append(h('div',{style:{fontSize:'14px',color:'var(--text)',whiteSpace:'pre-wrap'}},[t.title||'']));
+    if(t.note)row.append(h('div',{style:{fontSize:'12px',color:'var(--muted)',marginTop:'4px',whiteSpace:'pre-wrap'}},[t.note]));
+    if(t.marked_done){
+      row.append(h('div',{style:{fontSize:'12px',color:'var(--teal)',marginTop:'8px',lineHeight:'1.6'}},['Marked as done. Contact your tutor to confirm it, and they will release your profile.']));
+    }else{
+      var mb=btn('Mark as done','btn-outline',async function(){
+        mb.disabled=true;
+        var up=await sb.from('tutoring_tasks').update({done:true,done_at:new Date().toISOString()}).eq('id',t.id);
+        if(up&&up.error){mb.disabled=false;alert('Could not update the task: '+up.error.message);return;}
+        dfStudentLockRefresh();
+      },{style:{marginTop:'10px',fontSize:'11px',padding:'7px 14px'}});
+      row.append(mb);
+    }
+    card.append(row);
+  });
+  var payHolder=div({style:{marginTop:'14px'}},[]);
+  var btns=div({style:{display:'flex',gap:'10px',flexWrap:'wrap',marginTop:'18px',paddingTop:'16px',borderTop:'1px solid var(--border)'}},[]);
+  if(flash){
+    btns.append(btn('Go to Daily Review','btn-gold',function(){
+      try{sessionStorage.setItem('df-open-daily','1');}catch(e){}
+      go('flashcards');
+    },{style:{fontSize:'12px',padding:'9px 18px'}}));
+  }
+  btns.append(btn('Messages','btn-outline',function(){dfMailbox();},{style:{fontSize:'12px',padding:'9px 18px'}}));
+  var payBtn=btn('Payments','btn-outline',async function(){
+    if(payHolder.firstChild){payHolder.replaceChildren();return;}
+    payHolder.append(h('p',{style:{fontSize:'12px',color:'var(--dim)'}},['Loading...']));
+    var tmp=div({},[]);
+    try{await dfRenderMyPayments(tmp);}catch(e){}
+    payHolder.replaceChildren();
+    if(tmp.firstChild)payHolder.append(tmp);
+    else payHolder.append(h('p',{style:{fontSize:'12px',color:'var(--dim)'}},['No payments to show.']));
+  },{style:{fontSize:'12px',padding:'9px 18px'}});
+  btns.append(payBtn);
+  card.append(btns,payHolder);
+  o.replaceChildren(card);
+}
+async function dfStudentLockCheck(){
+  if(dfStudentLock.checking)return;
+  if(!S.user||['login','signup','pending'].indexOf(S.page)!==-1)return;
+  dfStudentLock.checking=true;
+  try{
+    var r=await sb.rpc('my_student_lock_status');
+    if(r&&!r.error&&r.data)dfStudentLock.status=r.data; // on an error the last known state is kept; before any answer it stays open
+  }catch(e){}
+  dfStudentLock.checking=false;
+  dfStudentLockApply();
+}
+function dfStudentLockRefresh(){dfStudentLock.sig='';dfStudentLockCheck();}
+function dfInitStudentLock(){
+  setInterval(function(){
+    if(!S.user){dfStudentLock.lastUser=null;dfStudentLock.status=null;dfStudentLockHide();return;}
+    if(dfStudentLock.lastUser!==S.user.id){dfStudentLock.lastUser=S.user.id;dfStudentLock.tick=0;dfStudentLock.status=null;dfStudentLockCheck();return;}
+    dfStudentLock.tick++;
+    if(dfStudentLock.tick%15===0)dfStudentLockCheck(); // about every 30 seconds
+  },2000);
+}
+// One log call per rated Daily Review card. Time is judged on the server; the student is never shown the number.
+async function dfFlashLogReview(cardId,seconds){
+  var payload={p_flashcard_id:cardId,p_seconds:Math.round(Math.max(0,seconds)*10)/10,p_at:new Date().toISOString()};
+  try{
+    if(!navigator.onLine)throw new Error('offline');
+    var r=await sb.rpc('log_flashcard_review',payload);
+    if(r&&r.error)throw r.error;
+  }catch(e){dfQueuePush({type:'review_log',payload:payload});}
+}
+// Returns true when the session was too fast. The server then puts the same cards back as "redo".
+async function dfDailyReviewCheckTooFast(){
+  try{if(window._dfLastLog)await window._dfLastLog;}catch(e){}
+  try{
+    var r=await sb.rpc('check_daily_review');
+    if(r&&!r.error&&r.data&&r.data.too_fast){dfStudentLockRefresh();return true;}
+  }catch(e){}
+  dfStudentLockRefresh();
+  return false;
+}
+
+/* ===================== DAILY FLASHCARD GOAL: TUTOR SIDE ===================== */
+var dfGoalGate={overlay:null,checking:false};
+function dfGoalGateOverlay(){
+  if(dfGoalGate.overlay)return dfGoalGate.overlay;
+  var o=div({style:{position:'fixed',top:'0',left:'0',right:'0',bottom:'0',background:'rgba(0,0,0,0.94)',zIndex:'29990',display:'none',alignItems:'center',justifyContent:'center',padding:'20px',overflowY:'auto'}},[]);
+  document.body.append(o);
+  dfGoalGate.overlay=o;
+  return o;
+}
+function dfGoalGateHide(){
+  var o=dfGoalGate.overlay;
+  if(o){o.style.display='none';o.replaceChildren();}
+}
+function dfGoalGateShow(list){
+  var o=dfGoalGateOverlay();
+  var left=list.length;
+  var card=div({cls:'card',style:{maxWidth:'600px',width:'100%',padding:'28px',maxHeight:'92vh',overflowY:'auto',borderColor:'var(--gold)'}},[]);
+  card.append(
+    h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--gold)',letterSpacing:'2px',textTransform:'uppercase',marginBottom:'10px'}},['Action needed']),
+    h('div',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'22px',fontWeight:'700',color:'var(--text)',marginBottom:'6px'}},['Set a daily flashcard goal for each student']),
+    h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'13px',color:'var(--dim)',lineHeight:'1.7',marginBottom:'8px'}},['Your profile stays locked until every student below has a daily goal. The minimum is 20 cards a day. If a student does not finish the goal within the day, their profile locks until it is done.']),
+    h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'13px',color:'var(--muted)',lineHeight:'1.7',marginBottom:'16px'}},['Please tell every student to build flashcards for all the systems they have covered. Each student needs at least 20 cards, and a good set for every system studied so far.'])
+  );
+  list.forEach(function(it){
+    var row=div({style:{padding:'12px 0',borderTop:'1px solid var(--border)'}},[]);
+    var n=Number(it.cards_available)||0;
+    row.append(h('div',{style:{fontSize:'14px',color:'var(--text)',marginBottom:'4px'}},[it.full_name||'Student']));
+    row.append(h('div',{style:{fontSize:'11px',color:n<20?'#ff8888':'var(--dim)',marginBottom:'8px'}},[n+' flashcards available'+(n<20?'. Fewer than 20: ask this student to build more.':'')]));
+    var inp=h('input',{cls:'input',type:'number',min:'20',style:{width:'90px',marginRight:'8px'}},[]);
+    inp.value='20';
+    var msg=h('span',{style:{fontSize:'11px',marginLeft:'8px',color:'#ff4444'}},['']);
+    var sv=btn('Save goal','btn-gold',async function(){
+      var v=parseInt(inp.value,10);
+      if(isNaN(v)||v<20){msg.textContent='The minimum is 20.';return;}
+      sv.disabled=true;msg.textContent='';
+      var r=await sb.rpc('set_student_flashcard_goal',{p_student:it.student_id,p_goal:v});
+      if(r&&r.error){sv.disabled=false;msg.textContent=r.error.message;return;}
+      row.replaceChildren(h('div',{style:{fontSize:'13px',color:'var(--teal)'}},[(it.full_name||'Student')+': goal set to '+v+' cards a day.']));
+      left--;
+      if(left<=0)dfGoalGateHide();
+    },{style:{fontSize:'11px',padding:'7px 16px'}});
+    row.append(div({style:{display:'flex',alignItems:'center'}},[inp,sv,msg]));
+    card.append(row);
+  });
+  o.replaceChildren(card);
+  o.style.display='flex';
+}
+async function dfGoalGateCheck(){
+  if(dfGoalGate.checking)return;
+  dfGoalGate.checking=true;
+  try{
+    var r=await sb.rpc('my_students_needing_goal');
+    var list=(r&&!r.error&&r.data)?r.data:[];
+    var vis=dfGoalGate.overlay&&dfGoalGate.overlay.style.display==='flex';
+    if(list.length){if(!vis)dfGoalGateShow(list);}
+    else dfGoalGateHide();
+  }catch(e){}
+  dfGoalGate.checking=false;
+}
+// Small control on a student's page so the tutor can change the goal later.
+function dfGoalControl(studentId){
+  var wrap=div({style:{marginTop:'14px',padding:'10px 12px',border:'1px solid var(--border)',borderRadius:'4px'}},[]);
+  var inp=h('input',{cls:'input',type:'number',min:'20',style:{width:'90px',marginRight:'8px'}},[]);
+  inp.value='20';
+  var st=h('span',{style:{fontSize:'11px',marginLeft:'8px',color:'var(--dim)'}},['']);
+  var save=btn('Save','btn-outline',async function(){
+    var v=parseInt(inp.value,10);
+    if(isNaN(v)||v<20){st.textContent='The minimum is 20.';st.style.color='#ff4444';return;}
+    var r=await sb.rpc('set_student_flashcard_goal',{p_student:studentId,p_goal:v});
+    if(r&&r.error){st.textContent=r.error.message;st.style.color='#ff4444';return;}
+    st.textContent='Saved.';st.style.color='var(--teal)';
+  },{style:{fontSize:'11px',padding:'6px 14px'}});
+  wrap.append(h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--muted)',textTransform:'uppercase',letterSpacing:'1px',marginBottom:'6px'}},['Daily flashcard goal (minimum 20)']),div({style:{display:'flex',alignItems:'center'}},[inp,save,st]));
+  sb.from('student_flashcard_goals').select('goal').eq('student_id',studentId).maybeSingle().then(function(r){
+    if(r&&r.data&&r.data.goal)inp.value=String(r.data.goal);
+  });
+  return wrap;
+}
+// Adds the lock label and Release button to a tutor-side task row.
+function dfTaskLockBits(row,k,rerender){
+  if(!k.locks_profile)return;
+  var kind=k.task_kind==='flashcards'?'Flashcards':(k.task_kind==='qbank'?'Q-bank':'Task');
+  if(k.released_at){
+    row.append(h('span',{cls:'mono',style:{fontSize:'10px',color:'var(--dim)'}},[kind+' lock released']));
+    return;
+  }
+  row.append(h('span',{cls:'mono',style:{fontSize:'10px',color:k.done?'var(--teal)':'var(--gold)'}},[k.done?'Student says done. Confirm, then release.':kind+' lock: profile locked until released']));
+  var rb=btn('Release student','btn-gold',async function(){
+    if(!confirm('Release this student from the lock?'))return;
+    rb.disabled=true;
+    var r=await sb.rpc('release_task_lock',{p_task:k.id});
+    if(r&&r.error){rb.disabled=false;alert('Could not release: '+r.error.message);return;}
+    k.released_at=new Date().toISOString();k.done=true;
+    rerender();
+  },{style:{fontSize:'11px',padding:'6px 12px'}});
+  row.append(rb);
+}
+
+/* ===================== SUPER ADMIN: FLASHCARD LOCK SWITCH ===================== */
+async function dfRenderFlashLockTab(box){
+  box.append(h('p',{style:{fontSize:'13px',color:'var(--dim)'}},['Loading...']));
+  var roleRes=await sb.from('admin_roles').select('role').eq('user_id',S.user?S.user.id:'').maybeSingle();
+  var myRole=roleRes&&roleRes.data?roleRes.data.role:null;
+  box.replaceChildren();
+  if(myRole!=='super_admin'){
+    box.append(div({cls:'card',style:{textAlign:'center',padding:'40px'}},[h('p',{style:{fontSize:'14px',color:'var(--dim)'}},['Access restricted to Super Admins.'])]));
+    return;
+  }
+  var cur=await sb.rpc('flashcard_lock_enabled');
+  var on=!!(cur&&!cur.error&&cur.data===true);
+  var card=div({cls:'card',style:{padding:'20px',maxWidth:'680px'}},[]);
+  card.append(
+    h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'18px',marginBottom:'8px'}},['Daily flashcard lock']),
+    h('p',{style:{fontSize:'13px',color:'var(--dim)',lineHeight:'1.7',marginBottom:'12px'}},['When ON, every active tutoring student must finish their Daily Review each day: at least 20 cards, or the goal their tutor set, with a hidden minimum of 20 seconds a card. If it is not done by midnight AST their profile locks until it is. Tutors are blocked until they set a goal for each of their students. Task locks set by tutors keep working whether this switch is on or off.']),
+    h('p',{style:{fontSize:'13px',fontWeight:'700',color:on?'var(--teal)':'var(--gold)',marginBottom:'12px'}},[on?'ON':'OFF'])
+  );
+  card.append(btn(on?'Switch off':'Switch on','btn-gold',async function(){
+    if(!confirm(on?'Switch the flashcard lock off? Nobody will be locked by it.':'Switch the flashcard lock on? Tutors will be asked to set goals straight away, and students who have not finished their cards by midnight AST will be locked.'))return;
+    var r=await sb.rpc('set_flashcard_lock_enabled',{p_enabled:!on});
+    if(r&&r.error){alert('Could not change it: '+r.error.message);return;}
+    box.replaceChildren();
+    await dfRenderFlashLockTab(box);
+  },{style:{padding:'8px 18px',fontSize:'12px'}}));
+  box.append(card);
+}
+
 function dfTutorLockOverlay(){
   if(dfTutorLock.overlay)return dfTutorLock.overlay;
   var o=div({style:{position:'fixed',top:'0',left:'0',right:'0',bottom:'0',background:'rgba(0,0,0,0.94)',zIndex:'30000',display:'none',alignItems:'center',justifyContent:'center',padding:'20px',overflowY:'auto'}});
@@ -14511,6 +14945,7 @@ async function dfTutorLockCheck(){
       var vis=dfTutorLock.overlay&&dfTutorLock.overlay.style.display==='flex';
       if(!vis)dfTutorLockShow(cls,asm);
     }else{dfTutorLockHide();}
+    await dfGoalGateCheck();
   }catch(e){}
   dfTutorLock.checking=false;
 }
@@ -15056,4 +15491,5 @@ setInterval(function(){if(document.visibilityState==='visible'&&S.user)dfRefresh
 dfInitMail();
 dfInitReviewLock();
 dfInitTutorLock();
+dfInitStudentLock();
 render();
