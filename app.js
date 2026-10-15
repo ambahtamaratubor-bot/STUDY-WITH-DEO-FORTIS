@@ -14815,6 +14815,114 @@ async function dfRenderFlashLockTab(box){
     await dfRenderFlashLockTab(box);
   },{style:{padding:'8px 18px',fontSize:'12px'}}));
   box.append(card);
+  await dfLaunchEmailCard(box);
+}
+
+/* ===================== LAUNCH EMAIL (super admin): platform message + email copy ===================== */
+var DF_LAUNCH_SUBJ_T='New on Deo Fortis: daily flashcard goals and the student lock';
+var DF_LAUNCH_SUBJ_S='Your daily flashcards: what is changing and what to do now';
+function dfLaunchBody(kind,name,systems){
+  if(kind==='tutor'){
+    return [
+      'Hi team,','',
+      'We have added some new features to Deo Fortis. Please read this carefully, because you will be asked to act on it the next time you log in.','',
+      '1. Daily flashcards are now compulsory for every student on the tutoring program. Each student must finish at least 20 cards a day in Daily Review, or the number you set for them. If a student has not finished a day\u2019s cards by midnight AST (UTC-4), their profile locks until they have done their cards.','',
+      '2. You will see a pop-up asking you to set a daily flashcard goal for each of your students. The minimum is 20. Your own profile stays locked until every student has a goal. You can change a student\u2019s goal later on their page.','',
+      '3. Please tell every student to request flashcards for ALL the systems they have already covered. Each student needs at least 20 cards in total, and a good set for every system studied so far. A student with no cards cannot do the daily review.','',
+      '4. You can now set a flashcards or Q-bank task and choose to lock the student\u2019s profile until it is done. The student can tick the task as done, but their profile stays locked until you confirm and press Release student.','',
+      '5. Students also now have a private reasoning pad under every vignette question, and they can organise flashcard decks into folders and review several decks together.','',
+      'Please make sure your students know about all of this in your next class.','',
+      'Thank you,','Dr. Tamaratubor Ambah','Deo Fortis'
+    ].join('\n');
+  }
+  var list=systems&&systems.length
+    ? 'What to do now: you need flashcards for everything you have already covered. Please request flashcards for these systems on the platform:\n'+systems.map(function(s){return '- '+s;}).join('\n')
+    : 'What to do now: you need flashcards for everything you have covered in your classes so far. Please request flashcards for those topics on the platform.';
+  return [
+    'Hi '+name+',','',
+    'We have added a daily flashcard review to Deo Fortis for everyone on the tutoring program. This is for your own good. Reviewing a little every day with spaced repetition is what stops you forgetting what you have learned, and it is what will carry you through your exam.','',
+    'What this means for you:',
+    '- Every day you need to finish at least 20 cards in Daily Review, or the number your tutor sets for you.',
+    '- Finish them by midnight AST (UTC-4). If you miss a day, your profile locks until you complete your cards. Daily Review, payments and messages always stay open.',
+    '- Take your time and work through each card properly.','',
+    list,'',
+    'You need at least 20 cards in total, and ideally a good set for every system above. Please do this today so your daily review is ready.','',
+    'Two more things: you now have a private reasoning pad under every vignette question to think through your answer, and you can put your flashcard decks into folders and review several decks together.','',
+    'If anything is unclear, ask your tutor.','',
+    'Dr. Tamaratubor Ambah','Deo Fortis'
+  ].join('\n');
+}
+async function dfLaunchEmailCard(box){
+  var card=div({cls:'card',style:{padding:'20px',maxWidth:'680px',marginTop:'16px'}},[]);
+  card.append(
+    h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'18px',marginBottom:'8px'}},['Launch email']),
+    h('p',{style:{fontSize:'13px',color:'var(--dim)',lineHeight:'1.7',marginBottom:'12px'}},['Sends the daily flashcard announcement from you to tutors and active tutoring students, as a platform message with an email copy. Each student\u2019s email lists the systems they have already covered, worked out from their tests and assessments. Untick anyone who should not get it.'])
+  );
+  var body=div({},[]);
+  card.append(body);box.append(card);
+  body.append(h('p',{style:{fontSize:'12px',color:'var(--dim)'}},['Loading recipients...']));
+  var r=await sb.rpc('flashcard_launch_audience');
+  body.replaceChildren();
+  if(!r||r.error||!r.data){body.append(h('p',{style:{fontSize:'12px',color:'#ff4444'}},['Could not load recipients: '+((r&&r.error&&r.error.message)||'unknown error')]));return;}
+  var prev=await sb.from('messages').select('id',{count:'exact',head:true}).eq('sender_id',S.user.id).in('subject',[DF_LAUNCH_SUBJ_T,DF_LAUNCH_SUBJ_S]);
+  var already=(prev&&prev.count)||0;
+  if(already)body.append(h('p',{style:{fontSize:'12px',color:'var(--gold)',marginBottom:'10px'}},['Already sent: '+already+' messages with these subjects exist from you. Sending again will message people twice.']));
+  var items=[];
+  var sendBtn=null;
+  function chosenCount(){return items.filter(function(it){return it.cb.checked;}).length;}
+  function refreshBtn(){if(sendBtn)sendBtn.textContent='Send to '+chosenCount()+' people';}
+  function section(label,kind){
+    body.append(h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--muted)',textTransform:'uppercase',letterSpacing:'1px',margin:'12px 0 6px'}},[label]));
+    r.data.filter(function(x){return x.kind===kind;}).sort(function(a,b){return String(a.full_name).localeCompare(String(b.full_name));}).forEach(function(x){
+      var cb=h('input',{type:'checkbox',style:{marginRight:'8px'}},[]);
+      cb.checked=!(kind==='student'&&/chiamaka\s+ubana|^salau\b/i.test(x.full_name||''));
+      cb.onchange=refreshBtn;
+      var row=div({style:{display:'flex',alignItems:'center',gap:'8px',padding:'5px 0',flexWrap:'wrap'}},[cb,h('span',{style:{fontSize:'13px',color:'var(--text)',minWidth:'160px'}},[x.full_name||'(no name)'])]);
+      var nameInp=null;
+      if(kind==='student'){
+        nameInp=h('input',{cls:'input',style:{width:'120px',fontSize:'12px',padding:'4px 8px'}},[]);
+        nameInp.value=String(x.full_name||'').trim().split(/\s+/)[0]||'there';
+        row.append(h('span',{style:{fontSize:'11px',color:'var(--dim)'}},['Hi']),nameInp);
+        row.append(h('span',{style:{fontSize:'11px',color:'var(--dim)'}},[x.systems?(x.systems.split('|').length+' systems'):'no systems found']));
+      }
+      body.append(row);
+      items.push({row:x,cb:cb,nameInp:nameInp,kind:kind});
+    });
+  }
+  section('Tutors','tutor');
+  section('Students','student');
+  var status=h('div',{style:{fontSize:'12px',marginTop:'12px',lineHeight:'1.6',color:'var(--dim)'}},['']);
+  sendBtn=btn('Send','btn-gold',async function(){
+    var chosen=items.filter(function(it){return it.cb.checked;});
+    if(!chosen.length){status.textContent='Tick at least one person.';status.style.color='#ff4444';return;}
+    if(!confirm('Send the launch email to '+chosen.length+' people now? This cannot be undone.'+(already?' You have already sent these once.':'')))return;
+    sendBtn.disabled=true;sendBtn.textContent='Sending...';status.style.color='var(--dim)';
+    var okIds=[],errs=[];
+    for(var i=0;i<chosen.length;i++){
+      var it=chosen[i];
+      status.textContent='Sending '+(i+1)+' of '+chosen.length+'...';
+      try{
+        var sys=it.row.systems?it.row.systems.split('|'):[];
+        var nm=it.nameInp?(it.nameInp.value.trim()||'there'):'';
+        var m=await sb.rpc('mail_send',{p_recipient:it.row.user_id,p_subject:it.kind==='tutor'?DF_LAUNCH_SUBJ_T:DF_LAUNCH_SUBJ_S,p_body:dfLaunchBody(it.kind,nm,sys),p_parent:null});
+        if(m.error)throw new Error(m.error.message);
+        okIds.push(m.data);
+      }catch(e){errs.push((it.row.full_name||'?')+': '+(e&&e.message?e.message:'failed'));}
+    }
+    var failedMail=0;
+    for(var j=0;j<okIds.length;j+=10){
+      try{
+        var out=await dfMailSendEmails(okIds.slice(j,j+10));
+        if(out&&out.failed)failedMail+=out.failed.length;
+      }catch(e){failedMail+=okIds.slice(j,j+10).length;}
+    }
+    dfMailRefreshUnread();
+    status.textContent='Sent '+okIds.length+' messages. '+(failedMail?failedMail+' email copies could not be sent (the message is still in their platform inbox). ':'All email copies went out. ')+(errs.length?'Not sent: '+errs.join('; '):'');
+    status.style.color=(errs.length||failedMail)?'var(--gold)':'var(--teal)';
+    sendBtn.textContent='Done';
+  },{style:{width:'100%',marginTop:'14px'}});
+  refreshBtn();
+  body.append(status,sendBtn);
 }
 
 function dfTutorLockOverlay(){
