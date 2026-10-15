@@ -11977,6 +11977,7 @@ function openStudent(s){
       })();
     }
 
+    body.append(dfFlashProgress(s.user_id));
     body.append(dfGoalControl(s.user_id));
     body.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'15px',margin:'18px 0 10px'},html:'Tasks'}));
     var taskList=div({},[]);
@@ -14923,6 +14924,51 @@ async function dfLaunchEmailCard(box){
   },{style:{width:'100%',marginTop:'14px'}});
   refreshBtn();
   body.append(status,sendBtn);
+}
+
+/* ===================== TUTOR VIEW: a student's daily flashcard progress ===================== */
+function dfFlashProgress(studentId){
+  var wrap=div({style:{marginTop:'14px',padding:'10px 12px',border:'1px solid var(--border)',borderRadius:'4px'}},[]);
+  wrap.append(h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--muted)',textTransform:'uppercase',letterSpacing:'1px',marginBottom:'8px'}},['Daily flashcards']));
+  var body=div({},[h('span',{style:{fontSize:'12px',color:'var(--dim)'}},['Loading...'])]);
+  wrap.append(body);
+  sb.rpc('student_flashcard_summary',{p_student:studentId}).then(function(r){
+    body.replaceChildren();
+    if(!r||r.error||!r.data){body.append(h('span',{style:{fontSize:'12px',color:'var(--dim)'}},['Not available.']));return;}
+    var d=r.data;
+    if(!d.enabled){body.append(h('span',{style:{fontSize:'12px',color:'var(--dim)'}},['The daily flashcard lock is switched off.']));return;}
+    if(!d.available){
+      body.append(h('div',{style:{fontSize:'13px',color:'#ff8888',lineHeight:'1.6'}},['This student has no flashcards yet, so there is nothing to review. Ask them to request flashcards for the systems they have covered.']));
+      return;
+    }
+    var finished=d.required>0&&d.done>=d.required;
+    body.append(div({style:{display:'flex',alignItems:'center',gap:'10px',flexWrap:'wrap',marginBottom:'6px'}},[
+      h('span',{style:{fontSize:'14px',color:'var(--text)'}},['Today: '+d.done+' of '+d.required+' cards done']),
+      h('span',{cls:'mono',style:{fontSize:'10px',letterSpacing:'1px',color:finished?'var(--teal)':'var(--gold)'}},[finished?'DONE':'NOT FINISHED YET'])
+    ]));
+    var why=[];
+    (d.reasons||[]).forEach(function(x){
+      if(x.type==='flashcards')why.push('missed the previous day\u2019s flashcards');
+      else if(x.type==='task')why.push(x.marked_done?'a task is marked done and waiting for you to release them':'a task is still open');
+    });
+    body.append(h('div',{style:{fontSize:'12px',color:d.locked?'#ff8888':'var(--teal)',marginBottom:'10px',lineHeight:'1.6'}},[d.locked?('Profile locked: '+why.join('; ')+'.'):'Profile not locked.']));
+    var row=div({style:{display:'flex',gap:'6px'}},[]);
+    var days=(d.days||[]).slice().reverse();
+    days.forEach(function(x,i){
+      var isToday=i===days.length-1;
+      var wd='SMTWTFS'.charAt(new Date(x.day+'T00:00:00Z').getUTCDay());
+      var bg,bd,fg;
+      if(!x.counted){bg='transparent';bd='1px solid var(--border)';fg='var(--dim)';}
+      else if(x.met){bg='var(--teal)';bd='1px solid var(--teal)';fg='var(--bg)';}
+      else if(isToday){bg='transparent';bd='1px solid var(--gold)';fg='var(--gold)';}
+      else{bg='#ff4444';bd='1px solid #ff4444';fg='var(--bg)';}
+      var sq=div({style:{width:'26px',height:'26px',borderRadius:'4px',background:bg,border:bd,color:fg,display:'flex',alignItems:'center',justifyContent:'center',fontSize:'10px',fontFamily:"'DM Mono',monospace"}},[wd]);
+      sq.title=x.day+(x.counted?(x.met?': done':(isToday?': in progress':': missed')):': not tracked yet');
+      row.append(sq);
+    });
+    body.append(row,h('div',{style:{fontSize:'10px',color:'var(--dim)',marginTop:'6px'}},['Last 7 days. Green: done. Red: missed. Grey: before tracking started. Gold outline: today, still open.']));
+  });
+  return wrap;
 }
 
 function dfTutorLockOverlay(){
