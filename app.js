@@ -984,6 +984,24 @@ function dfAiExplanation(q,correct){
 
 var dfMail={unread:0,btn:null,badge:null,tick:0,box:null,lastUser:null};
 
+// Administrative staff (not tutors). To mark a new hire as an admin, add a lowercase part of their name here.
+// They are labelled "Administrative staff" in mail and in the Team tab instead of "Tutor".
+var DF_ADMIN_STAFF_NAMES=['miebi'];
+function dfIsAdminStaffName(name){
+  var n=String(name||'').toLowerCase();
+  return DF_ADMIN_STAFF_NAMES.some(function(x){return n.indexOf(x)!==-1;});
+}
+// Team tab tag.
+function dfStaffTagSuffix(admin){
+  var nm=(admin&&admin.profiles&&admin.profiles.full_name)||'';
+  if(dfIsAdminStaffName(nm))return ' · Administrative staff';
+  return admin&&admin.is_tutor?' + tutoring':'';
+}
+// The tag shown next to a sender in mail. Miebi is administrative staff, not a tutor.
+function dfMailRoleLabel(m){
+  if(m&&dfIsAdminStaffName(m.sender_name))return 'Administrative staff';
+  return (m&&m.sender_role)||'';
+}
 async function dfFetchTutors(){
   var tr=await sb.from('admin_roles').select('user_id,profiles(full_name,email)').eq('is_tutor',true);
   return (tr.data||[]).filter(function(t){return t.profiles;}).map(function(t){return{id:t.user_id,user_id:t.user_id,name:t.profiles.full_name||'(no name)',email:t.profiles.email||''};});
@@ -1432,7 +1450,7 @@ async function dfMailbox(openMsgId){
       bubble.append(
         div({style:{display:'flex',justifyContent:'space-between',gap:'8px',marginBottom:'8px',flexWrap:'wrap'}},[
           h('span',{style:{fontSize:'12px',fontWeight:'700',color:'var(--text)'}},[(mine?'You':m.sender_name)+' ']),
-          h('span',{cls:'mono',style:{fontSize:'10px',color:'var(--muted)'}},[(mine?'':m.sender_role+' \u00b7 ')+new Date(m.created_at).toLocaleString([], {month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})])
+          h('span',{cls:'mono',style:{fontSize:'10px',color:'var(--muted)'}},[(mine?'':dfMailRoleLabel(m)+' \u00b7 ')+new Date(m.created_at).toLocaleString([], {month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})])
         ]),
         h('div',{style:{fontSize:'13px',color:'var(--text)',lineHeight:'1.7',whiteSpace:'pre-wrap',wordBreak:'break-word'}},[dfMailSplitBody(m.body).text]),
         dfMailFileLinks(dfMailSplitBody(m.body).files)
@@ -13345,7 +13363,7 @@ async function showTeamTab(){
         const row=div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'12px',background:'var(--card2)',border:'1px solid var(--border)',borderRadius:'4px'}});
         const info=div({});
         info.append(h('div',{style:{fontWeight:'bold'}},[document.createTextNode(admin.profiles?.full_name||admin.profiles?.email||'Unknown')]));
-        info.append(h('div',{style:{fontSize:'11px',color:'var(--dim)'}},[document.createTextNode('Role: '+admin.role+(admin.is_tutor?' + tutoring':'')+' · '+(admin.profiles?.email||''))]));
+        info.append(h('div',{style:{fontSize:'11px',color:'var(--dim)'}},[document.createTextNode('Role: '+admin.role+dfStaffTagSuffix(admin)+' · '+(admin.profiles?.email||''))]));
         row.append(info);
         const actions=div({style:{display:'flex',gap:'8px',flexWrap:'wrap',alignItems:'center'}});
         if(isSuperAdmin){
