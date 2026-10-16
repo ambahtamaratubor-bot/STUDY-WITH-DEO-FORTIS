@@ -2716,7 +2716,7 @@ async function dfRenderMyPayments(holder){
   card.append(dfPayTable(rows,today,{}));
   holder.append(card);
 }
-// Persistent banner: from 3 days before a cycle's due date until it is paid.
+// Banner: Tutoring Wing only, from 3 days before the due date until the cycle is paid.
 async function mountGlobalPaymentBanner(){
   if(window._dfPayTimer){clearInterval(window._dfPayTimer);window._dfPayTimer=null;}
   var el=window._dfPayBannerEl;
@@ -2724,7 +2724,7 @@ async function mountGlobalPaymentBanner(){
   if(!S.user){hide();return;}
   async function paint(){
     try{
-      if(!S.user){hide();return;}
+      if(!S.user||S.page!=='tutoring'){hide();return;}
       var today=dfPayToday();
       var rows=await dfPayLoadFor(S.user.id,false);
       var sm=dfPaySummary(rows,today);
@@ -3108,7 +3108,7 @@ const wingHeader=div({},[
   h('span',{cls:'chapter',html:'Tutoring Wing'},[]),
   h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'26px',marginBottom:'8px'},html:'Tutoring Wing'},[]),
   h('p',{cls:'muted',style:{fontSize:'14px',marginBottom:'12px'},html:'Your assigned tests, tasks and results \u2014 sit them, clear them, review them.'},[]),
-  div({style:{marginBottom:'20px'}},[btn('Book a session \u2192','btn-outline',function(){showBooking();},{style:{fontSize:'11px',padding:'6px 14px'}})])
+  div({style:{marginBottom:'20px',display:'flex',gap:'8px',flexWrap:'wrap'}},[btn('My payments','btn-outline',function(){currentTab='payments';paintTabs();renderTab();},{style:{fontSize:'11px',padding:'6px 14px'}}),btn('Book a session \u2192','btn-outline',function(){showBooking();},{style:{fontSize:'11px',padding:'6px 14px'}})])
 ]);
 inner.append(wingHeader);
 page.append(inner);
@@ -3192,6 +3192,7 @@ function renderTab(){
   else if(currentTab==='tests')renderTests();
   else if(currentTab==='tasks')renderTasks();
   else if(currentTab==='assessments')renderAssessTab();
+  else if(currentTab==='payments')renderPaymentsTab();
   else renderResults();
 }
 
@@ -3723,6 +3724,16 @@ async function startAssessment(a,assessment){
   else{runAssessmentQuiz(a,assessment,questions);}
 }
 
+
+async function renderPaymentsTab(){
+  content.append(skelCard([['40%'],['100%'],['80%']]));
+  var tmp=div({},[]);
+  try{await dfRenderMyPayments(tmp);}catch(e){console.warn('my payments failed',e);}
+  if(currentTab!=='payments')return;
+  content.innerHTML='';
+  if(tmp.firstChild)content.append(tmp);
+  else content.append(emptyCard('No payment records yet','Your billing cycles and payments will appear here once they are set up.'));
+}
 
 function renderTasks(){
   const openTasks=DATA.tasks.filter(function(k){return !k.done;});
@@ -6294,7 +6305,7 @@ page.append(nav);
 const container=div({cls:'inner'});
 {const _pa=dfPushAnnounceCard();if(_pa)container.append(_pa);}
 {const _wn=dfWhatsNewCard('student');if(_wn)container.append(_wn);}
-const tutHolder=div({});container.append(tutHolder);(async function(){const _te=await sb.from('tutoring_students').select('id').eq('user_id',S.user.id).eq('active',true).maybeSingle();if(!_te||!_te.data)return;const tw=div({cls:'card',style:{marginBottom:'16px',borderColor:'var(--gold)',cursor:'pointer',display:'flex',justifyContent:'space-between',alignItems:'center',gap:'16px',flexWrap:'wrap'}},[div({style:{flex:'1',minWidth:'200px'}},[h('div',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'17px',color:'var(--gold)',marginBottom:'4px'}},['Tutoring Wing']),h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'13px',color:'var(--muted)'}},['Your assigned tests, tasks and results'])]),h('span',{cls:'mono',style:{fontSize:'12px',color:'var(--gold)',flexShrink:'0'}},['Enter →'])]);tw.onclick=function(){go('tutoring');};tutHolder.append(tw);try{await dfRenderMyPayments(tutHolder);}catch(e){console.warn('my payments failed',e);}})();
+const tutHolder=div({});container.append(tutHolder);(async function(){const _te=await sb.from('tutoring_students').select('id').eq('user_id',S.user.id).eq('active',true).maybeSingle();if(!_te||!_te.data)return;const tw=div({cls:'card',style:{marginBottom:'16px',borderColor:'var(--gold)',cursor:'pointer',display:'flex',justifyContent:'space-between',alignItems:'center',gap:'16px',flexWrap:'wrap'}},[div({style:{flex:'1',minWidth:'200px'}},[h('div',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'17px',color:'var(--gold)',marginBottom:'4px'}},['Tutoring Wing']),h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'13px',color:'var(--muted)'}},['Your assigned tests, tasks and results'])]),h('span',{cls:'mono',style:{fontSize:'12px',color:'var(--gold)',flexShrink:'0'}},['Enter →'])]);tw.onclick=function(){go('tutoring');};tutHolder.append(tw);})();
 page.append(container);
 
 // STAT CARD HELPER
