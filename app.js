@@ -3078,6 +3078,24 @@ footer.append(h('p',{cls:'mono',style:{color:'var(--dim)',fontSize:'11px',letter
 page.append(footer);
 return page;
 }
+async function showBooking(){
+const{data:pkgs}=await sb.from('tutoring_packages').select('*').order('id');
+const ov=div({cls:'modal-bg'});ov.onclick=e=>{if(e.target===ov)ov.remove();};
+const box=div({cls:'card',style:{maxWidth:'480px',width:'100%'}});
+const nI=inp('Your name');const eI=inp('your@email.com','email');
+const pSel=h('select',{cls:'input',style:{cursor:'pointer'}});
+pSel.append(h('option',{value:'',html:'Select a package'}));
+(pkgs||[]).forEach(p=>pSel.append(h('option',{value:p.name,html:p.name+' — '+p.price})));
+const mI=h('textarea',{cls:'input',placeholder:'Tell me about your study goals...',style:{minHeight:'80px',resize:'vertical'}});
+const sBtn=btn('Send Request','btn-gold',async()=>{
+if(!nI.value||!eI.value||!pSel.value)return;
+await sb.from('booking_requests').insert({name:nI.value,email:eI.value,package:pSel.value,message:mI.value});
+box.innerHTML='<div style="text-align:center;padding:20px"><div style="font-size:48px;margin-bottom:16px"> </div><h2 style="font-family:Playfair Display,serif;font-size:22px;margin-bottom:12px">Request Sent!</h2><p style="color:var(--muted);font-size:14px;line-height:1.7">You will be contacted via email to confirm your booking.</p></div>';
+setTimeout(()=>ov.remove(),3000);
+});
+box.append(h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'22px',marginBottom:'20px'},html:'Book a Session'}),field('Full Name',nI),field('Email',eI),field('Package',pSel),field('What do you need help with?',mI),div({style:{display:'flex',gap:'12px'}},[sBtn,btn('Cancel','btn-outline',()=>ov.remove())]));
+ov.append(box);document.body.append(ov);
+}
 function tutoring(){
 const page=div({});
 const nav=div({cls:'dash-nav'});
@@ -3089,7 +3107,8 @@ const inner=div({cls:'inner'});
 const wingHeader=div({},[
   h('span',{cls:'chapter',html:'Tutoring Wing'},[]),
   h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'26px',marginBottom:'8px'},html:'Tutoring Wing'},[]),
-  h('p',{cls:'muted',style:{fontSize:'14px',marginBottom:'24px'},html:'Your assigned tests, tasks and results \u2014 sit them, clear them, review them.'},[])
+  h('p',{cls:'muted',style:{fontSize:'14px',marginBottom:'12px'},html:'Your assigned tests, tasks and results \u2014 sit them, clear them, review them.'},[]),
+  div({style:{marginBottom:'20px'}},[btn('Book a session \u2192','btn-outline',function(){showBooking();},{style:{fontSize:'11px',padding:'6px 14px'}})])
 ]);
 inner.append(wingHeader);
 page.append(inner);
@@ -8744,9 +8763,7 @@ inner.append(
 );
 const board=div({cls:'card',style:{marginBottom:'32px'},id:'board'});board.append(skelCard([['60%'],['80%'],['40%']]),skelCard([['60%'],['80%'],['40%']]),skelCard([['60%'],['80%'],['40%']]));
 inner.append(board);
-const bc=div({cls:'card',style:{textAlign:'center',borderColor:'var(--gold-border)',borderTopWidth:'3px',borderTopColor:'var(--gold)'}});
-bc.append(div({style:{fontSize:'32px',marginBottom:'12px'},html:ICONS.book}),h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'22px',marginBottom:'8px'},html:'Want Personal Tutoring?'}),h('p',{cls:'muted',style:{fontSize:'14px',lineHeight:'1.7',marginBottom:'20px'},html:'Work directly with me. Get personalised guidance and full portal access.'}),btn('Book a Session →','btn-gold',()=>showBooking()));
-inner.append(bc);page.append(inner);
+page.append(inner);
 (async()=>{
 const{data:leaderUsers}=await sb.from('profiles').select('id,full_name,total_points,total_study_minutes,streak_count').eq('status','approved').order('total_points',{ascending:false}).limit(20);
 const b=document.getElementById('board');if(!b)return;
@@ -8791,24 +8808,6 @@ leaderUsers.forEach((u,i)=>{
   r.append(left,right2);b.append(r);
 });
 })();
-async function showBooking(){
-const{data:pkgs}=await sb.from('tutoring_packages').select('*').order('id');
-const ov=div({cls:'modal-bg'});ov.onclick=e=>{if(e.target===ov)ov.remove();};
-const box=div({cls:'card',style:{maxWidth:'480px',width:'100%'}});
-const nI=inp('Your name');const eI=inp('your@email.com','email');
-const pSel=h('select',{cls:'input',style:{cursor:'pointer'}});
-pSel.append(h('option',{value:'',html:'Select a package'}));
-(pkgs||[]).forEach(p=>pSel.append(h('option',{value:p.name,html:p.name+' — '+p.price})));
-const mI=h('textarea',{cls:'input',placeholder:'Tell me about your study goals...',style:{minHeight:'80px',resize:'vertical'}});
-const sBtn=btn('Send Request','btn-gold',async()=>{
-if(!nI.value||!eI.value||!pSel.value)return;
-await sb.from('booking_requests').insert({name:nI.value,email:eI.value,package:pSel.value,message:mI.value});
-box.innerHTML='<div style="text-align:center;padding:20px"><div style="font-size:48px;margin-bottom:16px"> </div><h2 style="font-family:Playfair Display,serif;font-size:22px;margin-bottom:12px">Request Sent!</h2><p style="color:var(--muted);font-size:14px;line-height:1.7">You will be contacted via email to confirm your booking.</p></div>';
-setTimeout(()=>ov.remove(),3000);
-});
-box.append(h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'22px',marginBottom:'20px'},html:'Book a Session'}),field('Full Name',nI),field('Email',eI),field('Package',pSel),field('What do you need help with?',mI),div({style:{display:'flex',gap:'12px'}},[sBtn,btn('Cancel','btn-outline',()=>ov.remove())]));
-ov.append(box);document.body.append(ov);
-}
 return page;
 }
 // ═══════════════════════════════
@@ -12001,10 +12000,10 @@ function openStudent(s){
     var kNote=h('input',{cls:'input',placeholder:'Note (optional)',style:{width:'100%',marginBottom:'8px'}});
     var kDue=h('input',{cls:'input',type:'date',style:{width:'200px',marginBottom:'8px'}});
     var kSt=div({style:{display:'none',fontSize:'12px',marginBottom:'8px'}},[]);
-    var addBtn=btn('Add task','btn-gold',async function(){var title=kTitle.value.trim();if(!title){kSt.textContent='Add a task title.';kSt.style.color='#ff4444';kSt.style.display='block';return;}addBtn.disabled=true;var ins=await sb.from('tutoring_tasks').insert({student_id:s.user_id,assigned_by:S.user.id,title:title,note:kNote.value.trim()||null,due_date:kDue.value||null,task_kind:kKind.value,locks_profile:kLock.checked}).select().single();addBtn.disabled=false;if(ins.error||!ins.data){kSt.textContent='Failed: '+(ins.error&&ins.error.message||'unknown');kSt.style.color='#ff4444';kSt.style.display='block';return;}tasks.unshift(ins.data);renderTaskList(tasks);kTitle.value='';kNote.value='';kDue.value='';kSt.textContent='\u2713 Task added \u00b7 the student will be emailed.';kSt.style.color='var(--teal)';kSt.style.display='block';},{style:{fontSize:'12px',padding:'8px 16px'}});
+    var addBtn=btn('Add task','btn-gold',async function(){var title=kTitle.value.trim();if(!title){kSt.textContent='Add a task title.';kSt.style.color='#ff4444';kSt.style.display='block';return;}if(kLock.checked&&!kDue.value){kSt.textContent='A locking task needs a due date. The lock starts once that date has passed.';kSt.style.color='#ff4444';kSt.style.display='block';return;}addBtn.disabled=true;var ins=await sb.from('tutoring_tasks').insert({student_id:s.user_id,assigned_by:S.user.id,title:title,note:kNote.value.trim()||null,due_date:kDue.value||null,task_kind:kKind.value,locks_profile:kLock.checked}).select().single();addBtn.disabled=false;if(ins.error||!ins.data){kSt.textContent='Failed: '+(ins.error&&ins.error.message||'unknown');kSt.style.color='#ff4444';kSt.style.display='block';return;}tasks.unshift(ins.data);renderTaskList(tasks);kTitle.value='';kNote.value='';kDue.value='';kSt.textContent='\u2713 Task added \u00b7 the student will be emailed.';kSt.style.color='var(--teal)';kSt.style.display='block';},{style:{fontSize:'12px',padding:'8px 16px'}});
     var kKind=h('select',{cls:'input',style:{width:'200px',marginBottom:'8px',marginRight:'8px'}},[h('option',{value:'other'},['General task']),h('option',{value:'flashcards'},['Flashcards']),h('option',{value:'qbank'},['Q-bank questions'])]);
     var kLock=h('input',{type:'checkbox',style:{marginRight:'6px'}},[]);
-    var kLockRow=h('label',{style:{display:'block',fontSize:'12px',color:'var(--muted)',marginBottom:'8px',cursor:'pointer'}},[kLock,'Lock the student’s profile until I release them']);
+    var kLockRow=h('label',{style:{display:'block',fontSize:'12px',color:'var(--muted)',marginBottom:'8px',cursor:'pointer'}},[kLock,'Lock the student’s Tutoring Wing once the due date passes, until I release them (needs a due date)']);
     form.append(kTitle,kNote,kDue,kKind,kLockRow,div({},[addBtn]),kSt);
     body.append(form);
   })();
@@ -14571,7 +14570,10 @@ function dfReasoningPad(qid,ctx){
 }
 
 /* ===================== DAILY FLASHCARD LOCK: STUDENT SIDE ===================== */
-var dfStudentLock={overlay:null,lastUser:null,tick:0,checking:false,status:null,sig:''};
+var dfStudentLock={overlay:null,lastUser:null,tick:0,checking:false,status:null,tasks:[],sig:''};
+// Today's date in AST (UTC-4, no daylight saving) as YYYY-MM-DD. A task is overdue once this is later than its due date.
+function dfAstToday(){return new Date(Date.now()-4*3600*1000).toISOString().slice(0,10);}
+function dfTaskOverdue(k){return !!(k&&k.due_date&&String(k.due_date).slice(0,10)<dfAstToday());}
 function dfStudentLockOverlay(){
   if(dfStudentLock.overlay)return dfStudentLock.overlay;
   var o=div({style:{position:'fixed',top:'0',left:'0',right:'0',bottom:'0',background:'rgba(0,0,0,0.95)',zIndex:'25000',display:'none',alignItems:'center',justifyContent:'center',padding:'20px',overflowY:'auto'}},[]);
@@ -14584,16 +14586,27 @@ function dfStudentLockHide(){
   if(o)o.style.display='none';
   dfStudentLock.sig='';
 }
-// Decides whether the lock screen shows right now. Daily Review (the flashcards page) stays open.
+// Decides whether the lock screen shows right now.
+// - Daily flashcard lock: unchanged (everywhere except the Daily Review page).
+// - Tutor task lock: only inside the Tutoring Wing, and only once the task is past its due date.
+//   Flashcards, Q-Bank, requests, messages and payments all stay open so the student can do the work.
 function dfStudentLockApply(){
   var st=dfStudentLock.status;
   var skip=!S.user||['login','signup','pending','landing','admin'].indexOf(S.page)!==-1;
-  if(!st||!st.locked||skip||S.page==='flashcards'){dfStudentLockHide();return;}
+  var reasons=[];
+  if(st&&st.locked&&S.page!=='flashcards'){(st.reasons||[]).forEach(function(r){if(r.type==='flashcards')reasons.push(r);});}
+  if(S.page==='tutoring'){
+    (dfStudentLock.tasks||[]).forEach(function(k){
+      if(!dfTaskOverdue(k))return;
+      reasons.push({type:'task',id:k.id,title:k.title,note:k.note,kind:k.task_kind,due_date:k.due_date,marked_done:!!k.done});
+    });
+  }
+  if(skip||!reasons.length){dfStudentLockHide();return;}
   var o=dfStudentLockOverlay();
-  var sig=JSON.stringify(st.reasons||[]);
+  var sig=JSON.stringify(reasons);
   if(o.style.display==='flex'&&dfStudentLock.sig===sig)return;
   dfStudentLock.sig=sig;
-  dfStudentLockBuild(o,st);
+  dfStudentLockBuild(o,{reasons:reasons});
   o.style.display='flex';
 }
 function dfStudentLockBuild(o,st){
@@ -14603,8 +14616,11 @@ function dfStudentLockBuild(o,st){
   var card=div({cls:'card',style:{maxWidth:'560px',width:'100%',padding:'28px',maxHeight:'92vh',overflowY:'auto',borderColor:'var(--gold)'}},[]);
   card.append(
     h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--gold)',letterSpacing:'2px',textTransform:'uppercase',marginBottom:'10px'}},['Profile locked']),
-    h('div',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'22px',fontWeight:'700',color:'var(--text)',marginBottom:'14px'}},['Finish what is due to continue'])
+    h('div',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'22px',fontWeight:'700',color:'var(--text)',marginBottom:'14px'}},[flash?'Finish what is due to continue':'Finish your overdue task to continue in the Tutoring Wing'])
   );
+  if(tasks.length&&!flash){
+    card.append(h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'13px',color:'var(--muted)',lineHeight:'1.7',marginBottom:'6px'}},['Your tutor set this task and its due date has passed. Only the Tutoring Wing is locked. Flashcards, Q-Bank and the rest of the platform stay open, so you can do the work now.']));
+  }
   if(flash){
     card.append(div({style:{padding:'14px 0',borderTop:'1px solid var(--border)'}},[
       h('div',{style:{fontSize:'14px',color:'var(--text)',marginBottom:'6px'}},[(flash.overdue?'You did not finish yesterday\u2019s Daily Review. Finish today\u2019s cards to unlock your profile. ':'')+'Daily Review: '+flash.done+' of '+flash.required+' cards done today.']),
@@ -14616,6 +14632,7 @@ function dfStudentLockBuild(o,st){
     var row=div({style:{padding:'14px 0',borderTop:'1px solid var(--border)'}},[]);
     row.append(h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--dim)',letterSpacing:'1px',textTransform:'uppercase',marginBottom:'4px'}},[kind]));
     row.append(h('div',{style:{fontSize:'14px',color:'var(--text)',whiteSpace:'pre-wrap'}},[t.title||'']));
+    if(t.due_date){var dd=new Date(String(t.due_date).slice(0,10)+'T00:00:00');row.append(h('div',{cls:'mono',style:{fontSize:'10px',color:'#ff8888',marginTop:'4px'}},['Was due '+(isNaN(dd)?String(t.due_date):dd.toLocaleDateString('en-US',{month:'short',day:'numeric'}))]));}
     if(t.note)row.append(h('div',{style:{fontSize:'12px',color:'var(--muted)',marginTop:'4px',whiteSpace:'pre-wrap'}},[t.note]));
     if(t.marked_done){
       row.append(h('div',{style:{fontSize:'12px',color:'var(--teal)',marginTop:'8px',lineHeight:'1.6'}},['Marked as done. Contact your tutor to confirm it, and they will release your profile.']));
@@ -14637,6 +14654,22 @@ function dfStudentLockBuild(o,st){
       try{sessionStorage.setItem('df-open-daily','1');}catch(e){}
       go('flashcards');
     },{style:{fontSize:'12px',padding:'9px 18px'}}));
+  }
+  var fcTask=null;var hasQ=false;
+  tasks.forEach(function(t){if(t.kind==='flashcards'&&!fcTask)fcTask=t;if(t.kind==='qbank')hasQ=true;});
+  if(fcTask){
+    btns.append(btn('Go to Flashcards','btn-gold',function(){go('flashcards');},{style:{fontSize:'12px',padding:'9px 18px'}}));
+    btns.append(btn('Request flashcards','btn-gold',function(){
+      var topic=String(fcTask.title||'').split('\n')[0].trim().slice(0,100);
+      window._dfPendingRecallPrefill={topic:topic,style:'flashcard',details:'Flashcards for the task my tutor set: '+String(fcTask.title||'').trim().slice(0,300)};
+      go('study');
+    },{style:{fontSize:'12px',padding:'9px 18px'}}));
+  }
+  if(hasQ){
+    btns.append(btn('Go to Q-Bank','btn-gold',function(){go('vignette');},{style:{fontSize:'12px',padding:'9px 18px'}}));
+  }
+  if(tasks.length){
+    btns.append(btn('Back to Dashboard','btn-outline',function(){go('dashboard');},{style:{fontSize:'12px',padding:'9px 18px'}}));
   }
   btns.append(btn('Messages','btn-outline',function(){dfMailbox();},{style:{fontSize:'12px',padding:'9px 18px'}}));
   var payBtn=btn('Payments','btn-outline',async function(){
@@ -14660,14 +14693,19 @@ async function dfStudentLockCheck(){
     var r=await sb.rpc('my_student_lock_status');
     if(r&&!r.error&&r.data)dfStudentLock.status=r.data; // on an error the last known state is kept; before any answer it stays open
   }catch(e){}
+  try{
+    // Task locks are worked out here, not from the server's answer, because they only start after the due date.
+    var tr=await sb.from('tutoring_tasks').select('id,title,note,task_kind,done,released_at,due_date,locks_profile').eq('student_id',S.user.id).eq('locks_profile',true).is('released_at',null);
+    if(tr&&!tr.error&&tr.data)dfStudentLock.tasks=tr.data;
+  }catch(e){}
   dfStudentLock.checking=false;
   dfStudentLockApply();
 }
 function dfStudentLockRefresh(){dfStudentLock.sig='';dfStudentLockCheck();}
 function dfInitStudentLock(){
   setInterval(function(){
-    if(!S.user){dfStudentLock.lastUser=null;dfStudentLock.status=null;dfStudentLockHide();return;}
-    if(dfStudentLock.lastUser!==S.user.id){dfStudentLock.lastUser=S.user.id;dfStudentLock.tick=0;dfStudentLock.status=null;dfStudentLockCheck();return;}
+    if(!S.user){dfStudentLock.lastUser=null;dfStudentLock.status=null;dfStudentLock.tasks=[];dfStudentLockHide();return;}
+    if(dfStudentLock.lastUser!==S.user.id){dfStudentLock.lastUser=S.user.id;dfStudentLock.tick=0;dfStudentLock.status=null;dfStudentLock.tasks=[];dfStudentLockCheck();return;}
     dfStudentLock.tick++;
     if(dfStudentLock.tick%15===0)dfStudentLockCheck(); // about every 30 seconds
   },2000);
@@ -14778,7 +14816,8 @@ function dfTaskLockBits(row,k,rerender){
     row.append(h('span',{cls:'mono',style:{fontSize:'10px',color:'var(--dim)'}},[kind+' lock released']));
     return;
   }
-  row.append(h('span',{cls:'mono',style:{fontSize:'10px',color:k.done?'var(--teal)':'var(--gold)'}},[k.done?'Student says done. Confirm, then release.':kind+' lock: profile locked until released']));
+  var over=dfTaskOverdue(k);
+  row.append(h('span',{cls:'mono',style:{fontSize:'10px',color:k.done?'var(--teal)':'var(--gold)'}},[k.done?'Student says done. Confirm, then release.':(over?kind+' lock active: Tutoring Wing locked until released':kind+' lock: Tutoring Wing locks after the due date')]));
   var rb=btn('Release student','btn-gold',async function(){
     if(!confirm('Release this student from the lock?'))return;
     rb.disabled=true;
