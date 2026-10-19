@@ -7420,32 +7420,8 @@ inner.innerHTML='';
 const deckSkel=div({});for(var _i=0;_i<3;_i++){deckSkel.append(skelCard([['60%'],['80%'],['40%']]));} inner.append(deckSkel);
 inner.append(h('span',{cls:'chapter',html:'Flashcard Decks'}),h('h1',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'40px',fontWeight:'700',marginBottom:'8px'},html:'Study <em class="gold-em">Flashcards</em>'}),h('p',{cls:'muted',style:{fontSize:'14px',marginBottom:'40px'},html:'Select a deck. Mark cards Easy, Iffy, or Hard as you go.'}));
 var mapletF=showMaplet('flashcards','Flip through your deck and rate each card. Hard cards come back sooner — that is spaced repetition working for you.');if(mapletF)inner.append(mapletF);
-var _drs=null;try{var _drk='deck_resume_'+(S.user&&S.user.id||'x');var _drr=localStorage.getItem(_drk);if(_drr){_drs=JSON.parse(_drr);}}catch(e){}
-if(_drs&&_drs.deckId&&_drs.currentIndex>0){
-  var resumeBanner=div({cls:'card',style:{marginBottom:'24px',padding:'16px',border:'1px solid var(--gold)',background:'rgba(184,146,46,0.08)'}});
-  resumeBanner.append(
-    h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'11px',color:'var(--gold)',marginBottom:'12px'},html:'⏸ Deck in progress — '+(_drs.deckName||'Flashcards')+' · card '+_drs.currentIndex+' of '+_drs.total}),
-    div({style:{display:'flex',gap:'10px'}},[
-      btn('Resume','btn-gold',async function(){
-        var{data:rd}=await sb.from('flashcard_decks').select('*').eq('id',_drs.deckId).single();
-        if(rd){
-          if(_drs.queue&&_drs.queue.length){
-            selDeck=rd;
-            cards=_drs.cards&&_drs.cards.length?_drs.cards:_drs.queue;
-            queue=_drs.queue;
-            curIdx=_drs.currentIndex||0;
-            prog=_drs.prog||{easy:0,iffy:0,hard:0};
-            flipped=false;
-            queue.forEach(function(c){c._state=c._state||'none';c._seen=c._seen||0;});
-            inner.innerHTML='';showCard();
-          }else{loadDeck(rd);}
-        }
-      },{style:{padding:'6px 16px',fontSize:'11px'}}),
-      btn('Discard','btn-outline',function(){localStorage.removeItem('deck_resume_'+(S.user&&S.user.id||'x'));showDecks();},{style:{padding:'6px 16px',fontSize:'11px'}})
-    ])
-  );
-  inner.append(resumeBanner);
-}
+var _drs=dfSavedResume(false);
+if(_drs){inner.append(buildResumeBanner(_drs,function(){showDecks();}));}
 var offlineMode=false;
 try{
   if(!navigator.onLine)throw new Error('offline');
@@ -7612,6 +7588,55 @@ hCard.append(div({style:{display:'flex',justifyContent:'space-between',alignItem
 inner.append(hCard);
 }
 }
+function buildResumeBanner(_drs,onDiscard){
+  var resumeBanner=div({cls:'card',style:{marginBottom:'24px',padding:'16px',border:'1px solid var(--gold)',background:'rgba(184,146,46,0.08)'}});
+  resumeBanner.append(
+    h('div',{style:{fontFamily:"Inter,sans-serif",fontSize:'11px',color:'var(--gold)',marginBottom:'12px'},html:'\u23f8 '+(_drs.daily?'Daily Review in progress':'Deck in progress \u2014 '+(_drs.deckName||'Flashcards'))+' \u00b7 card '+_drs.currentIndex+' of '+_drs.total}),
+    div({style:{display:'flex',gap:'10px'}},[
+      btn('Resume','btn-gold',async function(){
+        if(_drs.daily){
+          // Daily Review is not a saved deck, so it is restored from the saved queue itself
+          if(!_drs.queue||!_drs.queue.length){try{localStorage.removeItem('deck_resume_'+(S.user&&S.user.id||'x'));}catch(e){}onDiscard();return;}
+          selDeck={id:null,topic:'Daily Review'};
+          dailyReviewActive=true;
+          cards=_drs.cards&&_drs.cards.length?_drs.cards:_drs.queue;
+          queue=_drs.queue;
+          curIdx=Math.max(0,Math.min(_drs.currentIndex||0,queue.length-1));
+          prog=_drs.prog||{easy:0,iffy:0,hard:0};
+          flipped=false;
+          queue.forEach(function(c){c._state=c._state||'none';c._seen=c._seen||0;});
+          deckSessionStartedAt=Date.now();
+          inner.innerHTML='';showCard();
+          return;
+        }
+        var{data:rd}=await sb.from('flashcard_decks').select('*').eq('id',_drs.deckId).single();
+        if(rd){
+          if(_drs.queue&&_drs.queue.length){
+            selDeck=rd;
+            cards=_drs.cards&&_drs.cards.length?_drs.cards:_drs.queue;
+            queue=_drs.queue;
+            curIdx=_drs.currentIndex||0;
+            prog=_drs.prog||{easy:0,iffy:0,hard:0};
+            flipped=false;
+            queue.forEach(function(c){c._state=c._state||'none';c._seen=c._seen||0;});
+            inner.innerHTML='';showCard();
+          }else{loadDeck(rd);}
+        }
+      },{style:{padding:'6px 16px',fontSize:'11px'}}),
+      btn('Discard','btn-outline',function(){try{localStorage.removeItem('deck_resume_'+(S.user&&S.user.id||'x'));}catch(e){}onDiscard();},{style:{padding:'6px 16px',fontSize:'11px'}})
+    ])
+  );
+  return resumeBanner;
+}
+// A saved Daily Review is only offered on the day it was started; an older one is dropped.
+function dfSavedResume(wantDaily){
+  var st=null;
+  try{var raw=localStorage.getItem('deck_resume_'+(S.user&&S.user.id||'x'));if(raw)st=JSON.parse(raw);}catch(e){}
+  if(!st||!(st.deckId||st.daily)||!(st.currentIndex>0))return null;
+  if(st.daily&&st.savedDay!==streakDateHelpers().todayLocal()){try{localStorage.removeItem('deck_resume_'+(S.user&&S.user.id||'x'));}catch(e){}return null;}
+  if(wantDaily&&!st.daily)return null;
+  return st;
+}
 async function showDailyReview(){
 inner.innerHTML='';
 dailyReviewActive=true;
@@ -7628,6 +7653,8 @@ if(deckIds.length){
   (progressData||[]).forEach(function(p){progMap[p.flashcard_id]=p;boxMap2[p.flashcard_id]=p.box;});
 }
 skel.remove();
+var _dailyResume=dfSavedResume(true);
+if(_dailyResume)inner.append(buildResumeBanner(_dailyResume,function(){showDailyReview();}));
 const today=new Date().toISOString().slice(0,10);
 function shuffle2(arr){for(let i=arr.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[arr[i],arr[j]]=[arr[j],arr[i]];}return arr;}
 // Randomize due cards across decks instead of draining them in due_at order (which made
@@ -7713,6 +7740,7 @@ const startBtn=btn('Start Daily Review \u2192','btn-gold',function(){
   curIdx=0;flipped=false;prog={easy:0,iffy:0,hard:0};
   selDeck={id:null,topic:'Daily Review'};
   deckSessionStartedAt=Date.now();
+  saveResumeState();
   showCard();
 },{style:{width:'100%',marginTop:'8px'}});
 card.append(startBtn);
@@ -7852,6 +7880,9 @@ inner.append(flipBtn);
 const explainWrap=div({style:{display:'none',marginTop:'16px'}},[dfFlashExplain(card,selDeck&&(selDeck.topic||selDeck.name))]);
 inner.append(explainWrap);
 }
+function saveResumeState(){
+  try{localStorage.setItem('deck_resume_'+(S.user&&S.user.id||'x'),JSON.stringify({deckId:selDeck.id,deckName:selDeck.topic||selDeck.name,daily:!!(selDeck&&selDeck.topic==='Daily Review'),savedDay:streakDateHelpers().todayLocal(),currentIndex:Math.max(1,curIdx),total:cards.length,cards:cards,queue:queue,prog:prog}));}catch(e){}
+}
 function markCard(d){
 const cur=queue[curIdx];
 if(selDeck&&selDeck.topic==='Daily Review'&&cardShownAt){window._dfLastLog=dfFlashLogReview(cur.id,(Date.now()-cardShownAt)/1000);}
@@ -7889,11 +7920,11 @@ if(cur._seen>=2){
   nq=nq.filter(c=>c!==cur);
   queue=nq;curIdx=Math.min(curIdx,queue.length-1);
   if(!queue.length){checkForRemaining();return;}
-  flipped=false;showCard();return;
+  flipped=false;saveResumeState();showCard();return;
 }
 if(!nq.length){checkForRemaining();return;}
 queue=nq;curIdx=Math.min(curIdx,queue.length-1);flipped=false;
-try{var _fsk='deck_resume_'+(S.user&&S.user.id||'x');localStorage.setItem(_fsk,JSON.stringify({deckId:selDeck.id,deckName:selDeck.topic||selDeck.name,currentIndex:Math.max(1,curIdx),total:cards.length,cards:cards,queue:queue,prog:prog}));}catch(e){}
+saveResumeState();
 showCard();
 }
 function checkForRemaining(){
