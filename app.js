@@ -7675,7 +7675,7 @@ if(lockInfo){
   var _doneSet={},_redoSet={};
   (lockInfo.done_ids||[]).forEach(function(i){_doneSet[i]=1;});
   (lockInfo.redo_ids||[]).forEach(function(i){_redoSet[i]=1;});
-  card.append(h('p',{style:{fontSize:'13px',marginBottom:'8px',color:'var(--gold)'},html:'Required today: '+lockInfo.done+' of '+lockInfo.required+' cards done.'}));
+  card.append(h('p',{style:{fontSize:'13px',marginBottom:'8px',color:'var(--gold)'},html:'Required today: '+lockInfo.done+' of '+lockInfo.required+' cards done.'+(lockInfo.carryover>0?' This includes '+lockInfo.carryover+' carried over from days you missed.':'')}));
   if(tooFastNote){card.append(h('p',{style:{fontSize:'13px',marginBottom:'8px',color:'#ff8888'},html:'Uh oh. Did you really just try to spam the cards? Go back and do it well.'}));}
   if(_needed>0){
     var _redo=poolCards.filter(function(c){return _redoSet[c.id];});
@@ -8923,7 +8923,7 @@ try{localStorage.setItem('df-admin-session','1');}catch(e){}
 window._dfTeamPush=true;
 try{dfPushStatus();}catch(e){} // re-attach this device's push subscription if the server row went missing
 if(panelIsTutor){
-  await dfTutorBankGate();
+  if(!panelIsSuperAdmin)await dfTutorBankGate(); // super admin bypasses the payout-details lock
   var _pdBtn=btn('My details','btn-outline',async()=>{var cur=await dfFetchTutorDetails(S.user.id);await dfBankForm({existing:dfMergeDetails(cur),fullName:(S.profile&&S.profile.full_name)||''});},{style:{padding:'8px 16px'}});dfPutNewOn(_pdBtn);aNRight.prepend(_pdBtn);
 }else if(panelTeamRole&&!panelIsSuperAdmin){
   await dfStaffBankGate();
@@ -9284,7 +9284,7 @@ const rdI=h('input',{cls:'input',type:'date',style:{color:'var(--text)'}});
 rdI.value=set.report_deadline||'';
 if(panelIsSuperAdmin){
   card.append(h('hr',{style:{border:'none',borderTop:'1px solid var(--border)',margin:'24px 0'}}),h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'18px',marginBottom:'8px'},html:'Monthly Report Deadline'}));
-  card.append(h('p',{cls:'mono',style:{marginBottom:'16px'},html:'Default deadline for tutors to file each student\u2019s monthly report. Past this date, that student\u2019s profile locks until filed. Override per student on their profile page. Super Admin only.'}));
+  card.append(h('p',{cls:'mono',style:{marginBottom:'16px'},html:'Default deadline for tutors to file each student\u2019s monthly report. Past this date, the tutor assigned to that student has their profile locked until the report is filed. Override per student on their profile page. Super Admin only.'}));
   card.append(field('Global Report Deadline',rdI));
 }
 // Save
@@ -11631,99 +11631,8 @@ function openStudent(s){
     body.append(reportsSec.wrap);
 
     function openMonthlyReportForm(existing){
-      var overlay=div({style:{position:'fixed',top:'0',left:'0',width:'100%',height:'100%',background:'rgba(0,0,0,0.72)',zIndex:'2100',display:'flex',alignItems:'flex-start',justifyContent:'center',overflowY:'auto',padding:'32px 16px',boxSizing:'border-box'}},[]);
-      var modal=div({style:{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:'6px',padding:'28px',width:'100%',maxWidth:'560px',position:'relative',boxSizing:'border-box'}},[]);
-      var closeBtn=btn('\u2715 Close','btn-outline',function(){overlay.remove();},{style:{position:'absolute',top:'16px',right:'16px',fontSize:'11px',padding:'5px 12px'}});
-      modal.append(closeBtn);
-      modal.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'17px',marginBottom:'16px'}},[existing?'Edit Monthly Report':'Add Monthly Report']));
-      function field(label,el){var w=div({style:{marginBottom:'14px'}},[]);w.append(h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--muted)',marginBottom:'6px',textTransform:'uppercase',letterSpacing:'1px'}},[label]),el);return w;}
-      // Text color forced explicitly on every field below — some browsers render native
-      // form-control text using a UA default rather than the page's --text variable, which
-      // reads as washed-out grey against a light background if left unset.
-      var FIELD_TEXT_STYLE={color:'var(--text)'};
-      var monthInp=h('input',{cls:'input',type:'month',style:Object.assign({width:'100%'},FIELD_TEXT_STYLE)});
-      monthInp.value=existing?existing.report_month.slice(0,7):new Date().toISOString().slice(0,7);
-      var ratingSel=h('select',{cls:'input',style:Object.assign({width:'100%'},FIELD_TEXT_STYLE)},REPORT_RATINGS.map(function(r){return h('option',{value:r},[r]);}));
-      var trendDirSel=h('select',{cls:'input',style:Object.assign({width:'110px'},FIELD_TEXT_STYLE)},[['up','Up'],['down','Down'],['flat','Flat']].map(function(p){return h('option',{value:p[0]},[p[1]]);}));
-      var trendBeforeInp=h('input',{cls:'input',type:'number',placeholder:'Before %',style:Object.assign({width:'110px'},FIELD_TEXT_STYLE)});
-      var trendAfterInp=h('input',{cls:'input',type:'number',placeholder:'After %',style:Object.assign({width:'110px'},FIELD_TEXT_STYLE)});
-      var trendRow=div({style:{display:'flex',gap:'8px',flexWrap:'wrap'}},[trendDirSel,trendBeforeInp,trendAfterInp]);
-      var blockTa=h('textarea',{cls:'input',rows:'2',style:Object.assign({width:'100%',resize:'vertical'},FIELD_TEXT_STYLE)});
-      var strengthsInp=h('input',{cls:'input',placeholder:'e.g. Cardiology, Renal',style:Object.assign({width:'100%'},FIELD_TEXT_STYLE)});
-      var weaknessesInp=h('input',{cls:'input',placeholder:'e.g. Biostatistics',style:Object.assign({width:'100%'},FIELD_TEXT_STYLE)});
-      var habitsTa=h('textarea',{cls:'input',rows:'2',style:Object.assign({width:'100%',resize:'vertical'},FIELD_TEXT_STYLE)});
-      var personalTa=h('textarea',{cls:'input',rows:'2',style:Object.assign({width:'100%',resize:'vertical'},FIELD_TEXT_STYLE)});
-      var handoffTa=h('textarea',{cls:'input',rows:'6',style:Object.assign({width:'100%',resize:'vertical'},FIELD_TEXT_STYLE)});
-      var HANDOFF_MIN=500;
-      var handoffCounter=h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--text)',marginTop:'4px'}},[]);
-      function updateHandoffCounter(){
-        var len=handoffTa.value.length;
-        handoffCounter.textContent=len+' / '+HANDOFF_MIN+' characters minimum'+(len<HANDOFF_MIN?' \u2014 '+(HANDOFF_MIN-len)+' to go':' \u2713');
-        handoffCounter.style.color=len<HANDOFF_MIN?'var(--gold)':'var(--teal)';
-      }
-      handoffTa.addEventListener('input',updateHandoffCounter);
-      if(existing){
-        ratingSel.value=existing.progress_rating;
-        if(existing.daily_test_trend){
-          var tm=existing.daily_test_trend.match(/^(up|down|steady)\s*\((\d+(?:\.\d+)?)%\u2192(\d+(?:\.\d+)?)%\)$/);
-          if(tm){trendDirSel.value=tm[1]==='steady'?'flat':tm[1];trendBeforeInp.value=tm[2];trendAfterInp.value=tm[3];}
-        }
-        blockTa.value=existing.block_assessment_notes||'';
-        strengthsInp.value=existing.strengths||'';
-        weaknessesInp.value=existing.weaknesses||'';
-        habitsTa.value=existing.study_habits||'';
-        personalTa.value=existing.personal_factors||'';
-        handoffTa.value=existing.handoff_notes||'';
-      }
-      updateHandoffCounter();
-      [monthInp,ratingSel,trendBeforeInp,trendAfterInp,blockTa,strengthsInp,weaknessesInp,habitsTa,personalTa,handoffTa].forEach(function(el){el.required=true;});
-      modal.append(
-        field('Month',monthInp),
-        field('1. Progress rating this month',ratingSel),
-        field('2. Daily test average trend',trendRow),
-        field('3. Block assessment performance this month',blockTa),
-        field('4. Strongest systems/topics',strengthsInp),
-        field('5. Weakest systems/topics \u2014 needs focus',weaknessesInp),
-        field('6. Study habits/consistency',habitsTa),
-        field('7. Personal/circumstantial factors',personalTa),
-        field('8. Handoff notes \u2014 what should the next tutor know (minimum '+HANDOFF_MIN+' characters, no maximum)',div({},[handoffTa,handoffCounter]))
-      );
-      var formSt=div({style:{fontSize:'11px',marginBottom:'10px',display:'none'}},[]);
-      var saveBtn=btn(existing?'Save Changes':'Save Report','btn-gold',async function(){
-        var missing=[];
-        if(!monthInp.value)missing.push('Month');
-        if(!trendBeforeInp.value)missing.push('Daily test average trend (Before %)');
-        if(!trendAfterInp.value)missing.push('Daily test average trend (After %)');
-        if(!blockTa.value.trim())missing.push('Block assessment performance');
-        if(!strengthsInp.value.trim())missing.push('Strongest systems/topics');
-        if(!weaknessesInp.value.trim())missing.push('Weakest systems/topics');
-        if(!habitsTa.value.trim())missing.push('Study habits/consistency');
-        if(!personalTa.value.trim())missing.push('Personal/circumstantial factors');
-        if(handoffTa.value.trim().length<HANDOFF_MIN)missing.push('Handoff notes (needs at least '+HANDOFF_MIN+' characters \u2014 currently '+handoffTa.value.trim().length+')');
-        if(missing.length){
-          formSt.textContent='Please complete: '+missing.join('; ');
-          formSt.style.color='#ff4444';formSt.style.display='block';
-          return;
-        }
-        saveBtn.disabled=true;
-        var trendStr='';
-        if(trendBeforeInp.value&&trendAfterInp.value){
-          trendStr=({up:'up',down:'down',flat:'steady'})[trendDirSel.value]+' ('+trendBeforeInp.value+'%\u2192'+trendAfterInp.value+'%)';
-        }
-        var monthDate=monthInp.value+'-01';
-        var payload={student_id:s.user_id,created_by:S.user.id,report_month:monthDate,progress_rating:ratingSel.value,daily_test_trend:trendStr,block_assessment_notes:blockTa.value.trim(),strengths:strengthsInp.value.trim(),weaknesses:weaknessesInp.value.trim(),study_habits:habitsTa.value.trim(),personal_factors:personalTa.value.trim(),handoff_notes:handoffTa.value.trim()};
-        var res=existing?await sb.from('tutoring_monthly_reports').update(payload).eq('id',existing.id):await sb.from('tutoring_monthly_reports').insert(payload);
-        saveBtn.disabled=false;
-        if(res.error){formSt.textContent='Failed: '+res.error.message;formSt.style.color='#ff4444';formSt.style.display='block';return;}
-        overlay.remove();
-        loadMonthlyReports();
-        if(typeof checkReportDeadlineLock==='function')checkReportDeadlineLock();
-      },{style:{fontSize:'12px',padding:'8px 16px'}});
-      modal.append(formSt,saveBtn);
-      overlay.append(modal);
-      document.body.appendChild(overlay);
+      dfReportFormModal(s,existing,{onSaved:function(){loadMonthlyReports();if(typeof dfTutorLockCheck==='function')dfTutorLockCheck();}});
     }
-
     function buildReportNoteThread(reportId,notes,onBack){
       var thread=div({style:{marginTop:'16px',paddingTop:'16px',borderTop:'1px solid var(--border)'}},[]);
       thread.append(h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--muted)',marginBottom:'10px',textTransform:'uppercase',letterSpacing:'1px'}},['Notes']));
@@ -11828,47 +11737,15 @@ function openStudent(s){
     }
     loadMonthlyReports();
 
-    // REPORT DEADLINE LOCK \u2014 if a report deadline (this student's override, falling back
-    // to the global default in Site Settings) has passed and no report has been filed since
-    // that deadline was last set, the whole student page is blurred/locked until a tutor
-    // files the report. Coexists with the overdue-class lock above (see removeOverdueLock).
-    async function checkReportDeadlineLock(){
-      var stuRes=await sb.from('tutoring_students').select('report_deadline,report_deadline_set_at').eq('user_id',s.user_id).maybeSingle();
-      var stu=(stuRes&&stuRes.data)||{};
-      var effDeadline=stu.report_deadline,effSetAt=stu.report_deadline_set_at;
-      if(!effDeadline){
-        var gRes=await sb.from('admin_settings').select('report_deadline,report_deadline_set_at').eq('id',1).maybeSingle();
-        var g=(gRes&&gRes.data)||{};
-        effDeadline=g.report_deadline;effSetAt=g.report_deadline_set_at;
-      }
-      if(!effDeadline){removeReportLock();return;}
-      if(todayStrAdm()<effDeadline){removeReportLock();return;}
-      var rr=await sb.from('tutoring_monthly_reports').select('created_at').eq('student_id',s.user_id).order('created_at',{ascending:false}).limit(1);
-      var latest=(rr.data||[])[0];
-      var compliant=latest&&effSetAt&&new Date(latest.created_at)>=new Date(effSetAt);
-      if(compliant){removeReportLock();return;}
-      showReportLock(effDeadline);
-    }
+    // REPORT DEADLINE LOCK \u2014 a student's page is never locked by this. Once the deadline passes with no
+    // report filed, the assigned TUTOR's whole profile locks instead (see dfTutorLockCheck / my_overdue_reports).
+    function checkReportDeadlineLock(){removeReportLock();}
     function removeReportLock(){
       var ex=document.getElementById('df-report-lock');if(ex)ex.remove();
       if(document.getElementById('df-overdue-lock'))return;
       tBody.style.filter='';
       tBody.style.pointerEvents='';
       tBody.style.userSelect='';
-    }
-    function showReportLock(deadlineStr){
-      removeReportLock();
-      tBody.style.filter='blur(6px)';
-      tBody.style.pointerEvents='none';
-      tBody.style.userSelect='none';
-      var overlay=div({style:{position:'fixed',top:'0',left:'0',width:'100%',height:'100%',background:'rgba(0,0,0,0.55)',zIndex:'2000',display:'flex',alignItems:'center',justifyContent:'center',padding:'24px',boxSizing:'border-box',overflowY:'auto'}},[]);
-      overlay.id='df-report-lock';
-      var modal=div({style:{background:'var(--surface)',border:'1px solid var(--gold)',borderRadius:'8px',padding:'28px',width:'100%',maxWidth:'440px',textAlign:'center',boxSizing:'border-box'}},[]);
-      modal.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'17px',color:'var(--gold)',marginBottom:'10px'}},['\u26a0 Student Report Due']));
-      modal.append(h('p',{style:{fontSize:'13px',color:'var(--text)',marginBottom:'20px',lineHeight:'1.6'}},['The deadline for filling in '+s.full_name+'\u2019s student report was '+new Date(deadlineStr+'T00:00:00').toLocaleDateString()+'. Please fill it in to continue.']));
-      modal.append(btn('Fill In Report','btn-gold',function(){openMonthlyReportForm(null);},{style:{padding:'10px 24px',fontSize:'12px'}}));
-      overlay.append(modal);
-      document.body.appendChild(overlay);
     }
     checkReportDeadlineLock();
 
@@ -14477,6 +14354,8 @@ async function dfRenderClassCheckTab(box,showResolved){
 // open: if the check cannot run, nobody is locked out.
 var dfTutorLockOn=false;
 var dfTutorLock={overlay:null,tick:0,lastUser:null,isStaff:false,checking:false};
+// Super admin bypasses every lock. The role is read by dfInitTutorLock; the database functions also skip super admins.
+function dfIsSuperAdmin(){return typeof dfTutorLock!=='undefined'&&!!dfTutorLock&&dfTutorLock.role==='super_admin';}
 function dfEffTutor(slot){
   return (slot.cover_tutor_id&&slot.cover_for_date&&slot.cover_for_date===slot.next_class_date)?slot.cover_tutor_id:slot.tutor_id;
 }
@@ -14598,6 +14477,103 @@ function dfReasoningPad(qid,ctx){
   return wrap;
 }
 
+var DF_REPORT_RATINGS=['Excellent','Good','Average','Struggling'];
+// Monthly student report form. Shared by the student page and by the tutor lock screen
+// (which passes a higher zIndex so the form sits above the lock). s needs {user_id, full_name}.
+function dfReportFormModal(s,existing,opts){
+  opts=opts||{};
+  var overlay=div({style:{position:'fixed',top:'0',left:'0',width:'100%',height:'100%',background:'rgba(0,0,0,0.72)',zIndex:String(opts.zIndex||2100),display:'flex',alignItems:'flex-start',justifyContent:'center',overflowY:'auto',padding:'32px 16px',boxSizing:'border-box'}},[]);
+  var modal=div({style:{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:'6px',padding:'28px',width:'100%',maxWidth:'560px',position:'relative',boxSizing:'border-box'}},[]);
+  var closeBtn=btn('\u2715 Close','btn-outline',function(){overlay.remove();},{style:{position:'absolute',top:'16px',right:'16px',fontSize:'11px',padding:'5px 12px'}});
+  modal.append(closeBtn);
+  modal.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'17px',marginBottom:'16px'}},[existing?'Edit Monthly Report':'Add Monthly Report']));
+  function field(label,el){var w=div({style:{marginBottom:'14px'}},[]);w.append(h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--muted)',marginBottom:'6px',textTransform:'uppercase',letterSpacing:'1px'}},[label]),el);return w;}
+  // Text color forced explicitly on every field below — some browsers render native
+  // form-control text using a UA default rather than the page's --text variable, which
+  // reads as washed-out grey against a light background if left unset.
+  var FIELD_TEXT_STYLE={color:'var(--text)'};
+  var monthInp=h('input',{cls:'input',type:'month',style:Object.assign({width:'100%'},FIELD_TEXT_STYLE)});
+  monthInp.value=existing?existing.report_month.slice(0,7):new Date().toISOString().slice(0,7);
+  var ratingSel=h('select',{cls:'input',style:Object.assign({width:'100%'},FIELD_TEXT_STYLE)},DF_REPORT_RATINGS.map(function(r){return h('option',{value:r},[r]);}));
+  var trendDirSel=h('select',{cls:'input',style:Object.assign({width:'110px'},FIELD_TEXT_STYLE)},[['up','Up'],['down','Down'],['flat','Flat']].map(function(p){return h('option',{value:p[0]},[p[1]]);}));
+  var trendBeforeInp=h('input',{cls:'input',type:'number',placeholder:'Before %',style:Object.assign({width:'110px'},FIELD_TEXT_STYLE)});
+  var trendAfterInp=h('input',{cls:'input',type:'number',placeholder:'After %',style:Object.assign({width:'110px'},FIELD_TEXT_STYLE)});
+  var trendRow=div({style:{display:'flex',gap:'8px',flexWrap:'wrap'}},[trendDirSel,trendBeforeInp,trendAfterInp]);
+  var blockTa=h('textarea',{cls:'input',rows:'2',style:Object.assign({width:'100%',resize:'vertical'},FIELD_TEXT_STYLE)});
+  var strengthsInp=h('input',{cls:'input',placeholder:'e.g. Cardiology, Renal',style:Object.assign({width:'100%'},FIELD_TEXT_STYLE)});
+  var weaknessesInp=h('input',{cls:'input',placeholder:'e.g. Biostatistics',style:Object.assign({width:'100%'},FIELD_TEXT_STYLE)});
+  var habitsTa=h('textarea',{cls:'input',rows:'2',style:Object.assign({width:'100%',resize:'vertical'},FIELD_TEXT_STYLE)});
+  var personalTa=h('textarea',{cls:'input',rows:'2',style:Object.assign({width:'100%',resize:'vertical'},FIELD_TEXT_STYLE)});
+  var handoffTa=h('textarea',{cls:'input',rows:'6',style:Object.assign({width:'100%',resize:'vertical'},FIELD_TEXT_STYLE)});
+  var HANDOFF_MIN=500;
+  var handoffCounter=h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--text)',marginTop:'4px'}},[]);
+  function updateHandoffCounter(){
+    var len=handoffTa.value.length;
+    handoffCounter.textContent=len+' / '+HANDOFF_MIN+' characters minimum'+(len<HANDOFF_MIN?' \u2014 '+(HANDOFF_MIN-len)+' to go':' \u2713');
+    handoffCounter.style.color=len<HANDOFF_MIN?'var(--gold)':'var(--teal)';
+  }
+  handoffTa.addEventListener('input',updateHandoffCounter);
+  if(existing){
+    ratingSel.value=existing.progress_rating;
+    if(existing.daily_test_trend){
+      var tm=existing.daily_test_trend.match(/^(up|down|steady)\s*\((\d+(?:\.\d+)?)%\u2192(\d+(?:\.\d+)?)%\)$/);
+      if(tm){trendDirSel.value=tm[1]==='steady'?'flat':tm[1];trendBeforeInp.value=tm[2];trendAfterInp.value=tm[3];}
+    }
+    blockTa.value=existing.block_assessment_notes||'';
+    strengthsInp.value=existing.strengths||'';
+    weaknessesInp.value=existing.weaknesses||'';
+    habitsTa.value=existing.study_habits||'';
+    personalTa.value=existing.personal_factors||'';
+    handoffTa.value=existing.handoff_notes||'';
+  }
+  updateHandoffCounter();
+  [monthInp,ratingSel,trendBeforeInp,trendAfterInp,blockTa,strengthsInp,weaknessesInp,habitsTa,personalTa,handoffTa].forEach(function(el){el.required=true;});
+  modal.append(
+    field('Month',monthInp),
+    field('1. Progress rating this month',ratingSel),
+    field('2. Daily test average trend',trendRow),
+    field('3. Block assessment performance this month',blockTa),
+    field('4. Strongest systems/topics',strengthsInp),
+    field('5. Weakest systems/topics \u2014 needs focus',weaknessesInp),
+    field('6. Study habits/consistency',habitsTa),
+    field('7. Personal/circumstantial factors',personalTa),
+    field('8. Handoff notes \u2014 what should the next tutor know (minimum '+HANDOFF_MIN+' characters, no maximum)',div({},[handoffTa,handoffCounter]))
+  );
+  var formSt=div({style:{fontSize:'11px',marginBottom:'10px',display:'none'}},[]);
+  var saveBtn=btn(existing?'Save Changes':'Save Report','btn-gold',async function(){
+    var missing=[];
+    if(!monthInp.value)missing.push('Month');
+    if(!trendBeforeInp.value)missing.push('Daily test average trend (Before %)');
+    if(!trendAfterInp.value)missing.push('Daily test average trend (After %)');
+    if(!blockTa.value.trim())missing.push('Block assessment performance');
+    if(!strengthsInp.value.trim())missing.push('Strongest systems/topics');
+    if(!weaknessesInp.value.trim())missing.push('Weakest systems/topics');
+    if(!habitsTa.value.trim())missing.push('Study habits/consistency');
+    if(!personalTa.value.trim())missing.push('Personal/circumstantial factors');
+    if(handoffTa.value.trim().length<HANDOFF_MIN)missing.push('Handoff notes (needs at least '+HANDOFF_MIN+' characters \u2014 currently '+handoffTa.value.trim().length+')');
+    if(missing.length){
+      formSt.textContent='Please complete: '+missing.join('; ');
+      formSt.style.color='#ff4444';formSt.style.display='block';
+      return;
+    }
+    saveBtn.disabled=true;
+    var trendStr='';
+    if(trendBeforeInp.value&&trendAfterInp.value){
+      trendStr=({up:'up',down:'down',flat:'steady'})[trendDirSel.value]+' ('+trendBeforeInp.value+'%\u2192'+trendAfterInp.value+'%)';
+    }
+    var monthDate=monthInp.value+'-01';
+    var payload={student_id:s.user_id,created_by:S.user.id,report_month:monthDate,progress_rating:ratingSel.value,daily_test_trend:trendStr,block_assessment_notes:blockTa.value.trim(),strengths:strengthsInp.value.trim(),weaknesses:weaknessesInp.value.trim(),study_habits:habitsTa.value.trim(),personal_factors:personalTa.value.trim(),handoff_notes:handoffTa.value.trim()};
+    var res=existing?await sb.from('tutoring_monthly_reports').update(payload).eq('id',existing.id):await sb.from('tutoring_monthly_reports').insert(payload);
+    saveBtn.disabled=false;
+    if(res.error){formSt.textContent='Failed: '+res.error.message;formSt.style.color='#ff4444';formSt.style.display='block';return;}
+    overlay.remove();
+    if(opts.onSaved)opts.onSaved();
+  },{style:{fontSize:'12px',padding:'8px 16px'}});
+  modal.append(formSt,saveBtn);
+  overlay.append(modal);
+  document.body.appendChild(overlay);
+}
+
 /* ===================== DAILY FLASHCARD LOCK: STUDENT SIDE ===================== */
 var dfStudentLock={overlay:null,lastUser:null,tick:0,checking:false,status:null,tasks:[],sig:''};
 // Today's date in AST (UTC-4, no daylight saving) as YYYY-MM-DD. A task is overdue once this is later than its due date.
@@ -14621,7 +14597,7 @@ function dfStudentLockHide(){
 //   Flashcards, Q-Bank, requests, messages and payments all stay open so the student can do the work.
 function dfStudentLockApply(){
   var st=dfStudentLock.status;
-  var skip=!S.user||['login','signup','pending','landing','admin'].indexOf(S.page)!==-1;
+  var skip=!S.user||dfIsSuperAdmin()||['login','signup','pending','landing','admin'].indexOf(S.page)!==-1;
   var reasons=[];
   if(st&&st.locked&&S.page!=='flashcards'){(st.reasons||[]).forEach(function(r){if(r.type==='flashcards')reasons.push(r);});}
   if(S.page==='tutoring'){
@@ -14652,7 +14628,7 @@ function dfStudentLockBuild(o,st){
   }
   if(flash){
     card.append(div({style:{padding:'14px 0',borderTop:'1px solid var(--border)'}},[
-      h('div',{style:{fontSize:'14px',color:'var(--text)',marginBottom:'6px'}},[(flash.overdue?'You did not finish yesterday\u2019s Daily Review. Finish today\u2019s cards to unlock your profile. ':'')+'Daily Review: '+flash.done+' of '+flash.required+' cards done today.']),
+      h('div',{style:{fontSize:'14px',color:'var(--text)',marginBottom:'6px'}},[(flash.overdue?((flash.carryover>0)?'You missed some Daily Review days, so those cards carry over to today ('+flash.carryover+' extra on top of your daily goal). Finish all of them to unlock your profile. ':'You did not finish yesterday\u2019s Daily Review. Finish today\u2019s cards to unlock your profile. '):'')+'Daily Review: '+flash.done+' of '+flash.required+' cards done today.']),
       h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'13px',color:'var(--muted)',lineHeight:'1.7'}},['This lock is for your own good. Reviewing a little every day with spaced repetition is what keeps you from forgetting what you have learned, and it is what will carry you through your exam. Take your time with each card.'])
     ]));
   }
@@ -14873,7 +14849,7 @@ async function dfRenderFlashLockTab(box){
   var card=div({cls:'card',style:{padding:'20px',maxWidth:'680px'}},[]);
   card.append(
     h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'18px',marginBottom:'8px'}},['Daily flashcard lock']),
-    h('p',{style:{fontSize:'13px',color:'var(--dim)',lineHeight:'1.7',marginBottom:'12px'}},['When ON, every active tutoring student must finish their Daily Review each day: at least 20 cards, or the goal their tutor set, with a hidden minimum of 20 seconds a card. If it is not done by midnight AST their profile locks until it is. Tutors are blocked until they set a goal for each of their students. Task locks set by tutors keep working whether this switch is on or off.']),
+    h('p',{style:{fontSize:'13px',color:'var(--dim)',lineHeight:'1.7',marginBottom:'12px'}},['When ON, every active tutoring student must finish their Daily Review each day: at least 20 cards, or the goal their tutor set, with a hidden minimum of 20 seconds a card. If it is not done by midnight AST their profile locks until it is, and any cards missed on earlier days carry over and are added to the next day\u2019s requirement until they are done. Tutors are blocked until they set a goal for each of their students. Task locks set by tutors keep working whether this switch is on or off.']),
     h('p',{style:{fontSize:'13px',fontWeight:'700',color:on?'var(--teal)':'var(--gold)',marginBottom:'12px'}},[on?'ON':'OFF'])
   );
   card.append(btn(on?'Switch off':'Switch on','btn-gold',async function(){
@@ -15110,16 +15086,17 @@ function dfAssessLockItem(it){
   );
   return box;
 }
-function dfTutorLockShow(items,aItems){
-  items=items||[];aItems=aItems||[];
+function dfTutorLockShow(items,aItems,rItems){
+  items=items||[];aItems=aItems||[];rItems=rItems||[];
   var o=dfTutorLockOverlay();
   var card=div({cls:'card',style:{maxWidth:'560px',width:'100%',padding:'28px',maxHeight:'92vh',overflowY:'auto',borderColor:'var(--gold)'}});
-  var onlyClasses=items.length>0&&aItems.length===0;
-  var total=items.length+aItems.length;
+  var onlyClasses=items.length>0&&aItems.length===0&&rItems.length===0;
+  var onlyReports=rItems.length>0&&items.length===0&&aItems.length===0;
+  var total=items.length+aItems.length+rItems.length;
   card.append(
-    h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--gold)',letterSpacing:'2px',textTransform:'uppercase',marginBottom:'10px'}},[onlyClasses?'Class not marked':'Action needed']),
-    h('div',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'22px',fontWeight:'700',color:'var(--text)',marginBottom:'6px'}},[onlyClasses?'Mark your class to continue':'Complete this to continue']),
-    h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'13px',color:'var(--dim)',lineHeight:'1.7',marginBottom:'18px'}},[onlyClasses?('A class has to be marked one hour after it ends. Your profile stays locked until you mark '+(items.length>1?'each of these classes':'this class')+' as attended or missed.'):('Your profile stays locked until '+(total>1?'everything below is':'this is')+' dealt with.')])
+    h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--gold)',letterSpacing:'2px',textTransform:'uppercase',marginBottom:'10px'}},[onlyClasses?'Class not marked':(onlyReports?'Student report due':'Action needed')]),
+    h('div',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'22px',fontWeight:'700',color:'var(--text)',marginBottom:'6px'}},[onlyClasses?'Mark your class to continue':(onlyReports?'File your report to continue':'Complete this to continue')]),
+    h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'13px',color:'var(--dim)',lineHeight:'1.7',marginBottom:'18px'}},[onlyClasses?('A class has to be marked one hour after it ends. Your profile stays locked until you mark '+(items.length>1?'each of these classes':'this class')+' as attended or missed.'):(onlyReports?('The report deadline has passed. Your profile stays locked until you file '+(rItems.length>1?'the report for each student below':'the report for this student')+'.'):'Your profile stays locked until '+(total>1?'everything below is':'this is')+' dealt with.')])
   );
   items.forEach(function(it){
     var when=dfClassWhen(it.class_date,it.class_time);
@@ -15150,6 +15127,21 @@ function dfTutorLockShow(items,aItems){
     card.append(row);
   });
   aItems.forEach(function(it){card.append(dfAssessLockItem(it));});
+  rItems.forEach(function(it){
+    var row=div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',gap:'12px',flexWrap:'wrap',padding:'12px 0',borderTop:'1px solid var(--border)'}});
+    var dl=new Date(String(it.deadline).slice(0,10)+'T00:00:00');
+    var fb=btn('Fill in report','btn-gold',function(){
+      dfReportFormModal({user_id:it.student_id,full_name:it.student_name},null,{zIndex:30100,onSaved:function(){dfTutorLockHide();dfTutorLockCheck();}});
+    },{style:{fontSize:'11px',padding:'8px 16px'}});
+    row.append(
+      div({style:{flex:'1',minWidth:'180px'}},[
+        h('div',{style:{fontSize:'14px',fontWeight:'600',color:'var(--text)'}},[it.student_name+'\u2019s student report']),
+        h('div',{cls:'mono',style:{fontSize:'11px',color:'var(--muted)',marginTop:'2px'}},['Was due '+(isNaN(dl)?String(it.deadline):dl.toLocaleDateString('en-US',{month:'short',day:'numeric'}))])
+      ]),
+      fb
+    );
+    card.append(row);
+  });
   o.replaceChildren(card);
   o.style.display='flex';
 }
@@ -15157,15 +15149,17 @@ async function dfTutorLockCheck(){
   if(dfTutorLock.checking)return;
   if(!S.user||['login','signup','pending'].indexOf(S.page)!==-1)return;
   dfTutorLock.checking=true;
+  if(dfIsSuperAdmin()){dfTutorLockHide();dfGoalGateHide();dfTutorLock.checking=false;return;} // super admin bypasses every lock
   try{
     var on=await sb.rpc('tutor_lock_enabled');
     dfTutorLockOn=!!(on&&!on.error&&on.data===true);
-    var rs=await Promise.all([sb.rpc('my_unmarked_classes'),sb.rpc('my_assessment_locks')]);
+    var rs=await Promise.all([sb.rpc('my_unmarked_classes'),sb.rpc('my_assessment_locks'),sb.rpc('my_overdue_reports')]);
     var cls=(rs[0]&&!rs[0].error&&rs[0].data)?rs[0].data:[];
     var asm=(rs[1]&&!rs[1].error&&rs[1].data)?rs[1].data:[];
-    if(cls.length||asm.length){
+    var rep=(rs[2]&&!rs[2].error&&rs[2].data)?rs[2].data:[];
+    if(cls.length||asm.length||rep.length){
       var vis=dfTutorLock.overlay&&dfTutorLock.overlay.style.display==='flex';
-      if(!vis)dfTutorLockShow(cls,asm);
+      if(!vis)dfTutorLockShow(cls,asm,rep);
     }else{dfTutorLockHide();}
     await dfGoalGateCheck();
   }catch(e){}
