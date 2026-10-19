@@ -6953,6 +6953,9 @@ let requestCount=0;
 const requestCountDiv=div({style:{fontFamily:"Inter,sans-serif",fontSize:'11px',color:'var(--teal)',marginBottom:'12px',display:'none'}});
 const sentMsg=div({cls:'ok',style:{display:'none',marginBottom:'12px'}});
 const sendBtn=btn('Send Recall Request →','btn-teal',async()=>{
+if(sendBtn.disabled)return; // reading + uploading a big file takes seconds; stop repeat taps creating duplicate requests
+sendBtn.disabled=true;
+try{
 if(isInTrial()){
   const{count}=await sb.from('recall_requests').select('*',{count:'exact',head:true}).eq('user_id',S.user.id);
   if(count>=1){
@@ -6989,7 +6992,8 @@ attachmentName=cfg._pendingAttachment.name;
 const isFreeTier=S.profile?.is_free_tier===true;
 const styleStr=cfg.recallStyles.join(', ');
 const fullDetails=(cfg.recallDetails+(recallPriority?'\nPriority: '+recallPriority+' first':'')).trim();
-await sb.from('recall_requests').insert({user_id:S.user.id,user_name:S.profile?.full_name,user_email:S.profile?.email,topic:cfg.topic,style:styleStr,details:fullDetails,quantity:parseInt(qtyI.value)||0,status:'pending',attachment_data:attachmentData,attachment_name:attachmentName,is_free_tier:isFreeTier});
+const insRes=await sb.from('recall_requests').insert({user_id:S.user.id,user_name:S.profile?.full_name,user_email:S.profile?.email,topic:cfg.topic,style:styleStr,details:fullDetails,quantity:parseInt(qtyI.value)||0,status:'pending',attachment_data:attachmentData,attachment_name:attachmentName,is_free_tier:isFreeTier});
+if(insRes&&insRes.error){reqValidationMsg.style.display='block';reqValidationMsg.textContent='Your request could not be sent: '+insRes.error.message+'. Please try again.';return;}
 if(isFreeTier&&!isInTrial()){const warningDiv=div({style:{background:'rgba(184,146,46,0.1)',border:'1px solid var(--gold)',borderRadius:'4px',padding:'12px 16px',marginTop:'16px',fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'12px',color:'var(--gold)',textAlign:'center'}},[h('span',{style:{display:'block'}},['⚠️ Your request was received.']),h('span',{style:{display:'block',marginTop:'4px'}},['However, as a free tier member it will not be fulfilled. Upgrade to unlock active recall.'])]);ro.append(warningDiv);}
 requestCount++;
 requestCountDiv.style.display='block';
@@ -7001,6 +7005,7 @@ cfg.recallStyles=[];cfg.recallDetails='';cfg._pendingAttachment=null;attachStatu
 qtyI.value='';detI.value='';attachI.value='';
 updatePriorityDiv();
 setTimeout(()=>{sentMsg.style.display='none';},4000);
+}finally{sendBtn.disabled=false;}
 },{style:{width:'100%',marginBottom:'12px'}});
 ro.append(requestCountDiv,sentMsg,sendBtn);
 card.append(ro);
@@ -11919,9 +11924,10 @@ renderStudents();
 return;
 }
 if(tab==='recalls'){
-const{data:recs}=await sb.from('recall_requests').select('*').in('status',['pending','assigned']).order('created_at',{ascending:false});
+const{data:recs,error:recsErr}=await sb.from('recall_requests').select(DF_RECALL_COLS).in('status',['pending','assigned']).order('created_at',{ascending:false});
 content.innerHTML='';
 content.append(h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'22px',marginBottom:'24px'},html:'Recall Requests'}));
+if(recsErr){content.append(div({cls:'card',style:{textAlign:'center',padding:'40px'}},[h('p',{style:{fontSize:'14px',color:'#ff4444'},html:'Could not load recall requests: '+sani(recsErr.message||'unknown error')+'. Please refresh and try again.'})]));return;}
 if(!recs||!recs.length){content.append(div({cls:'card',style:{textAlign:'center',padding:'40px'}},[h('p',{style:{fontSize:'14px',color:'var(--dim)'},html:'No recall requests yet.'})]));return;}
 const upSt=div({cls:'ok',style:{display:'none',marginTop:'16px'}});
 recs.forEach(r=>{
@@ -11937,7 +11943,7 @@ const dg=div({style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(
 [[r.topic,'Topic'],[r.style,'Style'],[r.quantity?String(r.quantity):'—','Quantity']].forEach(([v,l])=>{const d=div({});d.append(div({cls:'mono',style:{marginBottom:'4px'},html:l}),div({style:{fontSize:'14px',color:l==='Style'?'var(--gold)':'var(--text)'},html:v||'—'}));dg.append(d);});
 card.append(dg);
 if(r.details)card.append(div({style:{background:'var(--bg)',border:'1px solid var(--border)',borderRadius:'2px',padding:'12px',marginBottom:'12px'}},[div({cls:'mono',style:{marginBottom:'4px'},html:'Notes'}),h('p',{style:{fontSize:'13px',color:'var(--muted)'},html:r.details})]));
-if(r.attachment_data){const bytes=atob(r.attachment_data);const arr=new Uint8Array(bytes.length);for(let i=0;i<bytes.length;i++)arr[i]=bytes.charCodeAt(i);const mime=r.attachment_name&&r.attachment_name.endsWith('.pdf')?'application/pdf':r.attachment_name&&(r.attachment_name.endsWith('.png')||r.attachment_name.endsWith('.jpg')||r.attachment_name.endsWith('.jpeg'))?'image/'+r.attachment_name.split('.').pop():'application/octet-stream';const blob=new Blob([arr],{type:mime});const blobUrl=URL.createObjectURL(blob);const attachLink=h('a',{style:{fontSize:'12px',color:'var(--teal)',display:'block',marginBottom:'8px'}},['View Attachment: '+(r.attachment_name||'file')]);attachLink.href=blobUrl;attachLink.target='_blank';card.append(attachLink);}
+if(r.attachment_name||r.attachment_url){const attachLink=h('a',{style:{fontSize:'12px',color:'var(--teal)',display:'block',marginBottom:'8px',cursor:'pointer',textDecoration:'underline'}},['View Attachment: '+(r.attachment_name||'file')]);attachLink.onclick=async function(e){e.preventDefault();if(r.attachment_url&&!r.attachment_name){window.open(r.attachment_url,'_blank');return;}const oldTxt=attachLink.textContent;attachLink.textContent='Loading attachment…';try{const{data:ad,error:ae}=await sb.from('recall_requests').select('attachment_data').eq('id',r.id).single();if(ae||!ad||!ad.attachment_data)throw new Error((ae&&ae.message)||'Attachment not found');const bytes=atob(ad.attachment_data);const arr=new Uint8Array(bytes.length);for(let i=0;i<bytes.length;i++)arr[i]=bytes.charCodeAt(i);const nm=(r.attachment_name||'').toLowerCase();const mime=nm.endsWith('.pdf')?'application/pdf':(nm.endsWith('.png')||nm.endsWith('.jpg')||nm.endsWith('.jpeg'))?'image/'+nm.split('.').pop():'application/octet-stream';const blobUrl=URL.createObjectURL(new Blob([arr],{type:mime}));window.open(blobUrl,'_blank');}catch(err){alert('Could not open the attachment: '+(err.message||err));}attachLink.textContent=oldTxt;};card.append(attachLink);}
 const br2=div({style:{display:'flex',gap:'12px'}});
 const handleUpload=async function(file,isCsv){
 upSt.style.display='block';upSt.textContent='Uploading...';
@@ -13134,7 +13140,7 @@ async function showTeamTab(){
       subContent.append(saveBtn,saveMsg);
     }
     else if(sub==='routing'){
-      const{data:recalls}=await sb.from('recall_requests').select('*').in('status',['pending','assigned']).order('created_at',{ascending:true});
+      const{data:recalls}=await sb.from('recall_requests').select(DF_RECALL_COLS).in('status',['pending','assigned']).order('created_at',{ascending:true});
       const{data:workers}=await sb.from('admin_roles').select('user_id,profiles(full_name,email)').in('role',['worker','manager']);
       const workerMap={};
       (workers||[]).forEach(w=>{if(w.profiles)workerMap[w.user_id]=w.profiles.full_name||w.profiles.email;});
@@ -14477,6 +14483,9 @@ function dfReasoningPad(qid,ctx){
   return wrap;
 }
 
+// Recall request list columns. attachment_data (a base64 file, up to ~13 MB per request) is deliberately left out:
+// pulling it for every pending request made the Recalls tab time out. It is fetched on demand when a file is opened.
+var DF_RECALL_COLS='id,user_id,user_name,user_email,topic,style,details,status,created_at,quantity,updated_at,admin_notified,student_notified,attachment_url,attachment_name,is_free_tier,fulfilled_by,fulfilled_at,in_progress_at,in_progress_by,manager_notified_at,progress_notified_at';
 var DF_REPORT_RATINGS=['Excellent','Good','Average','Struggling'];
 // Monthly student report form. Shared by the student page and by the tutor lock screen
 // (which passes a higher zIndex so the form sits above the lock). s needs {user_id, full_name}.
