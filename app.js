@@ -2214,8 +2214,7 @@ async function buildScoreReportBody(o){
   ringWrap.append(ringSvg);
   var ringCenter=div({style:{position:'absolute',inset:'0',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center'}},[]);
   ringCenter.append(
-    div({style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'30px',color:ringColor,fontWeight:'700'}},[String(o.score)]),
-    div({cls:'mono',style:{fontSize:'10px',color:'var(--muted)'}},['/ '+o.total])
+    div({style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'36px',color:ringColor,fontWeight:'700'}},[pct+'%'])
   );
   ringWrap.append(ringCenter);
   var scoreCard=div({cls:'card',style:{textAlign:'center',padding:'24px',flex:'1 1 220px',minWidth:'220px'}},[]);
@@ -2226,7 +2225,7 @@ async function buildScoreReportBody(o){
     h('p',{style:{fontSize:'11px',color:'var(--muted)',marginTop:'10px',lineHeight:'1.5'}},[encourageMsg])
   );
 
-  var boxes=[statBoxMini('PERCENTAGE',pct+'%','Correct')];
+  var boxes=[statBoxMini('CORRECT ANSWERS',o.score+'/'+o.total,'Questions correct')];
   if(o.timeTakenSeconds)boxes.push(statBoxMini('TIME TAKEN',fmtHMS(o.timeTakenSeconds),stats.avg_time_taken?'Avg '+fmtHMS(stats.avg_time_taken):null));
   if(stats.class_average!=null)boxes.push(statBoxMini('CLASS AVERAGE',Math.round(stats.class_average)+'%','Class average','var(--teal)'));
   var statGrid=div({style:{display:'flex',flexWrap:'wrap',gap:'12px',flex:'2 1 320px',alignContent:'flex-start'}},[]);
