@@ -2243,8 +2243,8 @@ async function buildScoreReportBody(o){
     var brandLeft=div({style:{display:'flex',alignItems:'center',gap:'14px'}},[]);
     brandLeft.append(dfMonogram());
     brandLeft.append(div({},[
-      div({style:{fontFamily:SERIF,fontSize:'32px',fontWeight:'600',color:P.ink,lineHeight:'1.1'}},['Deo Fortis']),
-      div({style:{fontSize:'11px',letterSpacing:'4px',color:P.ink,textTransform:'uppercase',marginTop:'3px',fontWeight:'600'}},['Everyone is Gifted'])
+      div({style:{fontFamily:SERIF,fontSize:'32px',fontWeight:'500',color:P.ink,lineHeight:'1.1'}},['Deo Fortis']),
+      div({style:{fontSize:'11px',letterSpacing:'4px',color:P.ink,textTransform:'uppercase',marginTop:'3px',fontWeight:'500'}},['Everyone is Gifted'])
     ]));
     brandBar.append(brandLeft,div({style:{fontSize:'10px',letterSpacing:'4px',color:P.gold,textTransform:'uppercase'}},['Learn / Improve / Excel']));
     reportBody.append(brandBar);
@@ -2253,7 +2253,7 @@ async function buildScoreReportBody(o){
     var titleRow=div({style:{display:'flex',flexWrap:'wrap',gap:'22px',alignItems:'stretch',marginBottom:'22px'}},[]);
     var titleLeft=div({style:{flex:'1 1 340px',minWidth:'0',alignSelf:'center'}},[]);
     titleLeft.append(
-      div({style:{fontSize:'13px',letterSpacing:'4px',color:P.gold,textTransform:'uppercase',fontWeight:'600',marginBottom:'8px'}},[o.completeLabel||'Assessment complete']),
+      div({style:{fontSize:'13px',letterSpacing:'4px',color:P.gold,textTransform:'uppercase',fontWeight:'500',marginBottom:'8px'}},[o.completeLabel||'Assessment complete']),
       h('h2',{style:{fontFamily:SERIF,fontSize:'clamp(30px,5vw,46px)',fontWeight:'500',color:P.ink,margin:'0 0 12px',lineHeight:'1.1'}},['Deo Fortis Assessment'])
     );
     var topicLine=div({style:{display:'flex',flexWrap:'wrap',alignItems:'center',gap:'6px 12px',fontSize:'14px',color:'var(--muted)',marginBottom:'16px'}},[]);
@@ -2271,7 +2271,7 @@ async function buildScoreReportBody(o){
       div({style:{fontFamily:SERIF,fontWeight:'500',color:ringColor,lineHeight:'1',display:'flex',justifyContent:'center',alignItems:'baseline'}},[
         h('span',{style:{fontSize:'76px'}},[String(pct)]),h('span',{style:{fontSize:'44px'}},['%'])
       ]),
-      div({style:{fontSize:'15px',letterSpacing:'6px',color:ringColor,textTransform:'uppercase',fontWeight:'600',margin:'12px 0 14px'}},[band]),
+      div({style:{fontSize:'15px',letterSpacing:'6px',color:ringColor,textTransform:'uppercase',fontWeight:'500',margin:'12px 0 14px'}},[band]),
       div({style:{borderTop:'1px solid '+P.gold+'66',paddingTop:'14px',fontSize:'14px',lineHeight:'1.5',color:P.ink}},[encourageMsg])
     );
     titleRow.append(titleLeft,scoreBox);
@@ -2314,13 +2314,13 @@ async function buildScoreReportBody(o){
   cvSvg.append(sEl('rect',{x:cx(0),y:cvTop,width:cx(60)-cx(0),height:cvB-cvTop,fill:'url(#'+gid+'r)'}));
   cvSvg.append(sEl('rect',{x:cx(60),y:cvTop,width:cx(70)-cx(60),height:cvB-cvTop,fill:'url(#'+gid+'y)'}));
   cvSvg.append(sEl('rect',{x:cx(70),y:cvTop,width:cx(100)-cx(70),height:cvB-cvTop,fill:'url(#'+gid+'t)'}));
-  cvSvg.append(sTxt((cx(0)+cx(60))/2,cvB-14,'NEEDS REVIEW',{'text-anchor':'middle','font-size':12,'letter-spacing':3,'font-weight':700,fill:P.redtxt}));
-  cvSvg.append(sTxt((cx(60)+cx(70))/2,cvB-14,'ALMOST',{'text-anchor':'middle','font-size':9.5,'letter-spacing':1.5,'font-weight':700,fill:P.yeltxt}));
-  cvSvg.append(sTxt((cx(70)+cx(100))/2,cvB-14,'PASS',{'text-anchor':'middle','font-size':12,'letter-spacing':3,'font-weight':700,fill:P.tealtxt}));
+  cvSvg.append(sTxt((cx(0)+cx(60))/2,cvB-14,'NEEDS REVIEW',{'text-anchor':'middle','font-size':12,'letter-spacing':3,'font-weight':600,fill:P.redtxt}));
+  cvSvg.append(sTxt((cx(60)+cx(70))/2,cvB-14,'ALMOST',{'text-anchor':'middle','font-size':9.5,'letter-spacing':1.5,'font-weight':600,fill:P.yeltxt}));
+  cvSvg.append(sTxt((cx(70)+cx(100))/2,cvB-14,'PASS',{'text-anchor':'middle','font-size':12,'letter-spacing':3,'font-weight':600,fill:P.tealtxt}));
   var curvePts=[];for(var cv=0;cv<=100;cv++)curvePts.push(cx(cv)+','+cy(cv));
-  cvSvg.append(sEl('path',{d:'M'+curvePts.join(' L'),fill:'none',stroke:P.curve,'stroke-width':2.8,'stroke-linejoin':'round'}));
-  cvSvg.append(sEl('line',{x1:cvL,x2:cvR,y1:cvB,y2:cvB,stroke:P.curve,'stroke-width':1.5}));
-  [0,20,40,60,80,100].forEach(function(v){cvSvg.append(sTxt(cx(v),cvB+22,String(v),{'text-anchor':'middle','font-size':14,'font-weight':500,fill:P.axis}));});
+  cvSvg.append(sEl('path',{d:'M'+curvePts.join(' L'),fill:'none',stroke:P.curve,'stroke-width':2.2,'stroke-linejoin':'round'}));
+  cvSvg.append(sEl('line',{x1:cvL,x2:cvR,y1:cvB,y2:cvB,stroke:P.curve,'stroke-width':1.2}));
+  [0,20,40,60,80,100].forEach(function(v){cvSvg.append(sTxt(cx(v),cvB+22,String(v),{'text-anchor':'middle','font-size':13,'font-weight':400,fill:P.axis}));});
 
   // Pills: each tries a few spots and takes the first that does not overlap
   var placed=[];
@@ -2332,18 +2332,18 @@ async function buildScoreReportBody(o){
     var box=pillBox(pick.x,pick.y,txt,pick.a);
     placed.push(box);
     cvSvg.append(sEl('rect',{x:box.x,y:box.y,width:box.w,height:box.h,rx:14,fill:P.card,stroke:stroke,'stroke-width':sw||1.8}));
-    cvSvg.append(sTxt(box.x+box.w/2,pick.y+1,txt,{'text-anchor':'middle','font-size':13.5,'font-weight':700,fill:txtColor}));
+    cvSvg.append(sTxt(box.x+box.w/2,pick.y+1,txt,{'text-anchor':'middle','font-size':13.5,'font-weight':600,fill:txtColor}));
     return pick.y;
   }
   // Lines first (class average underneath, Pass 70 dashed on top so both show if they coincide)
-  if(hasAvg)cvSvg.append(sEl('line',{x1:cx(classAvg),x2:cx(classAvg),y1:36,y2:cvB,stroke:P.avg,'stroke-width':2.4,'stroke-dasharray':'8 5'}));
-  cvSvg.append(sEl('line',{x1:cx(70),x2:cx(70),y1:36,y2:cvB,stroke:P.teal,'stroke-width':1.8,'stroke-dasharray':'5 5'}));
+  if(hasAvg)cvSvg.append(sEl('line',{x1:cx(classAvg),x2:cx(classAvg),y1:36,y2:cvB,stroke:P.avg,'stroke-width':1.8,'stroke-dasharray':'8 5'}));
+  cvSvg.append(sEl('line',{x1:cx(70),x2:cx(70),y1:36,y2:cvB,stroke:P.teal,'stroke-width':1.5,'stroke-dasharray':'5 5'}));
   var youTop=cy(pct);
   placePill([{x:cx(70)+10,y:28,a:'start'},{x:cx(70)-10,y:28,a:'end'}],'Pass 70',P.teal,P.tealtxt);
   if(hasAvg)placePill([{x:cx(classAvg)-10,y:28,a:'end'},{x:cx(classAvg)+10,y:28,a:'start'},{x:cx(classAvg)-10,y:64,a:'end'},{x:cx(classAvg)+10,y:64,a:'start'}],'Class average '+classAvg,P.avg,P.avgtxt);
   var youPillY=placePill([{x:cx(pct),y:64,a:'middle'},{x:cx(pct),y:28,a:'middle'},{x:cx(pct)-10,y:64,a:'end'},{x:cx(pct)+10,y:64,a:'start'}],'YOU '+pct,P.you,P.you,2.2);
-  cvSvg.append(sEl('line',{x1:cx(pct),x2:cx(pct),y1:youPillY+10,y2:cvB,stroke:P.you,'stroke-width':3}));
-  cvSvg.append(sEl('circle',{cx:cx(pct),cy:youTop,r:8,fill:P.you,stroke:P.card,'stroke-width':3}));
+  cvSvg.append(sEl('line',{x1:cx(pct),x2:cx(pct),y1:youPillY+10,y2:cvB,stroke:P.you,'stroke-width':2.2}));
+  cvSvg.append(sEl('circle',{cx:cx(pct),cy:youTop,r:6.5,fill:P.you,stroke:P.card,'stroke-width':2.5}));
   curveCard.append(cvSvg);
 
   // Bottom stats row
@@ -2351,8 +2351,8 @@ async function buildScoreReportBody(o){
     var cell=div({style:{flex:'1 1 200px',minWidth:'180px',display:'flex',gap:'14px',alignItems:'flex-start',padding:'6px 18px',borderLeft:first?'none':'1px solid var(--border)'}},[]);
     var ic=div({style:{flexShrink:'0',marginTop:'2px'}},[]);ic.append(dfIcon(kind,30,P.gold));
     var txt=div({style:{minWidth:'0'}},[
-      div({style:{fontSize:'10px',letterSpacing:'3px',color:'var(--muted)',textTransform:'uppercase',fontWeight:'600',marginBottom:'6px'}},[label]),
-      div({style:{fontFamily:SANS,fontSize:'26px',fontWeight:'700',color:valColor||P.ink,lineHeight:'1.1'}},[value])
+      div({style:{fontSize:'10px',letterSpacing:'3px',color:'var(--muted)',textTransform:'uppercase',fontWeight:'500',marginBottom:'6px'}},[label]),
+      div({style:{fontFamily:SANS,fontSize:'24px',fontWeight:'500',color:valColor||P.ink,lineHeight:'1.1'}},[value])
     ]);
     if(sub)txt.append(div({style:{fontSize:'12px',color:'var(--muted)',marginTop:'6px',lineHeight:'1.5'}},[sub]));
     if(sub2)txt.append(div({style:{fontSize:'12px',color:'var(--muted)',marginTop:'2px'}},[sub2]));
@@ -2360,15 +2360,12 @@ async function buildScoreReportBody(o){
     return cell;
   }
   var shownTopics=topics.slice(0,6).join(' \u2022 ')+(topics.length>6?' +'+(topics.length-6)+' more':'');
-  var passed=pct>=70;
-  var resultSub=passed?'You\u2019re on the right track.':(pct>=60?'So close \u2014 keep going.':'Keep reviewing.');
   var statsRow=div({style:{display:'flex',flexWrap:'wrap',gap:'10px 0',borderTop:'1px solid var(--border)',marginTop:'18px',paddingTop:'18px'}},[]);
   [
     statCell('cap','Subjects',String(topics.length),shownTopics||null,null,null,true),
     statCell('target','Your score',pct+'%',band,o.score+'/'+o.total+' correct',null,false),
     o.timeTakenSeconds?statCell('clock','Time taken',fmtHMS(o.timeTakenSeconds),stats.avg_time_taken?'Avg '+fmtHMS(Math.round(stats.avg_time_taken)):null,null,null,false):null,
-    statCell('people','Class average',hasAvg?classAvg+'%':'\u2014',hasAvg?'(approx.)':'Not available yet',null,null,false),
-    statCell('trophy','Result',passed?'PASS':'NOT YET',resultSub,null,passed?P.tealtxt:(pct>=60?P.yeltxt:P.redtxt),false)
+    statCell('people','Class average',hasAvg?classAvg+'%':'\u2014',hasAvg?'(approx.)':'Not available yet',null,null,false)
   ].filter(Boolean).forEach(function(c){statsRow.append(c);});
   curveCard.append(statsRow);
 
