@@ -2266,13 +2266,15 @@ async function buildScoreReportBody(o){
     dateLine.append(dfIcon('calendar',20,'var(--muted)'),h('span',{},[new Date().toLocaleDateString()+(o.timeTakenSeconds?' \u00b7 '+fmtHMS(o.timeTakenSeconds):'')]));
     titleLeft.append(dateLine);
 
-    var scoreBox=div({style:{flex:'0 1 270px',minWidth:'230px',border:'1.5px solid '+P.gold,borderRadius:'16px',padding:'22px 20px',textAlign:'center',background:P.card,boxShadow:lightMode?'none':'0 0 26px rgba(224,176,75,0.14)'}},[]);
+    var bandCol=pct>=70?P.teal:(pct>=60?P.yel:P.red);
+    var bandTxt=pct>=70?P.tealtxt:(pct>=60?P.yeltxt:P.redtxt);
+    var scoreBox=div({style:{flex:'0 1 220px',minWidth:'190px',alignSelf:'center',border:'1.5px solid '+bandCol,borderRadius:'14px',padding:'14px 16px',textAlign:'center',background:P.card,boxShadow:lightMode?'none':'0 0 20px '+bandCol+'22'}},[]);
     scoreBox.append(
-      div({style:{fontFamily:SERIF,fontWeight:'500',color:ringColor,lineHeight:'1',display:'flex',justifyContent:'center',alignItems:'baseline'}},[
-        h('span',{style:{fontSize:'76px'}},[String(pct)]),h('span',{style:{fontSize:'44px'}},['%'])
+      div({style:{fontFamily:SERIF,fontWeight:'500',color:bandTxt,lineHeight:'1',display:'flex',justifyContent:'center',alignItems:'baseline'}},[
+        h('span',{style:{fontSize:'54px'}},[String(pct)]),h('span',{style:{fontSize:'30px'}},['%'])
       ]),
-      div({style:{fontSize:'15px',letterSpacing:'6px',color:ringColor,textTransform:'uppercase',fontWeight:'500',margin:'12px 0 14px'}},[band]),
-      div({style:{borderTop:'1px solid '+P.gold+'66',paddingTop:'14px',fontSize:'14px',lineHeight:'1.5',color:P.ink}},[encourageMsg])
+      div({style:{fontSize:'12px',letterSpacing:'5px',color:bandTxt,textTransform:'uppercase',fontWeight:'500',margin:'8px 0 10px'}},[band]),
+      div({style:{borderTop:'1px solid '+bandCol+'55',paddingTop:'10px',fontSize:'12.5px',lineHeight:'1.5',color:P.ink}},[encourageMsg])
     );
     titleRow.append(titleLeft,scoreBox);
     reportBody.append(titleRow);
