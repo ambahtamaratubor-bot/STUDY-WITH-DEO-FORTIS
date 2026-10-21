@@ -2283,13 +2283,6 @@ async function buildScoreReportBody(o){
   var hasAvg=stats.class_average!=null;
   var classAvg=hasAvg?Math.round(stats.class_average):null;
   var curveCard=div({style:{border:'1px solid var(--border)',borderRadius:'16px',padding:'22px 26px 20px',background:P.card}},[]);
-  var cardHead=div({style:{display:'flex',alignItems:'center',gap:'14px',marginBottom:'6px'}},[]);
-  cardHead.append(dfIcon('target',38,P.gold),div({},[
-    h('h3',{style:{fontFamily:SERIF,fontSize:'26px',fontWeight:'500',color:P.ink,margin:'0'}},['Where you stand']),
-    h('p',{style:{fontSize:'13px',color:'var(--muted)',margin:'2px 0 0'}},[hasAvg?'Curve is centred on the class average.':'Class average will appear here once more students have taken this test.'])
-  ]));
-  curveCard.append(cardHead);
-
   var cvW=700,cvH=290,cvL=30,cvR=670,cvTop=100,cvB=252;
   function cx(v){return cvL+(cvR-cvL)*v/100;}
   var mu=hasAvg?classAvg:65;
