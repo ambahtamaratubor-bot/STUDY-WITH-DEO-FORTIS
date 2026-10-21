@@ -2258,8 +2258,8 @@ async function buildScoreReportBody(o){
       div({style:{fontSize:'13px',letterSpacing:'4px',color:P.gold,textTransform:'uppercase',fontWeight:'500',marginBottom:'8px'}},[o.completeLabel||'Assessment complete']),
       h('h2',{style:{fontFamily:SERIF,fontSize:'clamp(30px,5vw,46px)',fontWeight:'500',color:P.ink,margin:'0 0 12px',lineHeight:'1.1'}},['Deo Fortis Assessment'])
     );
-    var cuteLine=div({style:{display:'flex',alignItems:'flex-start',gap:'10px',fontFamily:SERIF,fontStyle:'italic',fontSize:'clamp(15px,2.2vw,19px)',lineHeight:'1.5',color:P.ink,opacity:'0.9',marginBottom:'16px',maxWidth:'560px'}},[]);
-    cuteLine.append(h('span',{style:{color:bandCol,fontStyle:'normal',fontSize:'14px',marginTop:'3px'}},['\u2726']),h('span',{},[encourageMsg]));
+    var cuteLine=div({style:{display:'flex',alignItems:'flex-start',gap:'10px',fontFamily:SERIF,fontStyle:'italic',fontSize:'clamp(12px,1.5vw,14px)',lineHeight:'1.5',color:P.ink,opacity:'0.9',marginBottom:'16px',maxWidth:'560px'}},[]);
+    cuteLine.append(h('span',{style:{color:bandCol,fontStyle:'normal',fontSize:'11px',marginTop:'3px'}},['\u2726']),h('span',{},[encourageMsg]));
     titleLeft.append(cuteLine);
     var dateLine=div({style:{display:'flex',alignItems:'center',gap:'10px',fontSize:'13px',color:'var(--muted)'}},[]);
     dateLine.append(dfIcon('calendar',20,'var(--muted)'),h('span',{},[new Date().toLocaleDateString()+(o.timeTakenSeconds?' \u00b7 '+fmtHMS(o.timeTakenSeconds):'')]));
