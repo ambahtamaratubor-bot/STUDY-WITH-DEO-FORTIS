@@ -2229,51 +2229,59 @@ async function buildScoreReportBody(o){
     h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'15px',marginBottom:'4px'}},['Where you stand']),
     h('p',{style:{fontSize:'11px',color:'var(--muted)',marginBottom:'12px'}},[hasAvg?'Curve is centred on the class average.':'Class average will appear here once more students have taken this test.'])
   );
-  var cvW=700,cvH=260,cvL=30,cvR=670,cvT=54,cvB=210;
+  var cvW=700,cvH=262,cvL=30,cvR=670,cvTop=84,cvB=236;
+  var lightMode=(document.documentElement.getAttribute('data-theme')==='light');
+  var P=lightMode?
+    {red:'#d64545',yel:'#d09a14',teal:'#2f8f84',avg:'#6f5bc0',you:'#1c1a16',redtxt:'#b83535',yeltxt:'#8a6410',tealtxt:'#1f7a70',avgtxt:'#5a47a8',curve:'#4a463d',grid:'#cfc8b8',muted:'#6b665c',card:'#fffdf8'}:
+    {red:'#ff6b6b',yel:'#C9A84C',teal:'#7EADA8',avg:'#a899f0',you:'#ffffff',redtxt:'#ff8888',yeltxt:'#d9bb62',tealtxt:'#7EADA8',avgtxt:'#b9adf5',curve:'#b9b2a1',grid:'#2c261c',muted:'#8d8677',card:'#14110D'};
+  try{var cc=getComputedStyle(document.documentElement).getPropertyValue('--card').trim();if(cc&&cc.charAt(0)==='#')P.card=cc;}catch(e){}
   function cx(v){return cvL+(cvR-cvL)*v/100;}
-  var mu=hasAvg?classAvg:65,sd=13,hh=cvB-cvT-20;
-  function cy(v){return cvB-Math.exp(-0.5*Math.pow((v-mu)/sd,2))*hh;}
+  var mu=hasAvg?classAvg:65;
+  function cy(v){return cvB-Math.exp(-0.5*Math.pow((v-mu)/13,2))*(cvB-cvTop-6);}
   var cvSvg=sEl('svg',{viewBox:'0 0 '+cvW+' '+cvH,width:'100%',role:'img'});
-  // label with a dark backing so lines never strike through the text
-  function sLabel(x,y,txt,anchor,color,size){
-    var w=txt.length*(size*0.62)+10;
-    var rx=anchor==='end'?x-w+5:(anchor==='middle'?x-w/2:x-5);
-    cvSvg.append(sEl('rect',{x:rx,y:y-size-1,width:w,height:size+6,rx:3,fill:'#14110D'}));
-    cvSvg.append(sTxt(x,y,txt,{'text-anchor':anchor,'font-size':size,'font-weight':700,fill:color}));
-  }
-  // Tint: shaded pass zone (70 and above) under the curve
-  function zoneArea(a,b,color,op){
-    var zp=[];for(var zv=a;zv<=b;zv++)zp.push(cx(zv)+','+cy(zv));
-    cvSvg.append(sEl('path',{d:'M'+cx(a)+','+cvB+' L'+zp.join(' L')+' L'+cx(b)+','+cvB+' Z',fill:color,opacity:op}));
-  }
-  zoneArea(70,100,'#7EADA8',0.18);   // pass
-  zoneArea(60,70,'#C9A84C',0.22);    // almost passed
-  zoneArea(0,50,'#ff6b6b',0.20);     // below 50
+
+  // Zones fill the whole space: red below 60, yellow 60-70, teal 70+
+  cvSvg.append(sEl('rect',{x:cx(0),y:cvTop,width:cx(60)-cx(0),height:cvB-cvTop,fill:P.red,opacity:lightMode?0.16:0.16}));
+  cvSvg.append(sEl('rect',{x:cx(60),y:cvTop,width:cx(70)-cx(60),height:cvB-cvTop,fill:P.yel,opacity:0.22}));
+  cvSvg.append(sEl('rect',{x:cx(70),y:cvTop,width:cx(100)-cx(70),height:cvB-cvTop,fill:P.teal,opacity:0.18}));
+  cvSvg.append(sTxt((cx(0)+cx(60))/2,cvB-10,'NEEDS REVIEW',{'text-anchor':'middle','font-size':10,'letter-spacing':2,'font-weight':700,fill:P.redtxt}));
+  cvSvg.append(sTxt((cx(60)+cx(70))/2,cvB-10,'ALMOST',{'text-anchor':'middle','font-size':8.5,'letter-spacing':1,'font-weight':700,fill:P.yeltxt}));
+  cvSvg.append(sTxt((cx(70)+cx(100))/2,cvB-10,'PASS',{'text-anchor':'middle','font-size':10,'letter-spacing':2,'font-weight':700,fill:P.tealtxt}));
   var curvePts=[];for(var cv=0;cv<=100;cv++)curvePts.push(cx(cv)+','+cy(cv));
-  cvSvg.append(sEl('path',{d:'M'+curvePts.join(' L'),fill:'none',stroke:'#8d8677','stroke-width':2}));
-  cvSvg.append(sEl('line',{x1:cvL,x2:cvR,y1:cvB,y2:cvB,stroke:'#2c261c'}));
-  [0,20,40,60,80,100].forEach(function(v){cvSvg.append(sTxt(cx(v),cvB+18,String(v),{'text-anchor':'middle','font-size':10,fill:'#8d8677'}));});
-  // Class average line (drawn first so the Pass 70 dashes stay visible on top if they coincide)
-  if(hasAvg){
-    cvSvg.append(sEl('line',{x1:cx(classAvg),x2:cx(classAvg),y1:30,y2:cvB,stroke:'#C9A84C','stroke-width':2}));
+  cvSvg.append(sEl('path',{d:'M'+curvePts.join(' L'),fill:'none',stroke:P.curve,'stroke-width':2.2}));
+  cvSvg.append(sEl('line',{x1:cvL,x2:cvR,y1:cvB,y2:cvB,stroke:P.grid}));
+  [0,20,40,60,80,100].forEach(function(v){cvSvg.append(sTxt(cx(v),cvB+17,String(v),{'text-anchor':'middle','font-size':10,fill:P.muted}));});
+
+  // Pills are placed one by one; each tries a few spots and takes the first that does not overlap
+  var placed=[];
+  function pillBox(x,y,txt,anchor){var w=txt.length*6.7+18;var rx=anchor==='end'?x-w:(anchor==='middle'?x-w/2:x);return{x:rx,y:y-15,w:w,h:22};}
+  function hits(bx){return placed.some(function(p){return bx.x<p.x+p.w+4&&bx.x+bx.w+4>p.x&&bx.y<p.y+p.h+2&&bx.y+bx.h+2>p.y;});}
+  function placePill(cands,txt,stroke,txtColor){
+    var pick=cands[0];
+    for(var i=0;i<cands.length;i++){var bx=pillBox(cands[i].x,cands[i].y,txt,cands[i].a);if(bx.x>=2&&bx.x+bx.w<=cvW-2&&!hits(bx)){pick=cands[i];break;}}
+    var box=pillBox(pick.x,pick.y,txt,pick.a);
+    placed.push(box);
+    cvSvg.append(sEl('rect',{x:box.x,y:box.y,width:box.w,height:box.h,rx:11,fill:P.card,stroke:stroke,'stroke-width':1.5}));
+    cvSvg.append(sTxt(box.x+box.w/2,pick.y,txt,{'text-anchor':'middle','font-size':12,'font-weight':700,fill:txtColor}));
+    return pick.y;
   }
-  // Pass 70 line
-  cvSvg.append(sEl('line',{x1:cx(70),x2:cx(70),y1:12,y2:cvB,stroke:'#7EADA8','stroke-width':2,'stroke-dasharray':'6 4'}));
-  // Student marker
-  var youTop=Math.min(cy(pct),cvB-30)-14;
-  cvSvg.append(sEl('line',{x1:cx(pct),x2:cx(pct),y1:youTop,y2:cvB,stroke:'#ffffff','stroke-width':2.5}));
-  cvSvg.append(sEl('circle',{cx:cx(pct),cy:youTop,r:6,fill:'#ffffff'}));
-  // Labels: each on its own row so they can never overlap
-  sLabel(cx(70)+8,22,'Pass 70','start','#7EADA8',12);
-  if(hasAvg)sLabel(cx(classAvg)+(classAvg>70?8:-8),42,'Class average '+classAvg,classAvg>70?'start':'end','#C9A84C',12);
-  sLabel(cx(pct),youTop-12>56?youTop-12:youTop+22,'YOU '+pct,'middle','#ffffff',13);
-  cvSvg.append(sTxt(cvW/2,cvH-6,'Percentage score',{'text-anchor':'middle','font-size':10,fill:'#6f6a5d'}));
+  // Lines first (average underneath, Pass 70 dashed on top so both show if they coincide)
+  if(hasAvg)cvSvg.append(sEl('line',{x1:cx(classAvg),x2:cx(classAvg),y1:30,y2:cvB,stroke:P.avg,'stroke-width':2.2}));
+  cvSvg.append(sEl('line',{x1:cx(70),x2:cx(70),y1:14,y2:cvB,stroke:P.teal,'stroke-width':2.2,'stroke-dasharray':'6 4'}));
+  var youTop=cy(pct);
+  var youPillY=0;
+  // Labels
+  placePill([{x:cx(70)+8,y:24,a:'start'},{x:cx(70)-8,y:24,a:'end'}],'Pass 70',P.teal,P.tealtxt);
+  if(hasAvg)placePill([{x:cx(classAvg)-8,y:24,a:'end'},{x:cx(classAvg)+8,y:24,a:'start'},{x:cx(classAvg)-8,y:52,a:'end'},{x:cx(classAvg)+8,y:52,a:'start'}],'Class average '+classAvg,P.avg,P.avgtxt);
+  youPillY=placePill([{x:cx(pct),y:52,a:'middle'},{x:cx(pct),y:24,a:'middle'},{x:cx(pct)-8,y:52,a:'end'},{x:cx(pct)+8,y:52,a:'start'}],'YOU '+pct,P.you,P.you);
+  cvSvg.append(sEl('line',{x1:cx(pct),x2:cx(pct),y1:youPillY+7,y2:cvB,stroke:P.you,'stroke-width':2.6}));
+  cvSvg.append(sEl('circle',{cx:cx(pct),cy:youTop,r:6.5,fill:P.you,stroke:P.card,'stroke-width':2.5}));
   curveCard.append(cvSvg);
   var lg=div({style:{display:'flex',gap:'16px',flexWrap:'wrap',fontSize:'11px',color:'var(--muted)',marginTop:'8px'}},[]);
   function lgItem(color,label,dashed){return h('span',{},[h('i',{style:{display:'inline-block',width:'18px',borderTop:'2px '+(dashed?'dashed ':'solid ')+color,verticalAlign:'middle',marginRight:'6px'}},[]),label]);}
-  lg.append(lgItem('#7EADA8','Pass 70',true));
-  if(hasAvg)lg.append(lgItem('#C9A84C','Class average',false));
-  lg.append(lgItem('#ffffff','Your score',false));
+  lg.append(lgItem(P.teal,'Pass 70',true));
+  if(hasAvg)lg.append(lgItem(P.avg,'Class average',false));
+  lg.append(lgItem(P.you,'Your score',false));
   curveCard.append(lg);
 
   var boxes=[statBoxMini('CORRECT ANSWERS',o.score+'/'+o.total,'Questions correct')];
