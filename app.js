@@ -138,7 +138,7 @@ sb.auth.onAuthStateChange(function(event,session){
       try{if(localStorage.getItem('df-auth'))localStorage.removeItem('df-auth');}catch(e){}
     }
   }else if(event==='SIGNED_OUT'){
-    if(S.user!==null){S.user=null;S.profile=null;go('landing');}
+    if(S.user!==null){S.user=null;S.profile=null;removeGlobalStreakBanner();go('landing');}
   }
 });
 async function dfHandleAsyncError(e){
@@ -170,6 +170,7 @@ async function dfLogout(){
   try{localStorage.removeItem('df-admin-session');}catch(e){}
   window._dfTeamPush=false;
   S.user=null;S.profile=null;
+  removeGlobalStreakBanner();
   go('landing');
 }
 async function getProfile(id){
@@ -205,6 +206,7 @@ if(!data){
   try{await sb.auth.signOut({scope:'local'});}catch(e2){}
   try{localStorage.removeItem('df-auth');}catch(e2){}
   S.user=null;S.profile=null;
+  removeGlobalStreakBanner();
   alert('Your session has expired. Please sign in again.');
   go('landing');
   return;
@@ -2779,11 +2781,17 @@ async function mountGlobalPaymentBanner(){
 
 // STREAK RISK BANNER — global, fixed-position so it shows on every page/tab (not just the
 // tutoring dashboard), and warns before the streak breaks at local midnight.
+function removeGlobalStreakBanner(){
+  var b=document.getElementById('df-streak-banner');
+  if(b)b.remove();
+  if(window._dfStreakBannerTimer){clearInterval(window._dfStreakBannerTimer);window._dfStreakBannerTimer=null;}
+  try{adjustFixedBannerMargin();}catch(e){}
+}
 function mountGlobalStreakBanner(){
   var existing=document.getElementById('df-streak-banner');
   if(existing)existing.remove();
   if(window._dfStreakBannerTimer){clearInterval(window._dfStreakBannerTimer);window._dfStreakBannerTimer=null;}
-  if(!S.user||!S.profile){adjustFixedBannerMargin();return;}
+  if(!S.user||!S.profile){removeGlobalStreakBanner();return;}
   if(S.profile.is_free_tier===true&&!isInTrial()){adjustFixedBannerMargin();return;}
   var streak=S.profile.streak_count||0;
   var helpers=streakDateHelpers();
@@ -2847,6 +2855,7 @@ if(!S.user){
   }
 }
 root.innerHTML='';
+if(!S.user)removeGlobalStreakBanner();
 function theory(){
 const page=div({cls:'dash-page'});
 if(S.profile?.is_free_tier===true&&!isInTrial()){
@@ -4695,8 +4704,7 @@ try{
     if(window.activeSessionId){showNoiseBar();showTimerBar();}else{removeNoiseBar();removeTimerBar();}
   }else{
     removeNoiseBar();removeTimerBar();removeSessionNotepad();
-    var _existingStreakB=document.getElementById('df-streak-banner');if(_existingStreakB)_existingStreakB.remove();
-    if(window._dfStreakBannerTimer){clearInterval(window._dfStreakBannerTimer);window._dfStreakBannerTimer=null;}
+    removeGlobalStreakBanner();
     mountGlobalPaymentBanner();
     adjustFixedBannerMargin();
   }
