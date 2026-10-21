@@ -2195,103 +2195,185 @@ async function buildScoreReportBody(o){
     return b;
   }
 
+  var svgNS='http://www.w3.org/2000/svg';
+  var isAssess=(o.reportKind==='assessment');
+  var lightMode=(document.documentElement.getAttribute('data-theme')==='light');
+  var P=lightMode?
+    {red:'#d64545',yel:'#d09a14',teal:'#2f8f84',avg:'#6f5bc0',you:'#1c1a16',redtxt:'#b83535',yeltxt:'#8a6410',tealtxt:'#1f7a70',avgtxt:'#5a47a8',curve:'#4a463d',grid:'#cfc8b8',muted:'#6b665c',card:'#fffdf8',gold:'#9a7418',ink:'#1c1a16',axis:'#3a362e'}:
+    {red:'#ff6b6b',yel:'#C9A84C',teal:'#7EADA8',avg:'#a899f0',you:'#ffffff',redtxt:'#ff8888',yeltxt:'#d9bb62',tealtxt:'#7EADA8',avgtxt:'#b9adf5',curve:'#F4EEDF',grid:'#2c261c',muted:'#8d8677',card:'#14110D',gold:'#E0B04B',ink:'#F1E9D6',axis:'#E8E4DC'};
+  try{var cc=getComputedStyle(document.documentElement).getPropertyValue('--card').trim();if(cc&&cc.charAt(0)==='#')P.card=cc;}catch(e){}
+  function sEl(tag,attrs){var e=document.createElementNS(svgNS,tag);Object.keys(attrs).forEach(function(k){e.setAttribute(k,String(attrs[k]));});return e;}
+  function sTxt(x,y,txt,attrs){var e=sEl('text',Object.assign({x:x,y:y},attrs));e.textContent=txt;return e;}
+  function dfIcon(kind,size,color){
+    var svg=sEl('svg',{width:size,height:size,viewBox:'0 0 24 24',fill:'none',stroke:color,'stroke-width':1.6,'stroke-linecap':'round','stroke-linejoin':'round'});
+    var defs={
+      target:[['circle',{cx:11,cy:13,r:8}],['circle',{cx:11,cy:13,r:4.5}],['circle',{cx:11,cy:13,r:1}],['line',{x1:11,y1:13,x2:20,y2:4}],['path',{d:'M17 3v4h4'}]],
+      calendar:[['rect',{x:3.5,y:5,width:17,height:15,rx:2}],['line',{x1:3.5,y1:10,x2:20.5,y2:10}],['line',{x1:8,y1:3,x2:8,y2:7}],['line',{x1:16,y1:3,x2:16,y2:7}]],
+      cap:[['path',{d:'M2 9l10-5 10 5-10 5z'}],['path',{d:'M6 11.5V16c0 1.4 2.7 3 6 3s6-1.6 6-3v-4.5'}],['line',{x1:22,y1:9,x2:22,y2:15}]],
+      people:[['circle',{cx:9,cy:8,r:3.2}],['path',{d:'M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6'}],['circle',{cx:17,cy:9,r:2.5}],['path',{d:'M17 14c2.5 0 4.5 2 4.5 4.5'}]],
+      clock:[['circle',{cx:12,cy:12,r:9}],['path',{d:'M12 7v5l3.5 2'}]],
+      trophy:[['path',{d:'M8 4h8v5a4 4 0 0 1-8 0z'}],['path',{d:'M8 6H5v2a3 3 0 0 0 3 3'}],['path',{d:'M16 6h3v2a3 3 0 0 1-3 3'}],['line',{x1:12,y1:13,x2:12,y2:17}],['path',{d:'M8 20h8M9.5 17h5'}]]
+    };
+    defs[kind].forEach(function(p){svg.append(sEl(p[0],p[1]));});
+    return svg;
+  }
+  function dfMonogram(){
+    var svg=sEl('svg',{width:58,height:58,viewBox:'0 0 36 36'});
+    svg.append(sEl('rect',{x:1,y:1,width:34,height:34,rx:5,fill:'#14110D',stroke:P.gold,'stroke-width':1.5}));
+    svg.append(sEl('line',{x1:18,y1:4,x2:18,y2:32,stroke:P.gold,'stroke-width':1,opacity:0.6}));
+    svg.append(sTxt(8,25,'D',{'font-family':'Georgia,serif','font-style':'italic','font-weight':700,'font-size':18,fill:'#E0B04B'}));
+    svg.append(sTxt(19,25,'F',{'font-family':'Georgia,serif','font-style':'italic','font-weight':700,'font-size':18,fill:'#7EB8A4'}));
+    return svg;
+  }
+  var SERIF="'Playfair Display',Georgia,serif";
+  var SANS="'Plus Jakarta Sans',sans-serif";
+
   var reportBody=div({style:{background:'var(--bg)'}},[]);
 
+  if(!isAssess){
   reportBody.append(assessBrandHeader());
   reportBody.append(
     h('span',{cls:'chapter',html:o.completeLabel||'Assessment complete'}),
-    h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'26px',marginBottom:'4px'}},[(o.reportKind==='assessment')?'Deo Fortis Assessment':o.assessment.title]),
+    h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'26px',marginBottom:'4px'}},[o.assessment.title]),
     h('p',{cls:'muted',style:{fontSize:'13px',marginBottom:'20px'}},[(topics.join(' \u00b7 ')||'')+' \u00b7 '+new Date().toLocaleDateString()+(o.timeTakenSeconds?' \u00b7 '+fmtHMS(o.timeTakenSeconds):'')])
   );
+  }else{
+    // ---- Brand bar ----
+    var brandBar=div({style:{display:'flex',flexWrap:'wrap',justifyContent:'space-between',alignItems:'center',gap:'12px',paddingBottom:'14px',marginBottom:'26px',borderBottom:'1px solid '+P.gold+'88'}},[]);
+    var brandLeft=div({style:{display:'flex',alignItems:'center',gap:'14px'}},[]);
+    brandLeft.append(dfMonogram());
+    brandLeft.append(div({},[
+      div({style:{fontFamily:SERIF,fontSize:'32px',fontWeight:'600',color:P.ink,lineHeight:'1.1'}},['Deo Fortis']),
+      div({style:{fontSize:'11px',letterSpacing:'4px',color:P.ink,textTransform:'uppercase',marginTop:'3px',fontWeight:'600'}},['Everyone is Gifted'])
+    ]));
+    brandBar.append(brandLeft,div({style:{fontSize:'10px',letterSpacing:'4px',color:P.gold,textTransform:'uppercase'}},['Learn / Improve / Excel']));
+    reportBody.append(brandBar);
+
+    // ---- Title block + score card ----
+    var titleRow=div({style:{display:'flex',flexWrap:'wrap',gap:'22px',alignItems:'stretch',marginBottom:'22px'}},[]);
+    var titleLeft=div({style:{flex:'1 1 340px',minWidth:'0',alignSelf:'center'}},[]);
+    titleLeft.append(
+      div({style:{fontSize:'13px',letterSpacing:'4px',color:P.gold,textTransform:'uppercase',fontWeight:'600',marginBottom:'8px'}},[o.completeLabel||'Assessment complete']),
+      h('h2',{style:{fontFamily:SERIF,fontSize:'clamp(30px,5vw,46px)',fontWeight:'500',color:P.ink,margin:'0 0 12px',lineHeight:'1.1'}},['Deo Fortis Assessment'])
+    );
+    var topicLine=div({style:{display:'flex',flexWrap:'wrap',alignItems:'center',gap:'6px 12px',fontSize:'14px',color:'var(--muted)',marginBottom:'16px'}},[]);
+    topics.forEach(function(t,ti){
+      if(ti)topicLine.append(h('span',{style:{color:P.gold,fontSize:'10px'}},['\u25CF']));
+      topicLine.append(h('span',{},[t]));
+    });
+    titleLeft.append(topicLine);
+    var dateLine=div({style:{display:'flex',alignItems:'center',gap:'10px',fontSize:'13px',color:'var(--muted)'}},[]);
+    dateLine.append(dfIcon('calendar',20,'var(--muted)'),h('span',{},[new Date().toLocaleDateString()+(o.timeTakenSeconds?' \u00b7 '+fmtHMS(o.timeTakenSeconds):'')]));
+    titleLeft.append(dateLine);
+
+    var scoreBox=div({style:{flex:'0 1 270px',minWidth:'230px',border:'1.5px solid '+P.gold,borderRadius:'16px',padding:'22px 20px',textAlign:'center',background:P.card,boxShadow:lightMode?'none':'0 0 26px rgba(224,176,75,0.14)'}},[]);
+    scoreBox.append(
+      div({style:{fontFamily:SERIF,fontWeight:'500',color:ringColor,lineHeight:'1',display:'flex',justifyContent:'center',alignItems:'baseline'}},[
+        h('span',{style:{fontSize:'76px'}},[String(pct)]),h('span',{style:{fontSize:'44px'}},['%'])
+      ]),
+      div({style:{fontSize:'15px',letterSpacing:'6px',color:ringColor,textTransform:'uppercase',fontWeight:'600',margin:'12px 0 14px'}},[band]),
+      div({style:{borderTop:'1px solid '+P.gold+'66',paddingTop:'14px',fontSize:'14px',lineHeight:'1.5',color:P.ink}},[encourageMsg])
+    );
+    titleRow.append(titleLeft,scoreBox);
+    reportBody.append(titleRow);
+  }
 
   if(o.insertError)reportBody.append(h('div',{style:{fontSize:'12px',color:'#ff8888',marginBottom:'16px'}},['Your score could not be saved: '+o.insertError]));
 
-  var svgNS='http://www.w3.org/2000/svg';
-  var isAssess=(o.reportKind==='assessment');
   var topRow;
   if(isAssess){
-  function sEl(tag,attrs){var e=document.createElementNS(svgNS,tag);Object.keys(attrs).forEach(function(k){e.setAttribute(k,String(attrs[k]));});return e;}
-  function sTxt(x,y,txt,attrs){var e=sEl('text',Object.assign({x:x,y:y},attrs));e.textContent=txt;return e;}
-
-  // Hero: big score + band + encouragement
-  var scoreHero=div({style:{textAlign:'center',marginBottom:'6px'}},[]);
-  scoreHero.append(
-    div({style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'54px',fontWeight:'800',color:ringColor,lineHeight:'1'}},[pct+'%']),
-    div({style:{marginTop:'10px'}},[h('span',{style:{background:ringColor+'22',color:ringColor,fontSize:'11px',fontWeight:'700',padding:'4px 12px',borderRadius:'12px',textTransform:'uppercase',letterSpacing:'1px'}},[band])]),
-    h('p',{style:{fontSize:'12px',color:'var(--muted)',marginTop:'10px',lineHeight:'1.5'}},[encourageMsg])
-  );
-
-  // Distribution curve with Pass 70 line, class average line and the student's marker
   var hasAvg=stats.class_average!=null;
   var classAvg=hasAvg?Math.round(stats.class_average):null;
-  var curveCard=div({cls:'card',style:{padding:'20px',marginTop:'14px'}},[]);
-  curveCard.append(
-    h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'15px',marginBottom:'4px'}},['Where you stand']),
-    h('p',{style:{fontSize:'11px',color:'var(--muted)',marginBottom:'12px'}},[hasAvg?'Curve is centred on the class average.':'Class average will appear here once more students have taken this test.'])
-  );
-  var cvW=700,cvH=262,cvL=30,cvR=670,cvTop=84,cvB=236;
-  var lightMode=(document.documentElement.getAttribute('data-theme')==='light');
-  var P=lightMode?
-    {red:'#d64545',yel:'#d09a14',teal:'#2f8f84',avg:'#6f5bc0',you:'#1c1a16',redtxt:'#b83535',yeltxt:'#8a6410',tealtxt:'#1f7a70',avgtxt:'#5a47a8',curve:'#4a463d',grid:'#cfc8b8',muted:'#6b665c',card:'#fffdf8'}:
-    {red:'#ff6b6b',yel:'#C9A84C',teal:'#7EADA8',avg:'#a899f0',you:'#ffffff',redtxt:'#ff8888',yeltxt:'#d9bb62',tealtxt:'#7EADA8',avgtxt:'#b9adf5',curve:'#b9b2a1',grid:'#2c261c',muted:'#8d8677',card:'#14110D'};
-  try{var cc=getComputedStyle(document.documentElement).getPropertyValue('--card').trim();if(cc&&cc.charAt(0)==='#')P.card=cc;}catch(e){}
+  var curveCard=div({style:{border:'1px solid var(--border)',borderRadius:'16px',padding:'22px 26px 20px',background:P.card}},[]);
+  var cardHead=div({style:{display:'flex',alignItems:'center',gap:'14px',marginBottom:'6px'}},[]);
+  cardHead.append(dfIcon('target',38,P.gold),div({},[
+    h('h3',{style:{fontFamily:SERIF,fontSize:'26px',fontWeight:'500',color:P.ink,margin:'0'}},['Where you stand']),
+    h('p',{style:{fontSize:'13px',color:'var(--muted)',margin:'2px 0 0'}},[hasAvg?'Curve is centred on the class average.':'Class average will appear here once more students have taken this test.'])
+  ]));
+  curveCard.append(cardHead);
+
+  var cvW=700,cvH=290,cvL=30,cvR=670,cvTop=100,cvB=252;
   function cx(v){return cvL+(cvR-cvL)*v/100;}
   var mu=hasAvg?classAvg:65;
-  function cy(v){return cvB-Math.exp(-0.5*Math.pow((v-mu)/13,2))*(cvB-cvTop-6);}
+  function cy(v){return cvB-Math.exp(-0.5*Math.pow((v-mu)/13,2))*(cvB-cvTop-10);}
   var cvSvg=sEl('svg',{viewBox:'0 0 '+cvW+' '+cvH,width:'100%',role:'img'});
 
-  // Zones fill the whole space: red below 60, yellow 60-70, teal 70+
-  cvSvg.append(sEl('rect',{x:cx(0),y:cvTop,width:cx(60)-cx(0),height:cvB-cvTop,fill:P.red,opacity:lightMode?0.16:0.16}));
-  cvSvg.append(sEl('rect',{x:cx(60),y:cvTop,width:cx(70)-cx(60),height:cvB-cvTop,fill:P.yel,opacity:0.22}));
-  cvSvg.append(sEl('rect',{x:cx(70),y:cvTop,width:cx(100)-cx(70),height:cvB-cvTop,fill:P.teal,opacity:0.18}));
-  cvSvg.append(sTxt((cx(0)+cx(60))/2,cvB-10,'NEEDS REVIEW',{'text-anchor':'middle','font-size':10,'letter-spacing':2,'font-weight':700,fill:P.redtxt}));
-  cvSvg.append(sTxt((cx(60)+cx(70))/2,cvB-10,'ALMOST',{'text-anchor':'middle','font-size':8.5,'letter-spacing':1,'font-weight':700,fill:P.yeltxt}));
-  cvSvg.append(sTxt((cx(70)+cx(100))/2,cvB-10,'PASS',{'text-anchor':'middle','font-size':10,'letter-spacing':2,'font-weight':700,fill:P.tealtxt}));
+  // Zone fills (soft gradients), covering the full plot height
+  var gid='g'+Math.random().toString(36).slice(2,8);
+  var defsEl=sEl('defs',{});
+  function grad(id,color,o1,o2,vertical){
+    var g=sEl('linearGradient',{id:id,x1:0,y1:0,x2:vertical?0:1,y2:vertical?1:0});
+    g.append(sEl('stop',{offset:'0%','stop-color':color,'stop-opacity':o1}),sEl('stop',{offset:'100%','stop-color':color,'stop-opacity':o2}));
+    defsEl.append(g);
+  }
+  var k=lightMode?0.7:1;
+  grad(gid+'r',P.red,0.10*k,0.30*k,false);
+  grad(gid+'y',P.yel,0.26*k,0.34*k,false);
+  grad(gid+'t',P.teal,0.32*k,0.20*k,false);
+  cvSvg.append(defsEl);
+  cvSvg.append(sEl('rect',{x:cx(0),y:cvTop,width:cx(60)-cx(0),height:cvB-cvTop,fill:'url(#'+gid+'r)'}));
+  cvSvg.append(sEl('rect',{x:cx(60),y:cvTop,width:cx(70)-cx(60),height:cvB-cvTop,fill:'url(#'+gid+'y)'}));
+  cvSvg.append(sEl('rect',{x:cx(70),y:cvTop,width:cx(100)-cx(70),height:cvB-cvTop,fill:'url(#'+gid+'t)'}));
+  cvSvg.append(sTxt((cx(0)+cx(60))/2,cvB-14,'NEEDS REVIEW',{'text-anchor':'middle','font-size':12,'letter-spacing':3,'font-weight':700,fill:P.redtxt}));
+  cvSvg.append(sTxt((cx(60)+cx(70))/2,cvB-14,'ALMOST',{'text-anchor':'middle','font-size':9.5,'letter-spacing':1.5,'font-weight':700,fill:P.yeltxt}));
+  cvSvg.append(sTxt((cx(70)+cx(100))/2,cvB-14,'PASS',{'text-anchor':'middle','font-size':12,'letter-spacing':3,'font-weight':700,fill:P.tealtxt}));
   var curvePts=[];for(var cv=0;cv<=100;cv++)curvePts.push(cx(cv)+','+cy(cv));
-  cvSvg.append(sEl('path',{d:'M'+curvePts.join(' L'),fill:'none',stroke:P.curve,'stroke-width':2.2}));
-  cvSvg.append(sEl('line',{x1:cvL,x2:cvR,y1:cvB,y2:cvB,stroke:P.grid}));
-  [0,20,40,60,80,100].forEach(function(v){cvSvg.append(sTxt(cx(v),cvB+17,String(v),{'text-anchor':'middle','font-size':10,fill:P.muted}));});
+  cvSvg.append(sEl('path',{d:'M'+curvePts.join(' L'),fill:'none',stroke:P.curve,'stroke-width':2.8,'stroke-linejoin':'round'}));
+  cvSvg.append(sEl('line',{x1:cvL,x2:cvR,y1:cvB,y2:cvB,stroke:P.curve,'stroke-width':1.5}));
+  [0,20,40,60,80,100].forEach(function(v){cvSvg.append(sTxt(cx(v),cvB+22,String(v),{'text-anchor':'middle','font-size':14,'font-weight':500,fill:P.axis}));});
 
-  // Pills are placed one by one; each tries a few spots and takes the first that does not overlap
+  // Pills: each tries a few spots and takes the first that does not overlap
   var placed=[];
-  function pillBox(x,y,txt,anchor){var w=txt.length*6.7+18;var rx=anchor==='end'?x-w:(anchor==='middle'?x-w/2:x);return{x:rx,y:y-15,w:w,h:22};}
+  function pillBox(x,y,txt,anchor){var w=txt.length*7.4+26;var rx=anchor==='end'?x-w:(anchor==='middle'?x-w/2:x);return{x:rx,y:y-18,w:w,h:28};}
   function hits(bx){return placed.some(function(p){return bx.x<p.x+p.w+4&&bx.x+bx.w+4>p.x&&bx.y<p.y+p.h+2&&bx.y+bx.h+2>p.y;});}
-  function placePill(cands,txt,stroke,txtColor){
+  function placePill(cands,txt,stroke,txtColor,sw){
     var pick=cands[0];
     for(var i=0;i<cands.length;i++){var bx=pillBox(cands[i].x,cands[i].y,txt,cands[i].a);if(bx.x>=2&&bx.x+bx.w<=cvW-2&&!hits(bx)){pick=cands[i];break;}}
     var box=pillBox(pick.x,pick.y,txt,pick.a);
     placed.push(box);
-    cvSvg.append(sEl('rect',{x:box.x,y:box.y,width:box.w,height:box.h,rx:11,fill:P.card,stroke:stroke,'stroke-width':1.5}));
-    cvSvg.append(sTxt(box.x+box.w/2,pick.y,txt,{'text-anchor':'middle','font-size':12,'font-weight':700,fill:txtColor}));
+    cvSvg.append(sEl('rect',{x:box.x,y:box.y,width:box.w,height:box.h,rx:14,fill:P.card,stroke:stroke,'stroke-width':sw||1.8}));
+    cvSvg.append(sTxt(box.x+box.w/2,pick.y+1,txt,{'text-anchor':'middle','font-size':13.5,'font-weight':700,fill:txtColor}));
     return pick.y;
   }
-  // Lines first (average underneath, Pass 70 dashed on top so both show if they coincide)
-  if(hasAvg)cvSvg.append(sEl('line',{x1:cx(classAvg),x2:cx(classAvg),y1:30,y2:cvB,stroke:P.avg,'stroke-width':2.2}));
-  cvSvg.append(sEl('line',{x1:cx(70),x2:cx(70),y1:14,y2:cvB,stroke:P.teal,'stroke-width':2.2,'stroke-dasharray':'6 4'}));
+  // Lines first (class average underneath, Pass 70 dashed on top so both show if they coincide)
+  if(hasAvg)cvSvg.append(sEl('line',{x1:cx(classAvg),x2:cx(classAvg),y1:36,y2:cvB,stroke:P.avg,'stroke-width':2.4,'stroke-dasharray':'8 5'}));
+  cvSvg.append(sEl('line',{x1:cx(70),x2:cx(70),y1:36,y2:cvB,stroke:P.teal,'stroke-width':1.8,'stroke-dasharray':'5 5'}));
   var youTop=cy(pct);
-  var youPillY=0;
-  // Labels
-  placePill([{x:cx(70)+8,y:24,a:'start'},{x:cx(70)-8,y:24,a:'end'}],'Pass 70',P.teal,P.tealtxt);
-  if(hasAvg)placePill([{x:cx(classAvg)-8,y:24,a:'end'},{x:cx(classAvg)+8,y:24,a:'start'},{x:cx(classAvg)-8,y:52,a:'end'},{x:cx(classAvg)+8,y:52,a:'start'}],'Class average '+classAvg,P.avg,P.avgtxt);
-  youPillY=placePill([{x:cx(pct),y:52,a:'middle'},{x:cx(pct),y:24,a:'middle'},{x:cx(pct)-8,y:52,a:'end'},{x:cx(pct)+8,y:52,a:'start'}],'YOU '+pct,P.you,P.you);
-  cvSvg.append(sEl('line',{x1:cx(pct),x2:cx(pct),y1:youPillY+7,y2:cvB,stroke:P.you,'stroke-width':2.6}));
-  cvSvg.append(sEl('circle',{cx:cx(pct),cy:youTop,r:6.5,fill:P.you,stroke:P.card,'stroke-width':2.5}));
+  placePill([{x:cx(70)+10,y:28,a:'start'},{x:cx(70)-10,y:28,a:'end'}],'Pass 70',P.teal,P.tealtxt);
+  if(hasAvg)placePill([{x:cx(classAvg)-10,y:28,a:'end'},{x:cx(classAvg)+10,y:28,a:'start'},{x:cx(classAvg)-10,y:64,a:'end'},{x:cx(classAvg)+10,y:64,a:'start'}],'Class average '+classAvg,P.avg,P.avgtxt);
+  var youPillY=placePill([{x:cx(pct),y:64,a:'middle'},{x:cx(pct),y:28,a:'middle'},{x:cx(pct)-10,y:64,a:'end'},{x:cx(pct)+10,y:64,a:'start'}],'YOU '+pct,P.you,P.you,2.2);
+  cvSvg.append(sEl('line',{x1:cx(pct),x2:cx(pct),y1:youPillY+10,y2:cvB,stroke:P.you,'stroke-width':3}));
+  cvSvg.append(sEl('circle',{cx:cx(pct),cy:youTop,r:8,fill:P.you,stroke:P.card,'stroke-width':3}));
   curveCard.append(cvSvg);
-  var lg=div({style:{display:'flex',gap:'16px',flexWrap:'wrap',fontSize:'11px',color:'var(--muted)',marginTop:'8px'}},[]);
-  function lgItem(color,label,dashed){return h('span',{},[h('i',{style:{display:'inline-block',width:'18px',borderTop:'2px '+(dashed?'dashed ':'solid ')+color,verticalAlign:'middle',marginRight:'6px'}},[]),label]);}
-  lg.append(lgItem(P.teal,'Pass 70',true));
-  if(hasAvg)lg.append(lgItem(P.avg,'Class average',false));
-  lg.append(lgItem(P.you,'Your score',false));
-  curveCard.append(lg);
 
-  var boxes=[statBoxMini('CORRECT ANSWERS',o.score+'/'+o.total,'Questions correct')];
-  if(o.timeTakenSeconds)boxes.push(statBoxMini('TIME TAKEN',fmtHMS(o.timeTakenSeconds),stats.avg_time_taken?'Avg '+fmtHMS(stats.avg_time_taken):null));
-  if(stats.class_average!=null)boxes.push(statBoxMini('CLASS AVERAGE',Math.round(stats.class_average)+'%','Class average','var(--teal)'));
-  var statGrid=div({style:{display:'flex',flexWrap:'wrap',gap:'12px',marginTop:'14px'}},[]);
-  statGrid.append.apply(statGrid,boxes);
+  // Bottom stats row
+  function statCell(kind,label,value,sub,sub2,valColor,first){
+    var cell=div({style:{flex:'1 1 200px',minWidth:'180px',display:'flex',gap:'14px',alignItems:'flex-start',padding:'6px 18px',borderLeft:first?'none':'1px solid var(--border)'}},[]);
+    var ic=div({style:{flexShrink:'0',marginTop:'2px'}},[]);ic.append(dfIcon(kind,30,P.gold));
+    var txt=div({style:{minWidth:'0'}},[
+      div({style:{fontSize:'10px',letterSpacing:'3px',color:'var(--muted)',textTransform:'uppercase',fontWeight:'600',marginBottom:'6px'}},[label]),
+      div({style:{fontFamily:SANS,fontSize:'26px',fontWeight:'700',color:valColor||P.ink,lineHeight:'1.1'}},[value])
+    ]);
+    if(sub)txt.append(div({style:{fontSize:'12px',color:'var(--muted)',marginTop:'6px',lineHeight:'1.5'}},[sub]));
+    if(sub2)txt.append(div({style:{fontSize:'12px',color:'var(--muted)',marginTop:'2px'}},[sub2]));
+    cell.append(ic,txt);
+    return cell;
+  }
+  var shownTopics=topics.slice(0,6).join(' \u2022 ')+(topics.length>6?' +'+(topics.length-6)+' more':'');
+  var passed=pct>=70;
+  var resultSub=passed?'You\u2019re on the right track.':(pct>=60?'So close \u2014 keep going.':'Keep reviewing.');
+  var statsRow=div({style:{display:'flex',flexWrap:'wrap',gap:'10px 0',borderTop:'1px solid var(--border)',marginTop:'18px',paddingTop:'18px'}},[]);
+  [
+    statCell('cap','Subjects',String(topics.length),shownTopics||null,null,null,true),
+    statCell('target','Your score',pct+'%',band,o.score+'/'+o.total+' correct',null,false),
+    o.timeTakenSeconds?statCell('clock','Time taken',fmtHMS(o.timeTakenSeconds),stats.avg_time_taken?'Avg '+fmtHMS(Math.round(stats.avg_time_taken)):null,null,null,false):null,
+    statCell('people','Class average',hasAvg?classAvg+'%':'\u2014',hasAvg?'(approx.)':'Not available yet',null,null,false),
+    statCell('trophy','Result',passed?'PASS':'NOT YET',resultSub,null,passed?P.tealtxt:(pct>=60?P.yeltxt:P.redtxt),false)
+  ].filter(Boolean).forEach(function(c){statsRow.append(c);});
+  curveCard.append(statsRow);
 
   topRow=div({},[]);
-  topRow.append(scoreHero,curveCard,statGrid);
+  topRow.append(curveCard);
 
   }else{
   var r=70,circ=2*Math.PI*r;
@@ -2542,6 +2624,11 @@ async function buildScoreReportBody(o){
   if(blockScoreCard)reportBody.append(blockScoreCard);
   if(row3)reportBody.append(row3);
   if(trendCard)reportBody.append(trendCard);
+  if(isAssess){
+    var footRow=div({style:{display:'flex',alignItems:'center',gap:'16px',marginTop:'30px',fontSize:'10px',letterSpacing:'4px',color:P.gold,textTransform:'uppercase'}},[]);
+    footRow.append(h('span',{style:{whiteSpace:'nowrap'}},['Deo Fortis']),div({style:{flex:'1',height:'1px',background:P.gold+'66'}},[]),h('span',{style:{textAlign:'right'}},['Better learners. Brighter futures.']));
+    reportBody.append(footRow);
+  }
   return reportBody;
 }
 
