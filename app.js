@@ -2200,13 +2200,16 @@ async function buildScoreReportBody(o){
   reportBody.append(assessBrandHeader());
   reportBody.append(
     h('span',{cls:'chapter',html:o.completeLabel||'Assessment complete'}),
-    h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'26px',marginBottom:'4px'}},['Deo Fortis Assessment']),
+    h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'26px',marginBottom:'4px'}},[(o.reportKind==='assessment')?'Deo Fortis Assessment':o.assessment.title]),
     h('p',{cls:'muted',style:{fontSize:'13px',marginBottom:'20px'}},[(topics.join(' \u00b7 ')||'')+' \u00b7 '+new Date().toLocaleDateString()+(o.timeTakenSeconds?' \u00b7 '+fmtHMS(o.timeTakenSeconds):'')])
   );
 
   if(o.insertError)reportBody.append(h('div',{style:{fontSize:'12px',color:'#ff8888',marginBottom:'16px'}},['Your score could not be saved: '+o.insertError]));
 
   var svgNS='http://www.w3.org/2000/svg';
+  var isAssess=(o.reportKind==='assessment');
+  var topRow;
+  if(isAssess){
   function sEl(tag,attrs){var e=document.createElementNS(svgNS,tag);Object.keys(attrs).forEach(function(k){e.setAttribute(k,String(attrs[k]));});return e;}
   function sTxt(x,y,txt,attrs){var e=sEl('text',Object.assign({x:x,y:y},attrs));e.textContent=txt;return e;}
 
@@ -2239,8 +2242,13 @@ async function buildScoreReportBody(o){
     cvSvg.append(sTxt(x,y,txt,{'text-anchor':anchor,'font-size':size,'font-weight':700,fill:color}));
   }
   // Tint: shaded pass zone (70 and above) under the curve
-  var areaPts=[];for(var pv=70;pv<=100;pv++)areaPts.push(cx(pv)+','+cy(pv));
-  cvSvg.append(sEl('path',{d:'M'+cx(70)+','+cvB+' L'+areaPts.join(' L')+' L'+cx(100)+','+cvB+' Z',fill:'#7EADA8',opacity:0.18}));
+  function zoneArea(a,b,color,op){
+    var zp=[];for(var zv=a;zv<=b;zv++)zp.push(cx(zv)+','+cy(zv));
+    cvSvg.append(sEl('path',{d:'M'+cx(a)+','+cvB+' L'+zp.join(' L')+' L'+cx(b)+','+cvB+' Z',fill:color,opacity:op}));
+  }
+  zoneArea(70,100,'#7EADA8',0.18);   // pass
+  zoneArea(60,70,'#C9A84C',0.22);    // almost passed
+  zoneArea(0,50,'#ff6b6b',0.20);     // below 50
   var curvePts=[];for(var cv=0;cv<=100;cv++)curvePts.push(cx(cv)+','+cy(cv));
   cvSvg.append(sEl('path',{d:'M'+curvePts.join(' L'),fill:'none',stroke:'#8d8677','stroke-width':2}));
   cvSvg.append(sEl('line',{x1:cvL,x2:cvR,y1:cvB,y2:cvB,stroke:'#2c261c'}));
@@ -2274,11 +2282,44 @@ async function buildScoreReportBody(o){
   var statGrid=div({style:{display:'flex',flexWrap:'wrap',gap:'12px',marginTop:'14px'}},[]);
   statGrid.append.apply(statGrid,boxes);
 
-  var topRow=div({},[]);
+  topRow=div({},[]);
   topRow.append(scoreHero,curveCard,statGrid);
 
+  }else{
+  var r=70,circ=2*Math.PI*r;
+  var ringSvg=document.createElementNS(svgNS,'svg');ringSvg.setAttribute('width','170');ringSvg.setAttribute('height','170');ringSvg.style.transform='rotate(-90deg)';
+  var bgC=document.createElementNS(svgNS,'circle');bgC.setAttribute('cx','85');bgC.setAttribute('cy','85');bgC.setAttribute('r',String(r));bgC.setAttribute('fill','none');bgC.setAttribute('stroke','var(--border)');bgC.setAttribute('stroke-width','10');
+  var fgC=document.createElementNS(svgNS,'circle');fgC.setAttribute('cx','85');fgC.setAttribute('cy','85');fgC.setAttribute('r',String(r));fgC.setAttribute('fill','none');fgC.setAttribute('stroke',ringColor);fgC.setAttribute('stroke-width','10');fgC.setAttribute('stroke-dasharray',String(circ));fgC.setAttribute('stroke-dashoffset',String(circ-(pct/100)*circ));fgC.setAttribute('stroke-linecap','round');
+  ringSvg.append(bgC,fgC);
+  var ringWrap=div({style:{position:'relative',width:'170px',height:'170px',margin:'0 auto'}},[]);
+  ringWrap.append(ringSvg);
+  var ringCenter=div({style:{position:'absolute',inset:'0',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center'}},[]);
+  ringCenter.append(
+    div({style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'36px',color:ringColor,fontWeight:'700'}},[pct+'%'])
+  );
+  ringWrap.append(ringCenter);
+  var scoreCard=div({cls:'card',style:{textAlign:'center',padding:'24px',flex:'1 1 220px',minWidth:'220px'}},[]);
+  scoreCard.append(
+    div({cls:'mono',style:{fontSize:'10px',color:'var(--muted)',marginBottom:'8px',letterSpacing:'1px'}},['OVERALL SCORE']),
+    ringWrap,
+    div({style:{textAlign:'center',marginTop:'12px'}},[h('span',{style:{background:ringColor+'22',color:ringColor,fontSize:'11px',fontWeight:'700',padding:'4px 12px',borderRadius:'12px',textTransform:'uppercase',letterSpacing:'1px'}},[band])]),
+    h('p',{style:{fontSize:'11px',color:'var(--muted)',marginTop:'10px',lineHeight:'1.5'}},[encourageMsg])
+  );
+
+  var boxes=[statBoxMini('CORRECT ANSWERS',o.score+'/'+o.total,'Questions correct')];
+  if(o.timeTakenSeconds)boxes.push(statBoxMini('TIME TAKEN',fmtHMS(o.timeTakenSeconds),stats.avg_time_taken?'Avg '+fmtHMS(stats.avg_time_taken):null));
+  if(stats.class_average!=null)boxes.push(statBoxMini('CLASS AVERAGE',Math.round(stats.class_average)+'%','Class average','var(--teal)'));
+  var statGrid=div({style:{display:'flex',flexWrap:'wrap',gap:'12px',flex:'2 1 320px',alignContent:'flex-start'}},[]);
+  statGrid.append.apply(statGrid,boxes);
+
+  topRow=div({style:{display:'flex',flexWrap:'wrap',gap:'16px',alignItems:'flex-start'}},[]);
+  topRow.append(scoreCard,statGrid);
+
+  }
+
   var topicsCard=div({cls:'card',style:{flex:'1 1 380px',padding:'20px'}},[]);
-  topicsCard.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'15px',marginBottom:'4px'}},['Performance by Topic']),h('p',{style:{fontSize:'11px',color:'var(--muted)',marginBottom:'14px'}},['Dashed marker = Pass 70']));
+  topicsCard.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'15px',marginBottom:(o.reportKind==='assessment')?'4px':'14px'}},['Performance by Topic']));
+  if(o.reportKind==='assessment')topicsCard.append(h('p',{style:{fontSize:'11px',color:'var(--muted)',marginBottom:'14px'}},['Dashed marker = Pass 70']));
   if(!topics.length)topicsCard.append(h('p',{style:{fontSize:'12px',color:'var(--muted)'}},['No topic tags on these questions.']));
   topics.forEach(function(t){
     var d=topicMap[t];var p=d.total?Math.round((d.correct/d.total)*100):0;
@@ -2291,7 +2332,7 @@ async function buildScoreReportBody(o){
       ]),
       div({style:{position:'relative',height:'6px',background:'var(--border)',borderRadius:'3px'}},[
         div({style:{width:p+'%',height:'100%',background:barColor,borderRadius:'3px'}},[]),
-        div({style:{position:'absolute',left:'70%',top:'-4px',height:'14px',borderLeft:'2px dashed #7EADA8'}},[])
+        (o.reportKind==='assessment')?div({style:{position:'absolute',left:'70%',top:'-4px',height:'14px',borderLeft:'2px dashed #7EADA8'}},[]):null
       ])
     );
     topicsCard.append(row);
@@ -2516,6 +2557,7 @@ async function downloadStudentScoreReportSnapshot(result,studentName,onStatus){
 
     if(onStatus)onStatus('Building report\u2026');
     var reportBody=await buildScoreReportBody({
+      reportKind:'assessment',
       resultId:result.id,
       assessment:{id:result.assessment_id,title:result.assessment_title||'Assessment'},
       score:result.score,
@@ -4090,6 +4132,7 @@ async function renderAssessmentScoreReport(o){
   content.innerHTML='';
   content.append(skelCard([['30%'],['100%'],['100%'],['100%']]));
 
+  o.reportKind='assessment';
   var reportBody=await buildScoreReportBody(o);
 
   content.innerHTML='';
@@ -10568,6 +10611,7 @@ async function openAdminScoreReport(result,kind,studentName){
       }
     }
     o.trendList=trendList;
+    if(kind==='assessment')o.reportKind='assessment';
 
     var reportBody=await buildScoreReportBody(o);
     loadingWrap.remove();
