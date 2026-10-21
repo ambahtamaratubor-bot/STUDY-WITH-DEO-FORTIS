@@ -2226,28 +2226,39 @@ async function buildScoreReportBody(o){
     h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'15px',marginBottom:'4px'}},['Where you stand']),
     h('p',{style:{fontSize:'11px',color:'var(--muted)',marginBottom:'12px'}},[hasAvg?'Curve is centred on the class average.':'Class average will appear here once more students have taken this test.'])
   );
-  var cvW=700,cvH=250,cvL=30,cvR=670,cvT=30,cvB=200;
+  var cvW=700,cvH=260,cvL=30,cvR=670,cvT=54,cvB=210;
   function cx(v){return cvL+(cvR-cvL)*v/100;}
   var mu=hasAvg?classAvg:65,sd=13,hh=cvB-cvT-20;
   function cy(v){return cvB-Math.exp(-0.5*Math.pow((v-mu)/sd,2))*hh;}
   var cvSvg=sEl('svg',{viewBox:'0 0 '+cvW+' '+cvH,width:'100%',role:'img'});
+  // label with a dark backing so lines never strike through the text
+  function sLabel(x,y,txt,anchor,color,size){
+    var w=txt.length*(size*0.62)+10;
+    var rx=anchor==='end'?x-w+5:(anchor==='middle'?x-w/2:x-5);
+    cvSvg.append(sEl('rect',{x:rx,y:y-size-1,width:w,height:size+6,rx:3,fill:'#14110D'}));
+    cvSvg.append(sTxt(x,y,txt,{'text-anchor':anchor,'font-size':size,'font-weight':700,fill:color}));
+  }
+  // Tint: shaded pass zone (70 and above) under the curve
+  var areaPts=[];for(var pv=70;pv<=100;pv++)areaPts.push(cx(pv)+','+cy(pv));
+  cvSvg.append(sEl('path',{d:'M'+cx(70)+','+cvB+' L'+areaPts.join(' L')+' L'+cx(100)+','+cvB+' Z',fill:'#7EADA8',opacity:0.18}));
   var curvePts=[];for(var cv=0;cv<=100;cv++)curvePts.push(cx(cv)+','+cy(cv));
   cvSvg.append(sEl('path',{d:'M'+curvePts.join(' L'),fill:'none',stroke:'#8d8677','stroke-width':2}));
   cvSvg.append(sEl('line',{x1:cvL,x2:cvR,y1:cvB,y2:cvB,stroke:'#2c261c'}));
   [0,20,40,60,80,100].forEach(function(v){cvSvg.append(sTxt(cx(v),cvB+18,String(v),{'text-anchor':'middle','font-size':10,fill:'#8d8677'}));});
-  // Pass 70 line
-  cvSvg.append(sEl('line',{x1:cx(70),x2:cx(70),y1:cvT,y2:cvB,stroke:'#7EADA8','stroke-width':2,'stroke-dasharray':'6 4'}));
-  cvSvg.append(sTxt(cx(70)+6,cvT+4,'Pass 70',{'font-size':11,'font-weight':700,fill:'#7EADA8'}));
-  // Class average line
+  // Class average line (drawn first so the Pass 70 dashes stay visible on top if they coincide)
   if(hasAvg){
-    cvSvg.append(sEl('line',{x1:cx(classAvg),x2:cx(classAvg),y1:cy(classAvg),y2:cvB,stroke:'#C9A84C','stroke-width':2}));
-    cvSvg.append(sTxt(cx(classAvg)-6,cy(classAvg)-8,'Class average '+classAvg,{'text-anchor':'end','font-size':11,'font-weight':700,fill:'#C9A84C'}));
+    cvSvg.append(sEl('line',{x1:cx(classAvg),x2:cx(classAvg),y1:30,y2:cvB,stroke:'#C9A84C','stroke-width':2}));
   }
+  // Pass 70 line
+  cvSvg.append(sEl('line',{x1:cx(70),x2:cx(70),y1:12,y2:cvB,stroke:'#7EADA8','stroke-width':2,'stroke-dasharray':'6 4'}));
   // Student marker
   var youTop=Math.min(cy(pct),cvB-30)-14;
   cvSvg.append(sEl('line',{x1:cx(pct),x2:cx(pct),y1:youTop,y2:cvB,stroke:'#ffffff','stroke-width':2.5}));
   cvSvg.append(sEl('circle',{cx:cx(pct),cy:youTop,r:6,fill:'#ffffff'}));
-  cvSvg.append(sTxt(cx(pct),youTop-12,'YOU '+pct,{'text-anchor':'middle','font-size':12,'font-weight':800,fill:'#ffffff'}));
+  // Labels: each on its own row so they can never overlap
+  sLabel(cx(70)+8,22,'Pass 70','start','#7EADA8',12);
+  if(hasAvg)sLabel(cx(classAvg)+(classAvg>70?8:-8),42,'Class average '+classAvg,classAvg>70?'start':'end','#C9A84C',12);
+  sLabel(cx(pct),youTop-12>56?youTop-12:youTop+22,'YOU '+pct,'middle','#ffffff',13);
   cvSvg.append(sTxt(cvW/2,cvH-6,'Percentage score',{'text-anchor':'middle','font-size':10,fill:'#6f6a5d'}));
   curveCard.append(cvSvg);
   var lg=div({style:{display:'flex',gap:'16px',flexWrap:'wrap',fontSize:'11px',color:'var(--muted)',marginTop:'8px'}},[]);
