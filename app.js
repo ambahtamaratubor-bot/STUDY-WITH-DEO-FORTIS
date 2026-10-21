@@ -2250,31 +2250,27 @@ async function buildScoreReportBody(o){
     reportBody.append(brandBar);
 
     // ---- Title block + score card ----
+    var bandCol=pct>=70?P.teal:(pct>=60?P.yel:P.red);
+    var bandTxt=pct>=70?P.tealtxt:(pct>=60?P.yeltxt:P.redtxt);
     var titleRow=div({style:{display:'flex',flexWrap:'wrap',gap:'22px',alignItems:'stretch',marginBottom:'22px'}},[]);
     var titleLeft=div({style:{flex:'1 1 340px',minWidth:'0',alignSelf:'center'}},[]);
     titleLeft.append(
       div({style:{fontSize:'13px',letterSpacing:'4px',color:P.gold,textTransform:'uppercase',fontWeight:'500',marginBottom:'8px'}},[o.completeLabel||'Assessment complete']),
       h('h2',{style:{fontFamily:SERIF,fontSize:'clamp(30px,5vw,46px)',fontWeight:'500',color:P.ink,margin:'0 0 12px',lineHeight:'1.1'}},['Deo Fortis Assessment'])
     );
-    var topicLine=div({style:{display:'flex',flexWrap:'wrap',alignItems:'center',gap:'6px 12px',fontSize:'14px',color:'var(--muted)',marginBottom:'16px'}},[]);
-    topics.forEach(function(t,ti){
-      if(ti)topicLine.append(h('span',{style:{color:P.gold,fontSize:'10px'}},['\u25CF']));
-      topicLine.append(h('span',{},[t]));
-    });
-    titleLeft.append(topicLine);
+    var cuteLine=div({style:{display:'flex',alignItems:'flex-start',gap:'10px',fontFamily:SERIF,fontStyle:'italic',fontSize:'clamp(15px,2.2vw,19px)',lineHeight:'1.5',color:P.ink,opacity:'0.9',marginBottom:'16px',maxWidth:'560px'}},[]);
+    cuteLine.append(h('span',{style:{color:bandCol,fontStyle:'normal',fontSize:'14px',marginTop:'3px'}},['\u2726']),h('span',{},[encourageMsg]));
+    titleLeft.append(cuteLine);
     var dateLine=div({style:{display:'flex',alignItems:'center',gap:'10px',fontSize:'13px',color:'var(--muted)'}},[]);
     dateLine.append(dfIcon('calendar',20,'var(--muted)'),h('span',{},[new Date().toLocaleDateString()+(o.timeTakenSeconds?' \u00b7 '+fmtHMS(o.timeTakenSeconds):'')]));
     titleLeft.append(dateLine);
 
-    var bandCol=pct>=70?P.teal:(pct>=60?P.yel:P.red);
-    var bandTxt=pct>=70?P.tealtxt:(pct>=60?P.yeltxt:P.redtxt);
-    var scoreBox=div({style:{flex:'0 1 220px',minWidth:'190px',alignSelf:'center',border:'1.5px solid '+bandCol,borderRadius:'14px',padding:'14px 16px',textAlign:'center',background:P.card,boxShadow:lightMode?'none':'0 0 20px '+bandCol+'22'}},[]);
+    var scoreBox=div({style:{flex:'0 1 200px',minWidth:'170px',alignSelf:'center',border:'1.5px solid '+bandCol,borderRadius:'14px',padding:'16px 16px 14px',textAlign:'center',background:P.card,boxShadow:lightMode?'none':'0 0 20px '+bandCol+'22'}},[]);
     scoreBox.append(
       div({style:{fontFamily:SERIF,fontWeight:'500',color:bandTxt,lineHeight:'1',display:'flex',justifyContent:'center',alignItems:'baseline'}},[
         h('span',{style:{fontSize:'54px'}},[String(pct)]),h('span',{style:{fontSize:'30px'}},['%'])
       ]),
-      div({style:{fontSize:'12px',letterSpacing:'5px',color:bandTxt,textTransform:'uppercase',fontWeight:'500',margin:'8px 0 10px'}},[band]),
-      div({style:{borderTop:'1px solid '+bandCol+'55',paddingTop:'10px',fontSize:'12.5px',lineHeight:'1.5',color:P.ink}},[encourageMsg])
+      div({style:{fontSize:'12px',letterSpacing:'5px',color:bandTxt,textTransform:'uppercase',fontWeight:'500',marginTop:'10px'}},[band])
     );
     titleRow.append(titleLeft,scoreBox);
     reportBody.append(titleRow);
