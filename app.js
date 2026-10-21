@@ -2200,44 +2200,74 @@ async function buildScoreReportBody(o){
   reportBody.append(assessBrandHeader());
   reportBody.append(
     h('span',{cls:'chapter',html:o.completeLabel||'Assessment complete'}),
-    h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'26px',marginBottom:'4px'}},[o.assessment.title]),
+    h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'26px',marginBottom:'4px'}},['Deo Fortis Assessment']),
     h('p',{cls:'muted',style:{fontSize:'13px',marginBottom:'20px'}},[(topics.join(' \u00b7 ')||'')+' \u00b7 '+new Date().toLocaleDateString()+(o.timeTakenSeconds?' \u00b7 '+fmtHMS(o.timeTakenSeconds):'')])
   );
 
   if(o.insertError)reportBody.append(h('div',{style:{fontSize:'12px',color:'#ff8888',marginBottom:'16px'}},['Your score could not be saved: '+o.insertError]));
 
-  var r=70,circ=2*Math.PI*r;
   var svgNS='http://www.w3.org/2000/svg';
-  var ringSvg=document.createElementNS(svgNS,'svg');ringSvg.setAttribute('width','170');ringSvg.setAttribute('height','170');ringSvg.style.transform='rotate(-90deg)';
-  var bgC=document.createElementNS(svgNS,'circle');bgC.setAttribute('cx','85');bgC.setAttribute('cy','85');bgC.setAttribute('r',String(r));bgC.setAttribute('fill','none');bgC.setAttribute('stroke','var(--border)');bgC.setAttribute('stroke-width','10');
-  var fgC=document.createElementNS(svgNS,'circle');fgC.setAttribute('cx','85');fgC.setAttribute('cy','85');fgC.setAttribute('r',String(r));fgC.setAttribute('fill','none');fgC.setAttribute('stroke',ringColor);fgC.setAttribute('stroke-width','10');fgC.setAttribute('stroke-dasharray',String(circ));fgC.setAttribute('stroke-dashoffset',String(circ-(pct/100)*circ));fgC.setAttribute('stroke-linecap','round');
-  ringSvg.append(bgC,fgC);
-  var ringWrap=div({style:{position:'relative',width:'170px',height:'170px',margin:'0 auto'}},[]);
-  ringWrap.append(ringSvg);
-  var ringCenter=div({style:{position:'absolute',inset:'0',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center'}},[]);
-  ringCenter.append(
-    div({style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'36px',color:ringColor,fontWeight:'700'}},[pct+'%'])
+  function sEl(tag,attrs){var e=document.createElementNS(svgNS,tag);Object.keys(attrs).forEach(function(k){e.setAttribute(k,String(attrs[k]));});return e;}
+  function sTxt(x,y,txt,attrs){var e=sEl('text',Object.assign({x:x,y:y},attrs));e.textContent=txt;return e;}
+
+  // Hero: big score + band + encouragement
+  var scoreHero=div({style:{textAlign:'center',marginBottom:'6px'}},[]);
+  scoreHero.append(
+    div({style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'54px',fontWeight:'800',color:ringColor,lineHeight:'1'}},[pct+'%']),
+    div({style:{marginTop:'10px'}},[h('span',{style:{background:ringColor+'22',color:ringColor,fontSize:'11px',fontWeight:'700',padding:'4px 12px',borderRadius:'12px',textTransform:'uppercase',letterSpacing:'1px'}},[band])]),
+    h('p',{style:{fontSize:'12px',color:'var(--muted)',marginTop:'10px',lineHeight:'1.5'}},[encourageMsg])
   );
-  ringWrap.append(ringCenter);
-  var scoreCard=div({cls:'card',style:{textAlign:'center',padding:'24px',flex:'1 1 220px',minWidth:'220px'}},[]);
-  scoreCard.append(
-    div({cls:'mono',style:{fontSize:'10px',color:'var(--muted)',marginBottom:'8px',letterSpacing:'1px'}},['OVERALL SCORE']),
-    ringWrap,
-    div({style:{textAlign:'center',marginTop:'12px'}},[h('span',{style:{background:ringColor+'22',color:ringColor,fontSize:'11px',fontWeight:'700',padding:'4px 12px',borderRadius:'12px',textTransform:'uppercase',letterSpacing:'1px'}},[band])]),
-    h('p',{style:{fontSize:'11px',color:'var(--muted)',marginTop:'10px',lineHeight:'1.5'}},[encourageMsg])
+
+  // Distribution curve with Pass 70 line, class average line and the student's marker
+  var hasAvg=stats.class_average!=null;
+  var classAvg=hasAvg?Math.round(stats.class_average):null;
+  var curveCard=div({cls:'card',style:{padding:'20px',marginTop:'14px'}},[]);
+  curveCard.append(
+    h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'15px',marginBottom:'4px'}},['Where you stand']),
+    h('p',{style:{fontSize:'11px',color:'var(--muted)',marginBottom:'12px'}},[hasAvg?'Curve is centred on the class average.':'Class average will appear here once more students have taken this test.'])
   );
+  var cvW=700,cvH=250,cvL=30,cvR=670,cvT=30,cvB=200;
+  function cx(v){return cvL+(cvR-cvL)*v/100;}
+  var mu=hasAvg?classAvg:65,sd=13,hh=cvB-cvT-20;
+  function cy(v){return cvB-Math.exp(-0.5*Math.pow((v-mu)/sd,2))*hh;}
+  var cvSvg=sEl('svg',{viewBox:'0 0 '+cvW+' '+cvH,width:'100%',role:'img'});
+  var curvePts=[];for(var cv=0;cv<=100;cv++)curvePts.push(cx(cv)+','+cy(cv));
+  cvSvg.append(sEl('path',{d:'M'+curvePts.join(' L'),fill:'none',stroke:'#8d8677','stroke-width':2}));
+  cvSvg.append(sEl('line',{x1:cvL,x2:cvR,y1:cvB,y2:cvB,stroke:'#2c261c'}));
+  [0,20,40,60,80,100].forEach(function(v){cvSvg.append(sTxt(cx(v),cvB+18,String(v),{'text-anchor':'middle','font-size':10,fill:'#8d8677'}));});
+  // Pass 70 line
+  cvSvg.append(sEl('line',{x1:cx(70),x2:cx(70),y1:cvT,y2:cvB,stroke:'#7EADA8','stroke-width':2,'stroke-dasharray':'6 4'}));
+  cvSvg.append(sTxt(cx(70)+6,cvT+4,'Pass 70',{'font-size':11,'font-weight':700,fill:'#7EADA8'}));
+  // Class average line
+  if(hasAvg){
+    cvSvg.append(sEl('line',{x1:cx(classAvg),x2:cx(classAvg),y1:cy(classAvg),y2:cvB,stroke:'#C9A84C','stroke-width':2}));
+    cvSvg.append(sTxt(cx(classAvg)-6,cy(classAvg)-8,'Class average '+classAvg,{'text-anchor':'end','font-size':11,'font-weight':700,fill:'#C9A84C'}));
+  }
+  // Student marker
+  var youTop=Math.min(cy(pct),cvB-30)-14;
+  cvSvg.append(sEl('line',{x1:cx(pct),x2:cx(pct),y1:youTop,y2:cvB,stroke:'#ffffff','stroke-width':2.5}));
+  cvSvg.append(sEl('circle',{cx:cx(pct),cy:youTop,r:6,fill:'#ffffff'}));
+  cvSvg.append(sTxt(cx(pct),youTop-12,'YOU '+pct,{'text-anchor':'middle','font-size':12,'font-weight':800,fill:'#ffffff'}));
+  cvSvg.append(sTxt(cvW/2,cvH-6,'Percentage score',{'text-anchor':'middle','font-size':10,fill:'#6f6a5d'}));
+  curveCard.append(cvSvg);
+  var lg=div({style:{display:'flex',gap:'16px',flexWrap:'wrap',fontSize:'11px',color:'var(--muted)',marginTop:'8px'}},[]);
+  function lgItem(color,label,dashed){return h('span',{},[h('i',{style:{display:'inline-block',width:'18px',borderTop:'2px '+(dashed?'dashed ':'solid ')+color,verticalAlign:'middle',marginRight:'6px'}},[]),label]);}
+  lg.append(lgItem('#7EADA8','Pass 70',true));
+  if(hasAvg)lg.append(lgItem('#C9A84C','Class average',false));
+  lg.append(lgItem('#ffffff','Your score',false));
+  curveCard.append(lg);
 
   var boxes=[statBoxMini('CORRECT ANSWERS',o.score+'/'+o.total,'Questions correct')];
   if(o.timeTakenSeconds)boxes.push(statBoxMini('TIME TAKEN',fmtHMS(o.timeTakenSeconds),stats.avg_time_taken?'Avg '+fmtHMS(stats.avg_time_taken):null));
   if(stats.class_average!=null)boxes.push(statBoxMini('CLASS AVERAGE',Math.round(stats.class_average)+'%','Class average','var(--teal)'));
-  var statGrid=div({style:{display:'flex',flexWrap:'wrap',gap:'12px',flex:'2 1 320px',alignContent:'flex-start'}},[]);
+  var statGrid=div({style:{display:'flex',flexWrap:'wrap',gap:'12px',marginTop:'14px'}},[]);
   statGrid.append.apply(statGrid,boxes);
 
-  var topRow=div({style:{display:'flex',flexWrap:'wrap',gap:'16px',alignItems:'flex-start'}},[]);
-  topRow.append(scoreCard,statGrid);
+  var topRow=div({},[]);
+  topRow.append(scoreHero,curveCard,statGrid);
 
   var topicsCard=div({cls:'card',style:{flex:'1 1 380px',padding:'20px'}},[]);
-  topicsCard.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'15px',marginBottom:'14px'}},['Performance by Topic']));
+  topicsCard.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'15px',marginBottom:'4px'}},['Performance by Topic']),h('p',{style:{fontSize:'11px',color:'var(--muted)',marginBottom:'14px'}},['Dashed marker = Pass 70']));
   if(!topics.length)topicsCard.append(h('p',{style:{fontSize:'12px',color:'var(--muted)'}},['No topic tags on these questions.']));
   topics.forEach(function(t){
     var d=topicMap[t];var p=d.total?Math.round((d.correct/d.total)*100):0;
@@ -2248,8 +2278,9 @@ async function buildScoreReportBody(o){
         h('span',{style:{color:'var(--text)'}},[t]),
         h('span',{cls:'mono',style:{color:'var(--muted)',fontSize:'11px'}},[d.correct+'/'+d.total+'  '+p+'%'])
       ]),
-      div({style:{height:'6px',background:'var(--border)',borderRadius:'3px',overflow:'hidden'}},[
-        div({style:{width:p+'%',height:'100%',background:barColor,borderRadius:'3px'}},[])
+      div({style:{position:'relative',height:'6px',background:'var(--border)',borderRadius:'3px'}},[
+        div({style:{width:p+'%',height:'100%',background:barColor,borderRadius:'3px'}},[]),
+        div({style:{position:'absolute',left:'70%',top:'-4px',height:'14px',borderLeft:'2px dashed #7EADA8'}},[])
       ])
     );
     topicsCard.append(row);
