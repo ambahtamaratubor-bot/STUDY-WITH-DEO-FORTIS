@@ -10281,7 +10281,7 @@ function renderAssessments(){
   async function loadAssessments(){
     listWrap.innerHTML='';listWrap.append(skelCard([['40%'],['80%']]));
     var a=await sb.from('tutoring_assessments').select('*').order('created_at',{ascending:false});
-    var assessments=a.data||[];var counts={};
+    var assessments=(a.data||[]).filter(function(x){return !x.archived;});var counts={};
     if(assessments.length){var ids=assessments.map(function(x){return x.id;});var qc=await sb.from('tutoring_assessment_questions').select('assessment_id').in('assessment_id',ids);(qc.data||[]).forEach(function(r){counts[r.assessment_id]=(counts[r.assessment_id]||0)+1;});}
     listWrap.innerHTML='';
     listWrap.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'16px',marginBottom:'12px'},html:'Assessments ('+assessments.length+')'}));
@@ -10306,6 +10306,12 @@ function renderAssessments(){
       }
       btns.append(btn('Preview','btn-outline',function(){openLibraryPreview('assessment',a);},{style:{fontSize:'10px',padding:'6px 12px'}}));
       btns.append(btn('Assign','btn-gold',function(){openAssignAssessment({assessmentId:a.id,assessmentTitle:a.title});},{style:{fontSize:'10px',padding:'6px 12px'}}));
+      btns.append(btn('Archive','btn-outline',async function(){
+        if(!confirm('Archive \u201c'+a.title+'\u201d? It leaves this list but nothing is deleted: questions, assignments and scores all stay.'))return;
+        var up=await sb.from('tutoring_assessments').update({archived:true}).eq('id',a.id);
+        if(up&&up.error){alert('Failed: '+up.error.message);return;}
+        loadAssessments();
+      },{style:{fontSize:'10px',padding:'6px 12px'}}));
       btns.append(btn('Delete','btn-outline',async function(){if(!confirm('Delete \u201c'+a.title+'\u201d? Its questions and any current assignments are removed. Past results are preserved.'))return;var d=await sb.from('tutoring_assessments').delete().eq('id',a.id);if(d&&d.error){alert('Delete failed: '+d.error.message);return;}loadAssessments();},{style:{fontSize:'10px',padding:'6px 12px',color:'#ff4444',borderColor:'#ff4444'}}));
       card.append(btns);
       listWrap.append(card);
@@ -10644,7 +10650,7 @@ function openAssignAssessment(opts){
   assessSel.onchange=function(){refreshAssignList();};
 
   (async function(){
-    var a=await sb.from('tutoring_assessments').select('id,title,mode,published').eq('published',true).order('created_at',{ascending:false});
+    var a=await sb.from('tutoring_assessments').select('id,title,mode,published').eq('published',true).eq('archived',false).order('created_at',{ascending:false});
     (a.data||[]).forEach(function(x){var o=h('option',{value:x.id},[x.title+' \u00b7 '+(x.mode==='timed'?'Timed':'Tutor')]);assessSel.append(o);});
     if(opts.assessmentId){assessSel.value=opts.assessmentId;assessSel.disabled=true;}
     var students=await fetchEnrolled();
