@@ -568,12 +568,36 @@ function dfDoubtHide(){
     window._dfDoubtQ=null;
   }catch(e){}
 }
+// Per-student switch (tutoring_students.instinct_banner). The banner only runs for students a tutor turned it on for.
+var _dfDoubtState={on:false,loaded:false,uid:null,inflight:null};
+function dfDoubtRefresh(){
+  if(typeof S==='undefined'||!S.user)return Promise.resolve();
+  if(_dfDoubtState.inflight)return _dfDoubtState.inflight;
+  var uid=S.user.id;
+  _dfDoubtState.inflight=(async function(){
+    try{
+      var r=await sb.from('tutoring_students').select('instinct_banner').eq('user_id',uid);
+      if(r&&!r.error){_dfDoubtState.on=(r.data||[]).some(function(x){return x&&x.instinct_banner===true;});_dfDoubtState.uid=uid;_dfDoubtState.loaded=true;}
+    }catch(e){}
+    finally{_dfDoubtState.inflight=null;}
+  })();
+  return _dfDoubtState.inflight;
+}
+function dfDoubtEnabled(){
+  try{
+    if(typeof S==='undefined'||!S.user)return false;
+    if(_dfDoubtState.uid!==S.user.id){_dfDoubtState.on=false;_dfDoubtState.loaded=false;}
+    if(!_dfDoubtState.loaded&&!_dfDoubtState.inflight)dfDoubtRefresh();
+    return _dfDoubtState.on===true;
+  }catch(e){return false;}
+}
 // Call when the student switches questions (updateQ). Keeps the banner only on the question that triggered it.
 function dfDoubtSync(qid){if(window._dfDoubtQ&&window._dfDoubtQ!==qid)dfDoubtHide();}
 // Call just before an answer change is applied. msOnQuestion = total time spent on this question so far.
 // Big, blinking, and sticky: stays until the student taps "Got it", changes question, or leaves the exam (or 45s).
 function dfDoubtMark(qid,msOnQuestion,firstAnswer){
   try{
+    if(!dfDoubtEnabled())return;
     if(!(msOnQuestion>DF_DOUBT_MS))return;
     dfDoubtHide();
     window._dfDoubtQ=qid;
@@ -4008,6 +4032,7 @@ function shuffleArray(arr){
 }
 
 async function startAssessment(a,assessment){
+  dfDoubtRefresh();
   if(a&&!isAssessOpen(a)){content.innerHTML='';content.append(emptyCard('This assessment is locked','It opens '+(a.due_date?fmtDateShort(a.due_date)+(a.due_time?' \u00b7 '+fmtTimeShort(a.due_time):''):'on the assigned day')+'. Ask your tutor to unlock it early if needed.'));return;}
   content.innerHTML='';
   content.append(skelCard([['40%'],['100%'],['100%'],['80%']]));
@@ -4092,6 +4117,7 @@ function renderResults(){
 }
 
 async function startTest(a,test){
+  dfDoubtRefresh();
   content.innerHTML='';
   content.append(skelCard([['40%'],['100%'],['100%'],['80%']]));
   const q=await sb.from('tutoring_questions').select('*').eq('test_id',test.id).order('position',{ascending:true});
@@ -11267,6 +11293,19 @@ function openStudent(s){
       evOn=next;paintEv();
     };
     headBtns.append(evBtn);
+    var ibOn=false;
+    var ibBtn=btn('Instinct banner: \u2026','btn-outline',null,{style:{fontSize:'10px',padding:'6px 12px'}});
+    var paintIb=function(){ibBtn.textContent='Instinct banner: '+(ibOn?'ON':'OFF');ibBtn.style.color=ibOn?'#ff6b6b':'';ibBtn.style.borderColor=ibOn?'#dc3545':'';};
+    paintIb();
+    (async function(){var ir=await sb.from('tutoring_students').select('instinct_banner').eq('user_id',s.user_id);ibOn=!!(ir&&ir.data&&ir.data.some(function(x){return x&&x.instinct_banner===true;}));paintIb();})();
+    ibBtn.onclick=async function(){
+      var next=!ibOn;
+      if(next&&!confirm('Turn ON the "trust your first instinct" banner for '+s.full_name+'? When they change an answer after more than 2 minutes on a question, a flashing banner asks if they are sure.'))return;
+      var u=await sb.from('tutoring_students').update({instinct_banner:next}).eq('user_id',s.user_id);
+      if(u.error){alert('Failed: '+u.error.message+'\n\nHave you added the instinct_banner column? Run the setup SQL first.');return;}
+      ibOn=next;paintIb();
+    };
+    headBtns.append(ibBtn);
     [].slice.call(headBtns.children).forEach(function(b){if(b.textContent.indexOf('Email student')===0)dfPutNewOn(b);});
   }
   headBtns.append(btn('Unenroll','btn-outline',async function(){if(!confirm('Remove '+s.full_name+' from tutoring? They lose access to the wing. Their tests and results are kept.'))return;var d=await sb.from('tutoring_students').delete().eq('user_id',s.user_id);if(d&&d.error){alert('Failed: '+d.error.message);return;}renderStudents();},{style:{fontSize:'10px',padding:'6px 12px',color:'#ff4444',borderColor:'#ff4444'}}));
