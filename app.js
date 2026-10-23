@@ -537,6 +537,110 @@ function dfToast(msg){
 }
 
 
+// ───────────────────────────── EXAM: "TRUST YOUR FIRST INSTINCT" BANNER ─────────────────────────────
+// Shown when a student changes an already-chosen answer after spending more than
+// DF_DOUBT_MS on that question. Non-blocking: the change still goes through.
+const DF_DOUBT_MS=120000;
+(function dfInjectDoubtStyles(){
+  try{
+    var st=document.createElement('style');
+    st.textContent=
+      '@keyframes dfDoubtBlink{0%,100%{background:#fff1f1;border-color:#e53935;box-shadow:0 0 0 0 rgba(229,57,53,.6),0 10px 30px rgba(0,0,0,.35);}50%{background:#ff8a80;border-color:#b71c1c;box-shadow:0 0 0 10px rgba(229,57,53,0),0 0 28px 8px rgba(229,57,53,.8);}}'+
+      '@keyframes dfDoubtEyes{0%,88%,100%{transform:scaleY(1);}93%{transform:scaleY(.1);}}'+
+      '@keyframes dfDoubtDrop{0%{opacity:0;transform:translate(-50%,-40px) scale(.9);}60%{opacity:1;transform:translate(-50%,6px) scale(1.03);}100%{opacity:1;transform:translate(-50%,0) scale(1);}}'+
+      '@keyframes dfDoubtWobble{0%,100%{transform:rotate(0);}25%{transform:rotate(-8deg);}75%{transform:rotate(8deg);}}'+
+      '@keyframes dfDoubtGlow{0%,100%{box-shadow:inset 0 0 0 0 rgba(229,57,53,0);}50%{box-shadow:inset 0 0 110px 14px rgba(229,57,53,.55);}}'+
+      '#df-doubt{position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:100025;display:flex;align-items:center;gap:14px;width:min(94vw,560px);box-sizing:border-box;padding:14px 16px;border:3px solid #e53935;border-radius:18px;color:#4a0a0a;font-family:Inter,sans-serif;animation:dfDoubtDrop .5s ease-out,dfDoubtBlink .8s ease-in-out infinite .5s;}'+
+      '#df-doubt .df-doubt-face{flex:none;animation:dfDoubtWobble .7s ease-in-out 3 .5s;}'+
+      '#df-doubt .df-doubt-eyes{transform-origin:center;animation:dfDoubtEyes 2.4s infinite;}'+
+      '#df-doubt .df-doubt-t1{font-size:19px;font-weight:800;line-height:1.2;}'+
+      '#df-doubt .df-doubt-t2{font-size:15px;font-weight:600;line-height:1.35;margin-top:2px;}'+
+      '#df-doubt button{flex:none;margin-left:auto;background:#b71c1c;color:#fff;border:none;border-radius:999px;font:700 13px Inter,sans-serif;padding:9px 16px;cursor:pointer;}'+
+      '#df-doubt-glow{position:fixed;inset:0;pointer-events:none;z-index:100024;animation:dfDoubtGlow .8s ease-in-out 4;}';
+    document.head.appendChild(st);
+  }catch(e){}
+})();
+function dfDoubtHide(){
+  try{
+    if(window._dfDoubtTimer){clearInterval(window._dfDoubtTimer);window._dfDoubtTimer=null;}
+    if(window._dfDoubtCap){clearTimeout(window._dfDoubtCap);window._dfDoubtCap=null;}
+    ['df-doubt','df-doubt-glow'].forEach(function(id){var el=document.getElementById(id);if(el)el.remove();});
+    window._dfDoubtQ=null;
+  }catch(e){}
+}
+// Call when the student switches questions (updateQ). Keeps the banner only on the question that triggered it.
+function dfDoubtSync(qid){if(window._dfDoubtQ&&window._dfDoubtQ!==qid)dfDoubtHide();}
+// Call just before an answer change is applied. msOnQuestion = total time spent on this question so far.
+// Big, blinking, and sticky: stays until the student taps "Got it", changes question, or leaves the exam (or 45s).
+function dfDoubtMark(qid,msOnQuestion,firstAnswer){
+  try{
+    if(!(msOnQuestion>DF_DOUBT_MS))return;
+    dfDoubtHide();
+    window._dfDoubtQ=qid;
+    var face='<svg class="df-doubt-face" width="58" height="58" viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="14" fill="#FFD93B" stroke="#c9a100" stroke-width="1.5"/><g class="df-doubt-eyes"><ellipse cx="11" cy="13" rx="1.9" ry="2.6" fill="#3b2a00"/><ellipse cx="21" cy="13" rx="1.9" ry="2.6" fill="#3b2a00"/></g><path d="M9.5 19.5c1.6 3.2 11.4 3.2 13 0" fill="none" stroke="#3b2a00" stroke-width="2" stroke-linecap="round"/><ellipse cx="7.5" cy="19" rx="2.2" ry="1.4" fill="#ff8a80" opacity=".7"/><ellipse cx="24.5" cy="19" rx="2.2" ry="1.4" fill="#ff8a80" opacity=".7"/></svg>';
+    var glow=document.createElement('div');glow.id='df-doubt-glow';
+    var el=document.createElement('div');
+    el.id='df-doubt';el.setAttribute('role','alert');
+    el.innerHTML=face+'<div><div class="df-doubt-t1">Are you absolutely sure?</div><div class="df-doubt-t2">Why not trust your first instinct'+(firstAnswer?' ('+dfEsc(firstAnswer)+')':'')+'?</div></div>';
+    var ok=document.createElement('button');ok.type='button';ok.textContent='Got it';ok.onclick=dfDoubtHide;
+    el.appendChild(ok);
+    document.body.appendChild(glow);document.body.appendChild(el);
+    window._dfDoubtTimer=setInterval(function(){if(!document.querySelector('.option-btn'))dfDoubtHide();},1000);
+    window._dfDoubtCap=setTimeout(dfDoubtHide,45000);
+  }catch(e){}
+}
+
+// ───────────────────────────── EXAM: NBME LABORATORY VALUES PANEL ─────────────────────────────
+const DF_NBME_LABS=[["Serum \u2014 General Chemistry", [["Sodium (Na\u207a)", "136\u2013146 mEq/L", "136\u2013146 mmol/L"], ["Potassium (K\u207a)", "3.5\u20135.0 mEq/L", "3.5\u20135.0 mmol/L"], ["Chloride (Cl\u207b)", "95\u2013105 mEq/L", "95\u2013105 mmol/L"], ["Bicarbonate (HCO\u2083\u207b)", "22\u201328 mEq/L", "22\u201328 mmol/L"], ["Urea nitrogen", "7\u201318 mg/dL", "2.5\u20136.4 mmol/L"], ["Creatinine", "0.6\u20131.2 mg/dL", "53\u2013106 \u03bcmol/L"], ["Glucose", "Fasting: 70\u2013100 mg/dL\nRandom, non-fasting: <140 mg/dL", "Fasting: 3.8\u20135.6 mmol/L\nRandom, non-fasting: <7.77 mmol/L"], ["Calcium", "8.4\u201310.2 mg/dL", "2.1\u20132.6 mmol/L"], ["Magnesium (Mg\u00b2\u207a)", "1.5\u20132.0 mg/dL", "0.75\u20131.0 mmol/L"], ["Phosphorus (inorganic)", "3.0\u20134.5 mg/dL", "1.0\u20131.5 mmol/L"]]], ["Serum \u2014 Hepatic", [["Alanine aminotransferase (ALT)", "10\u201340 U/L", "10\u201340 U/L"], ["Aspartate aminotransferase (AST)", "12\u201338 U/L", "12\u201338 U/L"], ["Alkaline phosphatase", "25\u2013100 U/L", "25\u2013100 U/L"], ["Bilirubin, total // direct", "0.1\u20131.0 mg/dL // 0.0\u20130.3 mg/dL", "2\u201317 \u03bcmol/L // 0\u20135 \u03bcmol/L"], ["Proteins, total", "6.0\u20137.8 g/dL", "60\u201378 g/L"], ["Albumin", "3.5\u20135.5 g/dL", "35\u201355 g/L"], ["Globulin", "2.3\u20133.5 g/dL", "23\u201335 g/L"]]], ["Serum \u2014 Other", [["Amylase", "25\u2013125 U/L", "25\u2013125 U/L"], ["Lipase", "13\u201360 U/L", "13\u201360 U/L"], ["Creatinine clearance", "Male: 97\u2013137 mL/min\nFemale: 88\u2013128 mL/min", "Male: 97\u2013137 mL/min\nFemale: 88\u2013128 mL/min"], ["Creatine kinase", "Male: 25\u201390 U/L\nFemale: 10\u201370 U/L", "Male: 25\u201390 U/L\nFemale: 10\u201370 U/L"], ["Lactate dehydrogenase", "45\u2013200 U/L", "45\u2013200 U/L"], ["Osmolality", "275\u2013295 mOsmol/kg H\u2082O", "275\u2013295 mOsmol/kg H\u2082O"], ["Troponin I", "\u22640.04 ng/mL", "\u22640.04 \u03bcg/L"], ["Uric acid", "3.0\u20138.2 mg/dL", "0.18\u20130.48 mmol/L"]]], ["Lipids", [["Cholesterol, total", "Normal: <200 mg/dL\nHigh: >240 mg/dL", "Normal: <5.2 mmol/L\nHigh: >6.2 mmol/L"], ["HDL", "40\u201360 mg/dL", "1.0\u20131.6 mmol/L"], ["LDL", "<160 mg/dL", "<4.2 mmol/L"], ["Triglycerides", "Normal: <150 mg/dL\nBorderline: 151\u2013199 mg/dL", "Normal: <1.70 mmol/L\nBorderline: 1.71\u20132.25 mmol/L"]]], ["Iron Studies", [["Ferritin", "Male: 20\u2013250 ng/mL\nFemale: 10\u2013120 ng/mL", "Male: 20\u2013250 \u03bcg/L\nFemale: 10\u2013120 \u03bcg/L"], ["Iron", "Male: 65\u2013175 \u03bcg/dL\nFemale: 50\u2013170 \u03bcg/dL", "Male: 11.6\u201331.3 \u03bcmol/L\nFemale: 9.0\u201330.4 \u03bcmol/L"], ["Total iron-binding capacity", "250\u2013400 \u03bcg/dL", "44.8\u201371.6 \u03bcmol/L"], ["Transferrin", "200\u2013360 mg/dL", "2.0\u20133.6 g/L"]]], ["Endocrine", [["Follicle-stimulating hormone (FSH)", "Male: 4\u201325 mIU/mL\nFemale, premenopause: 4\u201330 mIU/mL\nMidcycle peak: 10\u201390 mIU/mL\nPostmenopause: 40\u2013250 mIU/mL", "Male: 4\u201325 IU/L\nFemale, premenopause: 4\u201330 IU/L\nMidcycle peak: 10\u201390 IU/L\nPostmenopause: 40\u2013250 IU/L"], ["Luteinizing hormone (LH)", "Male: 6\u201323 mIU/mL\nFemale, follicular phase: 5\u201330 mIU/mL\nMidcycle: 75\u2013150 mIU/mL\nPostmenopause: 30\u2013200 mIU/mL", "Male: 6\u201323 IU/L\nFemale, follicular phase: 5\u201330 IU/L\nMidcycle: 75\u2013150 IU/L\nPostmenopause: 30\u2013200 IU/L"], ["Growth hormone \u2014 arginine stimulation", "Fasting: <5 ng/mL\nProvocative stimuli: >7 ng/mL", "Fasting: <5 \u03bcg/L\nProvocative stimuli: >7 \u03bcg/L"], ["Prolactin (hPRL)", "Male: <17 ng/mL\nFemale: <25 ng/mL", "Male: <17 \u03bcg/L\nFemale: <25 \u03bcg/L"], ["Cortisol", "0800 h: 5\u201323 \u03bcg/dL\n1600 h: 3\u201315 \u03bcg/dL\n2000 h: <50% of 0800 h", "0800 h: 138\u2013635 nmol/L\n1600 h: 82\u2013413 nmol/L\n2000 h: fraction of 0800 h <0.50"], ["TSH", "0.4\u20134.0 \u03bcU/mL", "0.4\u20134.0 mIU/L"], ["Triiodothyronine (T3), RIA", "100\u2013200 ng/dL", "1.5\u20133.1 nmol/L"], ["T3 resin uptake", "25%\u201335%", "0.25\u20130.35"], ["Thyroxine (T4)", "5\u201312 \u03bcg/dL", "64\u2013155 nmol/L"], ["Free T4", "0.9\u20131.7 ng/dL", "12.0\u201321.9 pmol/L"], ["Thyroidal iodine (\u00b9\u00b2\u00b3I) uptake", "8%\u201330% of administered dose/24 h", "0.08\u20130.30/24 h"], ["Intact PTH", "10\u201360 pg/mL", "10\u201360 ng/L"], ["17-Hydroxycorticosteroids", "Male: 3.0\u201310.0 mg/24 h\nFemale: 2.0\u20138.0 mg/24 h", "Male: 8.2\u201327.6 \u03bcmol/24 h\nFemale: 5.5\u201322.0 \u03bcmol/24 h"], ["17-Ketosteroids, total", "Male: 8\u201320 mg/24 h\nFemale: 6\u201315 mg/24 h", "Male: 28\u201370 \u03bcmol/24 h\nFemale: 21\u201352 \u03bcmol/24 h"], ["Hemoglobin A1c", "\u22646%", "\u226442 mmol/mol"]]], ["Immunoglobulins", [["IgA", "76\u2013390 mg/dL", "0.76\u20133.90 g/L"], ["IgE", "0\u2013380 IU/mL", "0\u2013380 kIU/L"], ["IgG", "650\u20131500 mg/dL", "6.5\u201315.0 g/L"], ["IgM", "50\u2013300 mg/dL", "0.5\u20133.0 g/L"]]], ["Arterial Blood Gases (room air)", [["Po\u2082", "75\u2013105 mm Hg", "10.0\u201314.0 kPa"], ["Pco\u2082", "33\u201345 mm Hg", "4.4\u20135.9 kPa"], ["pH", "7.35\u20137.45", "[H\u207a] 36\u201344 nmol/L"]]], ["Cerebrospinal Fluid", [["Cell count", "0\u20135/mm\u00b3", "0\u20135 \u00d7 10\u2076/L"], ["Chloride", "118\u2013132 mEq/L", "118\u2013132 mmol/L"], ["Gamma globulin", "3%\u201312% total proteins", "0.03\u20130.12"], ["Glucose", "40\u201370 mg/dL", "2.2\u20133.9 mmol/L"], ["Pressure", "70\u2013180 mm H\u2082O", "70\u2013180 mm H\u2082O"], ["Proteins, total", "<40 mg/dL", "<0.40 g/L"]]], ["Hematologic \u2014 Complete Blood Count", [["Hematocrit", "Male: 41%\u201353%\nFemale: 36%\u201346%", "Male: 0.41\u20130.53\nFemale: 0.36\u20130.46"], ["Hemoglobin, blood", "Male: 13.5\u201317.5 g/dL\nFemale: 12.0\u201316.0 g/dL", "Male: 135\u2013175 g/L\nFemale: 120\u2013160 g/L"], ["Mean corpuscular hemoglobin (MCH)", "25\u201335 pg/cell", "0.39\u20130.54 fmol/cell"], ["Mean corpuscular hemoglobin conc. (MCHC)", "31%\u201336% Hb/cell", "4.8\u20135.6 mmol Hb/L"], ["Mean corpuscular volume (MCV)", "80\u2013100 \u03bcm\u00b3", "80\u2013100 fL"], ["Plasma volume", "Male: 25\u201343 mL/kg\nFemale: 28\u201345 mL/kg", "Male: 0.025\u20130.043 L/kg\nFemale: 0.028\u20130.045 L/kg"], ["Red cell volume", "Male: 20\u201336 mL/kg\nFemale: 19\u201331 mL/kg", "Male: 0.020\u20130.036 L/kg\nFemale: 0.019\u20130.031 L/kg"], ["Leukocyte count (WBC)", "4500\u201311,000/mm\u00b3", "4.5\u201311.0 \u00d7 10\u2079/L"], ["Neutrophils, segmented", "54%\u201362%", "0.54\u20130.62"], ["Neutrophils, bands", "3%\u20135%", "0.03\u20130.05"], ["Lymphocytes", "25%\u201333%", "0.25\u20130.33"], ["Monocytes", "3%\u20137%", "0.03\u20130.07"], ["Eosinophils", "1%\u20133%", "0.01\u20130.03"], ["Basophils", "0%\u20130.75%", "0.00\u20130.0075"], ["Platelet count", "150,000\u2013400,000/mm\u00b3", "150\u2013400 \u00d7 10\u2079/L"]]], ["Hematologic \u2014 Coagulation & Other", [["Partial thromboplastin time (PTT/aPTT, activated)", "25\u201340 seconds", "25\u201340 seconds"], ["Prothrombin time (PT)", "11\u201315 seconds", "11\u201315 seconds"], ["D-dimer", "\u2264250 ng/mL", "\u22641.4 nmol/L"], ["Reticulocyte count", "0.5%\u20131.5%", "0.005\u20130.015"], ["Erythrocyte count (RBC)", "Male: 4.3\u20135.9 million/mm\u00b3\nFemale: 3.5\u20135.5 million/mm\u00b3", "Male: 4.3\u20135.9 \u00d7 10\u00b9\u00b2/L\nFemale: 3.5\u20135.5 \u00d7 10\u00b9\u00b2/L"], ["Erythrocyte sedimentation rate (Westergren)", "Male: 0\u201315 mm/h\nFemale: 0\u201320 mm/h", "Male: 0\u201315 mm/h\nFemale: 0\u201320 mm/h"], ["CD4\u207a T-lymphocyte count", "\u2265500/mm\u00b3", "\u22650.5 \u00d7 10\u2079/L"]]], ["Urine", [["Calcium", "100\u2013300 mg/24 h", "2.5\u20137.5 mmol/24 h"], ["Osmolality", "50\u20131200 mOsmol/kg H\u2082O", "50\u20131200 mOsmol/kg H\u2082O"], ["Oxalate", "8\u201340 \u03bcg/mL", "90\u2013445 \u03bcmol/L"], ["Proteins, total", "<150 mg/24 h", "<0.15 g/24 h"]]], ["Body Mass Index", [["BMI (adult)", "19\u201325 kg/m\u00b2", "19\u201325 kg/m\u00b2"]]]];
+(function dfInjectLabStyles(){
+  try{
+    var st=document.createElement('style');
+    st.textContent=
+      '#df-lab-panel table{width:100%;border-collapse:collapse;font-size:13px;}'+
+      '#df-lab-panel th{position:sticky;top:0;background:var(--card);text-align:left;font:600 11px Inter,sans-serif;letter-spacing:1px;text-transform:uppercase;color:var(--muted);padding:8px 10px;border-bottom:1px solid var(--border);}'+
+      '#df-lab-panel td{padding:7px 10px;border-bottom:1px solid var(--border);vertical-align:top;white-space:pre-line;color:var(--text);}'+
+      '#df-lab-panel td:first-child{font-weight:600;}'+
+      '#df-lab-panel .df-lab-sec td{background:var(--gold-subtle);color:var(--gold);font:700 11px Inter,sans-serif;letter-spacing:1.5px;text-transform:uppercase;white-space:normal;}';
+    document.head.appendChild(st);
+  }catch(e){}
+})();
+function dfOpenLabValues(){
+  if(document.getElementById('df-lab-panel'))return;
+  var overlay=div({cls:'modal-bg',id:'df-lab-panel',style:{zIndex:'100030'}},[]);
+  var modal=div({cls:'card',style:{maxWidth:'820px',width:'100%',maxHeight:'88vh',display:'flex',flexDirection:'column',position:'relative',padding:'16px'}},[]);
+  function close(){document.removeEventListener('keydown',onKey);overlay.remove();}
+  function onKey(e){if(e.key==='Escape')close();}
+  document.addEventListener('keydown',onKey);
+  overlay.onclick=function(e){if(e.target===overlay)close();};
+  var head=div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',gap:'12px',marginBottom:'10px'}},[]);
+  head.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'16px',margin:'0'}},['NBME Laboratory Values']),
+    h('button',{type:'button',style:{background:'none',border:'none',color:'var(--muted)',fontSize:'20px',cursor:'pointer',padding:'2px 6px'},onclick:close,'aria-label':'Close'},['\u2715']));
+  var search=h('input',{type:'text',placeholder:'Search a test, e.g. sodium, TSH, ferritin\u2026',style:{width:'100%',padding:'9px 11px',borderRadius:'4px',border:'1px solid var(--border)',background:'var(--bg)',color:'var(--text)',fontFamily:'inherit',fontSize:'13px',marginBottom:'10px',boxSizing:'border-box'}});
+  var scroller=div({style:{overflow:'auto',flex:'1',minHeight:'0'}},[]);
+  var tbl=document.createElement('table');
+  var thead=document.createElement('thead');
+  thead.innerHTML='<tr><th>Test</th><th>Reference range</th><th>SI reference intervals</th></tr>';
+  var tbody=document.createElement('tbody');
+  tbl.append(thead,tbody);scroller.append(tbl);
+  var empty=h('p',{style:{display:'none',color:'var(--muted)',fontSize:'13px',padding:'12px 4px'}},['No matching test.']);
+  function paint(){
+    var q=search.value.trim().toLowerCase();tbody.innerHTML='';var any=false;
+    DF_NBME_LABS.forEach(function(sec){
+      var rows=sec[1].filter(function(r){return !q||(r[0]+' '+r[1]+' '+r[2]).toLowerCase().indexOf(q)!==-1||sec[0].toLowerCase().indexOf(q)!==-1;});
+      if(!rows.length)return;any=true;
+      var sr=document.createElement('tr');sr.className='df-lab-sec';var sc=document.createElement('td');sc.colSpan=3;sc.textContent=sec[0];sr.append(sc);tbody.append(sr);
+      rows.forEach(function(r){var tr=document.createElement('tr');r.forEach(function(c){var td=document.createElement('td');td.textContent=c;tr.append(td);});tbody.append(tr);});
+    });
+    empty.style.display=any?'none':'block';
+  }
+  search.oninput=paint;paint();
+  var panel=div({id:'df-lab-panel-body',style:{display:'flex',flexDirection:'column',minHeight:'0',flex:'1'}},[head,search,scroller,empty]);
+  modal.append(panel);overlay.append(modal);document.body.append(overlay);
+  setTimeout(function(){try{search.focus();}catch(e){}},50);
+}
+function dfLabBtn(){return btn('Lab Values','btn-outline',function(){dfOpenLabValues();},{style:{fontSize:'11px',padding:'6px 12px'}});}
+
+
 // ───────────────────────────── "NEW" MARKERS ─────────────────────────────
 // Everything marked NEW is switched off automatically after this date.
 const DF_NEW_UNTIL=new Date('2026-11-01T00:00:00Z').getTime();
@@ -4014,13 +4118,14 @@ function runQuiz(a,test,questions){
   var examStartedAt=Date.now();
   var questionTimeMs={};
   var answerChanges=[];
+  var firstAnswers={};
   var activeQId=null;
   var activeEnteredAt=null;
   function flushActiveTime(){if(activeQId&&activeEnteredAt){questionTimeMs[activeQId]=(questionTimeMs[activeQId]||0)+(Date.now()-activeEnteredAt);}activeQId=null;activeEnteredAt=null;}
 
-  try{var _sv=sessionStorage.getItem(RKEY);if(_sv){var _st=JSON.parse(_sv);if(_st&&_st.testId===test.id){current=_st.current||0;answers=_st.answers||{};revealed=_st.revealed||{};ruledOut=_st.ruledOut||{};highlights=_st.highlights||{};flagged=_st.flagged||{};questionTimeMs=_st.questionTimeMs||{};answerChanges=_st.answerChanges||[];if(isTimed&&typeof _st.timeLeft==='number')timeLeft=_st.timeLeft;}}}catch(e){}
+  try{var _sv=sessionStorage.getItem(RKEY);if(_sv){var _st=JSON.parse(_sv);if(_st&&_st.testId===test.id){current=_st.current||0;answers=_st.answers||{};revealed=_st.revealed||{};ruledOut=_st.ruledOut||{};highlights=_st.highlights||{};flagged=_st.flagged||{};questionTimeMs=_st.questionTimeMs||{};answerChanges=_st.answerChanges||[];firstAnswers=_st.firstAnswers||{};if(isTimed&&typeof _st.timeLeft==='number')timeLeft=_st.timeLeft;}}}catch(e){}
 
-  function persist(){try{sessionStorage.setItem(RKEY,JSON.stringify({testId:test.id,current:current,answers:answers,revealed:revealed,ruledOut:ruledOut,highlights:highlights,flagged:flagged,timeLeft:timeLeft,questionTimeMs:questionTimeMs,answerChanges:answerChanges}));}catch(e){}}
+  function persist(){try{sessionStorage.setItem(RKEY,JSON.stringify({testId:test.id,current:current,answers:answers,revealed:revealed,ruledOut:ruledOut,highlights:highlights,flagged:flagged,timeLeft:timeLeft,questionTimeMs:questionTimeMs,answerChanges:answerChanges,firstAnswers:firstAnswers}));}catch(e){}}
   function clearResume(){try{sessionStorage.removeItem(RKEY);}catch(e){}}
   function clearTimer(){if(tInterval){clearInterval(tInterval);tInterval=null;}}
   function corr(q){return String(q.correct_answer||'').toUpperCase();}
@@ -4031,7 +4136,7 @@ function runQuiz(a,test,questions){
   var pEl=h('span',{style:{fontFamily:'Inter,sans-serif',fontSize:'11px',color:'var(--muted)'}},[(current+1)+' / '+questions.length]);
   qNav.append(
     h('span',{style:{fontFamily:'Inter,sans-serif',fontSize:'11px',color:'var(--muted)',letterSpacing:'1px'}},[(test.title||'')+' \u00b7 '+(isTimed?'Timed':'Tutor')]),
-    div({style:{display:'flex',gap:'16px',alignItems:'center'}},[tEl,pEl,btn('\u2190 Exit','btn-outline',function(){clearTimer();exitFullscreen();renderTab();},{style:{fontSize:'11px',padding:'6px 12px'}})])
+    div({style:{display:'flex',gap:'16px',alignItems:'center'}},[dfLabBtn(),tEl,pEl,btn('\u2190 Exit','btn-outline',function(){clearTimer();exitFullscreen();renderTab();},{style:{fontSize:'11px',padding:'6px 12px'}})])
   );
   content.append(qNav);
 
@@ -4106,7 +4211,7 @@ function runQuiz(a,test,questions){
   function updateQ(){
     flushActiveTime();
     var q=questions[current];
-    activeQId=q.id;activeEnteredAt=Date.now();
+    activeQId=q.id;activeEnteredAt=Date.now();dfDoubtSync(q.id);
     mainArea.innerHTML='';
     pEl.textContent=(current+1)+' / '+questions.length;
     updateNavColors();
@@ -4154,7 +4259,7 @@ function runQuiz(a,test,questions){
       else if(isSel)ob.classList.add('selected');
       if(isRuledOut)ob.classList.add('ruled-out');
       ob.append(h('strong',{style:{marginRight:'12px'},html:opt.toUpperCase()+'.'}),document.createTextNode(val));
-      ob.onclick=function(){if(submitted)return;if(dfEvidenceBlock(highlights,q.id))return;var newVal=opt.toUpperCase();var prevVal=answers[q.id];if(prevVal&&prevVal!==newVal){answerChanges.push({question_id:q.id,from:prevVal,to:newVal,from_correct:prevVal===corr(q),to_correct:newVal===corr(q)});}answers[q.id]=newVal;if(mode==='tutor')revealed[q.id]=true;persist();updateQ();};
+      ob.onclick=function(){if(submitted)return;if(dfEvidenceBlock(highlights,q.id))return;var newVal=opt.toUpperCase();var prevVal=answers[q.id];if(!firstAnswers[q.id])firstAnswers[q.id]=prevVal||newVal;if(prevVal&&prevVal!==newVal){if(mode!=='tutor')dfDoubtMark(q.id,(questionTimeMs[q.id]||0)+(Date.now()-(activeEnteredAt||Date.now())),firstAnswers[q.id]);answerChanges.push({question_id:q.id,first_answer:firstAnswers[q.id],from:prevVal,to:newVal,from_correct:prevVal===corr(q),to_correct:newVal===corr(q)});}answers[q.id]=newVal;if(mode==='tutor')revealed[q.id]=true;persist();updateQ();};
       ob.oncontextmenu=function(e){e.preventDefault();if(submitted)return;if(!ruledOut[q.id])ruledOut[q.id]=[];var idx=ruledOut[q.id].indexOf(opt.toUpperCase());if(idx===-1)ruledOut[q.id].push(opt.toUpperCase());else ruledOut[q.id].splice(idx,1);persist();updateQ();};
       mainArea.append(ob);
     });
@@ -4324,13 +4429,14 @@ function runAssessmentQuiz(a,assessment,questions){
   var examStartedAt=Date.now();
   var questionTimeMs={};
   var answerChanges=[];
+  var firstAnswers={};
   var activeQId=null;
   var activeEnteredAt=null;
   function flushActiveTime(){if(activeQId&&activeEnteredAt){questionTimeMs[activeQId]=(questionTimeMs[activeQId]||0)+(Date.now()-activeEnteredAt);}activeQId=null;activeEnteredAt=null;}
 
-  try{var _sv=sessionStorage.getItem(RKEY);if(_sv){var _st=JSON.parse(_sv);if(_st&&_st.assessmentId===assessment.id){current=_st.current||0;answers=_st.answers||{};revealed=_st.revealed||{};ruledOut=_st.ruledOut||{};highlights=_st.highlights||{};flagged=_st.flagged||{};questionTimeMs=_st.questionTimeMs||{};answerChanges=_st.answerChanges||[];if(isTimed&&typeof _st.timeLeft==='number')timeLeft=_st.timeLeft;}}}catch(e){}
+  try{var _sv=sessionStorage.getItem(RKEY);if(_sv){var _st=JSON.parse(_sv);if(_st&&_st.assessmentId===assessment.id){current=_st.current||0;answers=_st.answers||{};revealed=_st.revealed||{};ruledOut=_st.ruledOut||{};highlights=_st.highlights||{};flagged=_st.flagged||{};questionTimeMs=_st.questionTimeMs||{};answerChanges=_st.answerChanges||[];firstAnswers=_st.firstAnswers||{};if(isTimed&&typeof _st.timeLeft==='number')timeLeft=_st.timeLeft;}}}catch(e){}
 
-  function persist(){try{sessionStorage.setItem(RKEY,JSON.stringify({assessmentId:assessment.id,current:current,answers:answers,revealed:revealed,ruledOut:ruledOut,highlights:highlights,flagged:flagged,timeLeft:timeLeft,questionTimeMs:questionTimeMs,answerChanges:answerChanges}));}catch(e){}}
+  function persist(){try{sessionStorage.setItem(RKEY,JSON.stringify({assessmentId:assessment.id,current:current,answers:answers,revealed:revealed,ruledOut:ruledOut,highlights:highlights,flagged:flagged,timeLeft:timeLeft,questionTimeMs:questionTimeMs,answerChanges:answerChanges,firstAnswers:firstAnswers}));}catch(e){}}
   function clearResume(){try{sessionStorage.removeItem(RKEY);}catch(e){}}
   function clearTimer(){if(tInterval){clearInterval(tInterval);tInterval=null;}}
   function corr(q){return String(q.correct_answer||'').toUpperCase();}
@@ -4341,7 +4447,7 @@ function runAssessmentQuiz(a,assessment,questions){
   var pEl=h('span',{style:{fontFamily:'Inter,sans-serif',fontSize:'11px',color:'var(--muted)'}},[(current+1)+' / '+questions.length]);
   qNav.append(
     h('span',{style:{fontFamily:'Inter,sans-serif',fontSize:'11px',color:'var(--muted)',letterSpacing:'1px'}},[(assessment.title||'')+' \u00b7 '+(isTimed?'Timed':'Tutor')]),
-    div({style:{display:'flex',gap:'16px',alignItems:'center'}},[tEl,pEl,btn('\u2190 Exit','btn-outline',function(){clearTimer();exitFullscreen();renderTab();},{style:{fontSize:'11px',padding:'6px 12px'}})])
+    div({style:{display:'flex',gap:'16px',alignItems:'center'}},[dfLabBtn(),tEl,pEl,btn('\u2190 Exit','btn-outline',function(){clearTimer();exitFullscreen();renderTab();},{style:{fontSize:'11px',padding:'6px 12px'}})])
   );
   content.append(qNav);
 
@@ -4416,7 +4522,7 @@ function runAssessmentQuiz(a,assessment,questions){
   function updateQ(){
     flushActiveTime();
     var q=questions[current];
-    activeQId=q.id;activeEnteredAt=Date.now();
+    activeQId=q.id;activeEnteredAt=Date.now();dfDoubtSync(q.id);
     mainArea.innerHTML='';
     pEl.textContent=(current+1)+' / '+questions.length;
     updateNavColors();
@@ -4464,7 +4570,7 @@ function runAssessmentQuiz(a,assessment,questions){
       else if(isSel)ob.classList.add('selected');
       if(isRuledOut)ob.classList.add('ruled-out');
       ob.append(h('strong',{style:{marginRight:'12px'},html:opt.toUpperCase()+'.'}),document.createTextNode(val));
-      ob.onclick=function(){if(submitted)return;if(dfEvidenceBlock(highlights,q.id))return;var newVal=opt.toUpperCase();var prevVal=answers[q.id];if(prevVal&&prevVal!==newVal){answerChanges.push({question_id:q.id,from:prevVal,to:newVal,from_correct:prevVal===corr(q),to_correct:newVal===corr(q)});}answers[q.id]=newVal;if(mode==='tutor')revealed[q.id]=true;persist();updateQ();};
+      ob.onclick=function(){if(submitted)return;if(dfEvidenceBlock(highlights,q.id))return;var newVal=opt.toUpperCase();var prevVal=answers[q.id];if(!firstAnswers[q.id])firstAnswers[q.id]=prevVal||newVal;if(prevVal&&prevVal!==newVal){if(mode!=='tutor')dfDoubtMark(q.id,(questionTimeMs[q.id]||0)+(Date.now()-(activeEnteredAt||Date.now())),firstAnswers[q.id]);answerChanges.push({question_id:q.id,first_answer:firstAnswers[q.id],from:prevVal,to:newVal,from_correct:prevVal===corr(q),to_correct:newVal===corr(q)});}answers[q.id]=newVal;if(mode==='tutor')revealed[q.id]=true;persist();updateQ();};
       ob.oncontextmenu=function(e){e.preventDefault();if(submitted)return;if(!ruledOut[q.id])ruledOut[q.id]=[];var idx=ruledOut[q.id].indexOf(opt.toUpperCase());if(idx===-1)ruledOut[q.id].push(opt.toUpperCase());else ruledOut[q.id].splice(idx,1);persist();updateQ();};
       mainArea.append(ob);
     });
@@ -4533,6 +4639,7 @@ function runBlockedAssessment(a,assessment,allQuestions){
   var breakTimer=null;
   var globalQuestionTime={};
   var globalAnswerChanges=[];
+  var firstAnswers={};
   var activeQId=null;
   var activeEnteredAt=null;
   function flushActiveTime(){if(activeQId&&activeEnteredAt){globalQuestionTime[activeQId]=(globalQuestionTime[activeQId]||0)+(Date.now()-activeEnteredAt);}activeQId=null;activeEnteredAt=null;}
@@ -4552,12 +4659,12 @@ function runBlockedAssessment(a,assessment,allQuestions){
         blockTimeLeft=typeof _st.blockTimeLeft==='number'?_st.blockTimeLeft:0;
         breakTimeLeft=typeof _st.breakTimeLeft==='number'?_st.breakTimeLeft:0;
         globalQuestionTime=_st.questionTime||{};
-        globalAnswerChanges=_st.answerChanges||[];
+        globalAnswerChanges=_st.answerChanges||[];firstAnswers=_st.firstAnswers||{};
       }
     }
   }catch(e){}
 
-  function persist(){try{sessionStorage.setItem(RKEY,JSON.stringify({assessmentId:assessment.id,blockIdx:blockIdx,phase:phase,current:current,answers:globalAnswers,flagged:globalFlagged,ruledOut:globalRuledOut,highlights:globalHighlights,blockTimeLeft:blockTimeLeft,breakTimeLeft:breakTimeLeft,questionTime:globalQuestionTime,answerChanges:globalAnswerChanges}));}catch(e){}}
+  function persist(){try{sessionStorage.setItem(RKEY,JSON.stringify({assessmentId:assessment.id,blockIdx:blockIdx,phase:phase,current:current,answers:globalAnswers,flagged:globalFlagged,ruledOut:globalRuledOut,highlights:globalHighlights,blockTimeLeft:blockTimeLeft,breakTimeLeft:breakTimeLeft,questionTime:globalQuestionTime,answerChanges:globalAnswerChanges,firstAnswers:firstAnswers}));}catch(e){}}
   function clearResume(){try{sessionStorage.removeItem(RKEY);}catch(e){}}
   function clearBlockTimer(){if(blockTimer){clearInterval(blockTimer);blockTimer=null;}}
   function clearBreakTimer(){if(breakTimer){clearInterval(breakTimer);breakTimer=null;}}
@@ -4647,7 +4754,7 @@ function runBlockedAssessment(a,assessment,allQuestions){
     var pEl=h('span',{style:{fontFamily:'Inter,sans-serif',fontSize:'11px',color:'var(--muted)'}},[(current+1)+' / '+block.length]);
     qNav.append(
       h('span',{style:{fontFamily:'Inter,sans-serif',fontSize:'11px',color:'var(--muted)',letterSpacing:'1px'}},[assessment.title+' \u00b7 Block '+(blockIdx+1)+' of '+totalBlocks]),
-      div({style:{display:'flex',gap:'16px',alignItems:'center'}},[tEl,pEl,btn('\u2190 Exit','btn-outline',function(){exitToWing();},{style:{fontSize:'11px',padding:'6px 12px'}})])
+      div({style:{display:'flex',gap:'16px',alignItems:'center'}},[dfLabBtn(),tEl,pEl,btn('\u2190 Exit','btn-outline',function(){exitToWing();},{style:{fontSize:'11px',padding:'6px 12px'}})])
     );
     content.append(qNav);
 
@@ -4711,7 +4818,7 @@ function runBlockedAssessment(a,assessment,allQuestions){
     function updateQ(){
       flushActiveTime();
       var q=block[current];
-      activeQId=q.id;activeEnteredAt=Date.now();
+      activeQId=q.id;activeEnteredAt=Date.now();dfDoubtSync(q.id);
       mainArea.innerHTML='';
       pEl.textContent=(current+1)+' / '+block.length;
       updateNavColors();
@@ -4754,7 +4861,7 @@ function runBlockedAssessment(a,assessment,allQuestions){
         if(isSel)ob.classList.add('selected');
         if(isRuledOut)ob.classList.add('ruled-out');
         ob.append(h('strong',{style:{marginRight:'12px'},html:opt.toUpperCase()+'.'}),document.createTextNode(val));
-        ob.onclick=function(){if(dfEvidenceBlock(globalHighlights,q.id))return;var newVal=opt.toUpperCase();var prevVal=globalAnswers[q.id];if(prevVal&&prevVal!==newVal){globalAnswerChanges.push({question_id:q.id,from:prevVal,to:newVal,from_correct:prevVal===corr(q),to_correct:newVal===corr(q)});}globalAnswers[q.id]=newVal;persist();updateQ();};
+        ob.onclick=function(){if(dfEvidenceBlock(globalHighlights,q.id))return;var newVal=opt.toUpperCase();var prevVal=globalAnswers[q.id];if(!firstAnswers[q.id])firstAnswers[q.id]=prevVal||newVal;if(prevVal&&prevVal!==newVal){dfDoubtMark(q.id,(globalQuestionTime[q.id]||0)+(Date.now()-(activeEnteredAt||Date.now())),firstAnswers[q.id]);globalAnswerChanges.push({question_id:q.id,first_answer:firstAnswers[q.id],from:prevVal,to:newVal,from_correct:prevVal===corr(q),to_correct:newVal===corr(q)});}globalAnswers[q.id]=newVal;persist();updateQ();};
         ob.oncontextmenu=function(e){e.preventDefault();if(!globalRuledOut[q.id])globalRuledOut[q.id]=[];var idx=globalRuledOut[q.id].indexOf(opt.toUpperCase());if(idx===-1)globalRuledOut[q.id].push(opt.toUpperCase());else globalRuledOut[q.id].splice(idx,1);persist();updateQ();};
         mainArea.append(ob);
       });
