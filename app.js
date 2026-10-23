@@ -10281,7 +10281,10 @@ function renderAssessments(){
   async function loadAssessments(){
     listWrap.innerHTML='';listWrap.append(skelCard([['40%'],['80%']]));
     var a=await sb.from('tutoring_assessments').select('*').order('created_at',{ascending:false});
-    var assessments=(a.data||[]).filter(function(x){return !x.archived;});var counts={};
+    var assessments=(a.data||[]).filter(function(x){return !x.archived;});
+    function assessRank(t){var s=(t||'').toLowerCase();var fm=s.match(/final assessment\s*(\d+)?/);if(fm)return 100+(fm[1]?parseInt(fm[1],10):1);var bm=s.match(/block\s*(\d+)/);if(bm)return parseInt(bm[1],10);return 0;}
+    assessments=assessments.slice().sort(function(x,y){return assessRank(y.title)-assessRank(x.title);});
+    var counts={};
     if(assessments.length){var ids=assessments.map(function(x){return x.id;});var qc=await sb.from('tutoring_assessment_questions').select('assessment_id').in('assessment_id',ids);(qc.data||[]).forEach(function(r){counts[r.assessment_id]=(counts[r.assessment_id]||0)+1;});}
     listWrap.innerHTML='';
     listWrap.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'16px',marginBottom:'12px'},html:'Assessments ('+assessments.length+')'}));
