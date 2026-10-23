@@ -5834,7 +5834,13 @@ planDefs.forEach(p=>{const b=document.getElementById('enrol-'+p.key);if(b)b.href
 }
 const{data:pkgs}=await sb.from('tutoring_packages').select('*').order('id');
 const pg=document.getElementById('pkg-grid');
-if(pg&&pkgs&&pkgs.length&&!pkgsLoaded){pkgsLoaded=true;pkgs.forEach((pkg,i)=>{
+const dfPlanLink=(pkgs&&pkgs[0]&&pkgs[0].selar_link)||'#';
+const dfPlans=[
+{name:'Offline Tutor',price:'$69/month',sessions:'No meetings, your tutor checks in on your progress',features:'Tutor checks in on your progress, Full study portal access, Tutoring wing and block structure, Assigned tasks and assessments',selar_link:dfPlanLink},
+{name:'Basic',price:'$169/month',sessions:'2 hour sessions, 2 days a week',features:'Study recommendations, Follow up, Full study portal access',selar_link:dfPlanLink},
+{name:'Intensive',price:'$329/month',sessions:'2 hour sessions, 4 days a week',features:'Study recommendations, Full study portal access',selar_link:dfPlanLink}
+];
+if(pg&&!pkgsLoaded){pkgsLoaded=true;dfPlans.forEach((pkg,i)=>{
 const card=div({cls:'plan-card',style:{borderTopWidth:'3px',borderTopColor:i===0?'var(--gold)':'var(--purple)',borderColor:i===0?'var(--gold-border)':'#A89BC833'}});
 card.append(div({cls:'mono',style:{marginBottom:'8px'},html:pkg.name}),div({style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'48px',color:i===0?'var(--gold)':'var(--purple)',lineHeight:'1',fontWeight:'700',marginBottom:'8px'},html:pkg.price}),div({style:{fontFamily:"Inter,sans-serif",fontSize:'11px',color:i===0?'var(--gold)':'var(--purple)',letterSpacing:'1px',marginBottom:'24px',opacity:'.8'},html:pkg.sessions}),h('hr',{style:{border:'none',borderTop:'1px solid var(--border)',marginBottom:'20px'}}));
 const fl=div({style:{marginBottom:'28px'}});
