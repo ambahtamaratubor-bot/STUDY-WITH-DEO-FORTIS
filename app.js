@@ -1679,9 +1679,16 @@ async function dfRenderAvailabilityTab(container){
   container.append(skelCard([['40%'],['80%'],['60%']]),skelCard([['60%'],['90%']]));
   var tutors=await dfFetchTutors();
   var ar=await sb.from('tutor_availability').select('*');
+  // Teaching hours are worked out from the schedule: every active class slot is class_hours (2) hours a week.
+  var slotRes=await sb.from('tutoring_class_slots').select('tutor_id,day_of_week,class_time').eq('active',true);
+  var lenRes=await sb.from('class_check_settings').select('class_hours').eq('id',1).maybeSingle();
+  var classLen=(lenRes&&lenRes.data&&Number(lenRes.data.class_hours)>0)?Number(lenRes.data.class_hours):2;
+  var slotsBy={};((slotRes&&slotRes.data)||[]).forEach(function(x){(slotsBy[x.tutor_id]=slotsBy[x.tutor_id]||[]).push(x);});
+  function hoursFor(id){return (slotsBy[id]||[]).length*classLen;}
+  var DOW_SHORT=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
   container.innerHTML='';
   container.append(h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'22px',marginBottom:'6px'}},['Tutor availability']));
-  container.append(h('p',{cls:'muted',style:{fontSize:'13px',marginBottom:'18px'}},['What each tutor told us about their teaching hours and preferred times. All times are in AST.']));
+  container.append(h('p',{cls:'muted',style:{fontSize:'13px',marginBottom:'18px'}},['What each tutor told us about their availability and preferred times. Hours currently teaching update by themselves from the schedule: every class slot is '+classLen+' hours a week. All times are in AST.']));
   if(ar&&ar.error){
     container.append(div({cls:'card',style:{padding:'24px',textAlign:'center'}},[h('p',{style:{fontSize:'13px',color:'var(--dim)'}},['Could not load tutor availability: '+ar.error.message])]));
     return;
@@ -1690,7 +1697,7 @@ async function dfRenderAvailabilityTab(container){
   var filled=tutors.filter(function(t){return map[t.id];}).sort(function(a,b){return a.name.localeCompare(b.name);});
   var missing=tutors.filter(function(t){return !map[t.id];}).sort(function(a,b){return a.name.localeCompare(b.name);});
   var totAvail=0,totTeach=0;
-  filled.forEach(function(t){totAvail+=Number(map[t.id].weekly_hours_available)||0;totTeach+=Number(map[t.id].hours_currently_teaching)||0;});
+  filled.forEach(function(t){totAvail+=Number(map[t.id].weekly_hours_available)||0;totTeach+=hoursFor(t.id);});
   function stat(label,value,color){
     return div({cls:'card',style:{flex:'1 1 150px',padding:'16px',textAlign:'center'}},[
       h('div',{cls:'mono',style:{fontSize:'22px',fontWeight:'700',color:color||'var(--text)'}},[value]),
@@ -1719,9 +1726,9 @@ async function dfRenderAvailabilityTab(container){
   if(!filled.length){
     container.append(div({cls:'card',style:{textAlign:'center',padding:'30px'}},[h('p',{style:{fontSize:'13px',color:'var(--dim)'}},['No tutor has filled in their availability yet. They will be asked when they next log in.'])]));
   }else{
-    var table=h('table',{style:{width:'100%',borderCollapse:'collapse',fontSize:'13px',minWidth:'720px'}},[]);
+    var table=h('table',{style:{width:'100%',borderCollapse:'collapse',fontSize:'13px',minWidth:'900px'}},[]);
     var thead=h('tr',{},[]);
-    ['Tutor','Available / wk','Teaching now','Free','Preferred days','Time of day (AST)','Updated'].forEach(function(c,i){
+    ['Tutor','Available / wk','Teaching now','Free','Preferred days','Time of day (AST)','Scheduled classes (AST)','Updated'].forEach(function(c,i){
       thead.append(h('th',{style:{textAlign:i>0&&i<4?'center':'left',padding:'10px 12px',fontSize:'11px',color:'var(--muted)',fontWeight:'600',borderBottom:'1px solid var(--border)',whiteSpace:'nowrap'}},[c]));
     });
     table.append(h('thead',{},[thead]));
@@ -1734,16 +1741,23 @@ async function dfRenderAvailabilityTab(container){
       return wrapP;
     }
     filled.forEach(function(t){
-      var r=map[t.id];var f=(Number(r.weekly_hours_available)||0)-(Number(r.hours_currently_teaching)||0);
+      var r=map[t.id];var f=(Number(r.weekly_hours_available)||0)-hoursFor(t.id);
       var tr=h('tr',{style:{borderBottom:'1px solid var(--border)'}},[]);
       var cell=function(kids,center){return h('td',{style:{padding:'10px 12px',verticalAlign:'middle',textAlign:center?'center':'left'}},kids);};
       tr.append(
         cell([h('div',{style:{fontWeight:'600',color:'var(--text)'}},[t.name]),h('div',{style:{fontSize:'11px',color:'var(--muted)'}},[t.email||''])]),
         cell([dfHours(r.weekly_hours_available)],true),
-        cell([dfHours(r.hours_currently_teaching)],true),
+        cell([dfHours(hoursFor(t.id))],true),
         cell([h('span',{style:{fontWeight:'700',color:f<0?'#ff6b6b':'var(--teal)'}},[dfHours(f)])],true),
         cell([pills(r.preferred_days,DF_DAYS)]),
         cell([pills(r.preferred_times,DF_TIMES)]),
+        cell([(function(){
+          var w=div({style:{display:'flex',gap:'4px',flexWrap:'wrap'}},[]);
+          var list=(slotsBy[t.id]||[]).slice().sort(function(a,b){var da=(a.day_of_week+6)%7,db=(b.day_of_week+6)%7;return da-db||String(a.class_time).localeCompare(String(b.class_time));});
+          if(!list.length)return h('span',{style:{fontSize:'11px',color:'var(--dim)'}},['None']);
+          list.forEach(function(x){w.append(h('span',{style:{fontSize:'11px',padding:'2px 9px',borderRadius:'999px',border:'1px solid var(--border)',color:'var(--text)',whiteSpace:'nowrap'}},[DOW_SHORT[x.day_of_week]+' '+dfClassTime(x.class_time)]));});
+          return w;
+        })()]),
         cell([h('span',{style:{fontSize:'11px',color:'var(--muted)',whiteSpace:'nowrap'}},[r.updated_at?new Date(r.updated_at).toLocaleDateString():''])])
       );
       tbody.append(tr);
@@ -1754,7 +1768,7 @@ async function dfRenderAvailabilityTab(container){
   if(missing.length){
     var miss=div({cls:'card',style:{padding:'16px'}},[h('div',{style:{fontSize:'13px',fontWeight:'700',marginBottom:'10px',color:'#ff6b6b'}},['Not filled in yet ('+missing.length+')'])]);
     var pw=div({style:{display:'flex',gap:'8px',flexWrap:'wrap'}},[]);
-    missing.forEach(function(t){pw.append(h('span',{style:{fontSize:'12px',padding:'4px 12px',borderRadius:'999px',border:'1px solid #ff6b6b66',color:'var(--text)'}},[t.name]));});
+    missing.forEach(function(t){pw.append(h('span',{style:{fontSize:'12px',padding:'4px 12px',borderRadius:'999px',border:'1px solid #ff6b6b66',color:'var(--text)'}},[t.name+(hoursFor(t.id)?' \u00b7 '+dfHours(hoursFor(t.id))+' scheduled':'')]));});
     miss.append(pw);container.append(miss);
   }
 }
@@ -1776,13 +1790,14 @@ function dfBankForm(opts){
     var startInp=h('input',{cls:'input',type:'date',max:todayISO,value:ex.started_at||''});
     var hoursInp=h('input',{cls:'input',type:'number',min:'0',max:'100',step:'0.5',placeholder:'e.g. 15',value:(ex.weekly_hours_available==null?'':String(ex.weekly_hours_available))});
     var curInp=h('input',{cls:'input',type:'number',min:'0',max:'100',step:'0.5',placeholder:'e.g. 6',value:(ex.hours_currently_teaching==null?'':String(ex.hours_currently_teaching))});
+    sb.rpc('my_teaching_hours').then(function(r){if(r&&!r.error&&r.data!=null){curInp.value=String(Number(r.data));curInp.readOnly=true;curInp.style.opacity='0.7';}}).catch(function(){});
     var dayChips=dfChipGroup(DF_DAYS,ex.preferred_days);
     var timeChips=dfChipGroup(DF_TIMES,ex.preferred_times);
     var availSection=div({style:{marginTop:'6px',paddingTop:'16px',borderTop:'1px solid var(--border)'}},[
       h('div',{style:{fontWeight:'700',fontSize:'15px',color:'var(--gold)',marginBottom:'4px'}},['Your teaching availability']),
       h('div',{style:{fontSize:'12px',color:'var(--muted)',marginBottom:'14px',lineHeight:'1.6'}},['All times are in AST.']),
       field('How many hours a week are you available to teach?',hoursInp),
-      field('How many hours a week are you currently teaching?',curInp),
+      field('Hours a week you are currently teaching (set automatically from your scheduled classes, 2 hours each)',curInp),
       field('Which days of the week do you prefer?',dayChips.el),
       field('What time of day do you prefer? (AST)',timeChips.el)
     ]);
@@ -1809,6 +1824,7 @@ function dfBankForm(opts){
         errEl.textContent='Could not save: '+up.error.message;errEl.style.display='block';
         saveBtn.disabled=false;saveBtn.textContent=opts.locked?'Save and continue':'Save';return;
       }
+      try{var fr=await sb.rpc('my_teaching_hours');if(fr&&!fr.error&&fr.data!=null)curInp.value=String(Number(fr.data));}catch(e){}
       var wh=Math.round(parseFloat(hoursInp.value)*10)/10,ch=Math.round(parseFloat(curInp.value)*10)/10,days=dayChips.get(),times=timeChips.get();
       var av=await sb.from('tutor_availability').upsert({tutor_id:S.user.id,weekly_hours_available:wh,hours_currently_teaching:ch,preferred_days:days,preferred_times:times,updated_at:new Date().toISOString()},{onConflict:'tutor_id'});
       if(av.error){
