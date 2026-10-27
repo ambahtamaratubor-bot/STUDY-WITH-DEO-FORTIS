@@ -16317,8 +16317,8 @@ async function dfTrModuleView(body,st){
     h('div',{style:{fontWeight:'700',fontSize:'15px'}},['Training module']),
     dfTrChip('Incomplete','var(--gold)')
   ]));
-  status.append(dfTrMuted('Sections finished: '+doneCount+' of '+sections.length+'. Then pass the final quiz with 100% to complete the module.',{margin:'0'}));
-  if(st.attempts>0)status.append(dfTrMuted('Last quiz attempt: '+st.last_score+'/'+st.last_total+'. You need 100%, so the module is still incomplete. You can retake the quiz as many times as you like.',{margin:'8px 0 0',color:'var(--gold)'}));
+  status.append(dfTrMuted('Sections finished: '+doneCount+' of '+sections.length+'. Then answer every quiz question correctly to complete the module.',{margin:'0'}));
+  if(st.attempts>0)status.append(dfTrMuted('Quiz progress: '+st.quiz_correct+'/'+st.questions_total+' correct. Redo the ones you missed until you reach '+st.questions_total+'/'+st.questions_total+'.',{margin:'8px 0 0',color:'var(--gold)'}));
   body.append(status);
 
   sections.forEach(function(s,i){
@@ -16363,8 +16363,8 @@ async function dfTrModuleView(body,st){
   }else if(!st.questions_total){
     quizCard.append(dfTrMuted('The final quiz has not been added yet. Please check back soon.',{margin:'0'}));
   }else{
-    quizCard.append(dfTrMuted('You must score 100%. After each attempt you will see your score only, never the answers.'));
-    quizCard.append(btn(st.attempts>0?'Retake the quiz':'Start the quiz','btn-gold',function(){return dfTrQuiz(quizCard);},{style:{fontSize:'13px',padding:'10px 20px'}}));
+    quizCard.append(dfTrMuted('You need every question right. After each attempt you will see which ones you missed and redo only those, and your score keeps building until it reaches '+st.questions_total+'/'+st.questions_total+'. Correct answers are never shown.'));
+    quizCard.append(btn(st.quiz_correct>0?'Redo the missed questions ('+(st.questions_total-st.quiz_correct)+' left)':'Start the quiz','btn-gold',function(){return dfTrQuiz(quizCard);},{style:{fontSize:'13px',padding:'10px 20px'}}));
   }
 }
 
@@ -16373,11 +16373,12 @@ async function dfTrQuiz(card){
   var r=await sb.rpc('training_get_quiz');
   if(r.error){card.replaceChildren(h('p',{style:{color:'#ff4444',fontSize:'13px'}},[r.error.message]));return;}
   var qs=r.data||[];
+  var stq=await dfTrainingStatus();
   if(!qs.length){card.replaceChildren(dfTrMuted('The final quiz has not been added yet.',{margin:'0'}));return;}
   var picked={};
   card.replaceChildren(
     h('div',{style:{fontWeight:'700',fontSize:'15px',marginBottom:'6px'}},['Final quiz']),
-    dfTrMuted('Answer every question. You need 100% to pass.')
+    dfTrMuted((stq&&stq.quiz_correct>0)?('Redo the '+qs.length+' question'+(qs.length===1?'':'s')+' you missed. Already correct: '+stq.quiz_correct+'/'+stq.questions_total+'.'):'Answer every question. You need all of them right.')
   );
   qs.forEach(function(q,qi){
     var box=div({style:{padding:'14px 0',borderTop:'1px solid var(--border)'}});
@@ -16412,11 +16413,15 @@ async function dfTrQuiz(card){
         btn('Continue','btn-gold',function(){return dfTrReload();},{style:{fontSize:'13px',padding:'10px 20px'}})
       );
     }else{
+      var miss=out.missed||[];
       card.append(
         h('div',{style:{fontWeight:'700',fontSize:'16px',color:'var(--gold)',marginBottom:'6px'}},['Module incomplete']),
-        dfTrMuted('You scored '+out.score+'/'+out.total+'. You need 100% to complete the module. Review the sections and try again.'),
-        btn('Retake the quiz','btn-gold',function(){return dfTrQuiz(card);},{style:{fontSize:'13px',padding:'10px 20px',marginRight:'8px'}}),
-        btn('Back to the sections','btn-outline',function(){return dfTrReload();},{style:{fontSize:'13px',padding:'10px 20px'}})
+        dfTrMuted('Your score so far: '+out.score+'/'+out.total+'. Redo the '+miss.length+' question'+(miss.length===1?'':'s')+' below and your score will update, until you reach '+out.total+'/'+out.total+'.')
+      );
+      miss.forEach(function(m,i){card.append(h('div',{style:{padding:'10px 12px',border:'1px solid var(--border)',borderRadius:'6px',marginBottom:'6px',fontSize:'13px',lineHeight:'1.6',whiteSpace:'pre-wrap'}},[(i+1)+'. '+m.question]));});
+      card.append(
+        btn('Redo these '+miss.length+' question'+(miss.length===1?'':'s'),'btn-gold',function(){return dfTrQuiz(card);},{style:{fontSize:'13px',padding:'10px 20px',marginRight:'8px',marginTop:'8px'}}),
+        btn('Back to the sections','btn-outline',function(){return dfTrReload();},{style:{fontSize:'13px',padding:'10px 20px',marginTop:'8px'}})
       );
     }
   },{style:{width:'100%',marginTop:'10px'}});
@@ -16549,7 +16554,7 @@ async function dfTrRoster(body,opts){
       dfTrChip(dfTrStageLabel(t.stage),t.stage==='complete'?'var(--teal)':'var(--gold)')
     ]));
     var info=[];
-    info.push('Sections '+t.sections_done+'/'+t.sections_total+' \u00b7 quiz attempts '+t.attempts+(t.attempts>0?' \u00b7 best '+t.best_score+'/'+t.best_total:''));
+    info.push('Sections '+t.sections_done+'/'+t.sections_total+' \u00b7 quiz attempts '+t.attempts+(t.attempts>0?' \u00b7 quiz '+t.best_score+'/'+t.best_total:''));
     if(t.quiz_passed_at)info.push('Quiz passed '+dfTrStamp(t.quiz_passed_at));
     if(t.observe_day!=null&&t.observe_day!==undefined)info.push('Observing '+(t.coord_name||'')+': '+dfTrWhen(t.observe_day,t.observe_time)+(t.observe_date?' \u00b7 '+dfTrDate(t.observe_date):''));
     if(t.observation_done_at)info.push('Observation completed '+dfTrStamp(t.observation_done_at));
