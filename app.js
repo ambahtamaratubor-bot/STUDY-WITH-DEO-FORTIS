@@ -9307,10 +9307,10 @@ try{var _crow=await sb.from('admin_roles').select('is_training_coord').eq('user_
 // Tutor training: a tutor with training switched on sees only the training pages until the observation is marked complete.
 if(panelIsTutor&&!panelIsSuperAdmin){
   var _trSt=await dfTrainingStatus();
-  if(_trSt&&['training','choose_class','observing'].indexOf(_trSt.stage)!==-1){await dfRenderTrainingPage(_trSt);return;}
+  if(_trSt&&['training','choose_class','observing'].indexOf(_trSt.stage)!==-1){await dfRenderTrainingPage(_trSt,page,showAdminPanel);return;}
 }
 if(panelIsTutor){
-  if(!panelIsSuperAdmin){await dfTutorBankGate();await dfTrainingAfterGate();} // super admin bypasses the payout-details lock
+  if(!panelIsSuperAdmin){await dfTutorBankGate();await dfTrainingAfterGate(page);} // super admin bypasses the payout-details lock
   var _pdBtn=btn('My details','btn-outline',async()=>{var cur=await dfFetchTutorDetails(S.user.id);await dfBankForm({existing:dfMergeDetails(cur),fullName:(S.profile&&S.profile.full_name)||''});},{style:{padding:'8px 16px'}});dfPutNewOn(_pdBtn);aNRight.prepend(_pdBtn);
 }else if(panelTeamRole&&!panelIsSuperAdmin){
   await dfStaffBankGate();
@@ -16260,6 +16260,8 @@ async function dfTrOpenFile(path){
 
 // ───────────────────────────── TUTOR SIDE ─────────────────────────────
 function dfTrShell(){
+  var page=window._dfTrCtx&&window._dfTrCtx.page;
+  if(!page)throw new Error('The training page is not ready. Please refresh.');
   page.innerHTML='';
   var nav=div({style:{background:'var(--nav-bg)',borderBottom:'1px solid var(--border)',padding:'16px 24px',display:'flex',alignItems:'center',justifyContent:'space-between',position:'sticky',top:'0',zIndex:'100'}});
   nav.append(dfLogo(),div({style:{display:'flex',gap:'8px'}},[makeThemeBtn(),btn('Sign out','btn-outline',function(){dfLogout();},{style:{padding:'8px 16px'}})]));
@@ -16280,9 +16282,11 @@ function dfTrStepper(stage){
 async function dfTrReload(){
   var st=await dfTrainingStatus();
   if(st&&['training','choose_class','observing'].indexOf(st.stage)!==-1)await dfRenderTrainingPage(st);
-  else await showAdminPanel();
+  else if(window._dfTrCtx&&window._dfTrCtx.onDone)await window._dfTrCtx.onDone();
+  else location.reload();
 }
-async function dfRenderTrainingPage(st){
+async function dfRenderTrainingPage(st,pageEl,onDone){
+  if(pageEl)window._dfTrCtx={page:pageEl,onDone:onDone};
   if(window._dfTrainPoll){clearInterval(window._dfTrainPoll);window._dfTrainPoll=null;}
   var root=dfTrShell();
   root.append(
@@ -16482,7 +16486,7 @@ async function dfTrObservingView(body,st){
 }
 
 // After the payout/availability gate: move 'availability' on to 'trial' and show the trial banner.
-async function dfTrainingAfterGate(){
+async function dfTrainingAfterGate(pageEl){
   try{
     var st=await dfTrainingStatus();
     if(!st)return;
@@ -16496,7 +16500,7 @@ async function dfTrainingAfterGate(){
     if(st.stage==='trial'){
       var el=div({style:{background:'rgba(184,146,46,0.10)',borderBottom:'1px solid var(--gold)',padding:'10px 24px',fontSize:'13px',lineHeight:'1.6'}});
       el.append(h('strong',{},['Training: trial class pending. ']),document.createTextNode(st.trial_note?st.trial_note:'Your coordinator will assign your trial class and mark your training complete afterwards.'));
-      if(page.firstChild)page.firstChild.after(el);
+      if(pageEl&&pageEl.firstChild)pageEl.firstChild.after(el);
     }
   }catch(e){console.warn('training after-gate skipped:',e);}
 }
