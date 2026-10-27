@@ -3525,7 +3525,8 @@ function dfCompletionCard(c){
       h('span',{style:{color:'var(--text)'}},[r[0]]),h('span',{cls:'mono',style:{color:'var(--gold)',textAlign:'right'}},[r[1]])]));
   });
   card.append(
-    h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'14px',color:'var(--text)',lineHeight:'1.8',marginTop:'18px'}},['We wish you the very best in your exam.']),
+    h('div',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'18px',fontWeight:'700',color:'var(--gold)',lineHeight:'1.6',marginTop:'20px',textAlign:'center'}},['We believe you are ready for your exam!']),
+    h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'14px',color:'var(--text)',lineHeight:'1.8',marginTop:'10px'}},['We wish you the very best in your exam.']),
     h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'13px',color:'var(--muted)',lineHeight:'1.8',marginTop:'8px'}},['When you are done, we would love for you to share your success with us. Your story encourages the students who come after you.'])
   );
   return card;
