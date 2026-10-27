@@ -9283,11 +9283,12 @@ page.append(aN);
 const tabs=div({style:{display:'none'}});
 const content=div({cls:'inner-md',style:{padding:'24px'}});
 let curTab='settings';
-const tabDefs=[['settings','⚙ Settings'],['users','Users'],['recalls','Recalls'],['flashcards','Flashcards'],['questions','Q-Bank'],['testimonials','Reviews'],['packages','Packages'],['bookings','Bookings'],['payouts','Payouts'],['feynman','Feynman'],['riddles','Riddles'],['team','Team'],['tutoring','Tutoring']];
+const tabDefs=[['settings','⚙ Settings'],['users','Users'],['recalls','Recalls'],['flashcards','Flashcards'],['questions','Q-Bank'],['testimonials','Reviews'],['packages','Packages'],['bookings','Bookings'],['payouts','Payouts'],['feynman','Feynman'],['riddles','Riddles'],['team','Team'],['tutoring','Tutoring'],['training','Training']];
 // role-based tab filtering for team members
 let panelTeamRole=null;
 let panelIsSuperAdmin=false;
 let panelIsTutor=false;
+let panelIsCoord=false;
 try{
   const{data:panelRoleRow}=await sb.from('admin_roles').select('role,is_tutor').eq('user_id',S.user?.id||'').maybeSingle();
   panelTeamRole=panelRoleRow?.role||null;
@@ -9302,8 +9303,14 @@ if(!panelIsSuperAdmin&&!panelTeamRole){page.innerHTML='';page.append(h('p',{styl
 try{localStorage.setItem('df-admin-session','1');}catch(e){}
 window._dfTeamPush=true;
 try{dfPushStatus();}catch(e){} // re-attach this device's push subscription if the server row went missing
+try{var _crow=await sb.from('admin_roles').select('is_training_coord').eq('user_id',S.user?.id||'').maybeSingle();panelIsCoord=panelIsSuperAdmin||!!(_crow&&_crow.data&&_crow.data.is_training_coord);}catch(e){panelIsCoord=panelIsSuperAdmin;}
+// Tutor training: a tutor with training switched on sees only the training pages until the observation is marked complete.
+if(panelIsTutor&&!panelIsSuperAdmin){
+  var _trSt=await dfTrainingStatus();
+  if(_trSt&&['training','choose_class','observing'].indexOf(_trSt.stage)!==-1){await dfRenderTrainingPage(_trSt);return;}
+}
 if(panelIsTutor){
-  if(!panelIsSuperAdmin)await dfTutorBankGate(); // super admin bypasses the payout-details lock
+  if(!panelIsSuperAdmin){await dfTutorBankGate();await dfTrainingAfterGate();} // super admin bypasses the payout-details lock
   var _pdBtn=btn('My details','btn-outline',async()=>{var cur=await dfFetchTutorDetails(S.user.id);await dfBankForm({existing:dfMergeDetails(cur),fullName:(S.profile&&S.profile.full_name)||''});},{style:{padding:'8px 16px'}});dfPutNewOn(_pdBtn);aNRight.prepend(_pdBtn);
 }else if(panelTeamRole&&!panelIsSuperAdmin){
   await dfStaffBankGate();
@@ -9314,6 +9321,7 @@ if(panelTeamRole&&!panelIsSuperAdmin){
   const managerTabs=['settings','recalls','flashcards','questions','testimonials','packages','bookings','feynman','riddles','team'];
   const allowed=panelTeamRole==='manager'?managerTabs.slice():workerTabs.slice();
   if(panelIsTutor)allowed.push('tutoring');
+  if(panelIsCoord)allowed.push('training');
   tabDefs.splice(0,tabDefs.length,...tabDefs.filter(([id])=>allowed.includes(id)));
 }
 tabDefs.forEach(([id,label])=>{
@@ -9384,6 +9392,7 @@ page.append(adminLayout);
 let currentFilter='pending';
 async function loadTab(tab){
 content.innerHTML='';content.append(skelCard([['40%'],['70%'],['50%']]),skelCard([['60%'],['80%'],['45%']]));
+if(tab==='training'){content.innerHTML='';await dfRenderTrainingAdmin(content,{isSuper:panelIsSuperAdmin,isCoord:panelIsCoord});return;}
 async function fetchEnrolled(completed){
   var enq=sb.from('tutoring_students').select('*');
   enq=completed?enq.eq('active',false).not('completed_at','is',null).order('completed_at',{ascending:false}):enq.eq('active',true).order('enrolled_at',{ascending:false});
@@ -16173,6 +16182,655 @@ function dfFlashExplain(card,topic){
     if(cached){dfAiRender(cached,body);buildAsk();}else{load();}
   }
   return wrap;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TUTOR TRAINING MODULE
+// Super admin builds the module and the quiz and switches training on per tutor
+// (on by default for new tutors). Training coordinators observe-host new tutors,
+// mark observation done and later training complete. Needs training_module.sql.
+// The quiz is graded on the server: correct answers never reach a tutor's browser.
+// ═══════════════════════════════════════════════════════════════════════════
+var DF_TR_DAYS=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+var DF_TR_STAGES=[
+  {k:'training',label:'Training module'},
+  {k:'choose_class',label:'Choose a class'},
+  {k:'observing',label:'Observe the class'},
+  {k:'availability',label:'Availability'},
+  {k:'trial',label:'Trial class'},
+  {k:'complete',label:'Complete'}
+];
+function dfTrStageLabel(k){var s=DF_TR_STAGES.filter(function(x){return x.k===k;})[0];return s?s.label:String(k||'');}
+function dfTrTime(t){
+  if(!t)return '';
+  var m=String(t).match(/^(\d{1,2}):(\d{2})/);
+  if(!m)return String(t);
+  var hh=parseInt(m[1],10),ap=hh>=12?'PM':'AM',h12=hh%12;
+  if(h12===0)h12=12;
+  return h12+':'+m[2]+' '+ap;
+}
+function dfTrDate(s){
+  if(!s)return '';
+  var d=new Date(String(s).slice(0,10)+'T00:00:00');
+  if(isNaN(d.getTime()))return String(s);
+  return d.toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'});
+}
+function dfTrStamp(s){
+  if(!s)return '';
+  var d=new Date(s);
+  return isNaN(d.getTime())?'':d.toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'});
+}
+function dfTrWhen(day,time){return (DF_TR_DAYS[day]||'')+' \u00b7 '+dfTrTime(time);}
+function dfTrFirstName(n){return String(n||'there').trim().split(/\s+/)[0]||'there';}
+function dfTrSafeUrl(u){
+  u=String(u||'').trim();
+  if(!u)return '';
+  if(!/^https?:\/\//i.test(u))u='https://'+u;
+  try{var x=new URL(u);return (x.protocol==='http:'||x.protocol==='https:')?x.href:'';}catch(e){return '';}
+}
+function dfTrChip(text,color){
+  return h('span',{cls:'mono',style:{fontSize:'10px',letterSpacing:'1px',textTransform:'uppercase',fontWeight:'700',padding:'4px 10px',borderRadius:'999px',border:'1px solid '+color,color:color,whiteSpace:'nowrap'}},[text]);
+}
+function dfTrMuted(text,extra){
+  return h('p',{style:Object.assign({fontSize:'13px',color:'var(--dim)',lineHeight:'1.7',margin:'0 0 10px'},extra||{})},[text]);
+}
+function dfTrShuffle(a){
+  a=a.slice();
+  for(var i=a.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1));var t=a[i];a[i]=a[j];a[j]=t;}
+  return a;
+}
+// A platform message plus an email copy (same path the mailbox uses). Never throws.
+async function dfTrMail(toId,subject,body){
+  try{
+    if(!toId)return false;
+    var r=await sb.rpc('mail_send',{p_recipient:toId,p_subject:subject,p_body:body,p_parent:null});
+    if(r.error)throw new Error(r.error.message);
+    var out=await dfMailSendEmails([r.data]);
+    return !(out&&out.failed&&out.failed.length);
+  }catch(e){console.warn('training email not sent:',e);return false;}
+}
+async function dfTrainingStatus(){
+  try{
+    var r=await sb.rpc('training_my_status');
+    if(r.error){console.warn('training status skipped:',r.error.message);return null;}
+    return r.data||null;
+  }catch(e){return null;}
+}
+async function dfTrOpenFile(path){
+  var w=null;
+  try{w=window.open('','_blank');}catch(e){}
+  var r=await sb.storage.from('training-files').createSignedUrl(path,3600);
+  if(r.error||!r.data||!r.data.signedUrl){
+    if(w)w.close();
+    dfToast('Could not open the file: '+((r.error&&r.error.message)||'unknown error'));
+    return;
+  }
+  if(w)w.location.href=r.data.signedUrl;else window.open(r.data.signedUrl,'_blank');
+}
+
+// ───────────────────────────── TUTOR SIDE ─────────────────────────────
+function dfTrShell(){
+  page.innerHTML='';
+  var nav=div({style:{background:'var(--nav-bg)',borderBottom:'1px solid var(--border)',padding:'16px 24px',display:'flex',alignItems:'center',justifyContent:'space-between',position:'sticky',top:'0',zIndex:'100'}});
+  nav.append(dfLogo(),div({style:{display:'flex',gap:'8px'}},[makeThemeBtn(),btn('Sign out','btn-outline',function(){dfLogout();},{style:{padding:'8px 16px'}})]));
+  var root=div({id:'df-train-root',cls:'inner-md',style:{padding:'24px',maxWidth:'860px',margin:'0 auto'}});
+  page.append(nav,root);
+  return root;
+}
+function dfTrStepper(stage){
+  var idx=0;
+  DF_TR_STAGES.forEach(function(s,i){if(s.k===stage)idx=i;});
+  var row=div({style:{display:'flex',gap:'6px',flexWrap:'wrap',marginBottom:'22px'}});
+  DF_TR_STAGES.slice(0,5).forEach(function(s,i){
+    var done=i<idx,cur=i===idx;
+    row.append(h('span',{cls:'mono',style:{fontSize:'10px',letterSpacing:'1px',textTransform:'uppercase',padding:'6px 10px',borderRadius:'999px',fontWeight:'700',border:'1px solid '+(cur?'var(--gold)':'var(--border)'),color:cur?'var(--bg)':(done?'var(--teal)':'var(--muted)'),background:cur?'var(--gold)':'transparent'}},[(done?'\u2713 ':(i+1)+'. ')+s.label]));
+  });
+  return row;
+}
+async function dfTrReload(){
+  var st=await dfTrainingStatus();
+  if(st&&['training','choose_class','observing'].indexOf(st.stage)!==-1)await dfRenderTrainingPage(st);
+  else await showAdminPanel();
+}
+async function dfRenderTrainingPage(st){
+  if(window._dfTrainPoll){clearInterval(window._dfTrainPoll);window._dfTrainPoll=null;}
+  var root=dfTrShell();
+  root.append(
+    h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'24px',marginBottom:'6px'}},['Tutor training']),
+    dfTrMuted('Complete each step to unlock your tutor page.',{marginBottom:'18px'}),
+    dfTrStepper(st.stage)
+  );
+  var body=div({});
+  root.append(body);
+  if(st.stage==='training')await dfTrModuleView(body,st);
+  else if(st.stage==='choose_class')await dfTrChooseView(body,st);
+  else if(st.stage==='observing')await dfTrObservingView(body,st);
+}
+
+async function dfTrModuleView(body,st){
+  body.append(skelCard([['50%'],['80%']]));
+  var sr=await sb.from('training_sections').select('*').order('position',{ascending:true});
+  var rr=await sb.from('training_resources').select('*').order('position',{ascending:true});
+  var pr=await sb.from('training_progress').select('section_id').eq('tutor_id',S.user.id);
+  body.replaceChildren();
+  if(sr.error){body.append(h('p',{style:{color:'#ff4444',fontSize:'13px'}},['Could not load the training: '+sr.error.message]));return;}
+  var sections=sr.data||[],resources=rr.data||[],done={};
+  (pr.data||[]).forEach(function(p){done[p.section_id]=true;});
+  var doneCount=sections.filter(function(s){return done[s.id];}).length;
+
+  var status=div({cls:'card',style:{padding:'18px',marginBottom:'16px'}});
+  status.append(div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',gap:'10px',flexWrap:'wrap',marginBottom:'6px'}},[
+    h('div',{style:{fontWeight:'700',fontSize:'15px'}},['Training module']),
+    dfTrChip('Incomplete','var(--gold)')
+  ]));
+  status.append(dfTrMuted('Sections finished: '+doneCount+' of '+sections.length+'. Then pass the final quiz with 100% to complete the module.',{margin:'0'}));
+  if(st.attempts>0)status.append(dfTrMuted('Last quiz attempt: '+st.last_score+'/'+st.last_total+'. You need 100%, so the module is still incomplete. You can retake the quiz as many times as you like.',{margin:'8px 0 0',color:'var(--gold)'}));
+  body.append(status);
+
+  sections.forEach(function(s,i){
+    var isDone=!!done[s.id];
+    var card=div({cls:'card',style:{padding:'18px',marginBottom:'12px'}});
+    card.append(div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',gap:'10px',flexWrap:'wrap'}},[
+      h('div',{style:{fontWeight:'700',fontSize:'15px'}},[(i+1)+'. '+s.title]),
+      h('span',{cls:'mono',style:{fontSize:'10px',letterSpacing:'1px',textTransform:'uppercase',color:isDone?'var(--teal)':'var(--muted)'}},[isDone?'\u2713 Done':'Not done'])
+    ]));
+    if(s.description)card.append(h('p',{style:{fontSize:'13px',color:'var(--text)',lineHeight:'1.7',margin:'10px 0',whiteSpace:'pre-wrap'}},[s.description]));
+    var mine=resources.filter(function(x){return x.section_id===s.id;});
+    if(mine.length){
+      var list=div({style:{display:'flex',flexDirection:'column',gap:'8px',margin:'10px 0'}});
+      mine.forEach(function(x){
+        var row=div({style:{display:'flex',alignItems:'center',gap:'10px',flexWrap:'wrap',padding:'8px 10px',background:'var(--card2)',border:'1px solid var(--border)',borderRadius:'6px'}});
+        row.append(h('span',{cls:'mono',style:{fontSize:'10px',letterSpacing:'1px',textTransform:'uppercase',color:'var(--muted)'}},[x.kind==='file'?'File':'Link']));
+        if(x.kind==='file'){
+          row.append(h('span',{style:{fontSize:'13px',flex:'1'}},[x.title||x.file_name||'File']),btn('Open','btn-outline',function(){return dfTrOpenFile(x.file_path);},{style:{fontSize:'11px',padding:'5px 12px'}}));
+        }else{
+          var u=dfTrSafeUrl(x.url);
+          row.append(h('a',{href:u||'#',target:'_blank',rel:'noopener noreferrer',style:{fontSize:'13px',flex:'1',color:'var(--gold)',textDecoration:'underline',wordBreak:'break-word'}},[x.title||x.url]));
+        }
+        list.append(row);
+      });
+      card.append(list);
+    }
+    if(!isDone){
+      card.append(btn('Mark section as done','btn-outline',async function(){
+        var m=await sb.rpc('training_mark_section',{p_section:s.id});
+        if(m.error){alert('Could not save: '+m.error.message);return;}
+        await dfTrReload();
+      },{style:{fontSize:'12px',padding:'7px 14px'}}));
+    }
+    body.append(card);
+  });
+
+  var quizCard=div({cls:'card',style:{padding:'18px',marginTop:'18px'}});
+  body.append(quizCard);
+  quizCard.append(h('div',{style:{fontWeight:'700',fontSize:'15px',marginBottom:'6px'}},['Final quiz']));
+  if(doneCount<sections.length){
+    quizCard.append(dfTrMuted('Finish every section above to unlock the final quiz.',{margin:'0'}));
+  }else if(!st.questions_total){
+    quizCard.append(dfTrMuted('The final quiz has not been added yet. Please check back soon.',{margin:'0'}));
+  }else{
+    quizCard.append(dfTrMuted('You must score 100%. After each attempt you will see your score only, never the answers.'));
+    quizCard.append(btn(st.attempts>0?'Retake the quiz':'Start the quiz','btn-gold',function(){return dfTrQuiz(quizCard);},{style:{fontSize:'13px',padding:'10px 20px'}}));
+  }
+}
+
+async function dfTrQuiz(card){
+  card.replaceChildren(dfTrMuted('Loading the quiz...',{margin:'0'}));
+  var r=await sb.rpc('training_get_quiz');
+  if(r.error){card.replaceChildren(h('p',{style:{color:'#ff4444',fontSize:'13px'}},[r.error.message]));return;}
+  var qs=r.data||[];
+  if(!qs.length){card.replaceChildren(dfTrMuted('The final quiz has not been added yet.',{margin:'0'}));return;}
+  var picked={};
+  card.replaceChildren(
+    h('div',{style:{fontWeight:'700',fontSize:'15px',marginBottom:'6px'}},['Final quiz']),
+    dfTrMuted('Answer every question. You need 100% to pass.')
+  );
+  qs.forEach(function(q,qi){
+    var box=div({style:{padding:'14px 0',borderTop:'1px solid var(--border)'}});
+    box.append(h('div',{style:{fontSize:'14px',lineHeight:'1.7',fontWeight:'600',marginBottom:'10px',whiteSpace:'pre-wrap'}},[(qi+1)+'. '+q.question]));
+    dfTrShuffle(Object.keys(q.options||{})).forEach(function(k){
+      var lab=h('label',{style:{display:'flex',gap:'10px',alignItems:'flex-start',padding:'9px 12px',border:'1px solid var(--border)',borderRadius:'6px',marginBottom:'6px',cursor:'pointer',fontSize:'13px',lineHeight:'1.6'}});
+      var rad=h('input',{type:'radio',name:'dfq_'+q.id});
+      rad.addEventListener('change',function(){
+        picked[q.id]=k;
+        [].slice.call(box.querySelectorAll('label')).forEach(function(l){l.style.borderColor='var(--border)';});
+        lab.style.borderColor='var(--gold)';
+      });
+      lab.append(rad,h('span',{},[q.options[k]]));
+      box.append(lab);
+    });
+    card.append(box);
+  });
+  var msg=div({style:{display:'none',fontSize:'13px',color:'#ff4444',margin:'10px 0'}});
+  var go=btn('Submit answers','btn-gold',async function(){
+    msg.style.display='none';
+    var blank=qs.filter(function(q){return !picked[q.id];}).length;
+    if(blank&&!confirm(blank+' question'+(blank===1?' is':'s are')+' unanswered and will count as wrong. Submit anyway?'))return;
+    go.disabled=true;go.textContent='Submitting...';
+    var sres=await sb.rpc('training_submit_quiz',{p_answers:picked});
+    if(sres.error){go.disabled=false;go.textContent='Submit answers';msg.textContent=sres.error.message;msg.style.display='block';return;}
+    var out=sres.data||{};
+    card.replaceChildren();
+    if(out.passed){
+      card.append(
+        h('div',{style:{fontWeight:'700',fontSize:'16px',color:'var(--teal)',marginBottom:'6px'}},['\u2713 Module complete']),
+        dfTrMuted('You scored '+out.score+'/'+out.total+'. Next, choose a class to observe.'),
+        btn('Continue','btn-gold',function(){return dfTrReload();},{style:{fontSize:'13px',padding:'10px 20px'}})
+      );
+    }else{
+      card.append(
+        h('div',{style:{fontWeight:'700',fontSize:'16px',color:'var(--gold)',marginBottom:'6px'}},['Module incomplete']),
+        dfTrMuted('You scored '+out.score+'/'+out.total+'. You need 100% to complete the module. Review the sections and try again.'),
+        btn('Retake the quiz','btn-gold',function(){return dfTrQuiz(card);},{style:{fontSize:'13px',padding:'10px 20px',marginRight:'8px'}}),
+        btn('Back to the sections','btn-outline',function(){return dfTrReload();},{style:{fontSize:'13px',padding:'10px 20px'}})
+      );
+    }
+  },{style:{width:'100%',marginTop:'10px'}});
+  card.append(msg,go);
+}
+
+async function dfTrChooseView(body,st){
+  body.append(
+    h('div',{style:{fontWeight:'700',fontSize:'16px',color:'var(--teal)',marginBottom:'6px'}},['\u2713 Module complete']),
+    dfTrMuted('Now choose a class to observe. Your coordinator and you will both get an email, and you will see the class link straight away.',{marginBottom:'16px'})
+  );
+  var listBox=div({});
+  body.append(listBox);
+  listBox.append(skelCard([['60%'],['40%']]));
+  var r=await sb.rpc('training_observable_classes');
+  listBox.replaceChildren();
+  if(r.error){listBox.append(h('p',{style:{color:'#ff4444',fontSize:'13px'}},['Could not load classes: '+r.error.message]));return;}
+  var list=r.data||[];
+  if(!list.length){
+    listBox.append(dfTrMuted('No classes are available to observe yet. Please contact your training coordinator.'));
+    return;
+  }
+  list.forEach(function(it){
+    var when=dfTrWhen(it.day_of_week,it.class_time);
+    var card=div({cls:'card',style:{padding:'16px',marginBottom:'10px',display:'flex',justifyContent:'space-between',alignItems:'center',gap:'12px',flexWrap:'wrap'}});
+    card.append(div({},[
+      h('div',{style:{fontWeight:'700',fontSize:'15px'}},[when+' (AST)']),
+      h('div',{style:{fontSize:'12px',color:'var(--dim)',marginTop:'4px'}},['Coordinator: '+(it.coord_name||'')+(it.next_class_date?' \u00b7 next class '+dfTrDate(it.next_class_date):'')])
+    ]));
+    card.append(btn('Observe this class','btn-gold',async function(){
+      if(!confirm('Observe the '+when+' (AST) class with '+(it.coord_name||'your coordinator')+'?\n\nYou cannot change this yourself afterwards.'))return;
+      var c=await sb.rpc('training_choose_class',{p_slot:it.slot_id});
+      if(c.error){alert(c.error.message);return;}
+      var ob=await sb.rpc('training_my_observation');
+      var link=(ob&&ob.data&&(ob.data.link1||ob.data.link2))||'';
+      var me=(S.profile&&S.profile.full_name)||'A new tutor';
+      var whenFull=when+' (AST)'+(it.next_class_date?', next class '+dfTrDate(it.next_class_date):'');
+      await dfTrMail(it.coord_id,'Training: '+me+' will observe your class',
+        me+' has completed the tutor training module and chosen to observe your class.\n\nClass: '+whenFull+'\n\nPlease mark their observation complete on the Training page after the class.\n\nDeo Fortis');
+      await dfTrMail(S.user.id,'Your class observation: '+when,
+        'Hi '+dfTrFirstName(me)+',\n\nYou chose to observe '+(it.coord_name||'your coordinator')+'\u2019s class: '+whenFull+'.\n\n'+(link?'Class link: '+link+'\n\n':'')+'After you have observed, your coordinator will mark it complete and you can add your availability.\n\nDeo Fortis');
+      await dfTrReload();
+    },{style:{fontSize:'12px',padding:'9px 18px'}}));
+    listBox.append(card);
+  });
+}
+
+async function dfTrObservingView(body,st){
+  var r=await sb.rpc('training_my_observation');
+  var ob=r&&r.data;
+  if(!ob){body.append(dfTrMuted('Your class details could not be loaded. Please refresh the page.'));}
+  var card=div({cls:'card',style:{padding:'20px'}});
+  body.append(card);
+  if(ob){
+    card.append(
+      h('div',{style:{fontWeight:'700',fontSize:'16px',marginBottom:'4px'}},['Your class to observe']),
+      h('div',{style:{fontSize:'15px',marginBottom:'4px'}},[dfTrWhen(ob.day_of_week,ob.class_time)+' (AST)']),
+      dfTrMuted('Coordinator: '+(ob.coord_name||'')+(ob.class_date?' \u00b7 next class '+dfTrDate(ob.class_date):''),{marginBottom:'14px'})
+    );
+    var l1=dfTrSafeUrl(ob.link1),l2=dfTrSafeUrl(ob.link2);
+    if(l1||l2){
+      card.append(h('a',{href:l1||l2,target:'_blank',rel:'noopener noreferrer',cls:'btn btn-gold',style:{display:'inline-block',textDecoration:'none',padding:'11px 22px',fontSize:'13px'}},['Join the class']));
+      if(l1&&l2)card.append(h('div',{style:{marginTop:'10px',fontSize:'12px'}},[h('a',{href:l2,target:'_blank',rel:'noopener noreferrer',style:{color:'var(--gold)',textDecoration:'underline'}},['Backup link'])]));
+    }else{
+      card.append(dfTrMuted('No class link has been added for this class yet. Please contact your coordinator.',{color:'var(--gold)'}));
+    }
+    card.append(dfTrMuted('After the class, your coordinator will mark your observation complete. Then you can add your availability and open your tutor page. This page updates by itself.',{marginTop:'16px',marginBottom:'0'}));
+  }
+  window._dfTrainPoll=setInterval(async function(){
+    if(!document.getElementById('df-train-root')){clearInterval(window._dfTrainPoll);window._dfTrainPoll=null;return;}
+    var s=await dfTrainingStatus();
+    if(s&&s.stage!=='observing'){clearInterval(window._dfTrainPoll);window._dfTrainPoll=null;dfTrReload();}
+  },20000);
+}
+
+// After the payout/availability gate: move 'availability' on to 'trial' and show the trial banner.
+async function dfTrainingAfterGate(){
+  try{
+    var st=await dfTrainingStatus();
+    if(!st)return;
+    if(st.stage==='availability'){
+      var d=await dfFetchTutorDetails(S.user.id);
+      if(!d.error&&dfTutorDetailsComplete(d.bank,d.avail)){
+        var r=await sb.rpc('training_availability_done');
+        if(!r.error)st.stage='trial';
+      }
+    }
+    if(st.stage==='trial'){
+      var el=div({style:{background:'rgba(184,146,46,0.10)',borderBottom:'1px solid var(--gold)',padding:'10px 24px',fontSize:'13px',lineHeight:'1.6'}});
+      el.append(h('strong',{},['Training: trial class pending. ']),document.createTextNode(st.trial_note?st.trial_note:'Your coordinator will assign your trial class and mark your training complete afterwards.'));
+      if(page.firstChild)page.firstChild.after(el);
+    }
+  }catch(e){console.warn('training after-gate skipped:',e);}
+}
+
+// ───────────────────────────── COORDINATOR / SUPER ADMIN ─────────────────────────────
+async function dfRenderTrainingAdmin(container,opts){
+  container.append(h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'22px',marginBottom:'16px'}},['Training']));
+  var nav=div({style:{display:'flex',gap:'8px',flexWrap:'wrap',marginBottom:'20px'}});
+  var body=div({});
+  container.append(nav,body);
+  var defs=[['roster','Tutors in training']];
+  if(opts.isSuper)defs.push(['content','Content'],['quiz','Quiz'],['access','Access']);
+  var cur='roster',buttons={};
+  function paint(){defs.forEach(function(d){var on=cur===d[0];buttons[d[0]].style.background=on?'var(--gold)':'transparent';buttons[d[0]].style.color=on?'var(--bg)':'var(--text)';});}
+  async function load(){
+    body.replaceChildren();
+    if(cur==='roster')await dfTrRoster(body,opts);
+    else if(cur==='content')await dfTrContentAdmin(body);
+    else if(cur==='quiz')await dfTrQuizAdmin(body);
+    else if(cur==='access')await dfTrAccessAdmin(body);
+  }
+  defs.forEach(function(d){
+    var b=h('button',{cls:'btn btn-outline',style:{padding:'8px 16px',fontSize:'12px'}},[d[1]]);
+    b.addEventListener('click',function(){cur=d[0];paint();load();});
+    buttons[d[0]]=b;nav.append(b);
+  });
+  paint();
+  await load();
+}
+
+async function dfTrRoster(body,opts){
+  body.append(skelCard([['50%'],['80%']]));
+  var r=await sb.rpc('training_roster');
+  body.replaceChildren();
+  if(r.error){body.append(h('p',{style:{color:'#ff4444',fontSize:'13px'}},['Could not load tutors in training: '+r.error.message]));return;}
+  async function refresh(){body.replaceChildren();await dfTrRoster(body,opts);}
+  var rows=r.data||[];
+  body.append(dfTrMuted('Tutors with training switched on, and where each one is. Observation and the trial class are marked here.'));
+  if(!rows.length){body.append(dfTrMuted('No tutors have training switched on yet.'));return;}
+  var order={observing:0,choose_class:1,trial:2,availability:3,training:4,complete:5};
+  rows.sort(function(a,b){return (order[a.stage]-order[b.stage])||String(a.full_name).localeCompare(String(b.full_name));});
+  rows.forEach(function(t){
+    var card=div({cls:'card',style:{padding:'16px',marginBottom:'12px'}});
+    card.append(div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',gap:'10px',flexWrap:'wrap'}},[
+      div({},[h('div',{style:{fontWeight:'700',fontSize:'15px'}},[t.full_name||'Unnamed']),h('div',{style:{fontSize:'11px',color:'var(--dim)'}},[t.email||''])]),
+      dfTrChip(dfTrStageLabel(t.stage),t.stage==='complete'?'var(--teal)':'var(--gold)')
+    ]));
+    var info=[];
+    info.push('Sections '+t.sections_done+'/'+t.sections_total+' \u00b7 quiz attempts '+t.attempts+(t.attempts>0?' \u00b7 best '+t.best_score+'/'+t.best_total:''));
+    if(t.quiz_passed_at)info.push('Quiz passed '+dfTrStamp(t.quiz_passed_at));
+    if(t.observe_day!=null&&t.observe_day!==undefined)info.push('Observing '+(t.coord_name||'')+': '+dfTrWhen(t.observe_day,t.observe_time)+(t.observe_date?' \u00b7 '+dfTrDate(t.observe_date):''));
+    if(t.observation_done_at)info.push('Observation completed '+dfTrStamp(t.observation_done_at));
+    if(t.completed_at)info.push('Training completed '+dfTrStamp(t.completed_at));
+    info.forEach(function(x){card.append(h('div',{style:{fontSize:'12px',color:'var(--muted)',marginTop:'6px'}},[x]));});
+    var acts=div({style:{display:'flex',gap:'8px',flexWrap:'wrap',marginTop:'12px',alignItems:'center'}});
+    var me=(S.profile&&S.profile.full_name)||'your training coordinator';
+    if(t.stage==='observing'){
+      acts.append(btn('Mark observation complete','btn-gold',async function(){
+        if(!confirm('Mark '+t.full_name+'\u2019s class observation as complete? They will be asked to add their availability and will get access to the tutor page.'))return;
+        var x=await sb.rpc('training_mark_observation_done',{p_tutor:t.tutor_id});
+        if(x.error){alert(x.error.message);return;}
+        await dfTrMail(t.tutor_id,'Your class observation is complete','Hi '+dfTrFirstName(t.full_name)+',\n\nYour class observation has been marked complete. Please log in and add your availability and payout details. After that you will have access to your tutor page, and your trial class will be arranged.\n\n'+me+'\nDeo Fortis');
+        dfToast('Marked complete. '+dfTrFirstName(t.full_name)+' has been emailed.');
+        await refresh();
+      },{style:{fontSize:'12px',padding:'8px 16px'}}));
+      acts.append(btn('Let them choose another class','btn-outline',async function(){
+        if(!confirm('Send '+t.full_name+' back to choose a different class?'))return;
+        var x=await sb.rpc('training_reopen_class_choice',{p_tutor:t.tutor_id});
+        if(x.error){alert(x.error.message);return;}
+        await refresh();
+      },{style:{fontSize:'12px',padding:'8px 16px'}}));
+    }
+    if(t.stage==='availability'){
+      card.append(h('div',{style:{fontSize:'12px',color:'var(--gold)',marginTop:'10px'}},['Waiting for the tutor to add their availability.']));
+    }
+    if(['observing','availability','trial'].indexOf(t.stage)!==-1){
+      var noteInp=h('textarea',{cls:'input',placeholder:'Trial class details the tutor will see (optional)',style:{width:'100%',minHeight:'54px',resize:'vertical',boxSizing:'border-box',marginTop:'10px'}});
+      noteInp.value=t.trial_note||'';
+      card.append(noteInp);
+      acts.append(btn('Save trial note','btn-outline',async function(){
+        var x=await sb.rpc('training_set_trial_note',{p_tutor:t.tutor_id,p_note:noteInp.value});
+        if(x.error){alert(x.error.message);return;}
+        dfToast('Trial note saved.');
+      },{style:{fontSize:'12px',padding:'8px 16px'}}));
+    }
+    if(t.stage==='trial'||(opts.isSuper&&t.stage!=='complete')){
+      var forced=t.stage!=='trial';
+      acts.append(btn(forced?'Mark training complete (override)':'Mark training complete','btn-teal',async function(){
+        if(!confirm('Mark '+t.full_name+'\u2019s training as complete?'+(forced?'\n\nThey have not reached the trial class stage yet.':'')))return;
+        var x=await sb.rpc('training_mark_complete',{p_tutor:t.tutor_id});
+        if(x.error){alert(x.error.message);return;}
+        await dfTrMail(t.tutor_id,'Your training is complete','Hi '+dfTrFirstName(t.full_name)+',\n\nYour Deo Fortis tutor training is now complete. Welcome to the team.\n\n'+me+'\nDeo Fortis');
+        dfToast('Training marked complete. '+dfTrFirstName(t.full_name)+' has been emailed.');
+        await refresh();
+      },{style:{fontSize:'12px',padding:'8px 16px'}}));
+    }
+    if(acts.children.length)card.append(acts);
+    body.append(card);
+  });
+}
+
+async function dfTrContentAdmin(body){
+  var sr=await sb.from('training_sections').select('*').order('position',{ascending:true});
+  var rr=await sb.from('training_resources').select('*').order('position',{ascending:true});
+  if(sr.error){body.append(h('p',{style:{color:'#ff4444',fontSize:'13px'}},['Could not load: '+sr.error.message]));return;}
+  async function refresh(){body.replaceChildren();await dfTrContentAdmin(body);}
+  var sections=sr.data||[],resources=rr.data||[];
+  var maxPos=sections.reduce(function(m,s){return Math.max(m,s.position||0);},0);
+
+  var addCard=div({cls:'card',style:{padding:'16px',marginBottom:'16px'}});
+  var titleInp=inp('New section title');titleInp.style.width='100%';titleInp.style.boxSizing='border-box';
+  var descInp=h('textarea',{cls:'input',placeholder:'What this section covers (optional)',style:{width:'100%',minHeight:'60px',resize:'vertical',boxSizing:'border-box',marginTop:'8px'}});
+  addCard.append(h('div',{style:{fontWeight:'700',fontSize:'14px',marginBottom:'8px'}},['Add a section']),titleInp,descInp,
+    btn('Add section','btn-gold',async function(){
+      if(!titleInp.value.trim()){alert('Give the section a title.');return;}
+      var x=await sb.from('training_sections').insert({title:titleInp.value.trim(),description:descInp.value.trim()||null,position:maxPos+1});
+      if(x.error){alert(x.error.message);return;}
+      await refresh();
+    },{style:{marginTop:'10px',fontSize:'12px',padding:'8px 16px'}}));
+  body.append(addCard);
+  if(!sections.length)body.append(dfTrMuted('No sections yet. Tutors will go straight to the quiz until you add some.'));
+
+  sections.forEach(function(s,i){
+    var card=div({cls:'card',style:{padding:'16px',marginBottom:'14px'}});
+    var tInp=inp('Title','text',s.title||'');tInp.style.width='100%';tInp.style.boxSizing='border-box';
+    var dInp=h('textarea',{cls:'input',style:{width:'100%',minHeight:'60px',resize:'vertical',boxSizing:'border-box',marginTop:'8px'}});
+    dInp.value=s.description||'';
+    var head=div({style:{display:'flex',gap:'8px',flexWrap:'wrap',marginTop:'10px'}});
+    head.append(
+      btn('Save','btn-gold',async function(){
+        var x=await sb.from('training_sections').update({title:tInp.value.trim()||s.title,description:dInp.value.trim()||null}).eq('id',s.id);
+        if(x.error){alert(x.error.message);return;}
+        dfToast('Saved.');
+      },{style:{fontSize:'11px',padding:'6px 12px'}}),
+      btn('Move up','btn-outline',async function(){
+        if(i===0)return;var o=sections[i-1];
+        await sb.from('training_sections').update({position:o.position}).eq('id',s.id);
+        await sb.from('training_sections').update({position:s.position}).eq('id',o.id);
+        await refresh();
+      },{style:{fontSize:'11px',padding:'6px 12px'}}),
+      btn('Move down','btn-outline',async function(){
+        if(i===sections.length-1)return;var o=sections[i+1];
+        await sb.from('training_sections').update({position:o.position}).eq('id',s.id);
+        await sb.from('training_sections').update({position:s.position}).eq('id',o.id);
+        await refresh();
+      },{style:{fontSize:'11px',padding:'6px 12px'}}),
+      btn('Delete section','btn-outline',async function(){
+        if(!confirm('Delete \u201c'+s.title+'\u201d and all its links and files?'))return;
+        var files=resources.filter(function(x){return x.section_id===s.id&&x.file_path;}).map(function(x){return x.file_path;});
+        if(files.length)await sb.storage.from('training-files').remove(files);
+        var x=await sb.from('training_sections').delete().eq('id',s.id);
+        if(x.error){alert(x.error.message);return;}
+        await refresh();
+      },{style:{fontSize:'11px',padding:'6px 12px',color:'#ff4444',borderColor:'#ff4444'}})
+    );
+    card.append(h('div',{cls:'mono',style:{fontSize:'10px',letterSpacing:'1px',color:'var(--muted)',marginBottom:'6px',textTransform:'uppercase'}},['Section '+(i+1)]),tInp,dInp,head);
+
+    var mine=resources.filter(function(x){return x.section_id===s.id;});
+    var rl=div({style:{marginTop:'14px',display:'flex',flexDirection:'column',gap:'6px'}});
+    mine.forEach(function(x){
+      rl.append(div({style:{display:'flex',alignItems:'center',gap:'10px',padding:'7px 10px',background:'var(--card2)',border:'1px solid var(--border)',borderRadius:'6px',flexWrap:'wrap'}},[
+        h('span',{cls:'mono',style:{fontSize:'10px',letterSpacing:'1px',textTransform:'uppercase',color:'var(--muted)'}},[x.kind==='file'?'File':'Link']),
+        h('span',{style:{fontSize:'12px',flex:'1',wordBreak:'break-word'}},[(x.title||'')+(x.kind==='link'&&x.url?' \u2014 '+x.url:(x.file_name?' \u2014 '+x.file_name:''))]),
+        btn('Remove','btn-outline',async function(){
+          if(!confirm('Remove this '+x.kind+'?'))return;
+          if(x.file_path)await sb.storage.from('training-files').remove([x.file_path]);
+          var d=await sb.from('training_resources').delete().eq('id',x.id);
+          if(d.error){alert(d.error.message);return;}
+          await refresh();
+        },{style:{fontSize:'10px',padding:'4px 10px'}})
+      ]));
+    });
+    card.append(rl);
+
+    var nextPos=mine.reduce(function(m,x){return Math.max(m,x.position||0);},0)+1;
+    var lt=inp('Link title');var lu=inp('https://...');
+    [lt,lu].forEach(function(e){e.style.boxSizing='border-box';e.style.flex='1';e.style.minWidth='140px';});
+    card.append(div({style:{display:'flex',gap:'8px',flexWrap:'wrap',marginTop:'12px',alignItems:'center'}},[lt,lu,
+      btn('Add link','btn-outline',async function(){
+        var u=dfTrSafeUrl(lu.value);
+        if(!u){alert('Enter a valid link.');return;}
+        var x=await sb.from('training_resources').insert({section_id:s.id,position:nextPos,kind:'link',title:lt.value.trim()||u,url:u});
+        if(x.error){alert(x.error.message);return;}
+        await refresh();
+      },{style:{fontSize:'11px',padding:'7px 14px'}})
+    ]));
+    var ft=inp('File title (optional)');ft.style.boxSizing='border-box';ft.style.flex='1';ft.style.minWidth='140px';
+    var fi=h('input',{type:'file',style:{fontSize:'12px',color:'var(--text)',maxWidth:'100%'}});
+    var fbtn=btn('Upload file','btn-outline',async function(){
+      var file=fi.files&&fi.files[0];
+      if(!file){alert('Choose a file first.');return;}
+      if(file.size>50*1024*1024){alert('That file is larger than 50 MB.');return;}
+      fbtn.disabled=true;fbtn.textContent='Uploading...';
+      var safe=file.name.replace(/[^A-Za-z0-9._-]/g,'_').slice(-80);
+      var path=s.id+'/'+Date.now()+'-'+safe;
+      var up=await sb.storage.from('training-files').upload(path,file,{upsert:false});
+      if(up.error){alert('Could not upload: '+up.error.message);fbtn.disabled=false;fbtn.textContent='Upload file';return;}
+      var x=await sb.from('training_resources').insert({section_id:s.id,position:nextPos,kind:'file',title:ft.value.trim()||file.name,file_path:path,file_name:file.name});
+      if(x.error){alert(x.error.message);fbtn.disabled=false;fbtn.textContent='Upload file';return;}
+      await refresh();
+    },{style:{fontSize:'11px',padding:'7px 14px'}});
+    card.append(div({style:{display:'flex',gap:'8px',flexWrap:'wrap',marginTop:'10px',alignItems:'center'}},[ft,fi,fbtn]));
+    body.append(card);
+  });
+}
+
+// Same paste format the platform's tests use: blank line between questions, first line the question,
+// options as "A. ...", then "Answer: X". Explanations are ignored: this quiz never shows any.
+function dfTrParseQuiz(text){
+  var blocks=String(text||'').replace(/\r/g,'').split(/\n\s*\n/).filter(function(b){return b.trim();});
+  return blocks.map(function(b,bi){
+    var stem=[],opts={},ans='',inExp=false;
+    b.split('\n').map(function(l){return l.trim();}).filter(Boolean).forEach(function(line){
+      var am=line.match(/^answer\s*:\s*([A-Qa-q])\b/i);
+      if(am){ans=am[1].toUpperCase();return;}
+      if(/^explanation\s*:/i.test(line)){inExp=true;return;}
+      if(/^topic\s*:/i.test(line))return;
+      if(inExp)return;
+      var om=line.match(/^([A-Q])[.)]\s*(.+)$/);
+      if(om){opts[om[1]]=om[2].trim();return;}
+      if(!Object.keys(opts).length)stem.push(line);
+    });
+    var q={index:bi+1,question:stem.join('\n'),options:opts,correct_answer:ans,problems:[]};
+    if(!q.question)q.problems.push('no question text');
+    if(Object.keys(opts).length<2)q.problems.push('needs at least two options');
+    if(!ans)q.problems.push('no Answer line');else if(!opts[ans])q.problems.push('answer '+ans+' is not one of the options');
+    return q;
+  });
+}
+async function dfTrQuizAdmin(body){
+  var q=await sb.from('training_quiz_questions').select('*').order('position',{ascending:true});
+  if(q.error){body.append(h('p',{style:{color:'#ff4444',fontSize:'13px'}},['Could not load the quiz: '+q.error.message]));return;}
+  var existing=q.data||[];
+  async function refresh(){body.replaceChildren();await dfTrQuizAdmin(body);}
+  body.append(dfTrMuted(existing.length?('Current quiz: '+existing.length+' question'+(existing.length===1?'':'s')+'. Pasting a new quiz replaces it completely.'):'No quiz yet. Paste your questions below.'));
+  body.append(dfTrMuted('Format: one blank line between questions. First line is the question, then options as A. B. C. D., then a line like \u201cAnswer: B\u201d. Any explanation lines are ignored; tutors never see answers or explanations.'));
+  var ta=h('textarea',{cls:'input',placeholder:'Paste the quiz here...',style:{width:'100%',minHeight:'220px',resize:'vertical',boxSizing:'border-box'}});
+  var out=div({style:{margin:'10px 0',fontSize:'12px',lineHeight:'1.7'}});
+  var parsed=[];
+  var check=btn('Check format','btn-outline',function(){
+    parsed=dfTrParseQuiz(ta.value);
+    out.replaceChildren();
+    if(!parsed.length){out.append(h('div',{style:{color:'#ff4444'}},['Nothing to read yet.']));return;}
+    var bad=parsed.filter(function(x){return x.problems.length;});
+    out.append(h('div',{style:{color:bad.length?'var(--gold)':'var(--teal)'}},[parsed.length+' question'+(parsed.length===1?'':'s')+' found'+(bad.length?', '+bad.length+' with problems:':'. All look good.')]));
+    bad.forEach(function(x){out.append(h('div',{style:{color:'#ff4444'}},['Question '+x.index+': '+x.problems.join(', ')]));});
+  },{style:{fontSize:'12px',padding:'8px 16px',marginRight:'8px'}});
+  var save=btn('Replace quiz','btn-gold',async function(){
+    parsed=dfTrParseQuiz(ta.value);
+    if(!parsed.length){alert('Paste your questions first.');return;}
+    var bad=parsed.filter(function(x){return x.problems.length;});
+    if(bad.length){check.click();alert('Fix the questions with problems first.');return;}
+    if(!confirm('Replace the whole quiz with these '+parsed.length+' questions?'))return;
+    var x=await sb.rpc('training_replace_quiz',{p_questions:parsed.map(function(p){return{question:p.question,options:p.options,correct_answer:p.correct_answer};})});
+    if(x.error){alert(x.error.message);return;}
+    dfToast('Quiz saved: '+x.data+' questions.');
+    await refresh();
+  },{style:{fontSize:'12px',padding:'8px 16px'}});
+  body.append(ta,out,div({},[check,save]));
+  if(existing.length){
+    var det=h('details',{style:{marginTop:'20px'}});
+    det.append(h('summary',{style:{cursor:'pointer',fontSize:'13px',color:'var(--gold)'}},['View current questions with answers (admin only)']));
+    existing.forEach(function(x,i){
+      det.append(div({style:{padding:'10px 0',borderBottom:'1px solid var(--border)',fontSize:'12px',lineHeight:'1.7'}},[
+        h('div',{style:{fontWeight:'600',whiteSpace:'pre-wrap'}},[(i+1)+'. '+x.question]),
+        h('div',{style:{color:'var(--muted)'}},[Object.keys(x.options||{}).map(function(k){return k+'. '+x.options[k];}).join('  \u00b7  ')]),
+        h('div',{style:{color:'var(--teal)'}},['Answer: '+x.correct_answer])
+      ]));
+    });
+    body.append(det);
+  }
+}
+
+async function dfTrAccessAdmin(body){
+  var r=await sb.rpc('training_tutor_switches');
+  var cr=await sb.from('admin_roles').select('user_id,role,is_training_coord,profiles(full_name,email)').order('created_at');
+  async function refresh(){body.replaceChildren();await dfTrAccessAdmin(body);}
+
+  var c1=div({cls:'card',style:{padding:'16px',marginBottom:'16px'}});
+  c1.append(h('div',{style:{fontWeight:'700',fontSize:'15px',marginBottom:'4px'}},['Training switch per tutor']),
+    dfTrMuted('New tutors have training on by default. Tutors who were here before training existed stay off until you switch them on.'));
+  if(r.error)c1.append(h('p',{style:{color:'#ff4444',fontSize:'13px'}},[r.error.message]));
+  (r.data||[]).forEach(function(t){
+    c1.append(div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',gap:'10px',flexWrap:'wrap',padding:'8px 0',borderTop:'1px solid var(--border)'}},[
+      div({},[h('div',{style:{fontWeight:'600',fontSize:'13px'}},[t.full_name||'Unnamed']),h('div',{style:{fontSize:'11px',color:'var(--dim)'}},[(t.email||'')+(t.enabled&&t.stage?' \u00b7 '+dfTrStageLabel(t.stage):'')])]),
+      div({style:{display:'flex',gap:'8px',alignItems:'center'}},[
+        dfTrChip(t.enabled?'On':'Off',t.enabled?'var(--teal)':'var(--muted)'),
+        btn(t.enabled?'Turn off':'Turn on','btn-outline',async function(){
+          if(!t.enabled&&!confirm('Turn training on for '+t.full_name+'? They will be taken through the training module the next time they open their tutor page.'))return;
+          var x=await sb.rpc('training_set_enabled',{p_tutor:t.user_id,p_enabled:!t.enabled});
+          if(x.error){alert(x.error.message);return;}
+          await refresh();
+        },{style:{fontSize:'11px',padding:'5px 12px'}})
+      ])
+    ]));
+  });
+  body.append(c1);
+
+  var c2=div({cls:'card',style:{padding:'16px'}});
+  c2.append(h('div',{style:{fontWeight:'700',fontSize:'15px',marginBottom:'4px'}},['Training coordinators']),
+    dfTrMuted('A coordinator hosts observation classes, sees tutors in training and marks them complete. Super admin can always do this too.'));
+  if(cr.error)c2.append(h('p',{style:{color:'#ff4444',fontSize:'13px'}},['Could not load team: '+cr.error.message]));
+  (cr.data||[]).forEach(function(a){
+    var nm=(a.profiles&&(a.profiles.full_name||a.profiles.email))||'Unknown';
+    c2.append(div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',gap:'10px',flexWrap:'wrap',padding:'8px 0',borderTop:'1px solid var(--border)'}},[
+      div({},[h('div',{style:{fontWeight:'600',fontSize:'13px'}},[nm]),h('div',{style:{fontSize:'11px',color:'var(--dim)'}},[(a.profiles&&a.profiles.email||'')+' \u00b7 '+a.role])]),
+      div({style:{display:'flex',gap:'8px',alignItems:'center'}},[
+        a.is_training_coord?dfTrChip('Coordinator','var(--gold)'):null,
+        btn(a.is_training_coord?'Remove':'Make coordinator','btn-outline',async function(){
+          var x=await sb.from('admin_roles').update({is_training_coord:!a.is_training_coord}).eq('user_id',a.user_id);
+          if(x.error){alert(x.error.message);return;}
+          await refresh();
+        },{style:{fontSize:'11px',padding:'5px 12px'}})
+      ])
+    ]));
+  });
+  body.append(c2);
 }
 
 function dfOnForeground(){
