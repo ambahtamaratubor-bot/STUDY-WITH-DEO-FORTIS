@@ -3467,7 +3467,11 @@ let DATA={enrolled:false,assignments:[],results:[],tasks:[],counts:{},assessAssi
 async function loadData(){
   const en=await sb.from('tutoring_students').select('id').eq('user_id',S.user.id).eq('active',true).maybeSingle();
   DATA.enrolled=!!(en&&en.data);
-  if(!DATA.enrolled)return;
+  DATA.completion=null;
+  if(!DATA.enrolled){
+    try{var cp=await sb.rpc('my_program_completion');if(cp&&!cp.error&&cp.data)DATA.completion=cp.data;}catch(e){}
+    return;
+  }
   const a=await sb.from('tutoring_assignments').select('id,due_date,due_time,test_id,tutoring_tests(id,title,mode,time_limit)').eq('student_id',S.user.id).order('assigned_at',{ascending:false});
   DATA.assignments=a.data||[];
   const r=await sb.from('tutoring_results').select('*').eq('student_id',S.user.id).order('taken_at',{ascending:false});
@@ -3503,8 +3507,32 @@ function fmtTimeShort(t){if(!t)return'';try{var parts=String(t).split(':');var h
 function fmtDueDateTime(dateStr,timeStr){if(!dateStr)return'';var base='Due '+fmtDateShort(dateStr);var t=fmtTimeShort(timeStr);return t?base+' \u00b7 '+t:base;}
 function metaLine(test,a,completed,best){var parts=[];var cnt=DATA.counts[test.id]||0;if(cnt)parts.push(cnt+' questions');if(test.mode==='timed'&&test.time_limit)parts.push(test.time_limit+' min');if(a.due_date)parts.push(fmtDueDateTime(a.due_date,a.due_time));if(completed&&best)parts.push('Latest '+best.score+'/'+best.total);return parts.join(' \u00b7 ');}
 
+function dfCompletionCard(c){
+  var card=div({cls:'card',style:{padding:'28px',borderColor:'var(--gold)',maxWidth:'640px',margin:'0 auto'}},[]);
+  card.append(
+    h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--gold)',letterSpacing:'2px',textTransform:'uppercase',marginBottom:'10px'}},['Congratulations']),
+    h('div',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'24px',fontWeight:'700',color:'var(--text)',marginBottom:'12px'}},['You have completed the Deo Fortis Tutoring program.']),
+    h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'14px',color:'var(--muted)',lineHeight:'1.8',marginBottom:'16px'}},['Here is how you did.'])
+  );
+  var rows=[];
+  var cnt=Number(c.daily_count||0);
+  rows.push(['Daily tests average',cnt>0&&c.daily_avg_pct!=null?(c.daily_avg_pct+'% across '+cnt+(cnt===1?' test':' tests')):'No daily tests taken']);
+  var asm=c.assessments||[];
+  if(!asm.length)rows.push(['Assessments','None taken']);
+  asm.forEach(function(a){rows.push([a.title||'Assessment',a.score+' / '+a.total+(a.pct!=null?' ('+a.pct+'%)':'')]);});
+  rows.forEach(function(r){
+    card.append(div({style:{display:'flex',justifyContent:'space-between',gap:'12px',padding:'10px 0',borderTop:'1px solid var(--border)',fontFamily:'Inter,sans-serif',fontSize:'14px'}},[
+      h('span',{style:{color:'var(--text)'}},[r[0]]),h('span',{cls:'mono',style:{color:'var(--gold)',textAlign:'right'}},[r[1]])]));
+  });
+  card.append(
+    h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'14px',color:'var(--text)',lineHeight:'1.8',marginTop:'18px'}},['We wish you the very best in your exam.']),
+    h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'13px',color:'var(--muted)',lineHeight:'1.8',marginTop:'8px'}},['When you are done, we would love for you to share your success with us. Your story encourages the students who come after you.'])
+  );
+  return card;
+}
 function renderTab(){
   content.innerHTML='';
+  if(!DATA.enrolled&&DATA.completion){content.append(dfCompletionCard(DATA.completion));return;}
   if(!DATA.enrolled){
     content.append(div({cls:'card',style:{textAlign:'center',padding:'40px'}},[h('p',{style:{color:'var(--muted)',fontSize:'14px'},html:'You are not enrolled in tutoring yet. Your tutor will add you when your programme begins.'},[])]));
     return;
@@ -6622,7 +6650,7 @@ page.append(nav);
 const container=div({cls:'inner'});
 {const _pa=dfPushAnnounceCard();if(_pa)container.append(_pa);}
 {const _wn=dfWhatsNewCard('student');if(_wn)container.append(_wn);}
-const tutHolder=div({});container.append(tutHolder);(async function(){const _te=await sb.from('tutoring_students').select('id').eq('user_id',S.user.id).eq('active',true).maybeSingle();if(!_te||!_te.data)return;const tw=div({cls:'card',style:{marginBottom:'16px',borderColor:'var(--gold)',cursor:'pointer',display:'flex',justifyContent:'space-between',alignItems:'center',gap:'16px',flexWrap:'wrap'}},[div({style:{flex:'1',minWidth:'200px'}},[h('div',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'17px',color:'var(--gold)',marginBottom:'4px'}},['Tutoring Wing']),h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'13px',color:'var(--muted)'}},['Your assigned tests, tasks and results'])]),h('span',{cls:'mono',style:{fontSize:'12px',color:'var(--gold)',flexShrink:'0'}},['Enter →'])]);tw.onclick=function(){go('tutoring');};tutHolder.append(tw);})();
+const tutHolder=div({});container.append(tutHolder);(async function(){const _te=await sb.from('tutoring_students').select('id').eq('user_id',S.user.id).eq('active',true).maybeSingle();if(!_te||!_te.data){try{const _cp=await sb.rpc('my_program_completion');if(_cp&&!_cp.error&&_cp.data){const cw=div({cls:'card',style:{marginBottom:'16px',borderColor:'var(--gold)',cursor:'pointer',display:'flex',justifyContent:'space-between',alignItems:'center',gap:'16px',flexWrap:'wrap'}},[div({style:{flex:'1',minWidth:'200px'}},[h('div',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'17px',color:'var(--gold)',marginBottom:'4px'}},['Tutoring complete']),h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'13px',color:'var(--muted)'}},['Congratulations. See your results.'])]),h('span',{cls:'mono',style:{fontSize:'12px',color:'var(--gold)',flexShrink:'0'}},['View \u2192'])]);cw.onclick=function(){go('tutoring');};tutHolder.append(cw);}}catch(e){}return;}const tw=div({cls:'card',style:{marginBottom:'16px',borderColor:'var(--gold)',cursor:'pointer',display:'flex',justifyContent:'space-between',alignItems:'center',gap:'16px',flexWrap:'wrap'}},[div({style:{flex:'1',minWidth:'200px'}},[h('div',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'17px',color:'var(--gold)',marginBottom:'4px'}},['Tutoring Wing']),h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'13px',color:'var(--muted)'}},['Your assigned tests, tasks and results'])]),h('span',{cls:'mono',style:{fontSize:'12px',color:'var(--gold)',flexShrink:'0'}},['Enter →'])]);tw.onclick=function(){go('tutoring');};tutHolder.append(tw);})();
 page.append(container);
 
 // STAT CARD HELPER
@@ -9339,14 +9367,16 @@ page.append(adminLayout);
 let currentFilter='pending';
 async function loadTab(tab){
 content.innerHTML='';content.append(skelCard([['40%'],['70%'],['50%']]),skelCard([['60%'],['80%'],['45%']]));
-async function fetchEnrolled(){
-  var en=await sb.from('tutoring_students').select('*').eq('active',true).order('enrolled_at',{ascending:false});
+async function fetchEnrolled(completed){
+  var enq=sb.from('tutoring_students').select('*');
+  enq=completed?enq.eq('active',false).not('completed_at','is',null).order('completed_at',{ascending:false}):enq.eq('active',true).order('enrolled_at',{ascending:false});
+  var en=await enq;
   var rows=en.data||[];
   if(!rows.length)return [];
   var ids=rows.map(function(r){return r.user_id;});
   var pr=await sb.from('profiles').select('id,full_name,email').in('id',ids);
   var pmap={};(pr.data||[]).forEach(function(p){pmap[p.id]=p;});
-  return rows.map(function(r){var p=pmap[r.user_id]||{};return{user_id:r.user_id,enrolled_at:r.enrolled_at,full_name:p.full_name||'(no name)',email:p.email||''};});
+  return rows.map(function(r){var p=pmap[r.user_id]||{};return{user_id:r.user_id,enrolled_at:r.enrolled_at,completed_at:r.completed_at||null,full_name:p.full_name||'(no name)',email:p.email||''};});
 }
 async function fetchPayments(){
   var pr=await sb.from('tutoring_payments').select('*').order('due_date',{ascending:true});
@@ -9546,6 +9576,22 @@ async function openStudentSheet(studentId,name,email){
         await refresh();
       },{style:{fontSize:'10px',padding:'4px 10px'}}));
     priceWrap.append(modeRow);
+    if(panelIsSuperAdmin){
+      var delayRow=div({style:{display:'flex',alignItems:'center',gap:'10px',flexWrap:'wrap',marginTop:'8px'}});
+      var al=await sb.rpc('payment_delay_allowed',{p_student:studentId});
+      var allowed=!!(al&&!al.error&&al.data===true);
+      delayRow.append(h('span',{cls:'mono',style:{fontSize:'12px',color:'var(--muted)'}},['Payment delay: '+(allowed?'ALLOWED. The Tutoring Wing stays open however late the payment is':'not allowed. The Tutoring Wing locks once a payment is more than 15 days overdue')]),
+        btn(allowed?'Stop allowing delay':'Allow payment delay','btn-outline',async function(){
+          var to=!allowed;
+          if(!confirm(to?'Allow this student to be late on payment? The Tutoring Wing will not lock for them.':'Stop allowing the delay? The Tutoring Wing will lock if a payment is more than 15 days overdue.'))return;
+          var note=null;
+          if(to){note=prompt('Note (optional): why is this delay allowed?','');if(note===null)return;}
+          var u=await sb.rpc('set_payment_delay_allowed',{p_student:studentId,p_allowed:to,p_note:note});
+          if(u.error){alert('Could not save: '+u.error.message);return;}
+          await refresh();
+        },{style:{fontSize:'10px',padding:'4px 10px'}}));
+      priceWrap.append(delayRow);
+    }
     tableWrap.append(dfPayTable(rows,today,{
       txnAction:function(t){
         var line=div({style:{display:'flex',alignItems:'center',gap:'8px',marginBottom:'6px',flexWrap:'wrap'}});
@@ -11005,6 +11051,7 @@ function renderScheduleBoard(){
   var DOW_NAMES_BOARD=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
   function fmtTimeBoard(t){if(!t)return'';try{var parts=String(t).split(':');var hh=parseInt(parts[0],10);var mm=parts[1]||'00';var ap=hh>=12?'PM':'AM';var h12=hh%12;if(h12===0)h12=12;return h12+':'+mm+' '+ap;}catch(e){return'';}}
   function todayStrBoard(){var d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+  var boardAttn=div({},[]);tBody.append(boardAttn);dfRenderTutorClassAttention(boardAttn);
   var head=div({style:{marginBottom:'16px'}},[
     h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'18px',marginBottom:'8px'}},['Schedule Board']),
     h('p',{cls:'muted',style:{fontSize:'12px',marginBottom:'10px'}},['This week\u2019s classes, across every student, at a glance.'])
@@ -11138,8 +11185,22 @@ function renderStudents(){
   if(panelIsSuperAdmin)enrollRow.append(btn('\u2709 Email tutors','btn-outline',async function(){var ts=await dfFetchTutors();dfEmailModal({title:'Email tutors',pick:true,recipients:ts});},{style:{fontSize:'12px',padding:'8px 16px'}}));
   [].slice.call(enrollRow.children).forEach(function(b){if(b.textContent.indexOf('Email tutors')===0)dfPutNewOn(b);});
   tBody.append(enrollRow);
+  var attnHolder=div({},[]);tBody.append(attnHolder);dfRenderTutorClassAttention(attnHolder);
   var listWrap=div({},[]);
   tBody.append(listWrap);
+  var doneWrap=div({style:{marginTop:'24px'}},[]);
+  tBody.append(doneWrap);
+  (async function(){
+    var done=await fetchEnrolled(true);
+    if(!done.length)return;
+    doneWrap.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'16px',marginBottom:'12px'},html:'Completed ('+done.length+')'}));
+    done.forEach(function(s){
+      var card=div({cls:'card',style:{marginBottom:'10px',display:'flex',justifyContent:'space-between',alignItems:'center',gap:'14px',flexWrap:'wrap',opacity:'0.85'}},[]);
+      card.append(div({style:{flex:'1',minWidth:'200px'}},[h('div',{style:{fontSize:'14px',color:'var(--text)',fontWeight:'500'}},[s.full_name]),h('div',{cls:'mono',style:{fontSize:'11px',color:'var(--muted)',marginTop:'2px'}},[s.email+' \u00b7 completed '+new Date(s.completed_at).toLocaleDateString()])]));
+      card.append(btn('Open','btn-outline',function(){openStudent(s);},{style:{fontSize:'10px',padding:'6px 16px'}}));
+      doneWrap.append(card);
+    });
+  })();
   (async function(){
     listWrap.append(skelCard([['40%'],['70%']]));
     var students=await fetchEnrolled();
@@ -11307,6 +11368,17 @@ function openStudent(s){
     };
     headBtns.append(ibBtn);
     [].slice.call(headBtns.children).forEach(function(b){if(b.textContent.indexOf('Email student')===0)dfPutNewOn(b);});
+  }
+  if(s.completed_at){
+    headBtns.append(h('span',{cls:'mono',style:{fontSize:'10px',color:'var(--teal)',letterSpacing:'1px',textTransform:'uppercase',alignSelf:'center'}},['Completed '+new Date(s.completed_at).toLocaleDateString()]));
+  }else{
+    headBtns.append(btn('Tutoring complete','btn-gold',async function(){
+      if(!confirm('Mark '+s.full_name+' as having completed the Deo Fortis tutoring program?\n\nTheir profile will be archived, their class slots stopped, and they will be emailed a congratulations with their daily test average and every assessment score. This cannot be undone from here.'))return;
+      var r=await sb.rpc('complete_tutoring_program',{p_student:s.user_id});
+      if(r.error){alert('Could not complete: '+r.error.message);return;}
+      alert(s.full_name+' has been archived and a congratulations email is on its way.');
+      renderStudents();
+    },{style:{fontSize:'10px',padding:'6px 12px'}}));
   }
   headBtns.append(btn('Unenroll','btn-outline',async function(){if(!confirm('Remove '+s.full_name+' from tutoring? They lose access to the wing. Their tests and results are kept.'))return;var d=await sb.from('tutoring_students').delete().eq('user_id',s.user_id);if(d&&d.error){alert('Failed: '+d.error.message);return;}renderStudents();},{style:{fontSize:'10px',padding:'6px 12px',color:'#ff4444',borderColor:'#ff4444'}}));
   head.append(headBtns);
@@ -14558,9 +14630,11 @@ async function dfRenderTutorReviewsTab(box){
 }
 
 // ───────────────────────────── CLASS CHECK ─────────────────────────────
-// Students confirm whether each class happened, without seeing what the tutor marked. After 48 hours, classes
-// whose records disagree or are incomplete show up for managers and super admins, and the student and the
-// tutor each get one neutral email asking what happened. Tutors never see the students' answers.
+// Students confirm whether each class happened, without seeing what the tutor marked. Nobody is emailed while a
+// student has not confirmed. When a student's answer differs from the tutor's mark (checked after the grace period),
+// the student and the tutor each get one detailed email stating exactly what each side said. The tutor also sees
+// "Attention needed" with the student's answer until a manager marks it reviewed. Managers and super admins see
+// every class that does not add up in the Class check tab.
 async function dfIsReviewStaff(){
   var r=await sb.from('admin_roles').select('role').eq('user_id',S.user?S.user.id:'').maybeSingle();
   var role=r&&r.data?r.data.role:null;
@@ -14587,7 +14661,7 @@ async function dfLoadClassConfirm(box){
   var card=div({cls:'card',style:{padding:'20px',marginBottom:'20px',borderColor:'var(--gold)'}});
   card.append(
     h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--gold)',letterSpacing:'1.5px',textTransform:'uppercase',marginBottom:'8px',fontWeight:'700'}},['Confirm your class']),
-    h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'13px',color:'var(--dim)',lineHeight:'1.7',marginBottom:'10px'}},['Please tell us whether each class took place. This helps us make sure every class is being held. Your answer is private and cannot be changed afterwards.'])
+    h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'13px',color:'var(--dim)',lineHeight:'1.7',marginBottom:'10px'}},['Please tell us whether each class took place. This helps us make sure every class is being held. Your answer cannot be changed afterwards. If it differs from what your tutor marked, we will email you both so it can be cleared up.'])
   );
   r.data.forEach(function(item){
     var when=dfClassWhen(item.class_date,item.class_time);
@@ -14643,7 +14717,7 @@ async function dfRenderClassCheckTab(box,showResolved){
 
   var ctl=div({cls:'card',style:{marginBottom:'20px'}});
   ctl.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'18px',marginBottom:'8px'}},['Class check']));
-  ctl.append(h('p',{style:{fontSize:'13px',color:'var(--dim)',lineHeight:'1.7',marginBottom:'10px'}},['Students confirm each class without seeing what the tutor marked. Once 48 hours have passed after a class, anything that disagrees or is incomplete appears below, and the student and the tutor each get one neutral email asking what happened. Tutors never see the students\u2019 answers.']));
+  ctl.append(h('p',{style:{fontSize:'13px',color:'var(--dim)',lineHeight:'1.7',marginBottom:'10px'}},['Students confirm each class without seeing what the tutor marked. Once 48 hours have passed after a class, anything that disagrees or is incomplete appears below. Nobody is emailed while a student has not confirmed. Only when the student\u2019s answer differs from the tutor\u2019s mark do the student and the tutor each get a detailed email with the exact difference, and the tutor sees Attention needed with the student\u2019s answer.']));
   if(launch){
     ctl.append(h('p',{style:{fontSize:'12px',color:'var(--muted)',marginBottom:'12px'}},['ON. Checking classes from '+new Date(launch+'T00:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})+' onwards.']));
     ctl.append(btn('Switch off','btn-outline',async function(){
@@ -14655,7 +14729,7 @@ async function dfRenderClassCheckTab(box,showResolved){
   }else{
     ctl.append(h('p',{style:{fontSize:'12px',color:'var(--muted)',marginBottom:'12px'}},['OFF. Students are not being asked and nothing is being checked. Switching on starts from tomorrow, so no earlier class is ever flagged.']));
     ctl.append(btn('Switch on','btn-gold',async function(){
-      if(!confirm('Switch the class check on? From tomorrow, students will be asked to confirm each class, and the student and tutor will be emailed about any class that does not add up after 48 hours.'))return;
+      if(!confirm('Switch the class check on? From tomorrow, students will be asked to confirm each class. The student and the tutor are emailed only when the student\u2019s answer differs from what the tutor marked.'))return;
       var r=await sb.rpc('class_check_set_enabled',{p_on:true});
       if(r.error){alert('Could not switch it on: '+r.error.message);return;}
       refresh(false);
@@ -14690,7 +14764,7 @@ async function dfRenderClassCheckTab(box,showResolved){
       h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'13px',color:'var(--text)',marginBottom:'6px'}},['Student: '+r.student_name+'  \u00b7  Tutor: '+r.tutor_name]),
       h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'13px',color:'var(--gold)',marginBottom:'6px'}},[DF_CLASS_ISSUES[r.issue]||r.issue]),
       h('div',{cls:'mono',style:{fontSize:'11px',color:'var(--muted)',lineHeight:'1.7'}},['Tutor marked: '+dfMarkText(r.tutor_mark)+'  \u00b7  Student answered: '+dfMarkText(r.student_answer)]),
-      h('div',{cls:'mono',style:{fontSize:'11px',color:'var(--muted)',marginBottom:'8px'}},[r.notified_at?'Both emailed '+new Date(r.notified_at).toLocaleDateString('en-US',{month:'short',day:'numeric'}):'Emails go out within the hour'])
+      h('div',{cls:'mono',style:{fontSize:'11px',color:'var(--muted)',marginBottom:'8px'}},[r.issue==='mismatch'?(r.notified_at?'Both emailed '+new Date(r.notified_at).toLocaleDateString('en-US',{month:'short',day:'numeric'}):'Emails go out within the hour'):'No email sent. Only differing answers are emailed.'])
     );
     if(done&&r.resolved_note)card.append(h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'12px',color:'var(--dim)',lineHeight:'1.7',whiteSpace:'pre-wrap',wordBreak:'break-word'}},['Note: '+r.resolved_note]));
     if(!done){
@@ -14704,6 +14778,27 @@ async function dfRenderClassCheckTab(box,showResolved){
     }
     box.append(card);
   });
+}
+
+// Tutor-facing: classes where the student's answer differs from what the tutor marked. Shows the student's answer and
+// stays until a manager marks the class as reviewed.
+async function dfRenderTutorClassAttention(holder){
+  try{
+    var r=await sb.rpc('my_class_check_attention');
+    if(!r||r.error||!r.data||!r.data.length)return;
+    var card=div({cls:'card',style:{padding:'18px',marginBottom:'18px',borderColor:'#e08a3c',background:'rgba(224,138,60,0.07)'}});
+    card.append(
+      h('div',{cls:'mono',style:{fontSize:'10px',color:'#e08a3c',letterSpacing:'1.5px',textTransform:'uppercase',marginBottom:'6px',fontWeight:'700'}},['Attention needed']),
+      h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'13px',color:'var(--muted)',lineHeight:'1.7',marginBottom:'8px'}},['A student\u2019s answer does not match what you marked. Did the class happen or not? Please check with the student and get back to us immediately by replying to the email we sent you.'])
+    );
+    r.data.forEach(function(x){
+      card.append(div({style:{padding:'10px 0',borderTop:'1px solid var(--border)'}},[
+        h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'14px',fontWeight:'600',color:'var(--text)'}},[dfClassWhen(x.class_date,x.class_time)+'  \u00b7  '+x.student_name]),
+        h('div',{cls:'mono',style:{fontSize:'11px',color:'var(--muted)',marginTop:'4px',lineHeight:'1.7'}},['You marked: '+dfMarkText(x.tutor_mark)+'  \u00b7  Student answered: '+dfMarkText(x.student_answer)])
+      ]));
+    });
+    holder.append(card);
+  }catch(e){console.warn('class attention failed',e);}
 }
 
 // ───────────────────────────── TUTORS PER CLASS · STAND-INS · MARK LOCK ─────────────────────────────
@@ -14937,7 +15032,7 @@ function dfReportFormModal(s,existing,opts){
 }
 
 /* ===================== DAILY FLASHCARD LOCK: STUDENT SIDE ===================== */
-var dfStudentLock={overlay:null,lastUser:null,tick:0,checking:false,status:null,tasks:[],sig:''};
+var dfStudentLock={overlay:null,lastUser:null,tick:0,checking:false,status:null,tasks:[],pay:null,sig:''};
 // Today's date in AST (UTC-4, no daylight saving) as YYYY-MM-DD. A task is overdue once this is later than its due date.
 function dfAstToday(){return new Date(Date.now()-4*3600*1000).toISOString().slice(0,10);}
 function dfTaskOverdue(k){return !!(k&&k.due_date&&String(k.due_date).slice(0,10)<dfAstToday());}
@@ -14963,6 +15058,7 @@ function dfStudentLockApply(){
   var reasons=[];
   if(st&&st.locked&&S.page!=='flashcards'){(st.reasons||[]).forEach(function(r){if(r.type==='flashcards')reasons.push(r);});}
   if(S.page==='tutoring'){
+    if(dfStudentLock.pay&&dfStudentLock.pay.blocked)reasons.push({type:'payment',days_late:dfStudentLock.pay.days_late,owing:dfStudentLock.pay.owing});
     (dfStudentLock.tasks||[]).forEach(function(k){
       if(!dfTaskOverdue(k))return;
       reasons.push({type:'task',id:k.id,title:k.title,note:k.note,kind:k.task_kind,due_date:k.due_date,marked_done:!!k.done});
@@ -14978,13 +15074,19 @@ function dfStudentLockApply(){
 }
 function dfStudentLockBuild(o,st){
   var reasons=st.reasons||[];
-  var flash=null;var tasks=[];
-  reasons.forEach(function(r){if(r.type==='flashcards')flash=r;else if(r.type==='task')tasks.push(r);});
+  var flash=null;var tasks=[];var payLate=null;
+  reasons.forEach(function(r){if(r.type==='flashcards')flash=r;else if(r.type==='task')tasks.push(r);else if(r.type==='payment')payLate=r;});
   var card=div({cls:'card',style:{maxWidth:'560px',width:'100%',padding:'28px',maxHeight:'92vh',overflowY:'auto',borderColor:'var(--gold)'}},[]);
   card.append(
     h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--gold)',letterSpacing:'2px',textTransform:'uppercase',marginBottom:'10px'}},['Profile locked']),
-    h('div',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'22px',fontWeight:'700',color:'var(--text)',marginBottom:'14px'}},[flash?'Finish what is due to continue':'Finish your overdue task to continue in the Tutoring Wing'])
+    h('div',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'22px',fontWeight:'700',color:'var(--text)',marginBottom:'14px'}},[flash?'Finish what is due to continue':(payLate&&!tasks.length?'The Tutoring Wing is locked':'Finish your overdue task to continue in the Tutoring Wing')])
   );
+  if(payLate){
+    card.append(div({style:{padding:'14px 0',borderTop:'1px solid var(--border)'}},[
+      h('div',{style:{fontSize:'14px',color:'var(--text)',lineHeight:'1.7',marginBottom:'6px'}},['You have not communicated with Deo Fortis on why there is a payment delay.']),
+      h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'13px',color:'var(--muted)',lineHeight:'1.7'}},['Your payment is more than 15 days overdue'+(payLate.days_late?' ('+payLate.days_late+' days)':'')+'. Please pay, or message us to explain the delay. Only the Tutoring Wing is locked. Flashcards, Q-Bank, Messages and Payments stay open.'])
+    ]));
+  }
   if(tasks.length&&!flash){
     card.append(h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'13px',color:'var(--muted)',lineHeight:'1.7',marginBottom:'6px'}},['Your tutor set this task and its due date has passed. Only the Tutoring Wing is locked. Flashcards, Q-Bank and the rest of the platform stay open, so you can do the work now.']));
   }
@@ -15035,7 +15137,7 @@ function dfStudentLockBuild(o,st){
   if(hasQ){
     btns.append(btn('Go to Q-Bank','btn-gold',function(){go('vignette');},{style:{fontSize:'12px',padding:'9px 18px'}}));
   }
-  if(tasks.length){
+  if(tasks.length||payLate){
     btns.append(btn('Back to Dashboard','btn-outline',function(){go('dashboard');},{style:{fontSize:'12px',padding:'9px 18px'}}));
   }
   btns.append(btn('Messages','btn-outline',function(){dfMailbox();},{style:{fontSize:'12px',padding:'9px 18px'}}));
@@ -15065,14 +15167,19 @@ async function dfStudentLockCheck(){
     var tr=await sb.from('tutoring_tasks').select('id,title,note,task_kind,done,released_at,due_date,locks_profile').eq('student_id',S.user.id).eq('locks_profile',true).is('released_at',null);
     if(tr&&!tr.error&&tr.data)dfStudentLock.tasks=tr.data;
   }catch(e){}
+  try{
+    // Payment delay: more than 15 days past due, unless a super admin has allowed this student's delay. Fails open.
+    var pr=await sb.rpc('my_payment_delay_status');
+    if(pr&&!pr.error&&pr.data)dfStudentLock.pay=pr.data;
+  }catch(e){}
   dfStudentLock.checking=false;
   dfStudentLockApply();
 }
 function dfStudentLockRefresh(){dfStudentLock.sig='';dfStudentLockCheck();}
 function dfInitStudentLock(){
   setInterval(function(){
-    if(!S.user){dfStudentLock.lastUser=null;dfStudentLock.status=null;dfStudentLock.tasks=[];dfStudentLockHide();return;}
-    if(dfStudentLock.lastUser!==S.user.id){dfStudentLock.lastUser=S.user.id;dfStudentLock.tick=0;dfStudentLock.status=null;dfStudentLock.tasks=[];dfStudentLockCheck();return;}
+    if(!S.user){dfStudentLock.lastUser=null;dfStudentLock.status=null;dfStudentLock.tasks=[];dfStudentLock.pay=null;dfStudentLockHide();return;}
+    if(dfStudentLock.lastUser!==S.user.id){dfStudentLock.lastUser=S.user.id;dfStudentLock.tick=0;dfStudentLock.status=null;dfStudentLock.tasks=[];dfStudentLock.pay=null;dfStudentLockCheck();return;}
     dfStudentLock.tick++;
     if(dfStudentLock.tick%15===0)dfStudentLockCheck(); // about every 30 seconds
   },2000);
