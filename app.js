@@ -16239,16 +16239,6 @@ function dfTrShuffle(a){
   for(var i=a.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1));var t=a[i];a[i]=a[j];a[j]=t;}
   return a;
 }
-// A platform message plus an email copy (same path the mailbox uses). Never throws.
-async function dfTrMail(toId,subject,body){
-  try{
-    if(!toId)return false;
-    var r=await sb.rpc('mail_send',{p_recipient:toId,p_subject:subject,p_body:body,p_parent:null});
-    if(r.error)throw new Error(r.error.message);
-    var out=await dfMailSendEmails([r.data]);
-    return !(out&&out.failed&&out.failed.length);
-  }catch(e){console.warn('training email not sent:',e);return false;}
-}
 async function dfTrainingStatus(){
   try{
     var r=await sb.rpc('training_my_status');
@@ -16456,14 +16446,7 @@ async function dfTrChooseView(body,st){
       if(!confirm('Observe the '+when+' (AST) class with '+(it.coord_name||'your coordinator')+'?\n\nYou cannot change this yourself afterwards.'))return;
       var c=await sb.rpc('training_choose_class',{p_slot:it.slot_id});
       if(c.error){alert(c.error.message);return;}
-      var ob=await sb.rpc('training_my_observation');
-      var link=(ob&&ob.data&&(ob.data.link1||ob.data.link2))||'';
-      var me=(S.profile&&S.profile.full_name)||'A new tutor';
-      var whenFull=when+' (AST)'+(it.next_class_date?', next class '+dfTrDate(it.next_class_date):'');
-      await dfTrMail(it.coord_id,'Training: '+me+' will observe your class',
-        me+' has completed the tutor training module and chosen to observe your class.\n\nClass: '+whenFull+'\n\nPlease mark their observation complete on the Training page after the class.\n\nDeo Fortis');
-      await dfTrMail(S.user.id,'Your class observation: '+when,
-        'Hi '+dfTrFirstName(me)+',\n\nYou chose to observe '+(it.coord_name||'your coordinator')+'\u2019s class: '+whenFull+'.\n\n'+(link?'Class link: '+link+'\n\n':'')+'After you have observed, your coordinator will mark it complete and you can add your availability.\n\nDeo Fortis');
+      dfToast('Booked. You and your coordinator have been emailed.');
       await dfTrReload();
     },{style:{fontSize:'12px',padding:'9px 18px'}}));
     listBox.append(card);
@@ -16569,13 +16552,11 @@ async function dfTrRoster(body,opts){
     if(t.completed_at)info.push('Training completed '+dfTrStamp(t.completed_at));
     info.forEach(function(x){card.append(h('div',{style:{fontSize:'12px',color:'var(--muted)',marginTop:'6px'}},[x]));});
     var acts=div({style:{display:'flex',gap:'8px',flexWrap:'wrap',marginTop:'12px',alignItems:'center'}});
-    var me=(S.profile&&S.profile.full_name)||'your training coordinator';
     if(t.stage==='observing'){
       acts.append(btn('Mark observation complete','btn-gold',async function(){
         if(!confirm('Mark '+t.full_name+'\u2019s class observation as complete? They will be asked to add their availability and will get access to the tutor page.'))return;
         var x=await sb.rpc('training_mark_observation_done',{p_tutor:t.tutor_id});
         if(x.error){alert(x.error.message);return;}
-        await dfTrMail(t.tutor_id,'Your class observation is complete','Hi '+dfTrFirstName(t.full_name)+',\n\nYour class observation has been marked complete. Please log in and add your availability and payout details. After that you will have access to your tutor page, and your trial class will be arranged.\n\n'+me+'\nDeo Fortis');
         dfToast('Marked complete. '+dfTrFirstName(t.full_name)+' has been emailed.');
         await refresh();
       },{style:{fontSize:'12px',padding:'8px 16px'}}));
@@ -16605,7 +16586,6 @@ async function dfTrRoster(body,opts){
         if(!confirm('Mark '+t.full_name+'\u2019s training as complete?'+(forced?'\n\nThey have not reached the trial class stage yet.':'')))return;
         var x=await sb.rpc('training_mark_complete',{p_tutor:t.tutor_id});
         if(x.error){alert(x.error.message);return;}
-        await dfTrMail(t.tutor_id,'Your training is complete','Hi '+dfTrFirstName(t.full_name)+',\n\nYour Deo Fortis tutor training is now complete. Welcome to the team.\n\n'+me+'\nDeo Fortis');
         dfToast('Training marked complete. '+dfTrFirstName(t.full_name)+' has been emailed.');
         await refresh();
       },{style:{fontSize:'12px',padding:'8px 16px'}}));
