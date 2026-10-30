@@ -13043,7 +13043,6 @@ async function loadPaySettings(){
     var r=await sb.from('tutor_payout_settings').select('*').eq('id',1).maybeSingle();
     if(r&&r.data){DF_PS.part_time_rate=Number(r.data.part_time_rate)||13000;DF_PS.pay_day=Number(r.data.pay_day)||12;DF_PS.ok=true;}
   }catch(e){}
-  if(!curCycle)curCycle=payCycleOptions()[0];
 }
 
 async function fetchTutorsList(){
@@ -13087,7 +13086,7 @@ async function dfSendPayoutEmail(ids){
 
 // Keep each tutor's students in step with the schedule. A student is added when a tutor has a class slot with
 // them (or taught them inside the chosen cycle). Pairs whose schedule change was rejected are left out.
-async function syncPayoutAssignments(tutors,allRows,cycle){
+async function syncPayoutAssignments(tutors,allRows){
   var tutorIds={};tutors.forEach(function(t){tutorIds[t.user_id]=1;});
   var slotsR=await sb.from('tutoring_class_slots').select('id,student_id,tutor_id').eq('active',true);
   var slots=slotsR.data||[];
@@ -13107,7 +13106,7 @@ async function syncPayoutAssignments(tutors,allRows,cycle){
     toAdd.push({tutor_id:s.tutor_id,student_id:s.student_id,amount_naira:lastAmt[k]||0,pay_type:'full_time',from_schedule:true,created_by:S.user.id});
   });
   // Stand-ins / tutors who taught a student in this cycle without a slot of their own.
-  var attR=await sb.from('tutoring_class_attendance').select('tutor_id,student_id,status').gte('class_date',cycle.start).lte('class_date',cycle.end).in('status',['attended','missed']);
+  var attR=await sb.from('tutoring_class_attendance').select('tutor_id,student_id,status').gte('class_date',dfYmd(new Date(Date.now()-62*864e5))).in('status',['attended','missed']);
   (attR.data||[]).forEach(function(a){
     var k=a.tutor_id+'|'+a.student_id;
     if(!tutorIds[a.tutor_id]||existing[k]||pairState(k)==='rejected')return;
@@ -13122,13 +13121,23 @@ async function syncPayoutAssignments(tutors,allRows,cycle){
   return{changed:changed,onSchedule:onSchedule,pairState:pairState};
 }
 
+function dfPayoutDateFor(endYmd){
+  var d=new Date(endYmd+'T00:00:00');d.setDate(d.getDate()+1);
+  var pd=DF_PS.pay_day;
+  return dfYmd(d.getDate()<=pd?new Date(d.getFullYear(),d.getMonth(),pd):new Date(d.getFullYear(),d.getMonth()+1,pd));
+}
+// accruing: cycle still running. ready: cycle over, waiting for its pay day. overdue: pay day has passed.
+function dfPayPhase(r){
+  if(!r.cycle_end)return 'unknown';
+  var today=dfYmd(new Date());
+  if(r.cycle_end>=today)return 'accruing';
+  return dfPayoutDateFor(r.cycle_end)<today?'overdue':'ready';
+}
+function dfCycleTxt(r){return r.cycle_start&&r.cycle_end?fmtDayShort(r.cycle_start)+' \u2013 '+fmtDayShort(r.cycle_end):'cycle not set';}
+
 async function renderPayControls(){
   payControls.innerHTML='';
   var card=div({cls:'card',style:{padding:'16px',marginBottom:'16px'}},[]);
-  var opts=payCycleOptions();
-  var cycSel=h('select',{cls:'input',style:{minWidth:'260px'}},opts.map(function(o,i){return h('option',{value:o.payDate},[(i===0?'Next pay day \u00b7 ':'')+fmtDayShort(o.payDate)+' \u2192 '+o.label+' cycle']);}));
-  cycSel.value=curCycle.payDate;
-  cycSel.onchange=function(){curCycle=opts.filter(function(o){return o.payDate===cycSel.value;})[0]||opts[0];renderPayControls();renderPayoutsBody();};
   var rateInp=h('input',{cls:'input',type:'number',min:'0',value:String(DF_PS.part_time_rate),style:{width:'130px'}});
   var dayInp=h('input',{cls:'input',type:'number',min:'1',max:'28',value:String(DF_PS.pay_day),style:{width:'80px'}});
   var stMsg=h('span',{style:{fontSize:'11px',marginLeft:'8px'}},['']);
@@ -13137,20 +13146,19 @@ async function renderPayControls(){
     if(isNaN(rate)||rate<0||isNaN(pd)||pd<1||pd>28){stMsg.textContent='Enter a valid rate and a pay day between 1 and 28.';stMsg.style.color='#ff4444';return;}
     var up=await sb.from('tutor_payout_settings').upsert({id:1,part_time_rate:rate,pay_day:pd,updated_at:new Date().toISOString(),updated_by:S.user.id});
     if(up.error){stMsg.textContent='Could not save: '+up.error.message;stMsg.style.color='#ff4444';return;}
-    DF_PS.part_time_rate=rate;DF_PS.pay_day=pd;DF_PS.ok=true;curCycle=payCycleOptions()[0];
+    DF_PS.part_time_rate=rate;DF_PS.pay_day=pd;DF_PS.ok=true;
     renderPayControls();renderPayoutsBody();
   },{style:{fontSize:'11px',padding:'8px 14px'}});
   card.append(
-    h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--muted)',textTransform:'uppercase',letterSpacing:'1px',marginBottom:'8px'}},['Pay cycle']),
+    h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--muted)',textTransform:'uppercase',letterSpacing:'1px',marginBottom:'8px'}},['Pay settings']),
     div({style:{display:'flex',gap:'12px',flexWrap:'wrap',alignItems:'flex-end'}},[
-      div({},[h('label',{cls:'label',html:'Paying for'}),cycSel]),
       div({},[h('label',{cls:'label',html:'Part-time rate (\u20a6 per scheduled class)'}),rateInp]),
-      div({},[h('label',{cls:'label',html:'Pay day'}),dayInp]),
+      div({},[h('label',{cls:'label',html:'Pay day of the month'}),dayInp]),
       saveSet,stMsg
     ]),
-    h('div',{style:{fontSize:'12px',color:'var(--muted)',marginTop:'10px',lineHeight:'1.7'}},['Cycle: '+fmtDayShort(curCycle.start)+' \u2013 '+fmtDayShort(curCycle.end)+', paid on '+fmtDayShort(curCycle.payDate)+'. Full-time tutors covered the student for the whole cycle and get the set amount. Part-time tutors are paid the rate for every class that was on the schedule while they had the student, missed classes included.'])
+    h('div',{style:{fontSize:'12px',color:'var(--muted)',marginTop:'10px',lineHeight:'1.7'}},['Next pay day: '+fmtDayShort(dfYmd(dfNextPayDate(DF_PS.pay_day)))+'. Every payout follows the student\u2019s own payment cycle, and a cycle is paid on the first pay day after it ends. Cycles run back to back and can never overlap. The moment a payout is marked paid, it is archived and the next cycle opens. Full-time tutors get the set amount; part-time tutors keep accruing the rate for every scheduled class in the cycle, missed classes included.'])
   );
-  if(!DF_PS.ok)card.append(h('div',{style:{fontSize:'11px',color:'#e08a3c',marginTop:'8px'}},['Payout settings table not found yet. Run the payout migration so the rate and pay day can be saved. The defaults (\u20a613,000 and the 12th) are being used.']));
+  if(!DF_PS.ok)card.append(h('div',{style:{fontSize:'11px',color:'#e08a3c',marginTop:'8px'}},['Payout settings table not found yet. The defaults (\u20a613,000 and the 12th) are being used.']));
   payControls.append(card);
   await renderScheduleChanges();
 }
@@ -13215,13 +13223,17 @@ async function renderPayoutsBody(){
   await loadPaySettings();
   var tutors=await fetchTutorsList();
   var allRows=await fetchPayoutRows();
-  var sync=await syncPayoutAssignments(tutors,allRows,curCycle);
-  if(sync.changed)allRows=await fetchPayoutRows();
+  var sync=await syncPayoutAssignments(tutors,allRows);
+  // Give new rows their student cycle, archive anything already paid and open its next cycle.
+  var nz=await sb.rpc('payout_normalize');
+  if(nz.error)console.warn('payout_normalize failed',nz.error.message);
+  if(sync.changed||(nz&&nz.data))allRows=await fetchPayoutRows();
   var bankMap=await dfFetchBankMap();
-  // Class counts for every unpaid part-time row in the chosen cycle.
+  var todayStr=dfYmd(new Date());
+  // Class counts for every open part-time row, inside that row's own cycle.
   var counts={};
-  await Promise.all(allRows.filter(function(r){return !r.archived&&r.status!=='paid'&&r.pay_type==='part_time';}).map(async function(r){
-    counts[r.id]=await dfCycleCounts(r.tutor_id,r.student_id,curCycle.start,curCycle.end);
+  await Promise.all(allRows.filter(function(r){return !r.archived&&r.status!=='paid'&&r.pay_type==='part_time'&&r.cycle_start;}).map(async function(r){
+    counts[r.id]=await dfCycleCounts(r.tutor_id,r.student_id,r.cycle_start,r.cycle_end);
   }));
   function rowAmount(r){
     if(r.status==='paid')return Number(r.amount_naira||0);
@@ -13239,59 +13251,65 @@ async function renderPayoutsBody(){
   tutors.forEach(function(t){
     var tCard=div({cls:'card fade',style:{marginBottom:'18px'}});
     var tRows=rowsByTutor[t.user_id]||[];
-    var activeRows=tRows.filter(function(r){return !r.archived;});
+    var activeRows=tRows.filter(function(r){return !r.archived;}).sort(function(a,b){return String(a.cycle_end||'9999').localeCompare(String(b.cycle_end||'9999'))||String(a.student_name).localeCompare(String(b.student_name));});
     var historyRows=tRows.filter(function(r){return r.archived;}).sort(function(a,b){return new Date(b.paid_at||b.created_at)-new Date(a.paid_at||a.created_at);});
     function stateOf(r){return sync.pairState(r.tutor_id+'|'+r.student_id);}
-    var unpaid=activeRows.filter(function(r){return r.status!=='paid';});
-    var payable=unpaid.filter(function(r){return stateOf(r)==='approved';});
-    var totalOwed=payable.reduce(function(s,r){return s+rowAmount(r);},0);
+    var readyRows=activeRows.filter(function(r){var p=dfPayPhase(r);return (p==='ready'||p==='overdue')&&stateOf(r)==='approved';});
+    var accruingRows=activeRows.filter(function(r){return dfPayPhase(r)==='accruing'&&stateOf(r)!=='rejected';});
+    var readyTotal=readyRows.reduce(function(s,r){return s+rowAmount(r);},0);
+    var accruingTotal=accruingRows.reduce(function(s,r){return s+rowAmount(r);},0);
     var hdr=div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:'8px',marginBottom:'14px'}});
     hdr.append(
       div({},[h('div',{style:{fontSize:'16px',color:'var(--text)',fontWeight:'600'}},[t.full_name]),h('div',{style:{fontSize:'12px',color:'var(--muted)'}},[t.email])]),
-      div({style:{textAlign:'right'}},[h('div',{cls:'mono',style:{fontSize:'15px',fontWeight:'700',color:totalOwed>0?'var(--gold)':'var(--dim)'}},[totalOwed>0?fmtNaira(totalOwed)+' for '+curCycle.label:'Nothing owed for '+curCycle.label]),dfBankLine(bankMap[t.user_id])])
+      div({style:{textAlign:'right'}},[
+        h('div',{cls:'mono',style:{fontSize:'15px',fontWeight:'700',color:readyTotal>0?'var(--gold)':'var(--dim)'}},[readyTotal>0?fmtNaira(readyTotal)+' ready to pay':'Nothing ready to pay']),
+        accruingTotal>0?h('div',{cls:'mono',style:{fontSize:'11px',color:'var(--muted)',marginTop:'2px'}},['+ '+fmtNaira(accruingTotal)+' accruing in cycles still running']):null,
+        dfBankLine(bankMap[t.user_id])
+      ].filter(Boolean))
     );
     tCard.append(hdr);
 
-    // Mark one row paid: works out the final amount, saves the cycle breakdown, then sends the Resend report.
+    // Mark one payout paid. The database works out the final amount, archives the row and opens the next cycle.
     async function markPaid(r,file,setStatus){
-      var upd={status:'paid',paid_at:new Date().toISOString(),cycle_start:curCycle.start,cycle_end:curCycle.end};
-      if(r.pay_type==='part_time'){
-        var c=counts[r.id]||await dfCycleCounts(r.tutor_id,r.student_id,curCycle.start,curCycle.end);
-        upd.classes_attended=c.attended;upd.classes_missed=c.missed;upd.rate_per_class=DF_PS.part_time_rate;
-        upd.amount_naira=(c.attended+c.missed)*DF_PS.part_time_rate;
-      }
+      var receiptUrl=null;
       if(file){
         setStatus('Uploading receipt\u2026');
         var ext=(file.name.split('.').pop()||'file').toLowerCase();
         var path=r.id+'-'+Date.now()+'.'+ext;
         var up=await sb.storage.from('payout-receipts').upload(path,file,{contentType:file.type||undefined});
         if(up.error){setStatus('Receipt upload failed: '+up.error.message,true);return null;}
-        upd.receipt_url=sb.storage.from('payout-receipts').getPublicUrl(path).data.publicUrl;
+        receiptUrl=sb.storage.from('payout-receipts').getPublicUrl(path).data.publicUrl;
       }
-      var u=await sb.from('tutor_payouts').update(upd).eq('id',r.id);
-      if(u.error){setStatus('Could not save: '+u.error.message,true);return null;}
+      var rp=await sb.rpc('mark_payout_paid',{p_id:r.id,p_receipt_url:receiptUrl});
+      if(rp.error){setStatus('Could not save: '+rp.error.message,true);return null;}
       return r.id;
     }
 
     function buildPayoutRow(r,isHistory){
       var state=isHistory?'approved':stateOf(r);
+      var phase=isHistory?'paid':dfPayPhase(r);
       var rowEl=div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:'10px',padding:'10px 0',borderBottom:'1px solid var(--border)'}});
       var left=div({style:{flex:'1',minWidth:'220px'}});
       var typeTxt=r.pay_type==='part_time'?'Part-time':'Full-time';
       var line;
       if(r.status==='paid'){
         var pc=(r.classes_attended||0)+(r.classes_missed||0);
-        line=fmtNaira(r.amount_naira)+' \u00b7 '+typeTxt+(r.pay_type==='part_time'?' ('+pc+' classes \u00d7 '+fmtNaira(r.rate_per_class)+')':'')+(r.cycle_start?' \u00b7 '+new Date(r.cycle_start+'T00:00:00').toLocaleDateString('en-GB',{month:'long',year:'numeric'})+' cycle':'')+(r.paid_at?' \u00b7 paid '+new Date(r.paid_at).toLocaleDateString():'');
+        line=fmtNaira(r.amount_naira)+' \u00b7 '+typeTxt+(r.pay_type==='part_time'?' ('+pc+' classes \u00d7 '+fmtNaira(r.rate_per_class)+')':'')+(r.paid_at?' \u00b7 paid '+new Date(r.paid_at).toLocaleDateString():'');
       }else if(r.pay_type==='part_time'){
         var c=counts[r.id]||{attended:0,missed:0,pending:0,rejected:0};
-        line=fmtNaira(rowAmount(r))+' \u00b7 Part-time \u00b7 '+(c.attended+c.missed)+' class'+((c.attended+c.missed)===1?'':'es')+' \u00d7 '+fmtNaira(DF_PS.part_time_rate)+' ('+c.attended+' held, '+c.missed+' missed)';
+        line=fmtNaira(rowAmount(r))+' \u00b7 Part-time \u00b7 '+(c.attended+c.missed)+' class'+((c.attended+c.missed)===1?'':'es')+' \u00d7 '+fmtNaira(DF_PS.part_time_rate)+' ('+c.attended+' held, '+c.missed+' missed)'+(phase==='accruing'?' so far':'');
         if(c.pending)line+=' \u00b7 '+c.pending+' awaiting approval';
         if(c.rejected)line+=' \u00b7 '+c.rejected+' not counted';
       }else{
         line=fmtNaira(r.amount_naira)+' \u00b7 Full-time \u00b7 whole cycle';
       }
       left.append(h('div',{style:{fontSize:'13px',color:'var(--text)'}},[r.student_name]),h('div',{cls:'mono',style:{fontSize:'12px',color:'var(--muted)',marginTop:'2px'}},[line]));
+      var payTxt=r.cycle_end?(' \u00b7 pays '+fmtDayShort(dfPayoutDateFor(r.cycle_end))):'';
+      left.append(h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--dim)',marginTop:'2px'}},['Student cycle '+dfCycleTxt(r)+(isHistory?'':payTxt)]));
       if(!isHistory&&r.status!=='paid'){
+        if(phase==='accruing')left.append(h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--muted)',marginTop:'3px'}},['CYCLE STILL RUNNING \u00b7 ENDS '+fmtDayShort(r.cycle_end).toUpperCase()]));
+        if(phase==='ready')left.append(h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--gold)',marginTop:'3px'}},['CYCLE ENDED \u00b7 READY FOR THE '+fmtDayShort(dfPayoutDateFor(r.cycle_end)).toUpperCase()+' PAY DAY']));
+        if(phase==='overdue')left.append(h('div',{cls:'mono',style:{fontSize:'10px',color:'#ff5f5f',marginTop:'3px'}},['OVERDUE \u00b7 WAS DUE '+fmtDayShort(dfPayoutDateFor(r.cycle_end)).toUpperCase()]));
         if(state==='pending')left.append(h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--gold)',marginTop:'3px'}},['SCHEDULE CHANGE AWAITING YOUR APPROVAL']));
         if(state==='rejected')left.append(h('div',{cls:'mono',style:{fontSize:'10px',color:'#e08a3c',marginTop:'3px'}},['NOT COUNTED TOWARD PAYOUT']));
         if(!sync.onSchedule[r.tutor_id+'|'+r.student_id])left.append(h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--dim)',marginTop:'3px'}},['NO LONGER ON THE SCHEDULE \u00b7 MARK PART-TIME TO PAY FOR CLASSES HELD']));
@@ -13302,6 +13320,14 @@ async function renderPayoutsBody(){
       right.append(h('span',{cls:'mono',style:{fontSize:'10px',letterSpacing:'1px',textTransform:'uppercase',color:r.status==='paid'?'var(--teal)':'var(--gold)'}},[r.status]));
       if(isHistory){
         if(r.receipt_url)right.append(h('a',{href:r.receipt_url,target:'_blank',rel:'noopener',cls:'mono',style:{fontSize:'10px',color:'var(--teal)',textDecoration:'underline'}},['View Receipt']));
+        if(r.status==='paid'){
+          if(r.emailed_at)right.append(h('span',{cls:'mono',style:{fontSize:'10px',color:'var(--dim)'}},['emailed '+new Date(r.emailed_at).toLocaleDateString()]));
+          right.append(btn(r.emailed_at?'Resend email':'Send email','btn-outline',async function(){
+            var em=await dfSendPayoutEmail([r.id]);
+            if(!em.ok){alert('Could not send: '+em.error);return;}
+            alert('Payment report sent to '+em.to+'.');renderPayoutsBody();
+          },{style:{fontSize:'10px',padding:'6px 12px'}}));
+        }
         right.append(btn('Delete','btn-outline',async function(){
           if(!confirm('Permanently delete this payout record?'))return;
           await sb.from('tutor_payouts').delete().eq('id',r.id);
@@ -13310,67 +13336,44 @@ async function renderPayoutsBody(){
         rowEl.append(left,right);
         return rowEl;
       }
-      if(r.status!=='paid'){
-        var typeSel=h('select',{cls:'input',style:{fontSize:'11px',padding:'5px 8px',width:'110px'}},[h('option',{value:'full_time'},['Full-time']),h('option',{value:'part_time'},['Part-time'])]);
-        typeSel.value=r.pay_type==='part_time'?'part_time':'full_time';
-        typeSel.onchange=async function(){
-          var u=await sb.from('tutor_payouts').update({pay_type:typeSel.value}).eq('id',r.id);
-          if(u.error){alert('Could not change: '+u.error.message+'\n\nRun the payout migration first if this column is missing.');typeSel.value=r.pay_type==='part_time'?'part_time':'full_time';return;}
+      var typeSel=h('select',{cls:'input',style:{fontSize:'11px',padding:'5px 8px',width:'110px'}},[h('option',{value:'full_time'},['Full-time']),h('option',{value:'part_time'},['Part-time'])]);
+      typeSel.value=r.pay_type==='part_time'?'part_time':'full_time';
+      typeSel.onchange=async function(){
+        var u=await sb.from('tutor_payouts').update({pay_type:typeSel.value}).eq('id',r.id);
+        if(u.error){alert('Could not change: '+u.error.message);typeSel.value=r.pay_type==='part_time'?'part_time':'full_time';return;}
+        renderPayoutsBody();
+      };
+      right.append(typeSel);
+      if(r.pay_type!=='part_time'){
+        right.append(btn('Edit amount','btn-outline',async function(){
+          var v=prompt('Full-time amount for '+r.student_name+' (\u20a6). It carries over to every following cycle:',String(r.amount_naira||''));
+          if(v===null)return;var n=parseFloat(String(v).replace(/,/g,''));
+          if(isNaN(n)||n<0){alert('Enter a valid amount.');return;}
+          var u=await sb.from('tutor_payouts').update({amount_naira:n}).eq('id',r.id);
+          if(u.error){alert('Could not save: '+u.error.message);return;}
           renderPayoutsBody();
-        };
-        right.append(typeSel);
-        if(r.pay_type!=='part_time'){
-          right.append(btn('Edit amount','btn-outline',async function(){
-            var v=prompt('Full-time amount for '+r.student_name+' (\u20a6):',String(r.amount_naira||''));
-            if(v===null)return;var n=parseFloat(String(v).replace(/,/g,''));
-            if(isNaN(n)||n<0){alert('Enter a valid amount.');return;}
-            var u=await sb.from('tutor_payouts').update({amount_naira:n}).eq('id',r.id);
-            if(u.error){alert('Could not save: '+u.error.message);return;}
-            renderPayoutsBody();
-          },{style:{fontSize:'10px',padding:'6px 12px'}}));
-        }
-        var receiptInp=h('input',{type:'file',accept:'image/*,.pdf',style:{fontSize:'10px',maxWidth:'150px',color:'var(--dim)'}});
-        var payStatus=div({style:{fontSize:'10px',marginTop:'4px',display:'none'}});
-        function setSt(msg,bad){payStatus.style.display='block';payStatus.style.color=bad?'#ff4444':'var(--dim)';payStatus.textContent=msg;}
-        var markPaidBtn=btn('Mark Paid','btn-teal',async function(){
-          if(state==='pending'&&!confirm('This student\u2019s schedule change has not been approved yet. Mark paid anyway?'))return;
-          if(state==='rejected'){alert('This schedule change was marked as not counting toward payout.');return;}
-          if(rowAmount(r)<=0&&!confirm('The amount is \u20a60. Mark paid anyway?'))return;
-          markPaidBtn.disabled=true;
-          var id=await markPaid(r,receiptInp.files&&receiptInp.files[0],setSt);
-          if(!id){markPaidBtn.disabled=false;return;}
-          setSt('Sending the payment report\u2026');
-          var em=await dfSendPayoutEmail([id]);
-          if(!em.ok){alert('Marked as paid, but the email could not be sent: '+em.error+'\n\nUse \"Resend email\" on this row once it is fixed.');}
-          renderPayoutsBody();
-        },{style:{fontSize:'10px',padding:'6px 12px'}});
-        right.append(div({style:{display:'flex',flexDirection:'column',alignItems:'flex-end',gap:'4px'}},[
-          div({style:{display:'flex',gap:'6px',alignItems:'center'}},[receiptInp,markPaidBtn]),
-          payStatus
-        ]));
-      }else{
-        if(r.receipt_url)right.append(h('a',{href:r.receipt_url,target:'_blank',rel:'noopener',cls:'mono',style:{fontSize:'10px',color:'var(--teal)',textDecoration:'underline'}},['View Receipt']));
-        if(r.emailed_at)right.append(h('span',{cls:'mono',style:{fontSize:'10px',color:'var(--dim)'}},['emailed '+new Date(r.emailed_at).toLocaleDateString()]));
-        right.append(btn(r.emailed_at?'Resend email':'Send email','btn-outline',async function(){
-          var em=await dfSendPayoutEmail([r.id]);
-          if(!em.ok){alert('Could not send: '+em.error);return;}
-          alert('Payment report sent to '+em.to+'.');renderPayoutsBody();
         },{style:{fontSize:'10px',padding:'6px 12px'}}));
-        var nextPayBtn=btn('Next Payment','btn-outline',async function(){
-          nextPayBtn.disabled=true;
-          try{
-            var ins=await sb.from('tutor_payouts').insert({tutor_id:t.user_id,student_id:r.student_id,amount_naira:r.pay_type==='part_time'?(Number(r.amount_naira)||0):r.amount_naira,pay_type:r.pay_type||'full_time',note:r.note||null,from_schedule:true,created_by:S.user.id});
-            if(ins.error){alert('Failed to create the next payment: '+ins.error.message);nextPayBtn.disabled=false;return;}
-            var arch=await sb.from('tutor_payouts').update({archived:true}).eq('id',r.id);
-            if(arch.error){alert('Next payment created, but failed to archive this one: '+arch.error.message+'\n\nYou can delete this old row manually if needed.');}
-            renderPayoutsBody();
-          }catch(e){
-            alert('Network error \u2014 could not reach the server. Check your connection and try again.\n\n'+(e&&e.message||e));
-            nextPayBtn.disabled=false;
-          }
-        },{style:{fontSize:'10px',padding:'6px 12px'}});
-        right.append(nextPayBtn);
       }
+      var receiptInp=h('input',{type:'file',accept:'image/*,.pdf',style:{fontSize:'10px',maxWidth:'150px',color:'var(--dim)'}});
+      var payStatus=div({style:{fontSize:'10px',marginTop:'4px',display:'none'}});
+      function setSt(msg,bad){payStatus.style.display='block';payStatus.style.color=bad?'#ff4444':'var(--dim)';payStatus.textContent=msg;}
+      var markPaidBtn=btn('Mark Paid','btn-teal',async function(){
+        if(state==='rejected'){alert('This schedule change was marked as not counting toward payout.');return;}
+        if(state==='pending'&&!confirm('This student\u2019s schedule change has not been approved yet. Mark paid anyway?'))return;
+        if(phase==='accruing'&&!confirm('This cycle runs until '+fmtDayShort(r.cycle_end)+' and normally pays on '+fmtDayShort(dfPayoutDateFor(r.cycle_end))+'. Mark it paid now? The next cycle opens straight away.'))return;
+        if(rowAmount(r)<=0&&!confirm('The amount is \u20a60. Mark paid anyway?'))return;
+        markPaidBtn.disabled=true;
+        var id=await markPaid(r,receiptInp.files&&receiptInp.files[0],setSt);
+        if(!id){markPaidBtn.disabled=false;return;}
+        setSt('Sending the payment report\u2026');
+        var em=await dfSendPayoutEmail([id]);
+        if(!em.ok){alert('Marked as paid, but the email could not be sent: '+em.error+'\n\nUse \"Resend email\" in this tutor\u2019s History once it is fixed.');}
+        renderPayoutsBody();
+      },{style:{fontSize:'10px',padding:'6px 12px'}});
+      right.append(div({style:{display:'flex',flexDirection:'column',alignItems:'flex-end',gap:'4px'}},[
+        div({style:{display:'flex',gap:'6px',alignItems:'center'}},[receiptInp,markPaidBtn]),
+        payStatus
+      ]));
       right.append(btn('Delete','btn-outline',async function(){
         if(!confirm('Remove '+r.student_name+' from '+t.full_name+"'s payouts? If they are still on the schedule they will come back automatically."))return;
         await sb.from('tutor_payouts').delete().eq('id',r.id);
@@ -13384,22 +13387,22 @@ async function renderPayoutsBody(){
       tCard.append(h('p',{style:{fontSize:'12px',color:'var(--dim)',textAlign:'center',padding:'10px'},html:'No students on the schedule for this tutor.'}));
     }else{
       activeRows.forEach(function(r){tCard.append(buildPayoutRow(r,false));});
-      if(payable.length){
+      if(readyRows.length){
         var bulkInp=h('input',{type:'file',accept:'image/*,.pdf',style:{fontSize:'10px',maxWidth:'170px',color:'var(--dim)'}});
         var bulkSt=div({style:{fontSize:'11px',marginTop:'6px',display:'none',textAlign:'right'}});
-        var bulkBtn=btn('Mark all paid & email report \u00b7 '+fmtNaira(totalOwed),'btn-gold',async function(){
-          if(!confirm('Mark '+payable.length+' student'+(payable.length===1?'':'s')+' as paid for '+curCycle.label+' ('+fmtNaira(totalOwed)+') and email '+t.full_name+' one report?'))return;
+        var bulkBtn=btn('Mark all ready paid & email report \u00b7 '+fmtNaira(readyTotal),'btn-gold',async function(){
+          if(!confirm('Mark '+readyRows.length+' payout'+(readyRows.length===1?'':'s')+' as paid ('+fmtNaira(readyTotal)+') and email '+t.full_name+' one report? Each student\u2019s next cycle opens straight away.'))return;
           bulkBtn.disabled=true;
           function setB(msg,bad){bulkSt.style.display='block';bulkSt.style.color=bad?'#ff4444':'var(--dim)';bulkSt.textContent=msg;}
           var file=bulkInp.files&&bulkInp.files[0];var ids=[];
-          for(var i=0;i<payable.length;i++){
-            var id=await markPaid(payable[i],file,setB);
-            if(!id){bulkBtn.disabled=false;return;}
+          for(var i=0;i<readyRows.length;i++){
+            var id=await markPaid(readyRows[i],file,setB);
+            if(!id){bulkBtn.disabled=false;if(ids.length)renderPayoutsBody();return;}
             ids.push(id);
           }
           setB('Sending the payment report\u2026');
           var em=await dfSendPayoutEmail(ids);
-          if(!em.ok)alert('Marked as paid, but the email could not be sent: '+em.error+'\n\nUse \"Send email\" on each paid row once it is fixed.');
+          if(!em.ok)alert('Marked as paid, but the email could not be sent: '+em.error+'\n\nUse \"Send email\" in this tutor\u2019s History once it is fixed.');
           renderPayoutsBody();
         },{style:{fontSize:'11px',padding:'8px 16px'}});
         tCard.append(div({style:{display:'flex',flexDirection:'column',alignItems:'flex-end',gap:'6px',marginTop:'14px'}},[div({style:{display:'flex',gap:'8px',alignItems:'center',flexWrap:'wrap',justifyContent:'flex-end'}},[bulkInp,bulkBtn]),bulkSt]));
