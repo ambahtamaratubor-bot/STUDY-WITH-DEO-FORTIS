@@ -13017,7 +13017,7 @@ content.append(payControls);
 content.append(payoutsListWrap);
 
 function fmtNaira(n){return '\u20a6'+Number(n||0).toLocaleString();}
-var DF_PS={part_time_rate:13000,pay_day:12,ok:false};
+var DF_PS={part_time_rate:13000,pay_day:12,early_days:15,ok:false};
 var curCycle=null;
 var DOW_P=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
 
@@ -13041,7 +13041,7 @@ function fmtDayShort(ymd){return new Date(ymd+'T00:00:00').toLocaleDateString('e
 async function loadPaySettings(){
   try{
     var r=await sb.from('tutor_payout_settings').select('*').eq('id',1).maybeSingle();
-    if(r&&r.data){DF_PS.part_time_rate=Number(r.data.part_time_rate)||13000;DF_PS.pay_day=Number(r.data.pay_day)||12;DF_PS.ok=true;}
+    if(r&&r.data){DF_PS.part_time_rate=Number(r.data.part_time_rate)||13000;DF_PS.pay_day=Number(r.data.pay_day)||12;DF_PS.early_days=(r.data.early_pay_days===null||r.data.early_pay_days===undefined)?15:Number(r.data.early_pay_days);DF_PS.ok=true;}
   }catch(e){}
 }
 
@@ -13126,11 +13126,13 @@ function dfPayoutDateFor(endYmd){
   var pd=DF_PS.pay_day;
   return dfYmd(d.getDate()<=pd?new Date(d.getFullYear(),d.getMonth(),pd):new Date(d.getFullYear(),d.getMonth()+1,pd));
 }
-// accruing: cycle still running. ready: cycle over, waiting for its pay day. overdue: pay day has passed.
+// accruing: cycle ends more than the early-pay window away. early: cycle still running but within the window, so it can be paid now.
+// ready: cycle over, waiting for its pay day. overdue: the pay day has passed.
+function dfDaysTo(ymd){var t=new Date(dfYmd(new Date())+'T00:00:00');return Math.round((new Date(ymd+'T00:00:00')-t)/864e5);}
 function dfPayPhase(r){
   if(!r.cycle_end)return 'unknown';
   var today=dfYmd(new Date());
-  if(r.cycle_end>=today)return 'accruing';
+  if(r.cycle_end>=today)return dfDaysTo(r.cycle_end)<=DF_PS.early_days?'early':'accruing';
   return dfPayoutDateFor(r.cycle_end)<today?'overdue':'ready';
 }
 function dfCycleTxt(r){return r.cycle_start&&r.cycle_end?fmtDayShort(r.cycle_start)+' \u2013 '+fmtDayShort(r.cycle_end):'cycle not set';}
@@ -13140,13 +13142,14 @@ async function renderPayControls(){
   var card=div({cls:'card',style:{padding:'16px',marginBottom:'16px'}},[]);
   var rateInp=h('input',{cls:'input',type:'number',min:'0',value:String(DF_PS.part_time_rate),style:{width:'130px'}});
   var dayInp=h('input',{cls:'input',type:'number',min:'1',max:'28',value:String(DF_PS.pay_day),style:{width:'80px'}});
+  var earlyInp=h('input',{cls:'input',type:'number',min:'0',max:'60',value:String(DF_PS.early_days),style:{width:'80px'}});
   var stMsg=h('span',{style:{fontSize:'11px',marginLeft:'8px'}},['']);
   var saveSet=btn('Save','btn-gold',async function(){
-    var rate=parseFloat(rateInp.value),pd=parseInt(dayInp.value,10);
-    if(isNaN(rate)||rate<0||isNaN(pd)||pd<1||pd>28){stMsg.textContent='Enter a valid rate and a pay day between 1 and 28.';stMsg.style.color='#ff4444';return;}
-    var up=await sb.from('tutor_payout_settings').upsert({id:1,part_time_rate:rate,pay_day:pd,updated_at:new Date().toISOString(),updated_by:S.user.id});
+    var rate=parseFloat(rateInp.value),pd=parseInt(dayInp.value,10),ed=parseInt(earlyInp.value,10);
+    if(isNaN(rate)||rate<0||isNaN(pd)||pd<1||pd>28||isNaN(ed)||ed<0||ed>60){stMsg.textContent='Enter a valid rate, a pay day between 1 and 28, and an early-pay window between 0 and 60 days.';stMsg.style.color='#ff4444';return;}
+    var up=await sb.from('tutor_payout_settings').upsert({id:1,part_time_rate:rate,pay_day:pd,early_pay_days:ed,updated_at:new Date().toISOString(),updated_by:S.user.id});
     if(up.error){stMsg.textContent='Could not save: '+up.error.message;stMsg.style.color='#ff4444';return;}
-    DF_PS.part_time_rate=rate;DF_PS.pay_day=pd;DF_PS.ok=true;
+    DF_PS.part_time_rate=rate;DF_PS.pay_day=pd;DF_PS.early_days=ed;DF_PS.ok=true;
     renderPayControls();renderPayoutsBody();
   },{style:{fontSize:'11px',padding:'8px 14px'}});
   card.append(
@@ -13154,9 +13157,10 @@ async function renderPayControls(){
     div({style:{display:'flex',gap:'12px',flexWrap:'wrap',alignItems:'flex-end'}},[
       div({},[h('label',{cls:'label',html:'Part-time rate (\u20a6 per scheduled class)'}),rateInp]),
       div({},[h('label',{cls:'label',html:'Pay day of the month'}),dayInp]),
+      div({},[h('label',{cls:'label',html:'Can pay early by (days)'}),earlyInp]),
       saveSet,stMsg
     ]),
-    h('div',{style:{fontSize:'12px',color:'var(--muted)',marginTop:'10px',lineHeight:'1.7'}},['Next pay day: '+fmtDayShort(dfYmd(dfNextPayDate(DF_PS.pay_day)))+'. Every payout follows the student\u2019s own payment cycle, and a cycle is paid on the first pay day after it ends. Cycles run back to back and can never overlap. The moment a payout is marked paid, it is archived and the next cycle opens. Full-time tutors get the set amount; part-time tutors keep accruing the rate for every scheduled class in the cycle, missed classes included.'])
+    h('div',{style:{fontSize:'12px',color:'var(--muted)',marginTop:'10px',lineHeight:'1.7'}},['Next pay day: '+fmtDayShort(dfYmd(dfNextPayDate(DF_PS.pay_day)))+'. Every payout follows the student\u2019s own payment cycle, and cycles run back to back and can never overlap. A cycle can be paid up to '+DF_PS.early_days+' days before it ends. Full-time tutors always show the full set amount. Part-time tutors are paid only the classes actually covered in that cycle up to the day you pay (missed classes included); any class held after an early payment is carried into their next payout so it is paid once. Marking a payout paid archives it and opens the next cycle.'])
   );
   if(!DF_PS.ok)card.append(h('div',{style:{fontSize:'11px',color:'#e08a3c',marginTop:'8px'}},['Payout settings table not found yet. The defaults (\u20a613,000 and the 12th) are being used.']));
   payControls.append(card);
@@ -13233,7 +13237,7 @@ async function renderPayoutsBody(){
   // Class counts for every open part-time row, inside that row's own cycle.
   var counts={};
   await Promise.all(allRows.filter(function(r){return !r.archived&&r.status!=='paid'&&r.pay_type==='part_time'&&r.cycle_start;}).map(async function(r){
-    counts[r.id]=await dfCycleCounts(r.tutor_id,r.student_id,r.cycle_start,r.cycle_end);
+    counts[r.id]=await dfCycleCounts(r.tutor_id,r.student_id,r.count_from||r.cycle_start,r.cycle_end);
   }));
   function rowAmount(r){
     if(r.status==='paid')return Number(r.amount_naira||0);
@@ -13255,7 +13259,9 @@ async function renderPayoutsBody(){
     var historyRows=tRows.filter(function(r){return r.archived;}).sort(function(a,b){return new Date(b.paid_at||b.created_at)-new Date(a.paid_at||a.created_at);});
     function stateOf(r){return sync.pairState(r.tutor_id+'|'+r.student_id);}
     var readyRows=activeRows.filter(function(r){var p=dfPayPhase(r);return (p==='ready'||p==='overdue')&&stateOf(r)==='approved';});
+    var earlyRows=activeRows.filter(function(r){return dfPayPhase(r)==='early'&&stateOf(r)==='approved';});
     var accruingRows=activeRows.filter(function(r){return dfPayPhase(r)==='accruing'&&stateOf(r)!=='rejected';});
+    var earlyTotal=earlyRows.reduce(function(s,r){return s+rowAmount(r);},0);
     var readyTotal=readyRows.reduce(function(s,r){return s+rowAmount(r);},0);
     var accruingTotal=accruingRows.reduce(function(s,r){return s+rowAmount(r);},0);
     var hdr=div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:'8px',marginBottom:'14px'}});
@@ -13263,7 +13269,8 @@ async function renderPayoutsBody(){
       div({},[h('div',{style:{fontSize:'16px',color:'var(--text)',fontWeight:'600'}},[t.full_name]),h('div',{style:{fontSize:'12px',color:'var(--muted)'}},[t.email])]),
       div({style:{textAlign:'right'}},[
         h('div',{cls:'mono',style:{fontSize:'15px',fontWeight:'700',color:readyTotal>0?'var(--gold)':'var(--dim)'}},[readyTotal>0?fmtNaira(readyTotal)+' ready to pay':'Nothing ready to pay']),
-        accruingTotal>0?h('div',{cls:'mono',style:{fontSize:'11px',color:'var(--muted)',marginTop:'2px'}},['+ '+fmtNaira(accruingTotal)+' accruing in cycles still running']):null,
+        earlyTotal>0?h('div',{cls:'mono',style:{fontSize:'11px',color:'var(--teal)',marginTop:'2px'}},['+ '+fmtNaira(earlyTotal)+' can be paid early (cycles ending within '+DF_PS.early_days+' days)']):null,
+        accruingTotal>0?h('div',{cls:'mono',style:{fontSize:'11px',color:'var(--muted)',marginTop:'2px'}},['+ '+fmtNaira(accruingTotal)+' accruing in cycles further out']):null,
         dfBankLine(bankMap[t.user_id])
       ].filter(Boolean))
     );
@@ -13297,7 +13304,7 @@ async function renderPayoutsBody(){
         line=fmtNaira(r.amount_naira)+' \u00b7 '+typeTxt+(r.pay_type==='part_time'?' ('+pc+' classes \u00d7 '+fmtNaira(r.rate_per_class)+')':'')+(r.paid_at?' \u00b7 paid '+new Date(r.paid_at).toLocaleDateString():'');
       }else if(r.pay_type==='part_time'){
         var c=counts[r.id]||{attended:0,missed:0,pending:0,rejected:0};
-        line=fmtNaira(rowAmount(r))+' \u00b7 Part-time \u00b7 '+(c.attended+c.missed)+' class'+((c.attended+c.missed)===1?'':'es')+' \u00d7 '+fmtNaira(DF_PS.part_time_rate)+' ('+c.attended+' held, '+c.missed+' missed)'+(phase==='accruing'?' so far':'');
+        line=fmtNaira(rowAmount(r))+' \u00b7 Part-time \u00b7 '+(c.attended+c.missed)+' class'+((c.attended+c.missed)===1?'':'es')+' \u00d7 '+fmtNaira(DF_PS.part_time_rate)+' ('+c.attended+' held, '+c.missed+' missed)'+((phase==='accruing'||phase==='early')?' so far':'')+(r.count_from?' \u00b7 includes classes from '+fmtDayShort(r.count_from):'');
         if(c.pending)line+=' \u00b7 '+c.pending+' awaiting approval';
         if(c.rejected)line+=' \u00b7 '+c.rejected+' not counted';
       }else{
@@ -13307,7 +13314,8 @@ async function renderPayoutsBody(){
       var payTxt=r.cycle_end?(' \u00b7 pays '+fmtDayShort(dfPayoutDateFor(r.cycle_end))):'';
       left.append(h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--dim)',marginTop:'2px'}},['Student cycle '+dfCycleTxt(r)+(isHistory?'':payTxt)]));
       if(!isHistory&&r.status!=='paid'){
-        if(phase==='accruing')left.append(h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--muted)',marginTop:'3px'}},['CYCLE STILL RUNNING \u00b7 ENDS '+fmtDayShort(r.cycle_end).toUpperCase()]));
+        if(phase==='accruing')left.append(h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--muted)',marginTop:'3px'}},['CYCLE STILL RUNNING \u00b7 ENDS '+fmtDayShort(r.cycle_end).toUpperCase()+' \u00b7 TOO EARLY TO PAY']));
+        if(phase==='early')left.append(h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--teal)',marginTop:'3px'}},['CAN BE PAID EARLY \u00b7 CYCLE ENDS '+fmtDayShort(r.cycle_end).toUpperCase()+(r.pay_type==='part_time'?' \u00b7 PAYS CLASSES HELD SO FAR':' \u00b7 FULL AMOUNT')]));
         if(phase==='ready')left.append(h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--gold)',marginTop:'3px'}},['CYCLE ENDED \u00b7 READY FOR THE '+fmtDayShort(dfPayoutDateFor(r.cycle_end)).toUpperCase()+' PAY DAY']));
         if(phase==='overdue')left.append(h('div',{cls:'mono',style:{fontSize:'10px',color:'#ff5f5f',marginTop:'3px'}},['OVERDUE \u00b7 WAS DUE '+fmtDayShort(dfPayoutDateFor(r.cycle_end)).toUpperCase()]));
         if(state==='pending')left.append(h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--gold)',marginTop:'3px'}},['SCHEDULE CHANGE AWAITING YOUR APPROVAL']));
@@ -13360,7 +13368,8 @@ async function renderPayoutsBody(){
       var markPaidBtn=btn('Mark Paid','btn-teal',async function(){
         if(state==='rejected'){alert('This schedule change was marked as not counting toward payout.');return;}
         if(state==='pending'&&!confirm('This student\u2019s schedule change has not been approved yet. Mark paid anyway?'))return;
-        if(phase==='accruing'&&!confirm('This cycle runs until '+fmtDayShort(r.cycle_end)+' and normally pays on '+fmtDayShort(dfPayoutDateFor(r.cycle_end))+'. Mark it paid now? The next cycle opens straight away.'))return;
+        if(phase==='accruing'&&!confirm('This cycle runs until '+fmtDayShort(r.cycle_end)+', which is more than '+DF_PS.early_days+' days away, so it is outside the early-pay window. Mark it paid anyway? The next cycle opens straight away.'))return;
+        if(phase==='early'&&r.pay_type==='part_time'){var ec=counts[r.id]||{attended:0,missed:0};if(!confirm('Part-time: this pays only the '+(ec.attended+ec.missed)+' class'+((ec.attended+ec.missed)===1?'':'es')+' covered so far ('+fmtNaira(rowAmount(r))+'). Classes held after today in this cycle carry into the next payout. Mark paid?'))return;}
         if(rowAmount(r)<=0&&!confirm('The amount is \u20a60. Mark paid anyway?'))return;
         markPaidBtn.disabled=true;
         var id=await markPaid(r,receiptInp.files&&receiptInp.files[0],setSt);
@@ -13387,16 +13396,23 @@ async function renderPayoutsBody(){
       tCard.append(h('p',{style:{fontSize:'12px',color:'var(--dim)',textAlign:'center',padding:'10px'},html:'No students on the schedule for this tutor.'}));
     }else{
       activeRows.forEach(function(r){tCard.append(buildPayoutRow(r,false));});
-      if(readyRows.length){
+      if(readyRows.length||earlyRows.length){
         var bulkInp=h('input',{type:'file',accept:'image/*,.pdf',style:{fontSize:'10px',maxWidth:'170px',color:'var(--dim)'}});
         var bulkSt=div({style:{fontSize:'11px',marginTop:'6px',display:'none',textAlign:'right'}});
-        var bulkBtn=btn('Mark all ready paid & email report \u00b7 '+fmtNaira(readyTotal),'btn-gold',async function(){
-          if(!confirm('Mark '+readyRows.length+' payout'+(readyRows.length===1?'':'s')+' as paid ('+fmtNaira(readyTotal)+') and email '+t.full_name+' one report? Each student\u2019s next cycle opens straight away.'))return;
+        var incEarly=h('input',{type:'checkbox'});
+        var bulkBtn=null;
+        function bulkSet(){return readyRows.concat(incEarly.checked?earlyRows:[]);}
+        function bulkLabel(){var set=bulkSet();var tot=set.reduce(function(s,r){return s+rowAmount(r);},0);return 'Mark '+set.length+' paid & email report \u00b7 '+fmtNaira(tot);}
+        bulkBtn=btn(bulkLabel(),'btn-gold',async function(){
+          var set=bulkSet();
+          if(!set.length){alert('Nothing is ready. Tick the early box to include cycles that end soon.');return;}
+          var tot=set.reduce(function(s,r){return s+rowAmount(r);},0);
+          if(!confirm('Mark '+set.length+' payout'+(set.length===1?'':'s')+' as paid ('+fmtNaira(tot)+') and email '+t.full_name+' one report? Each student\u2019s next cycle opens straight away.'))return;
           bulkBtn.disabled=true;
           function setB(msg,bad){bulkSt.style.display='block';bulkSt.style.color=bad?'#ff4444':'var(--dim)';bulkSt.textContent=msg;}
           var file=bulkInp.files&&bulkInp.files[0];var ids=[];
-          for(var i=0;i<readyRows.length;i++){
-            var id=await markPaid(readyRows[i],file,setB);
+          for(var i=0;i<set.length;i++){
+            var id=await markPaid(set[i],file,setB);
             if(!id){bulkBtn.disabled=false;if(ids.length)renderPayoutsBody();return;}
             ids.push(id);
           }
@@ -13405,7 +13421,9 @@ async function renderPayoutsBody(){
           if(!em.ok)alert('Marked as paid, but the email could not be sent: '+em.error+'\n\nUse \"Send email\" in this tutor\u2019s History once it is fixed.');
           renderPayoutsBody();
         },{style:{fontSize:'11px',padding:'8px 16px'}});
-        tCard.append(div({style:{display:'flex',flexDirection:'column',alignItems:'flex-end',gap:'6px',marginTop:'14px'}},[div({style:{display:'flex',gap:'8px',alignItems:'center',flexWrap:'wrap',justifyContent:'flex-end'}},[bulkInp,bulkBtn]),bulkSt]));
+        incEarly.onchange=function(){bulkBtn.textContent=bulkLabel();};
+        var earlyLine=earlyRows.length?h('label',{style:{display:'flex',gap:'6px',alignItems:'center',fontSize:'11px',color:'var(--muted)'}},[incEarly,'Also pay '+earlyRows.length+' cycle'+(earlyRows.length===1?'':'s')+' ending within '+DF_PS.early_days+' days']):null;
+        tCard.append(div({style:{display:'flex',flexDirection:'column',alignItems:'flex-end',gap:'6px',marginTop:'14px'}},[earlyLine,div({style:{display:'flex',gap:'8px',alignItems:'center',flexWrap:'wrap',justifyContent:'flex-end'}},[bulkInp,bulkBtn]),bulkSt].filter(Boolean)));
       }
     }
 
