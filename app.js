@@ -719,12 +719,12 @@ function dfWhatsNewCard(kind,opts){
       items.push({t:'Evidence Mode',d:'Turn it on per student from their profile. They must mark at least 2 pieces of evidence in a question before they can choose an answer.'});
     }
     if(opts.availability)items.push({t:'Tutor availability',d:'See each tutor\u2019s weekly hours, current teaching load, and preferred days and times (AST) under Team \u2192 Tutor availability.'});
-    items.push({t:'AI explanations on demand',d:'Under any revealed answer or review, tap \u201cExplain with AI\u201d for a detailed walk-through that covers every wrong option and ends with a \u201cNever miss this again\u201d trick. Each person has 20 question and 30 flashcard explanations a day; explanations already generated open free.'});
+    items.push({t:'AI explanations on demand',d:'Under any revealed answer or review, tap \u201cExplain with AI\u201d for a detailed walk-through that covers every wrong option and ends with a \u201cNever miss this again\u201d trick. Each explanation is generated once and saved for everyone. Each person can generate 40 new question explanations and 30 new flashcard explanations a day.'});
     items.push({t:'Ask Deo about any question',d:'Under each explanation, students and tutors can ask follow-up questions about that exact question.'});
   }else{
     items.push({t:'Mailbox',d:'Message your tutors and admins from the Mail button. You can read their replies right here, and each message is also emailed to them.',open:true});
     items.push({t:'My Payments',d:'If you are in tutoring, your dashboard now shows each billing cycle, what you have paid, what is owing and when it is due. A reminder banner appears 3 days before a payment is due, with a direct link to pay.'});
-    items.push({t:'AI explanations on demand',d:'Tap \u201cExplain with AI\u201d under any revealed answer, including in your reviews, and Deo Tutor walks through why it is right, why every other option is wrong, and gives you a \u201cNever miss this again\u201d trick. You get 20 question explanations and 30 flashcard explanations a day, and explanations that were already generated open free.'});
+    items.push({t:'AI explanations on demand',d:'Tap \u201cExplain with AI\u201d under any revealed answer, including in your reviews, and Deo Tutor walks through why it is right, why every other option is wrong, and gives you a \u201cNever miss this again\u201d trick. Once an explanation has been generated it is saved, so it opens instantly for everyone. You can generate 40 new question explanations and 30 new flashcard explanations a day.'});
     items.push({t:'Ask Deo about any question',d:'Still unsure? Ask a follow-up right under the explanation and Deo will explain it further.'});
     items.push({t:'Evidence Mode',d:'If you are in tutoring, your tutor can turn this on. You mark at least 2 pieces of evidence in the question before you can choose an answer.'});
     items.push({t:'Highlighting on phones and iPads',d:'Press and hold the text in a question, drag to select, then choose how to mark it.'});
@@ -1104,7 +1104,7 @@ function dfAiExplanation(q,correct){
     wrap.append(card);
   }else{
     card.style.display='none';
-    var hint=div({style:{fontSize:'11px',color:'var(--dim)',marginTop:'6px',textAlign:'center'}},['Walks through why the answer is right and why every other option is wrong. Counts toward your 20 daily question explanations unless it was already generated.']);
+    var hint=div({style:{fontSize:'11px',color:'var(--dim)',marginTop:'6px',textAlign:'center'}},['Walks through why the answer is right and why every other option is wrong. Explanations already generated open free; you get 40 new ones a day.']);
     var openBtn=btn('Explain with AI','btn-outline',function(){
       openBtn.style.display='none';hint.style.display='none';card.style.display='block';load();
     },{style:{width:'100%',borderColor:'var(--gold)',color:'var(--gold)'}});
