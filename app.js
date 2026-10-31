@@ -276,6 +276,87 @@ if(kids)kids.filter(Boolean).forEach(k=>e.append(typeof k==='string'||typeof k==
 return e;
 }
 function div(a,k){return h('div',a,k);}
+/* ===================== LIVE ASSESSMENT PROGRESS (tutors can watch attempts in progress) ===================== */
+var _apLast=0,_apTimer=null,_apPending=null,_apInflight=null,_apSig='',_apClosed={};
+function dfStartAssessProgress(assessmentId){_apClosed[assessmentId]=false;_apSig='';}
+function dfPushAssessProgress(p){
+  if(!p||_apClosed[p.assessmentId]||p.phase==='intro'||p.phase==='done')return;
+  if(!(S&&S.user&&S.user.id))return;
+  var sig=[p.assessmentId,p.answered,p.current,p.blockIdx||0,p.phase].join('|');
+  var now=Date.now();
+  // nothing changed and we synced within the last 30s: skip (timers call persist() every second)
+  if(sig===_apSig&&now-_apLast<30000)return;
+  _apPending=p;
+  var run=function(){
+    var x=_apPending;if(!x||_apClosed[x.assessmentId])return;
+    _apPending=null;_apLast=Date.now();_apSig=[x.assessmentId,x.answered,x.current,x.blockIdx||0,x.phase].join('|');
+    try{
+      _apInflight=sb.from('tutoring_assessment_progress').upsert({student_id:S.user.id,assessment_id:String(x.assessmentId),assignment_id:x.assignmentId?String(x.assignmentId):null,assessment_title:x.title||null,answered_count:x.answered,total_questions:x.total,current_index:x.current,block_idx:x.blockIdx||0,total_blocks:x.totalBlocks||1,phase:x.phase||'block',updated_at:new Date().toISOString()},{onConflict:'student_id,assessment_id'});
+      _apInflight.then(function(){},function(){});
+    }catch(e){}
+  };
+  if(now-_apLast>=5000){if(_apTimer){clearTimeout(_apTimer);_apTimer=null;}run();}
+  else if(!_apTimer){_apTimer=setTimeout(function(){_apTimer=null;run();},5000-(now-_apLast));}
+}
+function dfClearAssessProgress(assessmentId){
+  _apClosed[assessmentId]=true;_apPending=null;
+  if(_apTimer){clearTimeout(_apTimer);_apTimer=null;}
+  var go=function(){try{var q=sb.from('tutoring_assessment_progress').delete().eq('student_id',S.user.id).eq('assessment_id',String(assessmentId));q.then(function(){},function(){});}catch(e){}};
+  if(_apInflight){_apInflight.then(go,go);}else go();
+}
+function dfEnsureApCss(){
+  if(document.getElementById('df-ap-css'))return;
+  var st=document.createElement('style');st.id='df-ap-css';
+  st.textContent='@keyframes dfApStripes{from{background-position:0 0}to{background-position:28px 0}}@keyframes dfApPulse{0%,100%{opacity:1}50%{opacity:.35}}';
+  document.head.appendChild(st);
+}
+function dfAgo(iso){
+  var t=new Date(iso).getTime();if(isNaN(t))return '';
+  var m=Math.max(0,Math.round((Date.now()-t)/60000));
+  if(m<1)return 'just now';if(m<60)return m+' min ago';
+  var hr=Math.round(m/60);if(hr<24)return hr+' hr ago';
+  return Math.round(hr/24)+' d ago';
+}
+// One "Assessment in progress" badge + animated loading bar for a progress row.
+function dfAssessProgressBlock(r){
+  dfEnsureApCss();
+  var total=r.total_questions||0,answered=r.answered_count||0;
+  var pct=total?Math.min(100,Math.round(answered/total*100)):0;
+  var wrap=div({style:{padding:'10px 12px',border:'1px solid rgba(224,138,60,0.45)',background:'rgba(224,138,60,0.07)',borderRadius:'6px',marginTop:'8px'}},[]);
+  var top=div({style:{display:'flex',alignItems:'center',gap:'8px',flexWrap:'wrap',marginBottom:'8px'}},[]);
+  var dot=h('span',{style:{width:'8px',height:'8px',borderRadius:'50%',background:'#E08A3C',display:'inline-block',animation:'dfApPulse 1.4s ease-in-out infinite'}},[]);
+  var badge=h('span',{style:{display:'inline-flex',alignItems:'center',gap:'6px',background:'rgba(224,138,60,0.15)',color:'#E08A3C',border:'1px solid #E08A3C',borderRadius:'999px',padding:'2px 10px',fontSize:'10px',letterSpacing:'1px',textTransform:'uppercase',fontWeight:'600'}},[]);
+  badge.append(dot,document.createTextNode('Assessment in progress'));
+  top.append(badge);
+  var bits=[];
+  if(r.assessment_title)bits.push(r.assessment_title);
+  if((r.total_blocks||1)>1)bits.push(r.phase==='break'?('On break after block '+r.block_idx+' of '+r.total_blocks):('Block '+((r.block_idx||0)+1)+' of '+r.total_blocks));
+  if(bits.length)top.append(h('span',{style:{fontSize:'12px',color:'var(--text)'}},[bits.join(' \u00b7 ')]));
+  var track=div({style:{height:'10px',borderRadius:'999px',background:'rgba(255,255,255,0.08)',overflow:'hidden'}},[]);
+  var fill=div({style:{height:'100%',width:pct+'%',minWidth:'4px',borderRadius:'999px',transition:'width .6s ease',backgroundColor:'#E08A3C',backgroundImage:'linear-gradient(45deg,rgba(255,255,255,.28) 25%,transparent 25%,transparent 50%,rgba(255,255,255,.28) 50%,rgba(255,255,255,.28) 75%,transparent 75%,transparent)',backgroundSize:'28px 28px',animation:'dfApStripes 1s linear infinite'}},[]);
+  track.append(fill);
+  var meta=h('div',{cls:'mono',style:{fontSize:'11px',color:'var(--muted)',marginTop:'6px'}},[answered+' of '+total+' answered ('+pct+'%)'+(r.updated_at?' \u00b7 last active '+dfAgo(r.updated_at):'')]);
+  wrap.append(top,track,meta);
+  return wrap;
+}
+// Keeps `holder` filled with progress blocks for the given students; polls while the holder is on screen.
+// holdersByStudent: {student_id: element}
+async function dfRefreshAssessProgress(holdersByStudent){
+  var ids=Object.keys(holdersByStudent);if(!ids.length)return;
+  try{
+    var pr=await sb.from('tutoring_assessment_progress').select('*').in('student_id',ids).order('updated_at',{ascending:false});
+    if(pr.error)return;
+    var by={};(pr.data||[]).forEach(function(r){(by[r.student_id]=by[r.student_id]||[]).push(r);});
+    ids.forEach(function(id){var el=holdersByStudent[id];el.innerHTML='';(by[id]||[]).forEach(function(r){el.append(dfAssessProgressBlock(r));});});
+  }catch(e){}
+}
+function dfWatchAssessProgress(holdersByStudent){
+  var anyEl=null;Object.keys(holdersByStudent).forEach(function(k){anyEl=anyEl||holdersByStudent[k];});
+  if(!anyEl)return;
+  dfRefreshAssessProgress(holdersByStudent);
+  var iv=setInterval(function(){if(!anyEl.isConnected){clearInterval(iv);return;}dfRefreshAssessProgress(holdersByStudent);},15000);
+}
+
 function btn(text,cls,onclick,extra){
   var wrapped=onclick;
   if(typeof onclick==='function'){
@@ -4502,87 +4583,6 @@ function viewAssessmentReport(r,backTab){
   renderAssessmentScoreReport({resultId:r.id,assessment:{id:r.assessment_id,title:r.assessment_title},score:r.score,total:r.total,questions:r.questions||[],answers:r.answers||{},timeTakenSeconds:r.time_taken_seconds,questionTimes:r.question_times||{},answerChanges:r.answer_changes||[],blockScores:r.block_scores||null,trendList:trendList,backTab:backTab||'assessments'});
 }
 
-
-/* ===================== LIVE ASSESSMENT PROGRESS (tutors can watch attempts in progress) ===================== */
-var _apLast=0,_apTimer=null,_apPending=null,_apInflight=null,_apSig='',_apClosed={};
-function dfStartAssessProgress(assessmentId){_apClosed[assessmentId]=false;_apSig='';}
-function dfPushAssessProgress(p){
-  if(!p||_apClosed[p.assessmentId]||p.phase==='intro'||p.phase==='done')return;
-  if(!(S&&S.user&&S.user.id))return;
-  var sig=[p.assessmentId,p.answered,p.current,p.blockIdx||0,p.phase].join('|');
-  var now=Date.now();
-  // nothing changed and we synced within the last 30s: skip (timers call persist() every second)
-  if(sig===_apSig&&now-_apLast<30000)return;
-  _apPending=p;
-  var run=function(){
-    var x=_apPending;if(!x||_apClosed[x.assessmentId])return;
-    _apPending=null;_apLast=Date.now();_apSig=[x.assessmentId,x.answered,x.current,x.blockIdx||0,x.phase].join('|');
-    try{
-      _apInflight=sb.from('tutoring_assessment_progress').upsert({student_id:S.user.id,assessment_id:String(x.assessmentId),assignment_id:x.assignmentId?String(x.assignmentId):null,assessment_title:x.title||null,answered_count:x.answered,total_questions:x.total,current_index:x.current,block_idx:x.blockIdx||0,total_blocks:x.totalBlocks||1,phase:x.phase||'block',updated_at:new Date().toISOString()},{onConflict:'student_id,assessment_id'});
-      _apInflight.then(function(){},function(){});
-    }catch(e){}
-  };
-  if(now-_apLast>=5000){if(_apTimer){clearTimeout(_apTimer);_apTimer=null;}run();}
-  else if(!_apTimer){_apTimer=setTimeout(function(){_apTimer=null;run();},5000-(now-_apLast));}
-}
-function dfClearAssessProgress(assessmentId){
-  _apClosed[assessmentId]=true;_apPending=null;
-  if(_apTimer){clearTimeout(_apTimer);_apTimer=null;}
-  var go=function(){try{var q=sb.from('tutoring_assessment_progress').delete().eq('student_id',S.user.id).eq('assessment_id',String(assessmentId));q.then(function(){},function(){});}catch(e){}};
-  if(_apInflight){_apInflight.then(go,go);}else go();
-}
-function dfEnsureApCss(){
-  if(document.getElementById('df-ap-css'))return;
-  var st=document.createElement('style');st.id='df-ap-css';
-  st.textContent='@keyframes dfApStripes{from{background-position:0 0}to{background-position:28px 0}}@keyframes dfApPulse{0%,100%{opacity:1}50%{opacity:.35}}';
-  document.head.appendChild(st);
-}
-function dfAgo(iso){
-  var t=new Date(iso).getTime();if(isNaN(t))return '';
-  var m=Math.max(0,Math.round((Date.now()-t)/60000));
-  if(m<1)return 'just now';if(m<60)return m+' min ago';
-  var hr=Math.round(m/60);if(hr<24)return hr+' hr ago';
-  return Math.round(hr/24)+' d ago';
-}
-// One "Assessment in progress" badge + animated loading bar for a progress row.
-function dfAssessProgressBlock(r){
-  dfEnsureApCss();
-  var total=r.total_questions||0,answered=r.answered_count||0;
-  var pct=total?Math.min(100,Math.round(answered/total*100)):0;
-  var wrap=div({style:{padding:'10px 12px',border:'1px solid rgba(224,138,60,0.45)',background:'rgba(224,138,60,0.07)',borderRadius:'6px',marginTop:'8px'}},[]);
-  var top=div({style:{display:'flex',alignItems:'center',gap:'8px',flexWrap:'wrap',marginBottom:'8px'}},[]);
-  var dot=h('span',{style:{width:'8px',height:'8px',borderRadius:'50%',background:'#E08A3C',display:'inline-block',animation:'dfApPulse 1.4s ease-in-out infinite'}},[]);
-  var badge=h('span',{style:{display:'inline-flex',alignItems:'center',gap:'6px',background:'rgba(224,138,60,0.15)',color:'#E08A3C',border:'1px solid #E08A3C',borderRadius:'999px',padding:'2px 10px',fontSize:'10px',letterSpacing:'1px',textTransform:'uppercase',fontWeight:'600'}},[]);
-  badge.append(dot,document.createTextNode('Assessment in progress'));
-  top.append(badge);
-  var bits=[];
-  if(r.assessment_title)bits.push(r.assessment_title);
-  if((r.total_blocks||1)>1)bits.push(r.phase==='break'?('On break after block '+r.block_idx+' of '+r.total_blocks):('Block '+((r.block_idx||0)+1)+' of '+r.total_blocks));
-  if(bits.length)top.append(h('span',{style:{fontSize:'12px',color:'var(--text)'}},[bits.join(' \u00b7 ')]));
-  var track=div({style:{height:'10px',borderRadius:'999px',background:'rgba(255,255,255,0.08)',overflow:'hidden'}},[]);
-  var fill=div({style:{height:'100%',width:pct+'%',minWidth:'4px',borderRadius:'999px',transition:'width .6s ease',backgroundColor:'#E08A3C',backgroundImage:'linear-gradient(45deg,rgba(255,255,255,.28) 25%,transparent 25%,transparent 50%,rgba(255,255,255,.28) 50%,rgba(255,255,255,.28) 75%,transparent 75%,transparent)',backgroundSize:'28px 28px',animation:'dfApStripes 1s linear infinite'}},[]);
-  track.append(fill);
-  var meta=h('div',{cls:'mono',style:{fontSize:'11px',color:'var(--muted)',marginTop:'6px'}},[answered+' of '+total+' answered ('+pct+'%)'+(r.updated_at?' \u00b7 last active '+dfAgo(r.updated_at):'')]);
-  wrap.append(top,track,meta);
-  return wrap;
-}
-// Keeps `holder` filled with progress blocks for the given students; polls while the holder is on screen.
-// holdersByStudent: {student_id: element}
-async function dfRefreshAssessProgress(holdersByStudent){
-  var ids=Object.keys(holdersByStudent);if(!ids.length)return;
-  try{
-    var pr=await sb.from('tutoring_assessment_progress').select('*').in('student_id',ids).order('updated_at',{ascending:false});
-    if(pr.error)return;
-    var by={};(pr.data||[]).forEach(function(r){(by[r.student_id]=by[r.student_id]||[]).push(r);});
-    ids.forEach(function(id){var el=holdersByStudent[id];el.innerHTML='';(by[id]||[]).forEach(function(r){el.append(dfAssessProgressBlock(r));});});
-  }catch(e){}
-}
-function dfWatchAssessProgress(holdersByStudent){
-  var anyEl=null;Object.keys(holdersByStudent).forEach(function(k){anyEl=anyEl||holdersByStudent[k];});
-  if(!anyEl)return;
-  dfRefreshAssessProgress(holdersByStudent);
-  var iv=setInterval(function(){if(!anyEl.isConnected){clearInterval(iv);return;}dfRefreshAssessProgress(holdersByStudent);},15000);
-}
 
 function runAssessmentQuiz(a,assessment,questions){
   var mode=assessment.mode;
