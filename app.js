@@ -512,6 +512,30 @@ if(after.trim()){var pAfter=h('p',{style:{fontSize:'15px',color:'var(--text)',li
 // All platform email (mailbox messages, assignment emails, signup and reset codes) is sent by this Supabase Edge Function via Resend.
 const DF_EMAIL_FN=SURL+'/functions/v1/send-email';
 const DF_AI_URL='https://ai-tutor.ambahtamaratubor.workers.dev';
+// One door to the AI Worker. Sends the student's login token so the Worker can enforce daily limits
+// and reuse saved explanations. Throws an Error with .code ('auth' | 'limit' | 'provider' | ...) on failure.
+async function dfAiCall(body,timeoutMs){
+  var ctrl=(typeof AbortController!=='undefined')?new AbortController():null;
+  var timer=setTimeout(function(){try{ctrl&&ctrl.abort();}catch(e){}},timeoutMs||60000);
+  try{
+    var sess=await sb.auth.getSession();
+    var token=sess&&sess.data&&sess.data.session&&sess.data.session.access_token;
+    if(!token){var e0=new Error('Please sign in again to use Deo Tutor.');e0.code='auth';throw e0;}
+    var res=await fetch(DF_AI_URL,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},signal:ctrl?ctrl.signal:undefined,body:JSON.stringify(body)});
+    var data=null;try{data=await res.json();}catch(e1){}
+    if(!res.ok||!data||typeof data.reply!=='string'||!data.reply){
+      var err=new Error((data&&data.message)||('AI Tutor error '+res.status));
+      err.code=(data&&data.code)||('http_'+res.status);err.status=res.status;err.data=data;
+      console.warn('[Deo Tutor] request failed:',res.status,data);
+      throw err;
+    }
+    return data;
+  }finally{clearTimeout(timer);}
+}
+// Text to show a student: limit/sign-in messages are shown as written, anything else gets the fallback.
+function dfAiErrText(err,fallback){
+  return (err&&(err.code==='limit'||err.code==='auth')&&err.message)?err.message:fallback;
+}
 
 (function dfInjectNewStyles(){
   try{
@@ -695,12 +719,12 @@ function dfWhatsNewCard(kind,opts){
       items.push({t:'Evidence Mode',d:'Turn it on per student from their profile. They must mark at least 2 pieces of evidence in a question before they can choose an answer.'});
     }
     if(opts.availability)items.push({t:'Tutor availability',d:'See each tutor\u2019s weekly hours, current teaching load, and preferred days and times (AST) under Team \u2192 Tutor availability.'});
-    items.push({t:'Simple AI explanations',d:'Every revealed answer, and every review, now has a plain-language explanation from Deo Tutor, ending with a \u201cNever miss this again\u201d trick.'});
+    items.push({t:'AI explanations on demand',d:'Under any revealed answer or review, tap \u201cExplain with AI\u201d for a detailed walk-through that covers every wrong option and ends with a \u201cNever miss this again\u201d trick. Each person has 20 question and 30 flashcard explanations a day; explanations already generated open free.'});
     items.push({t:'Ask Deo about any question',d:'Under each explanation, students and tutors can ask follow-up questions about that exact question.'});
   }else{
     items.push({t:'Mailbox',d:'Message your tutors and admins from the Mail button. You can read their replies right here, and each message is also emailed to them.',open:true});
     items.push({t:'My Payments',d:'If you are in tutoring, your dashboard now shows each billing cycle, what you have paid, what is owing and when it is due. A reminder banner appears 3 days before a payment is due, with a direct link to pay.'});
-    items.push({t:'Simple AI explanations',d:'Whenever an answer is revealed, including in your reviews, Deo Tutor explains it in plain medical language and gives you a \u201cNever miss this again\u201d trick.'});
+    items.push({t:'AI explanations on demand',d:'Tap \u201cExplain with AI\u201d under any revealed answer, including in your reviews, and Deo Tutor walks through why it is right, why every other option is wrong, and gives you a \u201cNever miss this again\u201d trick. You get 20 question explanations and 30 flashcard explanations a day, and explanations that were already generated open free.'});
     items.push({t:'Ask Deo about any question',d:'Still unsure? Ask a follow-up right under the explanation and Deo will explain it further.'});
     items.push({t:'Evidence Mode',d:'If you are in tutoring, your tutor can turn this on. You mark at least 2 pieces of evidence in the question before you can choose an answer.'});
     items.push({t:'Highlighting on phones and iPads',d:'Press and hold the text in a question, drag to select, then choose how to mark it.'});
@@ -898,35 +922,14 @@ function dfEvidenceIntro(markSeen){
 
 // ───────────────────────────── AI EXPLANATIONS ─────────────────────────────
 var dfAiMem={};
-function dfAiPrompt(q,correct){
-  var opts=[];
-  ['a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p','q'].forEach(function(o){if(q['option_'+o])opts.push(o.toUpperCase()+'. '+q['option_'+o]);});
-  var ref=String(q.explanation||'').replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim().slice(0,1500);
-  return [
-    'You are Deo Tutor, explaining a USMLE-style question to a medical student right after they see the answer.',
-    'Write in SIMPLE, clear language. Keep the correct medical terms, but explain any technical term in a few plain words the first time it appears. Do not talk down to the student and do not oversimplify the science.',
-    'Always finish with the "Never miss this again" trick: it is the most important part for helping the student get this kind of question right every time.',
-    'Use EXACTLY this layout, plain text only, no tables, no extra intro or outro:',
-    '**Answer: '+(correct||'?')+' \u2014 <name the answer in a few words>**',
-    '**Why this is right**',
-    '<2 to 4 short sentences linking the clues in the question to the answer>',
-    '**Key clues in the question**',
-    '- <clue and what it points to>',
-    '- <clue and what it points to>',
-    '**Why the other options are wrong**',
-    '- <letter>: <one short reason>',
-    '**Remember this**',
-    '<one memorable take-home sentence>',
-    '**Never miss this again**',
-    '<ONE practical trick for spotting this type of question next time: a mnemonic, a memory hook, a pattern ("when you see X, think Y") or a quick elimination rule. Make it concrete and easy to recall, 1 to 3 short sentences.>',
-    '',
-    'QUESTION:',String(q.question||''),
-    '',
-    'OPTIONS:',opts.join('\n'),
-    '',
-    'CORRECT ANSWER: '+(correct||'unknown'),
-    ref?('\nREFERENCE EXPLANATION (use for accuracy, do not copy it):\n'+ref):''
-  ].join('\n');
+// The explanation prompt itself lives in the Worker. This only sends the question's facts.
+function dfAiQuestionPayload(q,correct){
+  var options={};
+  ['a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p','q'].forEach(function(o){
+    var v=q['option_'+o];
+    if(v)options[o.toUpperCase()]=dfStripHtml(v);
+  });
+  return {question:dfStripHtml(q.question),options:options,correct:String(correct||'').toUpperCase(),reference:dfStripHtml(q.explanation).slice(0,3000)};
 }
 function dfAiInline(str,parent){
   String(str).split(/(\*\*[^*]+\*\*)/g).forEach(function(p){
@@ -996,9 +999,9 @@ function dfAskContext(q,correct,explanation){
 }
 function dfAiExplanation(q,correct){
   var qk=dfAiKey(q);
-  var key='df-aiexp2-'+qk;
+  var key='df-aiexp3-'+qk;
   var card=div({style:{background:'var(--card)',border:'1px solid var(--gold)',borderRadius:'4px',padding:'16px',marginTop:'16px'}},[]);
-  card.append(div({style:{display:'flex',alignItems:'center',gap:'8px',marginBottom:'12px',fontFamily:'inherit',fontSize:'14px',fontWeight:'700',color:'var(--gold)'},html:ICONS.brain+' Deo Tutor \u00b7 Simple explanation'}));
+  card.append(div({style:{display:'flex',alignItems:'center',gap:'8px',marginBottom:'12px',fontFamily:'inherit',fontSize:'14px',fontWeight:'700',color:'var(--gold)'},html:ICONS.brain+' Deo Tutor \u00b7 Detailed explanation'}));
   var body=div({cls:'df-ai-body'},[]);
   card.append(body);
   if(card.firstChild)dfPutNewOn(card.firstChild);
@@ -1050,9 +1053,8 @@ function dfAiExplanation(q,correct){
         var recent=hist.slice(-12);
         while(recent.length&&recent[0].role!=='user')recent.shift();
         var messages=recent.map(function(m,i){return i===0?{role:'user',content:ctx+'\n\nSTUDENT QUESTION:\n'+m.content}:{role:m.role,content:m.content};});
-        var res=await fetch(DF_AI_URL,{method:'POST',headers:{'Content-Type':'application/json'},signal:ctrl?ctrl.signal:undefined,body:JSON.stringify({messages:messages,topic:window._currentTopic||'question follow-up'})});
-        var data=await res.json();
-        var reply=data&&data.reply;
+        var data=await dfAiCall({kind:'chat',messages:messages,topic:window._currentTopic||'question follow-up'},60000);
+        var reply=data.reply;
         thinking.remove();
         if(!reply||typeof reply!=='string')throw new Error('empty');
         hist.push({role:'assistant',content:reply});
@@ -1061,37 +1063,54 @@ function dfAiExplanation(q,correct){
       }catch(err){
         thinking.remove();
         hist.pop();
-        addBubble('assistant','Deo could not answer just now. Please try again.');
+        addBubble('assistant',dfAiErrText(err,'Deo could not answer just now. Please try again.'));
         input.value=text;
       }finally{clearTimeout(timer);busy=false;sendBtn.disabled=false;}
     }
   }
 
   function paintLoading(){body.innerHTML='';body.append(skel(['40%','100%','92%','96%','70%']));}
-  function paintError(){
+  function paintError(msg){
     body.innerHTML='';
-    body.append(h('p',{style:{fontSize:'13px',color:'var(--muted)',margin:'0 0 10px'}},['The tutor could not write an explanation just now.']),btn('Try again','btn-outline',function(){load();},{style:{fontSize:'11px',padding:'6px 14px'}}));
+    body.append(h('p',{style:{fontSize:'13px',color:'var(--muted)',margin:'0 0 10px',lineHeight:'1.7'}},[msg||'The tutor could not write an explanation just now.']),btn('Try again','btn-outline',function(){load();},{style:{fontSize:'11px',padding:'6px 14px'}}));
   }
   async function load(){
     paintLoading();
-    var ctrl=(typeof AbortController!=='undefined')?new AbortController():null;
-    var timer=setTimeout(function(){try{ctrl&&ctrl.abort();}catch(e){}},45000);
     try{
-      var res=await fetch(DF_AI_URL,{method:'POST',headers:{'Content-Type':'application/json'},signal:ctrl?ctrl.signal:undefined,body:JSON.stringify({messages:[{role:'user',content:dfAiPrompt(q,correct)}],topic:window._currentTopic||'question explanation'})});
-      var data=await res.json();
-      var reply=data&&data.reply;
-      if(!reply||typeof reply!=='string'){paintError();return;}
+      var data=await dfAiCall(Object.assign({kind:'question'},dfAiQuestionPayload(q,correct)),90000);
+      var reply=data.reply;
       dfAiMem[qk]=reply;
       try{sessionStorage.setItem(key,reply);}catch(e){}
       dfAiRender(reply,body);
+      if(!data.cached&&data.limit){
+        body.append(div({style:{fontSize:'11px',color:'var(--dim)',marginTop:'10px'}},[data.used+' of '+data.limit+' AI question explanations used today']));
+      }
       buildAsk();
-    }catch(err){paintError();}
-    finally{clearTimeout(timer);}
+    }catch(err){
+      if(err&&(err.code==='limit'||err.code==='auth')){
+        body.innerHTML='';
+        body.append(h('p',{style:{fontSize:'13px',color:'var(--muted)',margin:'0',lineHeight:'1.7'}},[err.message]));
+      }else paintError();
+    }
   }
   var cached=dfAiMem[qk];
   if(!cached){try{cached=sessionStorage.getItem(key);}catch(e){}if(cached)dfAiMem[qk]=cached;}
-  if(cached){dfAiRender(cached,body);buildAsk();}else{load();}
-  return card;
+
+  // The explanation is optional: nothing is generated until the student asks for it.
+  var wrap=div({style:{marginTop:'16px'}},[]);
+  card.style.marginTop='0';
+  if(cached){
+    dfAiRender(cached,body);buildAsk();
+    wrap.append(card);
+  }else{
+    card.style.display='none';
+    var hint=div({style:{fontSize:'11px',color:'var(--dim)',marginTop:'6px',textAlign:'center'}},['Walks through why the answer is right and why every other option is wrong. Counts toward your 20 daily question explanations unless it was already generated.']);
+    var openBtn=btn('Explain with AI','btn-outline',function(){
+      openBtn.style.display='none';hint.style.display='none';card.style.display='block';load();
+    },{style:{width:'100%',borderColor:'var(--gold)',color:'var(--gold)'}});
+    wrap.append(openBtn,hint,card);
+  }
+  return wrap;
 }
 
 // ───────────────────────────── PLATFORM MAILBOX ─────────────────────────────
@@ -14097,15 +14116,14 @@ function initAIChat(){
       messagesDiv.scrollTop=messagesDiv.scrollHeight;
       try{
         const topic=window._currentTopic||'general medicine';
-        const response=await fetch('https://ai-tutor.ambahtamaratubor.workers.dev',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({messages:currentMessages,topic})});
-        const data=await response.json();
+        const data=await dfAiCall({kind:'chat',messages:currentMessages,topic:topic},60000);
         if(thinkingDiv)thinkingDiv.remove();thinkingDiv=null;
         const reply=data.reply||"Sorry, I couldn't process that. Try again.";
         addMessage('assistant',reply);
         currentMessages.push({role:'assistant',content:reply});
       }catch(err){
         if(thinkingDiv)thinkingDiv.remove();thinkingDiv=null;
-        addMessage('assistant','Sorry, the tutor is offline. Try again later.');
+        addMessage('assistant',dfAiErrText(err,'Sorry, the tutor is offline. Try again later.'));
       }
     }
     return panelDiv;
@@ -16205,32 +16223,6 @@ function dfFlashKey(card){
   for(var i=0;i<str.length;i++){hh=((hh<<5)-hh+str.charCodeAt(i))|0;}
   return 'f'+hh;
 }
-function dfFlashPrompt(card,topic){
-  return [
-    'You are Deo Tutor, a physician-educator. A medical student preparing for the USMLE has just flipped the flashcard below and wants a fuller explanation of the concept behind it.',
-    'Speak to them the way a good senior resident or attending teaches: direct, precise and clinically grounded. Use the correct medical terms without apologising for them, and define a term only when it is genuinely uncommon, in a few words. Explain the mechanism, the "why" behind the fact, so it makes sense instead of being memorised.',
-    'Do not use childish analogies, cute language, emojis, praise or filler. Do not write a textbook chapter either. Be focused and high-yield, roughly 150 to 250 words. Do not just repeat the card: add the reasoning, the clinical picture and the exam angle.',
-    'Only state what you are confident is correct. If the card is incomplete or ambiguous, say what is missing. Never invent values, doses or facts.',
-    'Use EXACTLY this layout, plain text only, no tables, no intro or outro:',
-    '**The concept**',
-    '<2 to 4 sentences: what it is and the mechanism behind it>',
-    '**Why it matters clinically**',
-    '- <point>',
-    '- <point>',
-    '**How it is tested**',
-    '- <the classic clue or vignette pattern, and the common trap>',
-    '**Never miss this again**',
-    '<ONE concrete mnemonic, memory hook or "when you see X, think Y" rule, 1 to 3 short sentences>',
-    '',
-    'DECK TOPIC: '+(topic||'general medicine'),
-    '',
-    'FLASHCARD FRONT (question):',
-    dfStripHtml(card.question),
-    '',
-    'FLASHCARD BACK (answer):',
-    dfStripHtml(card.answer)
-  ].join('\n');
-}
 function dfFlashAskContext(card,topic,explanation){
   return [
     'You are Deo Tutor, a physician-educator. A medical student is asking follow-up questions about the flashcard below.',
@@ -16243,15 +16235,9 @@ function dfFlashAskContext(card,topic,explanation){
   ].join('\n');
 }
 async function dfFlashCallAi(messages,topic){
-  var ctrl=(typeof AbortController!=='undefined')?new AbortController():null;
-  var timer=setTimeout(function(){try{ctrl&&ctrl.abort();}catch(e){}},45000);
-  try{
-    var res=await fetch(DF_AI_URL,{method:'POST',headers:{'Content-Type':'application/json'},signal:ctrl?ctrl.signal:undefined,body:JSON.stringify({messages:messages,topic:topic||'flashcard explanation'})});
-    var data=await res.json();
-    var reply=data&&data.reply;
-    if(!reply||typeof reply!=='string')throw new Error('empty');
-    return reply;
-  }finally{clearTimeout(timer);}
+  // follow-up questions about a card
+  var data=await dfAiCall({kind:'chat',messages:messages,topic:topic||'flashcard follow-up'},60000);
+  return data.reply;
 }
 function dfFlashExplain(card,topic){
   var ck=dfFlashKey(card);
@@ -16316,26 +16302,32 @@ function dfFlashExplain(card,topic){
         }catch(err){
           thinking.style.display='none';
           hist.pop();
-          addBubble('assistant','Deo could not answer just now. Please try again.');
+          addBubble('assistant',dfAiErrText(err,'Deo could not answer just now. Please try again.'));
           input.value=text;
         }finally{busy=false;sendBtn.disabled=false;}
       }
     }
-    function paintError(){
+    function paintError(msg){
       body.replaceChildren(
-        h('p',{style:{fontSize:'13px',color:'var(--muted)',margin:'0 0 10px'}},['Deo could not write an explanation just now.']),
+        h('p',{style:{fontSize:'13px',color:'var(--muted)',margin:'0 0 10px',lineHeight:'1.7'}},[msg||'Deo could not write an explanation just now.']),
         btn('Try again','btn-outline',function(){load();},{style:{fontSize:'11px',padding:'6px 14px'}})
       );
     }
     async function load(){
       body.replaceChildren(skel(['40%','100%','92%','96%','70%']));
       try{
-        var reply=await dfFlashCallAi([{role:'user',content:dfFlashPrompt(card,topic)}],topic);
+        var data=await dfAiCall({kind:'flashcard',front:dfStripHtml(card.question),back:dfStripHtml(card.answer),topic:topic||''},90000);
+        var reply=data.reply;
         dfFlashMem[ck]=reply;
         try{sessionStorage.setItem(key,reply);}catch(e){}
         dfAiRender(reply,body);
+        if(!data.cached&&data.limit){
+          body.append(div({style:{fontSize:'11px',color:'var(--dim)',marginTop:'10px'}},[data.used+' of '+data.limit+' AI flashcard explanations used today']));
+        }
         buildAsk();
-      }catch(err){paintError();}
+      }catch(err){
+        paintError(dfAiErrText(err,''));
+      }
     }
     var cached=dfFlashMem[ck];
     if(!cached){try{cached=sessionStorage.getItem(key);}catch(e){}if(cached)dfFlashMem[ck]=cached;}
