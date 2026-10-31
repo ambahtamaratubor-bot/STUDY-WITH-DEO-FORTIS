@@ -719,7 +719,7 @@ function dfWhatsNewCard(kind,opts){
       items.push({t:'Evidence Mode',d:'Turn it on per student from their profile. They must mark at least 2 pieces of evidence in a question before they can choose an answer.'});
     }
     if(opts.availability)items.push({t:'Tutor availability',d:'See each tutor\u2019s weekly hours, current teaching load, and preferred days and times (AST) under Team \u2192 Tutor availability.'});
-    items.push({t:'AI explanations on demand',d:'Under any revealed answer or review, tap \u201cExplain with AI\u201d for a detailed walk-through that covers every wrong option and ends with a \u201cNever miss this again\u201d trick. Each explanation is generated once and saved for everyone. Each person can generate 40 new question explanations and 30 new flashcard explanations a day.'});
+    items.push({t:'AI explanations on demand',d:'Under any revealed answer or review, tap \u201cExplain with AI\u201d for a short, easy walk-through that covers every wrong option and ends with a \u201cNever miss this again\u201d trick. Each explanation is generated once and saved for everyone. Each person can generate 40 new question explanations and 30 new flashcard explanations a day.'});
     items.push({t:'Ask Deo about any question',d:'Under each explanation, students and tutors can ask follow-up questions about that exact question.'});
   }else{
     items.push({t:'Mailbox',d:'Message your tutors and admins from the Mail button. You can read their replies right here, and each message is also emailed to them.',open:true});
@@ -999,9 +999,9 @@ function dfAskContext(q,correct,explanation){
 }
 function dfAiExplanation(q,correct){
   var qk=dfAiKey(q);
-  var key='df-aiexp3-'+qk;
+  var key='df-aiexp4-'+qk;
   var card=div({style:{background:'var(--card)',border:'1px solid var(--gold)',borderRadius:'4px',padding:'16px',marginTop:'16px'}},[]);
-  card.append(div({style:{display:'flex',alignItems:'center',gap:'8px',marginBottom:'12px',fontFamily:'inherit',fontSize:'14px',fontWeight:'700',color:'var(--gold)'},html:ICONS.brain+' Deo Tutor \u00b7 Detailed explanation'}));
+  card.append(div({style:{display:'flex',alignItems:'center',gap:'8px',marginBottom:'12px',fontFamily:'inherit',fontSize:'14px',fontWeight:'700',color:'var(--gold)'},html:ICONS.brain+' Deo Tutor \u00b7 Easy explanation'}));
   var body=div({cls:'df-ai-body'},[]);
   card.append(body);
   if(card.firstChild)dfPutNewOn(card.firstChild);
@@ -16241,7 +16241,7 @@ async function dfFlashCallAi(messages,topic){
 }
 function dfFlashExplain(card,topic){
   var ck=dfFlashKey(card);
-  var key='df-aiflash-'+ck;
+  var key='df-aiflash2-'+ck;
   var wrap=div({style:{width:'100%'}},[]);
   var openBtn=btn('Ask for more explanation','btn-outline',function(){open();},{style:{width:'100%',borderColor:'var(--gold)',color:'var(--gold)'}});
   wrap.append(openBtn);
