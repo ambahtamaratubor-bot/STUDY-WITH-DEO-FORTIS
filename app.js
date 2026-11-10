@@ -354,7 +354,7 @@ function dfWatchAssessProgress(holdersByStudent){
   var anyEl=null;Object.keys(holdersByStudent).forEach(function(k){anyEl=anyEl||holdersByStudent[k];});
   if(!anyEl)return;
   dfRefreshAssessProgress(holdersByStudent);
-  var iv=setInterval(function(){if(!anyEl.isConnected){clearInterval(iv);return;}dfRefreshAssessProgress(holdersByStudent);},15000);
+  var iv=setInterval(function(){if(!anyEl.isConnected){clearInterval(iv);return;}if(document.visibilityState==='hidden')return;dfRefreshAssessProgress(holdersByStudent);},15000);
 }
 
 function btn(text,cls,onclick,extra){
@@ -1213,6 +1213,24 @@ function dfAiExplanation(q,correct){
 })();
 
 var dfMail={unread:0,btn:null,badge:null,tick:0,box:null,lastUser:null};
+// Background checks (mail badge, tutor reviews, locks) only count time while this tab is on screen,
+// and run one catch-up check when the person comes back after a minute or more away.
+var _dfHiddenAt=0;
+document.addEventListener('visibilitychange',function(){
+  if(document.visibilityState==='hidden'){_dfHiddenAt=Date.now();return;}
+  if(_dfHiddenAt&&Date.now()-_dfHiddenAt>60000){
+    [dfMail,dfReview,dfStudentLock,dfTutorLock].forEach(function(o){if(o)o.catchUp=true;});
+  }
+  _dfHiddenAt=0;
+});
+// Called every 2 seconds by each loop; returns true once per `every` visible ticks (or once on catch-up).
+function dfPollDue(o,every){
+  if(document.visibilityState==='hidden')return false;
+  if(o.catchUp){o.catchUp=false;o.tick=0;return true;}
+  o.tick=(o.tick||0)+1;
+  if(o.tick>=every){o.tick=0;return true;}
+  return false;
+}
 
 // Administrative staff (not tutors). To mark a new hire as an admin, add a lowercase part of their name here.
 // They are labelled "Administrative staff" in mail and in the Team tab instead of "Tutor".
@@ -1285,7 +1303,7 @@ function dfInitMail(){
     if(!show){dfMail.unread=0;dfMailPaintBadge();dfMail.lastUser=null;return;}
     b.style.right=document.getElementById('ai-chat-btn')?'190px':'20px';
     if(dfMail.lastUser!==S.user.id){dfMail.lastUser=S.user.id;dfMailRefreshUnread();}
-    dfMail.tick++;if(dfMail.tick%30===0)dfMailRefreshUnread();
+    if(dfPollDue(dfMail,90))dfMailRefreshUnread(); // about every 3 minutes, only while the tab is on screen
     var pend=null;try{pend=localStorage.getItem('df-open-mail');}catch(e){}
     if(pend){try{localStorage.removeItem('df-open-mail');}catch(e){}dfMailbox(pend);}
   },2000);
@@ -1392,7 +1410,7 @@ async function dfMailUploadFile(file){
   if(!uid)throw new Error('Please sign in again.');
   var ext=(String(file.name).split('.').pop()||'file').toLowerCase().replace(/[^a-z0-9]/g,'').slice(0,8)||'file';
   var path=uid+'/'+Date.now()+'-'+Math.random().toString(36).slice(2,10)+'.'+ext;
-  var up=await sb.storage.from('mail-files').upload(path,file,{contentType:file.type||undefined});
+  var up=await sb.storage.from('mail-files').upload(path,file,{contentType:file.type||undefined,cacheControl:'31536000'});
   if(up.error)throw new Error(up.error.message);
   var pub=sb.storage.from('mail-files').getPublicUrl(path);
   return{name:file.name,url:pub.data.publicUrl};
@@ -3187,7 +3205,7 @@ async function mountGlobalPaymentBanner(){
     }catch(e){console.warn('payment banner failed',e);}
   }
   await paint();
-  window._dfPayTimer=setInterval(paint,300000);
+  window._dfPayTimer=setInterval(function(){if(document.visibilityState!=='hidden')paint();},300000);
 }
 
 // STREAK RISK BANNER — global, fixed-position so it shows on every page/tab (not just the
@@ -3297,7 +3315,7 @@ inner.append(h('span',{cls:'chapter',html:'Theory Hub'}),h('h2',{style:{fontFami
 var mapletT=showMaplet('theory','Your personalised theory PDFs live here. Read, respond, and save your notes directly from this page.');if(mapletT)inner.append(mapletT);
 (async()=>{
 const theorySkel=skelCard([['40%'],['100%'],['100%'],['80%']]);inner.append(theorySkel);
-const{data:pdfs}=await sb.from('theory_pdfs').select('*').eq('user_id',S.user.id).order('created_at',{ascending:false});
+const{data:pdfs}=await sb.from('theory_pdfs').select('id,topic,filename,recall_request_id,created_at').eq('user_id',S.user.id).order('created_at',{ascending:false}); // the PDF itself (data) is fetched only when View PDF is tapped
 theorySkel.remove();
 if(!pdfs||pdfs.length===0){const emptyCard=div({cls:'card',style:{textAlign:'center',padding:'40px'}});emptyCard.append(h('p',{style:{color:'var(--muted)',fontSize:'14px'},html:'No theory content yet. Request an active recall session to get started.'}));inner.append(emptyCard);}
 else{
@@ -3306,7 +3324,7 @@ pdfCard.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSi
 pdfs.forEach(pdf=>{
 const row=div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'10px 0',borderBottom:'1px solid var(--border)'}});
 let responseArea=null;let responseOpen=false;
-const viewBtn=btn('View PDF','btn-outline',()=>{const bytes=atob(pdf.data);const arr=new Uint8Array(bytes.length);for(let i=0;i<bytes.length;i++)arr[i]=bytes.charCodeAt(i);const blob=new Blob([arr],{type:'application/pdf'});const url=URL.createObjectURL(blob);window.open(url,'_blank');},{style:{fontSize:'11px',padding:'6px 12px'}});
+const viewBtn=btn('View PDF','btn-outline',async()=>{var win=null;try{win=window.open('','_blank');}catch(e){}var closeWin=function(){try{if(win)win.close();}catch(e){}};if(viewBtn.dataset.busy==='1')return;viewBtn.dataset.busy='1';var oldTxt=viewBtn.textContent;viewBtn.textContent='Loading...';try{const{data:full,error:fe}=await sb.from('theory_pdfs').select('data').eq('id',pdf.id).single();if(fe||!full||!full.data){closeWin();alert('Could not open this PDF. Please try again.');return;}const bytes=atob(full.data);const arr=new Uint8Array(bytes.length);for(let i=0;i<bytes.length;i++)arr[i]=bytes.charCodeAt(i);const blob=new Blob([arr],{type:'application/pdf'});const url=URL.createObjectURL(blob);if(win&&!win.closed){win.location.href=url;}else{window.open(url,'_blank');}}catch(e){closeWin();alert('Could not open this PDF. Please try again.');}finally{viewBtn.dataset.busy='0';viewBtn.textContent=oldTxt;}},{style:{fontSize:'11px',padding:'6px 12px'}});
 const respondBtn=btn('Respond','btn-outline',()=>{
 if(responseOpen&&responseArea&&responseArea.parentNode){responseArea.remove();responseOpen=false;return;}
 if(responseArea)responseArea.remove();
@@ -10386,10 +10404,11 @@ function renderCreateTest(){
           }
           if(!fileInput.files||!fileInput.files.length){mStatus.textContent='Choose a file first.';mStatus.style.color='#ff4444';mStatus.style.display='block';return;}
           var file=fileInput.files[0];
+          try{file=await dfMailShrinkImage(file);}catch(e){} // pictures are resized to max 1600px JPEG before upload to keep downloads small
           attachBtn.disabled=true;mStatus.textContent='Uploading\u2026';mStatus.style.color='var(--muted)';mStatus.style.display='block';
           var ext=(file.name.split('.').pop()||'bin').toLowerCase();
           var path=S.user.id+'/'+Date.now()+'_'+Math.random().toString(36).slice(2)+'.'+ext;
-          var up=await sb.storage.from('assessment-media').upload(path,file,{contentType:file.type||undefined});
+          var up=await sb.storage.from('assessment-media').upload(path,file,{contentType:file.type||undefined,cacheControl:'31536000'});
           if(up.error){mStatus.textContent='Upload failed: '+up.error.message;mStatus.style.color='#ff4444';attachBtn.disabled=false;return;}
           var pub=sb.storage.from('assessment-media').getPublicUrl(path);
           var publicUrl=pub&&pub.data&&pub.data.publicUrl;
@@ -10640,10 +10659,11 @@ function renderCreateAssessment(opts){
           }
           if(!fileInput.files||!fileInput.files.length){mStatus.textContent='Choose a file first.';mStatus.style.color='#ff4444';mStatus.style.display='block';return;}
           var file=fileInput.files[0];
+          try{file=await dfMailShrinkImage(file);}catch(e){} // pictures are resized to max 1600px JPEG before upload to keep downloads small
           attachBtn.disabled=true;mStatus.textContent='Uploading\u2026';mStatus.style.color='var(--muted)';mStatus.style.display='block';
           var ext=(file.name.split('.').pop()||'bin').toLowerCase();
           var path=S.user.id+'/'+Date.now()+'_'+Math.random().toString(36).slice(2)+'.'+ext;
-          var up=await sb.storage.from('assessment-media').upload(path,file,{contentType:file.type||undefined});
+          var up=await sb.storage.from('assessment-media').upload(path,file,{contentType:file.type||undefined,cacheControl:'31536000'});
           if(up.error){mStatus.textContent='Upload failed: '+up.error.message;mStatus.style.color='#ff4444';attachBtn.disabled=false;return;}
           var pub=sb.storage.from('assessment-media').getPublicUrl(path);
           var publicUrl=pub&&pub.data&&pub.data.publicUrl;
@@ -14684,8 +14704,7 @@ function dfInitReviewLock(){
   setInterval(function(){
     if(!S.user){dfReview.lastUser=null;dfReview.tick=0;return;}
     if(dfReview.lastUser!==S.user.id){dfReview.lastUser=S.user.id;dfReview.tick=0;dfReviewCheck();return;}
-    dfReview.tick++;
-    if(dfReview.tick%30===0)dfReviewCheck(); // every minute, so a newly opened round reaches students quickly
+    if(dfPollDue(dfReview,90))dfReviewCheck(); // about every 3 minutes, only while the tab is on screen
   },2000);
 }
 
@@ -15464,8 +15483,7 @@ function dfInitStudentLock(){
   setInterval(function(){
     if(!S.user){dfStudentLock.lastUser=null;dfStudentLock.status=null;dfStudentLock.tasks=[];dfStudentLock.pay=null;dfStudentLockHide();return;}
     if(dfStudentLock.lastUser!==S.user.id){dfStudentLock.lastUser=S.user.id;dfStudentLock.tick=0;dfStudentLock.status=null;dfStudentLock.tasks=[];dfStudentLock.pay=null;dfStudentLockCheck();return;}
-    dfStudentLock.tick++;
-    if(dfStudentLock.tick%15===0)dfStudentLockCheck(); // about every 30 seconds
+    if(dfPollDue(dfStudentLock,60))dfStudentLockCheck(); // about every 2 minutes, only while the tab is on screen
   },2000);
 }
 // One log call per rated Daily Review card. Time is judged on the server; the student is never shown the number.
@@ -15938,8 +15956,7 @@ function dfInitTutorLock(){
       return;
     }
     if(!dfTutorLock.isStaff)return;
-    dfTutorLock.tick++;
-    if(dfTutorLock.tick%15===0)dfTutorLockCheck(); // about every 30 seconds
+    if(dfPollDue(dfTutorLock,60))dfTutorLockCheck(); // about every 2 minutes, only while the tab is on screen
   },2000);
 }
 
@@ -16724,6 +16741,7 @@ async function dfTrObservingView(body,st){
   }
   window._dfTrainPoll=setInterval(async function(){
     if(!document.getElementById('df-train-root')){clearInterval(window._dfTrainPoll);window._dfTrainPoll=null;return;}
+    if(document.visibilityState==='hidden')return;
     var s=await dfTrainingStatus();
     if(s&&s.stage!=='observing'){clearInterval(window._dfTrainPoll);window._dfTrainPoll=null;dfTrReload();}
   },20000);
@@ -17074,7 +17092,7 @@ function dfOnForeground(){
 document.onvisibilitychange=function(){if(document.visibilityState==='visible')dfOnForeground();};
 window.onpageshow=function(){dfOnForeground();};
 window.ononline=function(){dfOnForeground();};
-setInterval(function(){if(document.visibilityState==='visible'&&S.user)dfRefreshEvidence();},45000);
+setInterval(function(){if(document.visibilityState==='visible'&&S.user)dfRefreshEvidence();},120000);
 
 dfInitMail();
 dfInitReviewLock();
