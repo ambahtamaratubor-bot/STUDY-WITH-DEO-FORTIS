@@ -142,7 +142,7 @@ input:focus-visible{border-color:var(--teal);outline-offset:0}
 
       <div class="f">
         <span class="fl" id="dateLabel">Pick a day for your consultation</span>
-        <p class="hint">Monday to Friday, 9:00 am to 5:00 pm Eastern Time. About 30 minutes.</p>
+        <p class="hint">Available Monday to Friday, 9:00 am to 5:00 pm ET. About 30 minutes.</p>
         <div class="chips" id="days" role="group" aria-labelledby="dateLabel"></div>
         <div class="slotsbox" id="slotsBox" hidden>
           <p class="hint" style="margin-top:4px">Now choose a time</p>
@@ -215,6 +215,9 @@ input:focus-visible{border-color:var(--teal);outline-offset:0}
     var wd = ld!==ed ? date.toLocaleDateString("en-US",{weekday:"short"})+" " : "";
     return wd+lt;
   }
+  function whenText(date){
+    return longDate(date)+" at "+fmtTime(date,ET)+" ET";
+  }
   function longDate(date){
     return date.toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric",timeZone:ET});
   }
@@ -275,8 +278,7 @@ input:focus-visible{border-color:var(--teal);outline-offset:0}
       b.type="button"; b.className="chip"; b.setAttribute("aria-pressed","false");
       b.innerHTML='<span class="t"></span><span class="s"></span>';
       $(".t",b).textContent=fmtTime(dt,ET)+" ET";
-      var le=localExtra(dt);
-      $(".s",b).textContent = le ? le+" for you" : "";
+      $(".s",b).textContent="";
       b.addEventListener("click",function(){pickSlot(dt,b);});
       box.appendChild(b);
     });
@@ -287,8 +289,7 @@ input:focus-visible{border-color:var(--teal);outline-offset:0}
   function pickSlot(dt,btn){
     state.slot=dt;
     $$("#slots .chip").forEach(function(c){c.setAttribute("aria-pressed",String(c===btn));});
-    var le=localExtra(dt);
-    $("#picked").textContent=longDate(dt)+" at "+fmtTime(dt,ET)+" Eastern Time"+(le?" ("+le+" your time).":".");
+    $("#picked").textContent=whenText(dt)+".";
     setErr("slot","");
   }
   renderDays();
@@ -375,8 +376,8 @@ input:focus-visible{border-color:var(--teal);outline-offset:0}
 
   /* ---------- success ---------- */
   function showDone(p){
-    var dt=state.slot, le=localExtra(dt);
-    $("#doneWhen").textContent=longDate(dt)+" at "+fmtTime(dt,ET)+" Eastern Time"+(le?" ("+le+" your time)":"");
+    var dt=state.slot;
+    $("#doneWhen").textContent=whenText(dt);
     $("#doneBody").textContent="We sent a confirmation to "+p.email+". If you don’t see it, check your spam folder.";
     form.hidden=true; $("#done").hidden=false;
     var t=$("#doneTitle"); t.focus(); t.scrollIntoView({behavior:"smooth",block:"center"});
