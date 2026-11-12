@@ -8349,7 +8349,7 @@ function saveResumeState(){
 }
 function markCard(d){
 const cur=queue[curIdx];
-if(selDeck&&selDeck.topic==='Daily Review'&&cardShownAt){window._dfLastLog=dfFlashLogReview(cur.id,(Date.now()-cardShownAt)/1000);}
+if(selDeck&&cardShownAt){window._dfLastLog=dfFlashLogReview(cur.id,(Date.now()-cardShownAt)/1000);} // every deck counts toward the daily flashcard goal, not just Daily Review
 const prev=cur._state||'none';
 let nq=[...queue];
 // Increment seen counter
@@ -8420,6 +8420,7 @@ function showRoundComplete(remainingCards){
 async function showDone(){
 try{localStorage.removeItem('deck_resume_'+(S.user&&S.user.id||'x'));}catch(e){}
 inner.innerHTML='';
+if(!(selDeck&&selDeck.topic==='Daily Review')){try{if(window._dfLastLog)await window._dfLastLog;}catch(e){}dfStudentLockRefresh();} // normal deck finished: re-check the lock so credited cards release it right away
 if(selDeck&&selDeck.topic==='Daily Review'){
   var _tf=await dfDailyReviewCheckTooFast();
   if(_tf){
