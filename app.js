@@ -800,12 +800,12 @@ function dfWhatsNewCard(kind,opts){
       items.push({t:'Evidence Mode',d:'Turn it on per student from their profile. They must mark at least 2 pieces of evidence in a question before they can choose an answer.'});
     }
     if(opts.availability)items.push({t:'Tutor availability',d:'See each tutor\u2019s weekly hours, current teaching load, and preferred days and times (AST) under Team \u2192 Tutor availability.'});
-    items.push({t:'AI explanations on demand',d:'Under any revealed answer or review, tap \u201cExplain with AI\u201d for a detailed walk-through that covers every wrong option and ends with a \u201cNever miss this again\u201d trick. Each explanation is generated once and saved for everyone. Each person can generate 40 new question explanations and 30 new flashcard explanations a day.'});
+    items.push({t:'AI explanations on demand',d:'Under any revealed answer or review, tap \u201cExplain with AI\u201d for a detailed walk-through that covers every wrong option and ends with a \u201cNever miss this again\u201d trick. Each explanation is generated once and saved for everyone. Inside tutoring assessments, question explanations are unlimited. Everywhere else, each person can generate 40 new question explanations and 30 new flashcard explanations a day.'});
     items.push({t:'Ask Deo about any question',d:'Under each explanation, students and tutors can ask follow-up questions about that exact question.'});
   }else{
     items.push({t:'Mailbox',d:'Message your tutors and admins from the Mail button. You can read their replies right here, and each message is also emailed to them.',open:true});
     items.push({t:'My Payments',d:'If you are in tutoring, your dashboard now shows each billing cycle, what you have paid, what is owing and when it is due. A reminder banner appears 3 days before a payment is due, with a direct link to pay.'});
-    items.push({t:'AI explanations on demand',d:'Tap \u201cExplain with AI\u201d under any revealed answer, including in your reviews, and Deo Tutor walks through why it is right, why every other option is wrong, and gives you a \u201cNever miss this again\u201d trick. Once an explanation has been generated it is saved, so it opens instantly for everyone. You can generate 40 new question explanations and 30 new flashcard explanations a day.'});
+    items.push({t:'AI explanations on demand',d:'Tap \u201cExplain with AI\u201d under any revealed answer, including in your reviews, and Deo Tutor walks through why it is right, why every other option is wrong, and gives you a \u201cNever miss this again\u201d trick. Once an explanation has been generated it is saved, so it opens instantly for everyone. Inside tutoring assessments, question explanations are unlimited. Everywhere else, you can generate 40 new question explanations and 30 new flashcard explanations a day.'});
     items.push({t:'Ask Deo about any question',d:'Still unsure? Ask a follow-up right under the explanation and Deo will explain it further.'});
     items.push({t:'Evidence Mode',d:'If you are in tutoring, your tutor can turn this on. You mark at least 2 pieces of evidence in the question before you can choose an answer.'});
     items.push({t:'Highlighting on phones and iPads',d:'Press and hold the text in a question, drag to select, then choose how to mark it.'});
@@ -1078,7 +1078,8 @@ function dfAskContext(q,correct,explanation){
     explanation?('\nYOUR EARLIER EXPLANATION TO THE STUDENT:\n'+String(explanation).slice(0,2500)):''
   ].join('\n');
 }
-function dfAiExplanation(q,correct){
+function dfAiExplanation(q,correct,aiOpts){
+  var isAssess=!!(aiOpts&&aiOpts.assessment);
   var qk=dfAiKey(q);
   var key='df-aiexp3-'+qk;
   var card=div({style:{background:'var(--card)',border:'1px solid var(--gold)',borderRadius:'4px',padding:'16px',marginTop:'16px'}},[]);
@@ -1158,7 +1159,7 @@ function dfAiExplanation(q,correct){
   async function load(){
     paintLoading();
     try{
-      var data=await dfAiCall(Object.assign({kind:'question'},dfAiQuestionPayload(q,correct)),90000);
+      var data=await dfAiCall(Object.assign({kind:isAssess?'assessment':'question'},dfAiQuestionPayload(q,correct)),90000);
       var reply=data.reply;
       dfAiMem[qk]=reply;
       try{sessionStorage.setItem(key,reply);}catch(e){}
@@ -1185,7 +1186,7 @@ function dfAiExplanation(q,correct){
     wrap.append(card);
   }else{
     card.style.display='none';
-    var hint=div({style:{fontSize:'11px',color:'var(--dim)',marginTop:'6px',textAlign:'center'}},['Walks through why the answer is right and why every other option is wrong. Explanations already generated open free; you get 40 new ones a day.']);
+    var hint=div({style:{fontSize:'11px',color:'var(--dim)',marginTop:'6px',textAlign:'center'}},['Walks through why the answer is right and why every other option is wrong. '+(isAssess?'Explain as many questions as you like in this assessment.':'Explanations already generated open free; you get 40 new ones a day.')+'']);
     var openBtn=btn('Explain with AI','btn-outline',function(){
       openBtn.style.display='none';hint.style.display='none';card.style.display='block';load();
     },{style:{width:'100%',borderColor:'var(--gold)',color:'var(--gold)'}});
@@ -2254,7 +2255,7 @@ function buildGatedReviewUI(opts){
       if(isUser&&!isCorr)row.append(h('span',{style:{marginLeft:'auto',color:'#ff8888',fontSize:'11px'}},['Your answer']));
       qCard.append(row);
     });
-    qCard.append(dfAiExplanation(q,correct));
+    qCard.append(dfAiExplanation(q,correct,{assessment:!!opts.assessment}));
     if(q.explanation){
       var expWrap=div({style:{background:'var(--correct-bg)',border:'1px solid var(--teal-border)',borderRadius:'2px',padding:'14px',marginTop:'12px'}},[]);
       expWrap.append(div({style:{fontFamily:'Inter,sans-serif',fontSize:'9px',color:'var(--teal)',letterSpacing:'2px',textTransform:'uppercase',marginBottom:'6px'}},['Explanation']));
@@ -2323,7 +2324,7 @@ function buildReviewQuestionCards(qs,ans,opts){
       if(isUser&&!isCorr)row.append(h('span',{style:{marginLeft:'auto',color:'#ff8888',fontSize:'11px'},html:'Your answer'}));
       qCard.append(row);
     });
-    if(opts.aiExplain&&!opts.previewMode)qCard.append(dfAiExplanation(q,correct));
+    if(opts.aiExplain&&!opts.previewMode)qCard.append(dfAiExplanation(q,correct,{assessment:!!opts.assessment}));
     if(q.explanation){
       var expWrap=div({style:{background:'var(--correct-bg)',border:'1px solid var(--teal-border)',borderRadius:'2px',padding:'12px',marginTop:'10px'}},[]);
       expWrap.append(div({style:{fontFamily:'Inter,sans-serif',fontSize:'9px',color:'var(--teal)',letterSpacing:'2px',textTransform:'uppercase',marginBottom:'6px'},html:'Explanation'}));
@@ -4765,7 +4766,7 @@ function runAssessmentQuiz(a,assessment,questions){
       mainArea.append(ob);
     });
 
-    if(revealed[q.id]||submitted)mainArea.append(dfAiExplanation(q,corr(q)));
+    if(revealed[q.id]||submitted)mainArea.append(dfAiExplanation(q,corr(q),{assessment:true}));
     if((revealed[q.id]||submitted)&&q.explanation)mainArea.append(buildExplanation(q));
 
     var nr=div({style:{display:'flex',gap:'12px',marginTop:'16px'}},[]);
@@ -5128,7 +5129,7 @@ async function showReview(result){
   var subLine='Scored '+result.score+'/'+result.total+' \u00b7 '+new Date(result.taken_at).toLocaleDateString();
   content.append(buildGatedReviewUI({
     qs:qs,ans:ans,resultId:result.id,errorReasons:errorReasons,highlights:result.highlights||{},
-    title:result.test_title||'Test',subLine:subLine,
+    title:result.test_title||'Test',subLine:subLine,assessment:!!(result.assessment_id||result.assessment_title),
     onDownload:function(){
       downloadDetailedReviewPdf(result.test_title||'Assessment',subLine,qs,ans,result.test_title||'assessment',function(errMsg){
         if(errMsg)alert(errMsg);
@@ -11089,7 +11090,7 @@ function openAdminResultReview(result,opts){
   document.body.append(overlay);
   overlay.onclick=function(e){if(e.target===overlay)overlay.remove();};
   function renderAdminReviewQuestions(qs,ans,errorReasons){
-    buildReviewQuestionCards(qs,ans,{errorReasons:errorReasons||{},aiExplain:true,highlights:(result&&result.highlights)||{}}).forEach(function(c){reviewBody.append(c);});
+    buildReviewQuestionCards(qs,ans,{errorReasons:errorReasons||{},aiExplain:true,assessment:!!(result&&(result.assessment_id||result.assessment_title)),highlights:(result&&result.highlights)||{}}).forEach(function(c){reviewBody.append(c);});
   }
   var qs=result.questions||[];var ans=result.answers||{};
   if(qs.length){
@@ -12446,7 +12447,7 @@ function openStudent(s){
       var reviewErrorReasons={};
       function renderAdminReviewQuestions(qs,ans){
         fullQs=qs;
-        buildReviewQuestionCards(qs,ans,{errorReasons:reviewErrorReasons,aiExplain:true,highlights:(result&&result.highlights)||{}}).forEach(function(c){reviewBody.append(c);});
+        buildReviewQuestionCards(qs,ans,{errorReasons:reviewErrorReasons,aiExplain:true,assessment:!!(result&&(result.assessment_id||result.assessment_title)),highlights:(result&&result.highlights)||{}}).forEach(function(c){reviewBody.append(c);});
       }
       var qs=result.questions||[];var ans=result.answers||{};
       (async function(){
