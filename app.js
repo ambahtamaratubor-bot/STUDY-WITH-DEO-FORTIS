@@ -4764,7 +4764,23 @@ var DF_NB_SVG={
       '#nb-calc .pad button.op{background:#dce6f0;}#nb-calc .pad button.mm{background:#d5dde6;font-size:13px;}#nb-calc .pad button.eq{background:#0b4a7c;color:#fff;grid-row:span 2;height:auto;}',
       '#nb-calc .pad button:active{filter:brightness(.88);}',
       /* narrow screens (iPad portrait / phones) */
-      '@media (max-width:760px){.nb-root{grid-template-columns:3.6em minmax(0,1fr);}.nb-sitem .dot{display:none;}.nb-sitem .n{padding-right:0;}.nb-tool .lb{display:none;}.nb-foot .nb-end .lb{display:inline;}.nb-head{padding:.4em .6em;gap:.3em .8em;}.nb-main{padding:1.2em 1em 3em;}}'
+      '@media (max-width:760px){.nb-root{grid-template-columns:3.6em minmax(0,1fr);}.nb-sitem .dot{display:none;}.nb-sitem .n{padding-right:0;}.nb-tool .lb{display:none;}.nb-foot .nb-end .lb{display:inline;}.nb-head{padding:.4em .6em;gap:.3em .8em;}.nb-main{padding:1.2em 1em 3em;}}',
+      /* while an assessment is open, hide the floating Mail and Notes buttons so they never cover the question list or the bottom bar (the Notes tool in the exam header still works) */
+      'body:has(.nb-root) #df-mail-btn,body:has(.nb-root) #session-notepad-btn,body:has(.nb-root) #df-notepad-callout{display:none!important;}',
+      /* exam tutorial coach card and the spotlight on the control being explained */
+      '.nb-coach{position:fixed;right:1.2em;bottom:6.4em;width:26em;max-width:calc(100vw - 2.4em);z-index:30;background:#fff;color:#111;border:2px solid #0b4a7c;border-radius:.6em;box-shadow:0 .6em 2em rgba(0,0,0,.4);padding:.9em 1em;font-size:1em;line-height:1.45;}',
+      '.nb-coach h3{margin:0 0 .35em;font-size:1.12em;color:#0b4a7c;font-family:inherit;}',
+      '.nb-coach p{margin:0 0 .7em;font-size:.95em;}',
+      '.nb-coach .cb{display:flex;gap:.5em;align-items:center;flex-wrap:wrap;}',
+      '.nb-coach .cb .sp{flex:1;}',
+      '.nb-coach .cs{font-size:.8em;color:#555;}',
+      '.nb-coach button{border:1px solid #0b4a7c;background:#fff;color:#0b4a7c;border-radius:.3em;padding:.4em .9em;cursor:pointer;font-size:.92em;}',
+      '.nb-coach button.pri{background:#0b4a7c;color:#fff;}',
+      '.nb-coach button.sk{border-color:#b33;color:#b33;}',
+      '.nb-coach button:disabled{opacity:.4;cursor:default;}',
+      '.nb-coach.min .cbody{display:none;}',
+      '.nb-spot{outline:3px solid #ffd23f!important;outline-offset:2px;animation:nbSpot 1.1s ease-in-out infinite;position:relative;z-index:5;}',
+      '@keyframes nbSpot{0%,100%{outline-color:#ffd23f;}50%{outline-color:#ff8a00;}}'
     ].join('');
     document.head.appendChild(st);
   }catch(e){}
@@ -4905,7 +4921,7 @@ function dfNbmeBuild(o){
 
   // ---- header ----
   var itemLine=h('div',{},['Item: 1 of '+N]);
-  var blockLine=h('div',{},['Block: '+o.blockNo+' of '+o.blockTotal]);
+  var blockLine=h('div',{},[o.blockLabel||('Block: '+o.blockNo+' of '+o.blockTotal)]);
   var itemBox=div({cls:'nb-itembox'},[itemLine,blockLine]);
   var markCb=h('input',{type:'checkbox'},[]);
   var flagIc=h('span',{},[]);flagIc.innerHTML=DF_NB_SVG.flag;
@@ -4954,7 +4970,7 @@ function dfNbmeBuild(o){
 
   function tick(){
     var b,d;
-    if(o.timed){b=o.getBlockSec();d=o.getDaySec();l1.textContent='Block Time Remaining:';l2.textContent='Day Time Remaining:';}
+    if(o.timed){b=o.getBlockSec();d=o.getDaySec();l1.textContent=o.l1||'Block Time Remaining:';l2.textContent=o.l2||'Day Time Remaining:';}
     else{b=(Date.now()-blockStart)/1000;d=(Date.now()-(o.dayStart||blockStart))/1000;l1.textContent='Block Time Elapsed:';l2.textContent='Day Time Elapsed:';}
     b=Math.max(0,Math.floor(b));d=Math.max(0,Math.floor(d));
     v1.textContent=fmtMS(b);v2.textContent=fmtMS(d);
@@ -5027,6 +5043,106 @@ function dfNbmePaintQuestion(ui,q,st){
   if(st.after)st.after(wrap);
   main.append(wrap);
   main.scrollTop=0;
+}
+
+/* ---------- Exam tutorial (hands-on tour on sample questions; 15 minutes; unused time becomes break time) ---------- */
+var DF_TUTORIAL_SEC=900;
+var DF_BREAK_SEC_PER_BLOCK=300;
+function dfNbmeTutorial(o){
+  // o: {totalBlocks, getBank():seconds of break time already banked, onDone(secondsLeft), onExit()}
+  var tutLeft=DF_TUTORIAL_SEC,cur=0,flagged={},answers={},ruled={},hl={},timer=null,step=0,finished=false;
+  var qs=[
+    {id:'tut1',question:'SAMPLE QUESTION (practice only, not scored). A 24-year-old man is brought to the emergency department 30 minutes after being stung by a bee. He has diffuse hives, wheezing, and a blood pressure of 82/50 mm Hg. Which of the following is the most appropriate next step in management?',option_a:'Intramuscular epinephrine',option_b:'Oral diphenhydramine',option_c:'Intravenous hydrocortisone',option_d:'Inhaled albuterol alone',option_e:'Observation for 2 hours',correct_answer:'A'},
+    {id:'tut2',question:'SAMPLE QUESTION (practice only, not scored). Which of the following ions is the major determinant of the resting membrane potential in a typical neuron?',option_a:'Calcium',option_b:'Chloride',option_c:'Potassium',option_d:'Sodium',option_e:'Magnesium',correct_answer:'C'},
+    {id:'tut3',question:'SAMPLE QUESTION (practice only, not scored). A 60-year-old woman has a serum sodium concentration of 128 mEq/L. Use the Lab Values tool in the blue bar to check the normal range. Is this value below, within, or above the reference range?',option_a:'Below the reference range',option_b:'Within the reference range',option_c:'Above the reference range',correct_answer:'A'}
+  ];
+  var steps=[
+    {t:'Welcome to the exam tutorial',x:'This short tour uses sample questions that are not scored. You have 15 minutes. If you finish or skip early, the unused time is added to your break time.'},
+    {t:'Item list',spot:{sel:'.nb-strip'},x:'Every item in the block is listed on the left. Click a number to jump straight to it. A flag shows a marked item and a dot shows an answered item.'},
+    {t:'Moving between items',spot:{tool:['Previous','Next']},x:'Use Previous and Next in the blue bar, or the Proceed to Next Item button under the answers. You can move freely inside a block, but you cannot return to a block after you end it.'},
+    {t:'Answering',x:'Click an answer to select it. Click a different one to change it. Try it on this sample question.'},
+    {t:'Mark an item',spot:{sel:'.nb-mark'},x:'Tick Mark to flag an item you want to come back to. A flag then shows next to it in the item list.'},
+    {t:'Highlighting',x:'Drag across any words in the question to highlight them. Click a highlight to remove it. Try it now.'},
+    {t:'Ruling out answers',x:'Right-click an answer option (on a touch screen, press and hold) to strike it through. Do it again to undo. Ruling out does not select the answer.'},
+    {t:'Lab Values',spot:{tool:['Lab Values']},x:'Opens the reference ranges. It is available on every item. Open it now and look up the sodium range for the third sample question.'},
+    {t:'Notes and Calculator',spot:{tool:['Notes','Calculator']},x:'Notes opens a notepad that saves to My Notes. Calculator opens a pop-up calculator with memory keys, square root, percent and keyboard support.'},
+    {t:'Display options',spot:{tool:['Reverse Color','Text Zoom']},x:'Reverse Color switches to a dark screen. Text Zoom cycles through larger text sizes. Both are remembered for your next exam.'},
+    {t:'Timers',spot:{sel:'.nb-timebox'},x:'Block Time Remaining counts down for the current block. Day Time Remaining covers every block plus the break time you still have.'},
+    {t:'Breaks',x:'You get 5 minutes of break time for every block, shared across the whole exam. Between blocks you can rest for as long as you like and press Continue when ready. Break time you do not use stays in your pool, and unused tutorial time is added to it. If the pool runs out, the extra minutes are taken from the next block.'},
+    {t:'Lock and End Block',spot:{sel:'.nb-foot'},x:'Lock keeps the exam in full screen. End Block finishes the current block, and you cannot return to it. Answers are not shown until you finish every block.'},
+    {t:'You are ready',x:'Press Begin Block 1 when you are ready. Your tutorial time left will be added to your break time.'}
+  ];
+  function clearT(){if(timer){clearInterval(timer);timer=null;}}
+  function finish(){
+    if(finished)return;finished=true;clearT();
+    var left=Math.max(0,tutLeft);
+    o.onDone(left);
+  }
+  var ui=dfNbmeBuild({
+    items:qs,blockNo:1,blockTotal:o.totalBlocks,blockLabel:'Tutorial',timed:true,l1:'Tutorial Time Remaining:',l2:'Break Time Available:',
+    getBlockSec:function(){return tutLeft;},
+    getDaySec:function(){return tutLeft+(o.getBank?o.getBank():0);},
+    dayStart:Date.now(),
+    isFlagged:function(q){return !!flagged[q.id];},
+    isAnswered:function(q){return !!answers[q.id];},
+    onJump:function(i){cur=i;paint();},
+    onPrev:function(){if(cur>0){cur--;paint();}},
+    onNext:function(){if(cur<qs.length-1){cur++;paint();}},
+    onMark:function(){var q=qs[cur];flagged[q.id]=!flagged[q.id];paint();},
+    onEnd:function(){skip();},
+    endLabel:'End Tutorial',
+    onExit:function(){clearT();o.onExit();}
+  });
+  function paint(){
+    var q=qs[cur];
+    ui.setCurrent(cur);
+    dfNbmePaintQuestion(ui,q,{
+      selected:answers[q.id]||null,correct:q.correct_answer,revealed:false,ruledOut:ruled[q.id]||[],
+      highlights:hl,persist:function(){},ctx:'tutorial',locked:false,
+      onSelect:function(L){answers[q.id]=L;paint();},
+      onToggleOut:function(L){var a=ruled[q.id]||(ruled[q.id]=[]);var ix=a.indexOf(L);if(ix===-1)a.push(L);else a.splice(ix,1);paint();},
+      next:cur<qs.length-1?{label:'Proceed to Next Item',onClick:function(){cur++;paint();}}:null,
+      after:function(wrap){var last=wrap.lastChild;if(last&&last.parentNode===wrap)wrap.removeChild(last);} // drop the reasoning pad: nothing from the tutorial is saved
+    });
+  }
+  function skip(){
+    var m=Math.floor(Math.max(0,tutLeft)/60),sec=Math.max(0,tutLeft)%60;
+    if(!confirm('Skip the tutorial? The remaining '+m+' min '+sec+' sec will be added to your break time.'))return;
+    finish();
+  }
+  // coach card
+  var coach=div({cls:'nb-coach'},[]);
+  var tit=h('h3',{},['']),txt=h('p',{},['']),cnt=h('span',{cls:'cs'},['']);
+  var bBack=h('button',{type:'button'},['← Back']),bNext=h('button',{type:'button',cls:'pri'},['Next →']);
+  var bMin=h('button',{type:'button'},['Hide']),bSkip=h('button',{type:'button',cls:'sk'},['Skip Tutorial']);
+  var body=div({cls:'cbody'},[tit,txt,div({cls:'cb'},[bBack,bNext,cnt])]);
+  coach.append(body,div({cls:'cb',style:{marginTop:'.6em'}},[bMin,div({cls:'sp'},[]),bSkip]));
+  function spotFind(sp){
+    var out=[];if(!sp)return out;
+    if(sp.sel){var e=ui.root.querySelector(sp.sel);if(e)out.push(e);}
+    if(sp.tool){[].forEach.call(ui.root.querySelectorAll('.nb-tool'),function(b){var lb=b.querySelector('.lb');var t=lb?lb.textContent:'';if(sp.tool.indexOf(t)!==-1)out.push(b);});}
+    return out;
+  }
+  function showStep(){
+    var st=steps[step];
+    [].forEach.call(ui.root.querySelectorAll('.nb-spot'),function(e){e.classList.remove('nb-spot');});
+    spotFind(st.spot).forEach(function(e){e.classList.add('nb-spot');});
+    tit.textContent=st.t;txt.textContent=st.x;cnt.textContent='Step '+(step+1)+' of '+steps.length;
+    bBack.disabled=step===0;
+    bNext.textContent=step===steps.length-1?'Begin Block 1 →':'Next →';
+  }
+  bBack.addEventListener('click',function(){if(step>0){step--;showStep();}});
+  bNext.addEventListener('click',function(){if(step<steps.length-1){step++;showStep();}else finish();});
+  bMin.addEventListener('click',function(){var m=coach.classList.toggle('min');bMin.textContent=m?'Show tour':'Hide';});
+  bSkip.addEventListener('click',skip);
+  ui.root.append(coach);
+  paint();showStep();
+  timer=setInterval(function(){
+    if(!ui.root.isConnected){clearT();return;}
+    tutLeft--;ui.tick();
+    if(tutLeft<=0){tutLeft=0;finish();}
+  },1000);
+  return {stop:clearT};
 }
 
 function runAssessmentQuiz(a,assessment,questions,resumeState){
@@ -5163,7 +5279,7 @@ function runAssessmentQuiz(a,assessment,questions,resumeState){
 /* ===================== BLOCKED (NBME-style) ASSESSMENT RUNNER ===================== */
 function runBlockedAssessment(a,assessment,allQuestions,resumeState){
   var blockSize=assessment.block_size;
-  var breakMinutes=assessment.break_minutes||0;
+  var breakMinutes=DF_BREAK_SEC_PER_BLOCK/60; // every exam gets 5 minutes of break per block, pooled across the exam
   var perBlockLimit=assessment.time_limit||0; // minutes per block, 0 = untimed block
   var blocks=[];
   for(var bi=0;bi<allQuestions.length;bi+=blockSize){blocks.push(allQuestions.slice(bi,bi+blockSize));}
@@ -5179,7 +5295,10 @@ function runBlockedAssessment(a,assessment,allQuestions,resumeState){
   var globalHighlights={};
   var current=0;
   var blockTimeLeft=0;
-  var breakTimeLeft=0;
+  var breakPool=DF_BREAK_SEC_PER_BLOCK*totalBlocks; // total break time in seconds, shared by every break; the tutorial's unused time is added to it
+  var breakOver=0; // seconds spent on break after the break pool ran out; taken off the next block's time
+  var tutorialDone=false;
+  var tutorialCtl=null;
   var blockTimer=null;
   var breakTimer=null;
   var globalQuestionTime={};
@@ -5202,7 +5321,9 @@ function runBlockedAssessment(a,assessment,allQuestions,resumeState){
         globalHighlights=_st.highlights||{};
         current=_st.current||0;
         blockTimeLeft=typeof _st.blockTimeLeft==='number'?_st.blockTimeLeft:0;
-        breakTimeLeft=typeof _st.breakTimeLeft==='number'?_st.breakTimeLeft:0;
+        if(typeof _st.breakPool==='number')breakPool=_st.breakPool;
+        if(typeof _st.breakOver==='number')breakOver=_st.breakOver;
+        tutorialDone=_st.tutorialDone!==undefined?!!_st.tutorialDone:(phase==='block'||phase==='break');
         globalQuestionTime=_st.questionTime||{};
         globalAnswerChanges=_st.answerChanges||[];firstAnswers=_st.firstAnswers||{};
       }
@@ -5210,13 +5331,13 @@ function runBlockedAssessment(a,assessment,allQuestions,resumeState){
   }catch(e){}
 
   var _ordIds=allQuestions.map(function(q){return q.id;});
-  function persist(){var _stO={assessmentId:assessment.id,order:_ordIds,blockIdx:blockIdx,phase:phase,current:current,answers:globalAnswers,flagged:globalFlagged,ruledOut:globalRuledOut,highlights:globalHighlights,blockTimeLeft:blockTimeLeft,breakTimeLeft:breakTimeLeft,questionTime:globalQuestionTime,answerChanges:globalAnswerChanges,firstAnswers:firstAnswers};try{sessionStorage.setItem(RKEY,JSON.stringify(_stO));}catch(e){}dfPushAssessProgress({assessmentId:assessment.id,title:assessment.title,assignmentId:a?a.id:null,answered:Object.keys(globalAnswers).length,total:allQuestions.length,current:current,blockIdx:blockIdx,totalBlocks:totalBlocks,phase:phase,state:_stO,tb:Math.floor((phase==='break'?breakTimeLeft:blockTimeLeft)/60),rv:dfChk([globalAnswers,globalFlagged,globalRuledOut,globalHighlights])});}
+  function persist(){var _stO={assessmentId:assessment.id,order:_ordIds,blockIdx:blockIdx,phase:phase,current:current,answers:globalAnswers,flagged:globalFlagged,ruledOut:globalRuledOut,highlights:globalHighlights,blockTimeLeft:blockTimeLeft,breakPool:breakPool,breakOver:breakOver,tutorialDone:tutorialDone,questionTime:globalQuestionTime,answerChanges:globalAnswerChanges,firstAnswers:firstAnswers};try{sessionStorage.setItem(RKEY,JSON.stringify(_stO));}catch(e){}dfPushAssessProgress({assessmentId:assessment.id,title:assessment.title,assignmentId:a?a.id:null,answered:Object.keys(globalAnswers).length,total:allQuestions.length,current:current,blockIdx:blockIdx,totalBlocks:totalBlocks,phase:phase,state:_stO,tb:Math.floor((phase==='break'?breakPool:blockTimeLeft)/60),rv:dfChk([globalAnswers,globalFlagged,globalRuledOut,globalHighlights])});}
   function clearResume(){try{sessionStorage.removeItem(RKEY);}catch(e){}dfClearAssessProgress(assessment.id);}
   dfStartAssessProgress(assessment.id);if(phase==='block'||phase==='break')persist();
   function clearBlockTimer(){if(blockTimer){clearInterval(blockTimer);blockTimer=null;}}
   function clearBreakTimer(){if(breakTimer){clearInterval(breakTimer);breakTimer=null;}}
   function corr(q){return String(q.correct_answer||'').toUpperCase();}
-  function exitToWing(){clearBlockTimer();clearBreakTimer();exitFullscreen();renderTab();}
+  function exitToWing(){clearBlockTimer();clearBreakTimer();if(tutorialCtl){tutorialCtl.stop();tutorialCtl=null;}exitFullscreen();renderTab();}
 
   function renderIntro(){
     try{dfNbmeCleanup();}catch(e){}
@@ -5233,7 +5354,9 @@ function runBlockedAssessment(a,assessment,allQuestions,resumeState){
       summaryRow('Total blocks',String(totalBlocks)),
       summaryRow('Questions per block','Up to '+blockSize+' (last block may have fewer)'),
       summaryRow('Time per block',perBlockLimit?perBlockLimit+' minutes':'Untimed'),
-      summaryRow('Break between blocks',breakMinutes>0?breakMinutes+' minutes (skippable)':'None \u2014 blocks run back to back')
+      summaryRow('Tutorial','15 minutes (skippable)'),
+      summaryRow('Total break time',breakMinutes+' min \u00d7 '+totalBlocks+' block'+(totalBlocks>1?'s':'')+' = '+(breakMinutes*totalBlocks)+' min, shared across all breaks (extra break time comes off the next block)'),
+      summaryRow('Break time if tutorial is skipped',(breakMinutes*totalBlocks+15)+' minutes')
     );
     wrap.append(summaryCard);
     wrap.append(
@@ -5241,7 +5364,7 @@ function runBlockedAssessment(a,assessment,allQuestions,resumeState){
       h('p',{style:{fontSize:'12px',color:'var(--dim)',marginBottom:'28px'}},['Your score will not be shown until you complete every block. Answers cannot be reviewed until the exam is finished.'])
     );
     var bw=div({style:{display:'flex',gap:'12px',justifyContent:'center'}},[]);
-    bw.append(btn('Begin Block 1 \u2192','btn-gold',function(){startBlockFresh();},{style:{padding:'12px 28px',fontSize:'13px'}}));
+    bw.append(btn('Begin Exam \u2192','btn-gold',function(){dfNbmeEnterFs();beginExam();},{style:{padding:'12px 28px',fontSize:'13px'}}));
     bw.append(btn('Exit','btn-outline',function(){exitToWing();},{style:{padding:'12px 20px',fontSize:'13px'}}));
     wrap.append(bw);
     content.append(wrap);
@@ -5253,9 +5376,27 @@ function runBlockedAssessment(a,assessment,allQuestions,resumeState){
     ]);
   }
 
+  function beginExam(){
+    if(tutorialDone){startBlockFresh();return;}
+    try{dfNbmeCleanup();}catch(e){}
+    tutorialCtl=dfNbmeTutorial({
+      totalBlocks:totalBlocks,
+      getBank:function(){return breakPool;},
+      onDone:function(secLeft){
+        tutorialCtl=null;
+        breakPool+=secLeft; // unused tutorial time becomes break time
+        tutorialDone=true;
+        try{dfNbmeCleanup();}catch(e){}
+        startBlockFresh();
+      },
+      onExit:function(){exitToWing();}
+    });
+  }
+
   function startBlockFresh(){
     current=0;
-    blockTimeLeft=perBlockLimit?perBlockLimit*60:0;
+    blockTimeLeft=perBlockLimit?Math.max(0,perBlockLimit*60-breakOver):0; // break time beyond the pool is deducted from this block
+    breakOver=0;
     phase='block';
     persist();
     renderBlock();
@@ -5267,31 +5408,39 @@ function runBlockedAssessment(a,assessment,allQuestions,resumeState){
     if(blockIdx>=totalBlocks-1){finalize();return;}
     blockIdx++;
     phase='break';
-    breakTimeLeft=breakMinutes>0?breakMinutes*60:0;
     persist();
-    if(breakMinutes>0)renderBreak();
-    else{startBlockFresh();}
+    renderBreak(); // a break is always available; once the pool is used up the extra time comes off the next block
   }
 
   function renderBreak(){
     try{dfNbmeCleanup();}catch(e){}
     content.innerHTML='';
     var wrap=div({style:{maxWidth:'480px',margin:'70px auto',textAlign:'center'}},[]);
-    var tDisp=h('div',{style:{fontFamily:'Georgia,serif',fontSize:'44px',color:'var(--gold)',margin:'20px 0'}},[fmtMS(breakTimeLeft)]);
+    var tDisp=h('div',{style:{fontFamily:'Georgia,serif',fontSize:'44px',color:'var(--gold)',margin:'20px 0 4px'}},[fmtMS(breakPool)]);
+    var tLbl=h('div',{cls:'mono',style:{fontSize:'10px',letterSpacing:'1px',textTransform:'uppercase',color:'var(--muted)',marginBottom:'16px'}},['Break time remaining']);
+    var tOver=h('div',{style:{fontSize:'13px',color:'#dc3545',margin:'0 0 16px',display:'none'}},['']);
+    function paintBreak(){
+      tDisp.textContent=fmtMS(Math.max(0,breakPool));
+      if(breakPool<=0&&perBlockLimit){
+        tDisp.style.color='#dc3545';
+        tOver.style.display='block';
+        tOver.textContent='Your break time is used up. '+fmtMS(breakOver)+' has been taken from Block '+(blockIdx+1)+' so far. Block '+(blockIdx+1)+' will have '+fmtMS(Math.max(0,perBlockLimit*60-breakOver))+' left.';
+      }
+    }
     wrap.append(
       h('span',{cls:'chapter',html:'Break'},[]),
       h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'22px',marginBottom:'6px'}},['Block '+blockIdx+' of '+totalBlocks+' complete']),
-      h('p',{style:{fontSize:'13px',color:'var(--muted)',marginBottom:'8px'}},['Block '+(blockIdx+1)+' begins when the break ends, or continue now.']),
-      tDisp
+      h('p',{style:{fontSize:'13px',color:'var(--muted)',marginBottom:'8px'}},['Take as long as you like. Block '+(blockIdx+1)+' starts when you press Continue. This is your remaining break time for the whole exam; time you do not use stays available for later breaks. Once it runs out, extra time comes off the next block.']),
+      tDisp,tLbl,tOver
     );
+    paintBreak();
     wrap.append(btn('Continue Now \u2192','btn-gold',function(){clearBreakTimer();startBlockFresh();},{style:{padding:'12px 28px',fontSize:'13px'}}));
     content.append(wrap);
     clearBreakTimer();
     breakTimer=setInterval(function(){
-      breakTimeLeft--;
-      tDisp.textContent=fmtMS(breakTimeLeft);
+      if(breakPool>0)breakPool--;else breakOver++;
+      paintBreak();
       persist();
-      if(breakTimeLeft<=0){clearBreakTimer();startBlockFresh();}
     },1000);
   }
 
@@ -5301,7 +5450,7 @@ function runBlockedAssessment(a,assessment,allQuestions,resumeState){
     var ui=dfNbmeBuild({
       items:block,blockNo:blockIdx+1,blockTotal:totalBlocks,timed:!!perBlockLimit,
       getBlockSec:function(){return blockTimeLeft;},
-      getDaySec:function(){return blockTimeLeft+restBlocks*perBlockLimit*60;},
+      getDaySec:function(){return blockTimeLeft+restBlocks*perBlockLimit*60+breakPool;},
       dayStart:examStartedAt,
       isFlagged:function(q){return !!globalFlagged[q.id];},
       isAnswered:function(q){return !!globalAnswers[q.id];},
@@ -5386,7 +5535,7 @@ function runBlockedAssessment(a,assessment,allQuestions,resumeState){
     renderAssessmentScoreReport({resultId:ins.data&&ins.data.id,assessment:assessment,score:score,total:allQuestions.length,questions:allQuestions,answers:globalAnswers,timeTakenSeconds:timeTakenSeconds,questionTimes:questionTimesSeconds,answerChanges:globalAnswerChanges,blockScores:blockScores,trendList:trendList2,insertError:ins.error&&ins.error.message});
   }
 
-  enterFullscreen();
+  enterFullscreen();dfNbmeEnterFs();
   if(phase==='block')renderBlock();
   else if(phase==='break')renderBreak();
   else renderIntro();
