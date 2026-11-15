@@ -8474,7 +8474,11 @@ const bw=div({style:{display:'grid',gap:'10px'}});
 bw.append(btn('Redo All Cards','btn-gold',()=>{queue=[...cards];curIdx=0;flipped=false;prog={easy:0,iffy:0,hard:0};showCard();}),btn('Back to Decks','btn-outline',()=>showDecks()),btn('Dashboard','btn-outline',()=>go('dashboard')));
 card.append(bw);inner.append(card);
 }
-if(sessionStorage.getItem('df-open-daily')==='1'){sessionStorage.removeItem('df-open-daily');activateTab(dailyTabBtn,showDailyReview);}else{showDecks();}return page;
+var _openDeckId=null;try{_openDeckId=sessionStorage.getItem('df-open-deck');sessionStorage.removeItem('df-open-deck');}catch(e){}
+if(_openDeckId){
+  showDecks();
+  sb.from('flashcard_decks').select('*').eq('id',_openDeckId).maybeSingle().then(function(r){if(r&&r.data)loadDeck(r.data);});
+}else if(sessionStorage.getItem('df-open-daily')==='1'){sessionStorage.removeItem('df-open-daily');activateTab(dailyTabBtn,showDailyReview);}else{showDecks();}return page;
 }
 // ═══════════════════════════════
 // VIGNETTE Q-BANK
@@ -15337,7 +15341,7 @@ function dfReportFormModal(s,existing,opts){
 }
 
 /* ===================== DAILY FLASHCARD LOCK: STUDENT SIDE ===================== */
-var dfStudentLock={overlay:null,lastUser:null,tick:0,checking:false,status:null,tasks:[],pay:null,sig:''};
+var dfStudentLock={overlay:null,lastUser:null,tick:0,checking:false,status:null,tasks:[],pay:null,sig:'',lockDeck:null};
 // Today's date in AST (UTC-4, no daylight saving) as YYYY-MM-DD. A task is overdue once this is later than its due date.
 function dfAstToday(){return new Date(Date.now()-4*3600*1000).toISOString().slice(0,10);}
 function dfTaskOverdue(k){return !!(k&&k.due_date&&String(k.due_date).slice(0,10)<dfAstToday());}
@@ -15397,7 +15401,7 @@ function dfStudentLockBuild(o,st){
   }
   if(flash){
     card.append(div({style:{padding:'14px 0',borderTop:'1px solid var(--border)'}},[
-      h('div',{style:{fontSize:'14px',color:'var(--text)',marginBottom:'6px'}},[(flash.overdue?((flash.carryover>0)?'You missed some Daily Review days, so those cards carry over to today ('+flash.carryover+' extra on top of your daily goal). Finish all of them to unlock your profile. ':'You did not finish yesterday\u2019s Daily Review. Finish today\u2019s cards to unlock your profile. '):'')+'Daily Review: '+flash.done+' of '+flash.required+' cards done today.']),
+      h('div',{style:{fontSize:'14px',color:'var(--text)',marginBottom:'6px'}},[(flash.overdue?((flash.carryover>0)?'You missed some Daily Review days, so those cards carry over to today ('+flash.carryover+' extra on top of your daily goal). Finish all of them to unlock your profile. ':'You did not finish yesterday\u2019s Daily Review. Finish today\u2019s cards to unlock your profile. '):'')+(dfStudentLock.lockDeck?'Flashcards: ':'Daily Review: ')+flash.done+' of '+flash.required+' cards done today.'+(dfStudentLock.lockDeck?' Your tutor chose the deck \u201c'+(dfStudentLock.lockDeck.topic||dfStudentLock.lockDeck.name||'Flashcards')+'\u201d for you.':'')]),
       h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'13px',color:'var(--muted)',lineHeight:'1.7'}},['This lock is for your own good. Reviewing a little every day with spaced repetition is what keeps you from forgetting what you have learned, and it is what will carry you through your exam. Take your time with each card.'])
     ]));
   }
@@ -15424,10 +15428,18 @@ function dfStudentLockBuild(o,st){
   var payHolder=div({style:{marginTop:'14px'}},[]);
   var btns=div({style:{display:'flex',gap:'10px',flexWrap:'wrap',marginTop:'18px',paddingTop:'16px',borderTop:'1px solid var(--border)'}},[]);
   if(flash){
+    var ld=dfStudentLock.lockDeck;
+    if(ld){
+      btns.append(btn('Go to '+String(ld.topic||ld.name||'your deck').slice(0,40),'btn-gold',function(){
+        try{sessionStorage.setItem('df-open-deck',ld.id);}catch(e){}
+        go('flashcards');
+      },{style:{fontSize:'12px',padding:'9px 18px'}}));
+    }else{
     btns.append(btn('Go to Daily Review','btn-gold',function(){
       try{sessionStorage.setItem('df-open-daily','1');}catch(e){}
       go('flashcards');
     },{style:{fontSize:'12px',padding:'9px 18px'}}));
+    }
   }
   var fcTask=null;var hasQ=false;
   tasks.forEach(function(t){if(t.kind==='flashcards'&&!fcTask)fcTask=t;if(t.kind==='qbank')hasQ=true;});
@@ -15477,14 +15489,24 @@ async function dfStudentLockCheck(){
     var pr=await sb.rpc('my_payment_delay_status');
     if(pr&&!pr.error&&pr.data)dfStudentLock.pay=pr.data;
   }catch(e){}
+  try{
+    // Deck the tutor chose to send this student to instead of Daily Review. Fails open: no deck means Daily Review.
+    var gr=await sb.from('student_flashcard_goals').select('lock_deck_id').eq('student_id',S.user.id).maybeSingle();
+    var did=(gr&&!gr.error&&gr.data)?gr.data.lock_deck_id:null;
+    if(!did)dfStudentLock.lockDeck=null;
+    else if(!dfStudentLock.lockDeck||dfStudentLock.lockDeck.id!==did){
+      var dr=await sb.from('flashcard_decks').select('id,topic,name').eq('id',did).maybeSingle();
+      dfStudentLock.lockDeck=(dr&&!dr.error&&dr.data)?dr.data:null;
+    }
+  }catch(e){}
   dfStudentLock.checking=false;
   dfStudentLockApply();
 }
 function dfStudentLockRefresh(){dfStudentLock.sig='';dfStudentLockCheck();}
 function dfInitStudentLock(){
   setInterval(function(){
-    if(!S.user){dfStudentLock.lastUser=null;dfStudentLock.status=null;dfStudentLock.tasks=[];dfStudentLock.pay=null;dfStudentLockHide();return;}
-    if(dfStudentLock.lastUser!==S.user.id){dfStudentLock.lastUser=S.user.id;dfStudentLock.tick=0;dfStudentLock.status=null;dfStudentLock.tasks=[];dfStudentLock.pay=null;dfStudentLockCheck();return;}
+    if(!S.user){dfStudentLock.lastUser=null;dfStudentLock.status=null;dfStudentLock.tasks=[];dfStudentLock.pay=null;dfStudentLock.lockDeck=null;dfStudentLockHide();return;}
+    if(dfStudentLock.lastUser!==S.user.id){dfStudentLock.lastUser=S.user.id;dfStudentLock.tick=0;dfStudentLock.status=null;dfStudentLock.tasks=[];dfStudentLock.pay=null;dfStudentLock.lockDeck=null;dfStudentLockCheck();return;}
     if(dfPollDue(dfStudentLock,60))dfStudentLockCheck(); // about every 2 minutes, only while the tab is on screen
   },2000);
 }
@@ -15581,9 +15603,32 @@ function dfGoalControl(studentId){
     st.textContent='Saved.';st.style.color='var(--teal)';
   },{style:{fontSize:'11px',padding:'6px 14px'}});
   wrap.append(h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--muted)',textTransform:'uppercase',letterSpacing:'1px',marginBottom:'6px'}},['Daily flashcard goal (minimum 20)']),div({style:{display:'flex',alignItems:'center'}},[inp,save,st]));
-  sb.from('student_flashcard_goals').select('goal').eq('student_id',studentId).maybeSingle().then(function(r){
+  sb.from('student_flashcard_goals').select('goal,lock_deck_id').eq('student_id',studentId).maybeSingle().then(function(r){
     if(r&&r.data&&r.data.goal)inp.value=String(r.data.goal);
+    if(r&&r.data&&r.data.lock_deck_id)deckSel.dataset.want=r.data.lock_deck_id;
+    fillDecks();
   });
+  // Deck the lock sends this student to (default: Daily Review).
+  var deckSel=h('select',{cls:'input',style:{fontSize:'12px',padding:'6px 10px',width:'auto',maxWidth:'100%',cursor:'pointer'}},[h('option',{value:''},['Daily Review (default)'])]);
+  var deckSt=h('span',{style:{fontSize:'11px',marginLeft:'8px',color:'var(--dim)'}},['']);
+  function fillDecks(){
+    sb.from('flashcard_decks').select('id,topic,name,user_id,type').or('user_id.eq.'+studentId+',user_id.is.null').neq('type','riddle').neq('type','emoji').order('created_at',{ascending:false}).then(function(dr){
+      (dr&&dr.data||[]).forEach(function(d){
+        deckSel.append(h('option',{value:d.id},[(d.topic||d.name||'Untitled')+(d.user_id?'':' (global)')]));
+      });
+      if(deckSel.dataset.want)deckSel.value=deckSel.dataset.want;
+    });
+  }
+  var deckSave=btn('Save','btn-outline',async function(){
+    var rr=await sb.rpc('set_student_lock_deck',{p_student:studentId,p_deck:deckSel.value||null});
+    if(rr&&rr.error){deckSt.textContent=rr.error.message;deckSt.style.color='#ff4444';return;}
+    deckSt.textContent='Saved.';deckSt.style.color='var(--teal)';
+  },{style:{fontSize:'11px',padding:'6px 14px',marginLeft:'8px'}});
+  wrap.append(
+    h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--muted)',textTransform:'uppercase',letterSpacing:'1px',margin:'14px 0 6px'}},['Deck the lock opens']),
+    div({style:{display:'flex',alignItems:'center',flexWrap:'wrap'}},[deckSel,deckSave,deckSt]),
+    h('div',{style:{fontSize:'10px',color:'var(--dim)',marginTop:'6px',lineHeight:'1.5'}},['If the student is locked for flashcards, the lock screen takes them straight to this deck instead of Daily Review.'])
+  );
   return wrap;
 }
 // Adds the lock label and Release button to a tutor-side task row.
