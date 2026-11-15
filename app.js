@@ -278,20 +278,21 @@ return e;
 function div(a,k){return h('div',a,k);}
 /* ===================== LIVE ASSESSMENT PROGRESS (tutors can watch attempts in progress) ===================== */
 var _apLast=0,_apTimer=null,_apPending=null,_apInflight=null,_apSig='',_apClosed={};
+function dfChk(o){var t=JSON.stringify(o)||'',h=0;for(var i=0;i<t.length;i++){h=(h*31+t.charCodeAt(i))|0;}return h;}
 function dfStartAssessProgress(assessmentId){_apClosed[assessmentId]=false;_apSig='';}
 function dfPushAssessProgress(p){
   if(!p||_apClosed[p.assessmentId]||p.phase==='intro'||p.phase==='done')return;
   if(!(S&&S.user&&S.user.id))return;
-  var sig=[p.assessmentId,p.answered,p.current,p.blockIdx||0,p.phase].join('|');
+  var sig=[p.assessmentId,p.answered,p.current,p.blockIdx||0,p.phase,p.tb||0,p.rv||0].join('|');
   var now=Date.now();
   // nothing changed and we synced within the last 30s: skip (timers call persist() every second)
   if(sig===_apSig&&now-_apLast<30000)return;
   _apPending=p;
   var run=function(){
     var x=_apPending;if(!x||_apClosed[x.assessmentId])return;
-    _apPending=null;_apLast=Date.now();_apSig=[x.assessmentId,x.answered,x.current,x.blockIdx||0,x.phase].join('|');
+    _apPending=null;_apLast=Date.now();_apSig=[x.assessmentId,x.answered,x.current,x.blockIdx||0,x.phase,x.tb||0,x.rv||0].join('|');
     try{
-      _apInflight=sb.from('tutoring_assessment_progress').upsert({student_id:S.user.id,assessment_id:String(x.assessmentId),assignment_id:x.assignmentId?String(x.assignmentId):null,assessment_title:x.title||null,answered_count:x.answered,total_questions:x.total,current_index:x.current,block_idx:x.blockIdx||0,total_blocks:x.totalBlocks||1,phase:x.phase||'block',updated_at:new Date().toISOString()},{onConflict:'student_id,assessment_id'});
+      _apInflight=sb.from('tutoring_assessment_progress').upsert({student_id:S.user.id,assessment_id:String(x.assessmentId),assignment_id:x.assignmentId?String(x.assignmentId):null,assessment_title:x.title||null,answered_count:x.answered,total_questions:x.total,current_index:x.current,block_idx:x.blockIdx||0,total_blocks:x.totalBlocks||1,phase:x.phase||'block',state:x.state||null,updated_at:new Date().toISOString()},{onConflict:'student_id,assessment_id'});
       _apInflight.then(function(){},function(){});
     }catch(e){}
   };
@@ -303,6 +304,41 @@ function dfClearAssessProgress(assessmentId){
   if(_apTimer){clearTimeout(_apTimer);_apTimer=null;}
   var go=function(){try{var q=sb.from('tutoring_assessment_progress').delete().eq('student_id',S.user.id).eq('assessment_id',String(assessmentId));q.then(function(){},function(){});}catch(e){}};
   if(_apInflight){_apInflight.then(go,go);}else go();
+}
+// Super admin can approve a student to continue an interrupted assessment (network drop etc.) from the exact saved point.
+// Students never see any pause/resume option: this only works when a super admin has approved it.
+var _dfSuperP=null;
+function dfIsSuperAdmin(){
+  if(!_dfSuperP){_dfSuperP=Promise.resolve(sb.rpc('is_super_admin')).then(function(r){return !!(r&&r.data===true);},function(){return false;});}
+  return _dfSuperP;
+}
+function dfApplyOrder(questions,order){
+  var by={};questions.forEach(function(q){by[q.id]=q;});
+  var out=[],seen={};
+  (order||[]).forEach(function(id){if(by[id]&&!seen[id]){out.push(by[id]);seen[id]=1;}});
+  questions.forEach(function(q){if(!seen[q.id])out.push(q);});
+  return out;
+}
+// Returns the approved saved state (and uses up the approval) or null. If the student is starting over while an earlier
+// unfinished attempt is on file, that attempt is kept aside so a super admin can still restore it.
+async function dfAssessResumeState(assessment){
+  try{
+    if(!(S&&S.user&&S.user.id))return null;
+    var id=String(assessment.id);
+    var r=await sb.from('tutoring_assessment_progress').select('state,interrupted_state,resume_allowed').eq('student_id',S.user.id).eq('assessment_id',id).maybeSingle();
+    if(r.error||!r.data)return null;
+    var d=r.data;
+    if(d.resume_allowed&&d.state){
+      await sb.from('tutoring_assessment_progress').update({resume_allowed:false}).eq('student_id',S.user.id).eq('assessment_id',id);
+      return d.state;
+    }
+    var hasLocal=false;
+    try{hasLocal=!!(sessionStorage.getItem('assessment_exam_'+assessment.id)||sessionStorage.getItem('assessment_resume_'+assessment.id));}catch(e){}
+    if(d.state&&!hasLocal&&d.state.answers&&Object.keys(d.state.answers).length){
+      await sb.from('tutoring_assessment_progress').update({interrupted_state:d.state}).eq('student_id',S.user.id).eq('assessment_id',id);
+    }
+  }catch(e){}
+  return null;
 }
 function dfEnsureApCss(){
   if(document.getElementById('df-ap-css'))return;
@@ -336,7 +372,24 @@ function dfAssessProgressBlock(r){
   var fill=div({style:{height:'100%',width:pct+'%',minWidth:'4px',borderRadius:'999px',transition:'width .6s ease',backgroundColor:'#E08A3C',backgroundImage:'linear-gradient(45deg,rgba(255,255,255,.28) 25%,transparent 25%,transparent 50%,rgba(255,255,255,.28) 50%,rgba(255,255,255,.28) 75%,transparent 75%,transparent)',backgroundSize:'28px 28px',animation:'dfApStripes 1s linear infinite'}},[]);
   track.append(fill);
   var meta=h('div',{cls:'mono',style:{fontSize:'11px',color:'var(--muted)',marginTop:'6px'}},[answered+' of '+total+' answered ('+pct+'%)'+(r.updated_at?' \u00b7 last active '+dfAgo(r.updated_at):'')]);
-  wrap.append(top,track,meta);
+  var rrow=div({style:{marginTop:'8px'}},[]);
+  var okMsg=function(){return h('span',{style:{fontSize:'11px',color:'var(--teal)'}},['\u2713 Resume approved. The student continues from where they stopped the next time they open this assessment.']);};
+  if(r.resume_allowed){rrow.append(okMsg());}
+  else if(r.st_cur!=null||r.int_cur!=null){
+    dfIsSuperAdmin().then(function(ok){
+      if(!ok)return;
+      var b=btn('Let student resume where they stopped','btn-outline',async function(){
+        b.disabled=true;
+        var res=await sb.rpc('admin_allow_assessment_resume',{p_student_id:r.student_id,p_assessment_id:r.assessment_id});
+        var d=res&&res.data;
+        if(res.error||!d||!d.ok){b.disabled=false;dfToast('Could not approve the resume'+(res.error?': '+res.error.message:'.'));return;}
+        rrow.innerHTML='';rrow.append(okMsg());
+      },{style:{fontSize:'11px',padding:'6px 12px'}});
+      rrow.append(b);
+      if(r.int_cur!=null)rrow.append(h('span',{style:{fontSize:'11px',color:'var(--dim)',marginLeft:'8px'}},['An earlier unfinished attempt is saved; the furthest one is restored.']));
+    });
+  }
+  wrap.append(top,track,meta,rrow);
   return wrap;
 }
 // Keeps `holder` filled with progress blocks for the given students; polls while the holder is on screen.
@@ -344,7 +397,7 @@ function dfAssessProgressBlock(r){
 async function dfRefreshAssessProgress(holdersByStudent){
   var ids=Object.keys(holdersByStudent);if(!ids.length)return;
   try{
-    var pr=await sb.from('tutoring_assessment_progress').select('*').in('student_id',ids).order('updated_at',{ascending:false});
+    var pr=await sb.from('tutoring_assessment_progress').select('student_id,assessment_id,assignment_id,assessment_title,answered_count,total_questions,current_index,block_idx,total_blocks,phase,started_at,updated_at,resume_allowed,st_cur:state->>current,int_cur:interrupted_state->>current').in('student_id',ids).order('updated_at',{ascending:false});
     if(pr.error)return;
     var by={};(pr.data||[]).forEach(function(r){(by[r.student_id]=by[r.student_id]||[]).push(r);});
     ids.forEach(function(id){var el=holdersByStudent[id];el.innerHTML='';(by[id]||[]).forEach(function(r){el.append(dfAssessProgressBlock(r));});});
@@ -485,6 +538,15 @@ function dfHlUnwrap(container){
   });
   try{container.normalize();}catch(e){}
 }
+/* Highlighter is yellow only while taking an assessment (NBME screen). Evidence-mode marks stay red. */
+(function dfInjectYellowHl(){
+  try{
+    if(document.getElementById('df-yellow-hl'))return;
+    var st=document.createElement('style');st.id='df-yellow-hl';
+    st.textContent='.nb-root .highlight-text:not(.evidence-text){background:#ffe94a!important;color:#111!important;border-radius:2px;box-decoration-break:clone;-webkit-box-decoration-break:clone;}';
+    document.head.appendChild(st);
+  }catch(e){}
+})();
 function dfHlOffset(container,node,offset){
   var pre=document.createRange();pre.selectNodeContents(container);
   try{pre.setEnd(node,offset);}catch(e){return container.textContent.length;}
@@ -938,7 +1000,7 @@ function dfHlPopup(rect,onPick){
       onmousedown:function(e){e.preventDefault();},
       onclick:function(){pop.remove();document.removeEventListener('mousedown',closer,true);onPick(kind);}},[label]);
   }
-  pop.append(mk('Highlight','rgba(126,184,164,.35)','var(--text)','hl'),mk('Evidence','#dc3545','#fff','evidence'));
+  pop.append(mk('Highlight',document.querySelector('.nb-root')?'#ffe94a':'rgba(126,184,164,.35)',document.querySelector('.nb-root')?'#111':'var(--text)','hl'),mk('Evidence','#dc3545','#fff','evidence'));
   document.body.appendChild(pop);
   var w=pop.offsetWidth||190,hgt=pop.offsetHeight||44;
   var left=Math.max(8,Math.min(window.innerWidth-w-8,rect.left+rect.width/2-w/2));
@@ -3583,7 +3645,7 @@ function enterFullscreen(){
   inner.style.padding='0';
 }
 function exitFullscreen(){
-  try{dfNbmeCleanup();}catch(e){}
+  try{dfNbmeCleanup(true);}catch(e){}
   nav.style.display='';
   wingHeader.style.display='';
   tabBar.style.display='';
@@ -4205,10 +4267,14 @@ async function startAssessment(a,assessment){
   content.innerHTML='';
   var questions=q.data||[];
   if(!questions.length){content.append(emptyCard('This assessment has no questions yet','Check back once your tutor finishes uploading it.'));return;}
-  if(assessment.shuffle_questions)questions=shuffleArray(questions);
+  var resumeState=await dfAssessResumeState(assessment);
+  var _ordSt=resumeState;
+  if(!_ordSt){try{var _raw=sessionStorage.getItem((assessment.block_size?'assessment_exam_':'assessment_resume_')+assessment.id);if(_raw)_ordSt=JSON.parse(_raw);}catch(e){}}
+  if(_ordSt&&_ordSt.order)questions=dfApplyOrder(questions,_ordSt.order);
+  else if(assessment.shuffle_questions)questions=shuffleArray(questions);
   enterFullscreen();
-  if(assessment.block_size){runBlockedAssessment(a,assessment,questions);}
-  else{runAssessmentQuiz(a,assessment,questions);}
+  if(assessment.block_size){runBlockedAssessment(a,assessment,questions,resumeState);}
+  else{runAssessmentQuiz(a,assessment,questions,resumeState);}
 }
 
 
@@ -4496,7 +4562,7 @@ function runQuiz(a,test,questions){
 }
 
 function showSubmitLoading(){
-  try{dfNbmeCleanup();}catch(e){}
+  try{dfNbmeCleanup(true);}catch(e){}
   content.innerHTML='';
   var wrap=div({style:{maxWidth:'480px',margin:'60px auto',textAlign:'center'}},[]);
   wrap.append(
@@ -4684,6 +4750,9 @@ var DF_NB_SVG={
       '.nb-lockov svg{width:6em;height:6em;}',
       '.nb-lockov h2{margin:0;font-size:2em;font-weight:600;}.nb-lockov p{margin:0;font-size:1.05em;opacity:.85;max-width:26em;}',
       '.nb-lockov button{margin-top:.6em;background:#fff;color:#0b4a7c;border:0;border-radius:.3em;font-size:1.3em;padding:.5em 1.8em;cursor:pointer;font-weight:600;}',
+      '.nb-guard{display:none;position:fixed;left:0;right:0;top:0;bottom:0;z-index:100050;background:#0b4a7c;color:#fff;flex-direction:column;align-items:center;justify-content:center;gap:14px;text-align:center;padding:24px;font-family:Arial,Helvetica,sans-serif;}',
+      '.nb-guard.on{display:flex;}.nb-guard h2{margin:0;font-size:28px;font-weight:600;}.nb-guard p{margin:0;font-size:16px;opacity:.9;max-width:440px;line-height:1.45;}.nb-guard button{margin-top:8px;background:#fff;color:#0b4a7c;border:0;border-radius:5px;font-size:18px;padding:11px 30px;cursor:pointer;font-weight:600;}',
+      '.nb-tool.nb-locked{cursor:default;opacity:.85;}',
       /* calculator (lives on <body>, so px) */
       '#nb-calc{position:fixed;z-index:100010;width:268px;background:#e9edf2;border:1px solid #5d7a96;border-radius:6px;box-shadow:0 10px 30px rgba(0,0,0,.4);font-family:Arial,Helvetica,sans-serif;user-select:none;-webkit-user-select:none;touch-action:none;}',
       '#nb-calc .hd{background:#0b4a7c;color:#fff;padding:7px 10px;font-size:14px;display:flex;justify-content:space-between;align-items:center;cursor:move;border-radius:5px 5px 0 0;}',
@@ -4701,7 +4770,46 @@ var DF_NB_SVG={
   }catch(e){}
 })();
 
-function dfNbmeCleanup(){
+/* ---- Lock: puts the exam into full screen and keeps the student on it until the block/exam is ended. ---- */
+var _nbLock={on:false,leaves:0,el:null,h:null};
+function dfNbmeFsEl(){return document.fullscreenElement||document.webkitFullscreenElement||null;}
+function dfNbmeFsSupported(){var d=document.documentElement;return !!(d.requestFullscreen||d.webkitRequestFullscreen);}
+function dfNbmeEnterFs(){
+  try{var d=document.documentElement;var f=d.requestFullscreen||d.webkitRequestFullscreen;if(f){var pr=f.call(d);if(pr&&pr.catch)pr.catch(function(){});}}catch(e){}
+}
+function dfNbmeExitFs(){
+  try{if(dfNbmeFsEl()){var f=document.exitFullscreen||document.webkitExitFullscreen;if(f){var pr=f.call(document);if(pr&&pr.catch)pr.catch(function(){});}}}catch(e){}
+}
+function dfNbmeGuardCheck(){
+  if(!_nbLock.on||!_nbLock.el)return;
+  var away=document.hidden||(dfNbmeFsSupported()&&!dfNbmeFsEl());
+  if(away&&!_nbLock.el.classList.contains('on'))_nbLock.leaves++;
+  _nbLock.el.classList.toggle('on',!!away);
+}
+function dfNbmeLockOn(){
+  if(_nbLock.on)return;
+  _nbLock.on=true;_nbLock.leaves=0;
+  var ic=h('div',{},[]);ic.innerHTML=DF_NB_SVG.lock.replace('width="46" height="46"','width="84" height="84"');
+  var ov=div({cls:'nb-guard'},[ic,h('h2',{},['Exam locked']),h('p',{},['You left the full-screen exam. Return to full screen to keep going. Your clock is still running.']),
+    h('button',{type:'button',onclick:function(){dfNbmeEnterFs();setTimeout(dfNbmeGuardCheck,250);}},['Return to full screen'])]);
+  document.body.appendChild(ov);_nbLock.el=ov;
+  var chk=function(){setTimeout(dfNbmeGuardCheck,60);};
+  var bu=function(e){e.preventDefault();e.returnValue='';return '';};
+  _nbLock.h={chk:chk,bu:bu};
+  document.addEventListener('fullscreenchange',chk);document.addEventListener('webkitfullscreenchange',chk);document.addEventListener('visibilitychange',chk);
+  window.addEventListener('beforeunload',bu);
+}
+function dfNbmeLockOff(){
+  if(!_nbLock.on)return;
+  var hh=_nbLock.h||{};
+  document.removeEventListener('fullscreenchange',hh.chk);document.removeEventListener('webkitfullscreenchange',hh.chk);document.removeEventListener('visibilitychange',hh.chk);
+  window.removeEventListener('beforeunload',hh.bu);
+  if(_nbLock.el&&_nbLock.el.parentNode)_nbLock.el.parentNode.removeChild(_nbLock.el);
+  _nbLock.on=false;_nbLock.el=null;_nbLock.h=null;
+  dfNbmeExitFs();
+}
+function dfNbmeCleanup(release){
+  if(release){try{dfNbmeLockOff();}catch(e){}}
   try{if(window._nbCalcOff)window._nbCalcOff();}catch(e){}
   try{
     var p=document.getElementById('session-notepad-panel');
@@ -4830,16 +4938,16 @@ function dfNbmeBuild(o){
   var l1=h('span',{},['Block Time Remaining:']),v1=h('b',{},['--:--']);
   var l2=h('span',{},['Day Time Remaining:']),v2=h('b',{},['--:--']);
   var timebox=div({cls:'nb-timebox'},[div({cls:'row'},[l1,v1]),div({cls:'row'},[l2,v2])]);
-  var lockOv=div({cls:'nb-lockov'},[]);
-  var lockIc=h('div',{},[]);lockIc.innerHTML=DF_NB_SVG.lock;
-  lockOv.append(lockIc,h('h2',{},['Exam locked']),h('p',{},['Your answers are safe. The clock keeps running while the screen is locked.']),h('button',{type:'button',onclick:function(){lockOv.classList.remove('on');}},['Unlock']));
-  var tLock=tool(DF_NB_SVG.lock,'Lock',function(){lockOv.classList.add('on');});
-  var exitBtn=h('button',{type:'button',cls:'nb-exit'},['Exit']);
-  exitBtn.addEventListener('click',function(){if(confirm('Leave the exam for now? Your answers and time are saved so you can continue.'))o.onExit();});
+  var tLock=tool(DF_NB_SVG.lock,_nbLock.on?'Locked':'Lock',function(){
+    if(_nbLock.on)return;
+    dfNbmeLockOn();dfNbmeEnterFs();
+    var lb=tLock.querySelector('.lb');if(lb)lb.textContent='Locked';tLock.classList.add('nb-locked');
+  });
+  if(_nbLock.on)tLock.classList.add('nb-locked');
   var tEnd=tool(DF_NB_SVG.stop,o.endLabel||'End Block',function(){o.onEnd();},'nb-end');
-  var foot=div({cls:'nb-foot'},[timebox,div({cls:'nb-sp'},[]),tLock,div({cls:'nb-sp'},[]),exitBtn,tEnd]);
+  var foot=div({cls:'nb-foot'},[timebox,div({cls:'nb-sp'},[]),tLock,div({cls:'nb-sp'},[]),tEnd]);
 
-  root.append(strip,head,main,foot,lockOv);
+  root.append(strip,head,main,foot);
   content.innerHTML='';content.append(root);
   // a transformed ancestor would pin position:fixed to itself instead of the screen
   try{var a=content;while(a&&a!==document.documentElement){var cs=getComputedStyle(a);if((cs.transform&&cs.transform!=='none')||(cs.filter&&cs.filter!=='none')){a.style.transform='none';a.style.filter='none';a.style.animation='none';}a=a.parentElement;}}catch(e){}
@@ -4908,7 +5016,6 @@ function dfNbmePaintQuestion(ui,q,st){
     box.append(row);
   });
   wrap.append(box);
-  if(!st.locked)wrap.append(div({cls:'nb-hint'},['Right-click (or press and hold) an answer to cross it out.']));
   if(st.next){
     var pb=h('button',{type:'button',cls:'nb-proceed'},[st.next.label]);
     pb.addEventListener('click',st.next.onClick);
@@ -4922,7 +5029,7 @@ function dfNbmePaintQuestion(ui,q,st){
   main.scrollTop=0;
 }
 
-function runAssessmentQuiz(a,assessment,questions){
+function runAssessmentQuiz(a,assessment,questions,resumeState){
   var mode=assessment.mode;
   var isTimed=mode==='timed';
   var current=0;
@@ -4943,9 +5050,10 @@ function runAssessmentQuiz(a,assessment,questions){
   var activeEnteredAt=null;
   function flushActiveTime(){if(activeQId&&activeEnteredAt){questionTimeMs[activeQId]=(questionTimeMs[activeQId]||0)+(Date.now()-activeEnteredAt);}activeQId=null;activeEnteredAt=null;}
 
-  try{var _sv=sessionStorage.getItem(RKEY);if(_sv){var _st=JSON.parse(_sv);if(_st&&_st.assessmentId===assessment.id){current=_st.current||0;answers=_st.answers||{};revealed=_st.revealed||{};ruledOut=_st.ruledOut||{};highlights=_st.highlights||{};flagged=_st.flagged||{};questionTimeMs=_st.questionTimeMs||{};answerChanges=_st.answerChanges||[];firstAnswers=_st.firstAnswers||{};if(isTimed&&typeof _st.timeLeft==='number')timeLeft=_st.timeLeft;}}}catch(e){}
+  try{var _sv=resumeState?JSON.stringify(resumeState):sessionStorage.getItem(RKEY);if(_sv){var _st=JSON.parse(_sv);if(_st&&_st.assessmentId===assessment.id){current=_st.current||0;answers=_st.answers||{};revealed=_st.revealed||{};ruledOut=_st.ruledOut||{};highlights=_st.highlights||{};flagged=_st.flagged||{};questionTimeMs=_st.questionTimeMs||{};answerChanges=_st.answerChanges||[];firstAnswers=_st.firstAnswers||{};if(isTimed&&typeof _st.timeLeft==='number')timeLeft=_st.timeLeft;}}}catch(e){}
 
-  function persist(){try{sessionStorage.setItem(RKEY,JSON.stringify({assessmentId:assessment.id,current:current,answers:answers,revealed:revealed,ruledOut:ruledOut,highlights:highlights,flagged:flagged,timeLeft:timeLeft,questionTimeMs:questionTimeMs,answerChanges:answerChanges,firstAnswers:firstAnswers}));}catch(e){}dfPushAssessProgress({assessmentId:assessment.id,title:assessment.title,assignmentId:a?a.id:null,answered:Object.keys(answers).length,total:questions.length,current:current,phase:'block'});}
+  var _ordIds=questions.map(function(q){return q.id;});
+  function persist(){var _stO={assessmentId:assessment.id,order:_ordIds,current:current,answers:answers,revealed:revealed,ruledOut:ruledOut,highlights:highlights,flagged:flagged,timeLeft:timeLeft,questionTimeMs:questionTimeMs,answerChanges:answerChanges,firstAnswers:firstAnswers};try{sessionStorage.setItem(RKEY,JSON.stringify(_stO));}catch(e){}dfPushAssessProgress({assessmentId:assessment.id,title:assessment.title,assignmentId:a?a.id:null,answered:Object.keys(answers).length,total:questions.length,current:current,phase:'block',state:_stO,tb:isTimed?Math.floor(timeLeft/60):0,rv:dfChk([answers,flagged,ruledOut,highlights])});}
   function clearResume(){try{sessionStorage.removeItem(RKEY);}catch(e){}dfClearAssessProgress(assessment.id);}
   dfStartAssessProgress(assessment.id);persist();
   function clearTimer(){if(tInterval){clearInterval(tInterval);tInterval=null;}}
@@ -5023,7 +5131,7 @@ function runAssessmentQuiz(a,assessment,questions){
   }
 
   async function doSubmit(){
-    if(submitted)return;submitted=true;clearTimer();clearResume();
+    if(submitted)return;submitted=true;clearTimer();
     flushActiveTime();
     showSubmitLoading();
     var score=0;questions.forEach(function(q){if(answers[q.id]===corr(q))score++;});
@@ -5031,6 +5139,7 @@ function runAssessmentQuiz(a,assessment,questions){
     var questionTimesSeconds={};Object.keys(questionTimeMs).forEach(function(k){questionTimesSeconds[k]=Math.round(questionTimeMs[k]/1000);});
     var ins=await sb.from('tutoring_assessment_results').insert({assignment_id:a?a.id:null,assessment_id:assessment.id,student_id:S.user.id,assessment_title:assessment.title,mode:mode,score:score,total:questions.length,answers:answers,questions:questions,highlights:highlights,time_taken_seconds:timeTakenSeconds,question_times:questionTimesSeconds,answer_changes:answerChanges}).select('id').single();
     if(!ins.error){
+      clearResume();
       await updateStreak();
       var _testMins=Math.round(timeTakenSeconds/60);
       if(_testMins>0&&!window.activeSessionId){
@@ -5052,7 +5161,7 @@ function runAssessmentQuiz(a,assessment,questions){
 }
 
 /* ===================== BLOCKED (NBME-style) ASSESSMENT RUNNER ===================== */
-function runBlockedAssessment(a,assessment,allQuestions){
+function runBlockedAssessment(a,assessment,allQuestions,resumeState){
   var blockSize=assessment.block_size;
   var breakMinutes=assessment.break_minutes||0;
   var perBlockLimit=assessment.time_limit||0; // minutes per block, 0 = untimed block
@@ -5081,7 +5190,7 @@ function runBlockedAssessment(a,assessment,allQuestions){
   function flushActiveTime(){if(activeQId&&activeEnteredAt){globalQuestionTime[activeQId]=(globalQuestionTime[activeQId]||0)+(Date.now()-activeEnteredAt);}activeQId=null;activeEnteredAt=null;}
 
   try{
-    var _sv=sessionStorage.getItem(RKEY);
+    var _sv=resumeState?JSON.stringify(resumeState):sessionStorage.getItem(RKEY);
     if(_sv){
       var _st=JSON.parse(_sv);
       if(_st&&_st.assessmentId===assessment.id){
@@ -5100,7 +5209,8 @@ function runBlockedAssessment(a,assessment,allQuestions){
     }
   }catch(e){}
 
-  function persist(){try{sessionStorage.setItem(RKEY,JSON.stringify({assessmentId:assessment.id,blockIdx:blockIdx,phase:phase,current:current,answers:globalAnswers,flagged:globalFlagged,ruledOut:globalRuledOut,highlights:globalHighlights,blockTimeLeft:blockTimeLeft,breakTimeLeft:breakTimeLeft,questionTime:globalQuestionTime,answerChanges:globalAnswerChanges,firstAnswers:firstAnswers}));}catch(e){}dfPushAssessProgress({assessmentId:assessment.id,title:assessment.title,assignmentId:a?a.id:null,answered:Object.keys(globalAnswers).length,total:allQuestions.length,current:current,blockIdx:blockIdx,totalBlocks:totalBlocks,phase:phase});}
+  var _ordIds=allQuestions.map(function(q){return q.id;});
+  function persist(){var _stO={assessmentId:assessment.id,order:_ordIds,blockIdx:blockIdx,phase:phase,current:current,answers:globalAnswers,flagged:globalFlagged,ruledOut:globalRuledOut,highlights:globalHighlights,blockTimeLeft:blockTimeLeft,breakTimeLeft:breakTimeLeft,questionTime:globalQuestionTime,answerChanges:globalAnswerChanges,firstAnswers:firstAnswers};try{sessionStorage.setItem(RKEY,JSON.stringify(_stO));}catch(e){}dfPushAssessProgress({assessmentId:assessment.id,title:assessment.title,assignmentId:a?a.id:null,answered:Object.keys(globalAnswers).length,total:allQuestions.length,current:current,blockIdx:blockIdx,totalBlocks:totalBlocks,phase:phase,state:_stO,tb:Math.floor((phase==='break'?breakTimeLeft:blockTimeLeft)/60),rv:dfChk([globalAnswers,globalFlagged,globalRuledOut,globalHighlights])});}
   function clearResume(){try{sessionStorage.removeItem(RKEY);}catch(e){}dfClearAssessProgress(assessment.id);}
   dfStartAssessProgress(assessment.id);if(phase==='block'||phase==='break')persist();
   function clearBlockTimer(){if(blockTimer){clearInterval(blockTimer);blockTimer=null;}}
@@ -5252,7 +5362,7 @@ function runBlockedAssessment(a,assessment,allQuestions){
   }
 
   async function finalize(){
-    phase='done';clearResume();
+    phase='done';
     showSubmitLoading();
     var score=0;
     allQuestions.forEach(function(q){if(globalAnswers[q.id]===corr(q))score++;});
@@ -5261,6 +5371,7 @@ function runBlockedAssessment(a,assessment,allQuestions){
     var blockScores=blocks.map(function(blk,i){var c=0;blk.forEach(function(q){if(globalAnswers[q.id]===corr(q))c++;});return{block:i+1,correct:c,total:blk.length};});
     var ins=await sb.from('tutoring_assessment_results').insert({assignment_id:a?a.id:null,assessment_id:assessment.id,student_id:S.user.id,assessment_title:assessment.title,mode:assessment.mode,score:score,total:allQuestions.length,answers:globalAnswers,questions:allQuestions,highlights:globalHighlights,time_taken_seconds:timeTakenSeconds,question_times:questionTimesSeconds,answer_changes:globalAnswerChanges,block_scores:blockScores}).select('id').single();
     if(!ins.error){
+      clearResume();
       await updateStreak();
       var _testMins=Math.round(timeTakenSeconds/60);
       if(_testMins>0&&!window.activeSessionId){
