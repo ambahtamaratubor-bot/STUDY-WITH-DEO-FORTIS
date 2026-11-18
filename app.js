@@ -2192,6 +2192,20 @@ function mediaEmbed(m){
 
 // Reason picker shown under a missed question so the student can log why they got it wrong.
 // Options are intentionally short and mutually distinct — refine wording here if it changes.
+// Saves a finished attempt. Marked (flagged) questions are stored in a `flagged` column so the marks
+// show up again in review. If that column has not been added yet the result is saved without it,
+// so finishing a test never fails because of it. (SQL: add_flagged_column.sql)
+function dfCleanFlags(f){var o={};Object.keys(f||{}).forEach(function(k){if(f[k])o[k]=true;});return o;}
+async function dfInsertResult(table,row,flagged){
+  var fl=dfCleanFlags(flagged);
+  if(!Object.keys(fl).length)return sb.from(table).insert(row).select('id').single();
+  var r=await sb.from(table).insert(Object.assign({},row,{flagged:fl})).select('id').single();
+  if(r.error&&/flagged/i.test(r.error.message||''))r=await sb.from(table).insert(row).select('id').single();
+  return r;
+}
+var DF_MARK_BADGE='<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1" stroke-linejoin="round" style="vertical-align:-1px;margin-right:4px"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>';
+function dfMarkedBadge(){return h('span',{style:{fontFamily:'Inter,sans-serif',fontSize:'10px',fontWeight:'700',color:'var(--gold)',border:'1px solid var(--gold)',borderRadius:'999px',padding:'2px 9px',letterSpacing:'0.5px',whiteSpace:'nowrap',display:'inline-flex',alignItems:'center'},html:DF_MARK_BADGE+'Marked'});}
+
 var ERROR_REASONS=[
   ['','Why did you miss this? (optional)'],
   ['knowledge_gap','I didn\u2019t know this content'],
@@ -2240,6 +2254,7 @@ function buildErrorReasonPicker(resultId,questionId,existingReason,onSaved){
 // number nav) while the currently open question is wrong and has no reason logged.
 function buildGatedReviewUI(opts){
   var qs=opts.qs,ans=opts.ans,resultId=opts.resultId,errorReasons=opts.errorReasons||{};
+  var marks=opts.flagged||{};
   var idx=0;
   var wrap=div({},[]);
   var headerRow=div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',gap:'12px',flexWrap:'wrap',marginBottom:'8px'}},[]);
@@ -2285,7 +2300,8 @@ function buildGatedReviewUI(opts){
     navCol.innerHTML='';
     qs.forEach(function(q,i){
       var isCorrect=isCorrectAt(i);var flagged=needsReason(i);
-      var b=h('button',{style:{padding:'8px 0',fontSize:'11px',fontFamily:"'DM Mono',monospace",borderRadius:'3px',cursor:'pointer',border:'1px solid '+(i===idx?'var(--gold)':(flagged?'#e08a3c':(isCorrect?'var(--teal)':'#8B000066'))),background:i===idx?'var(--gold-subtle)':(flagged?'rgba(224,138,60,0.12)':'transparent'),color:'var(--text)'}},[String(i+1)]);
+      var b=h('button',{title:marks[q.id]?'You marked this question':'',style:{padding:'8px 0',fontSize:'11px',fontFamily:"'DM Mono',monospace",borderRadius:'3px',cursor:'pointer',border:'1px solid '+(i===idx?'var(--gold)':(flagged?'#e08a3c':(isCorrect?'var(--teal)':'#8B000066'))),background:i===idx?'var(--gold-subtle)':(flagged?'rgba(224,138,60,0.12)':'transparent'),color:'var(--text)',position:'relative',borderBottom:marks[q.id]?'3px solid var(--gold)':undefined}},[String(i+1)]);
+      if(marks[q.id])b.append(h('span',{style:{position:'absolute',top:'1px',right:'2px',color:'var(--gold)',lineHeight:'0',fontSize:'0'},html:'<svg xmlns="http://www.w3.org/2000/svg" width="9" height="9" viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>'}));
       b.onclick=function(){tryGoTo(i);};
       navCol.append(b);
     });
@@ -2302,7 +2318,7 @@ function buildGatedReviewUI(opts){
     renderQuestionText(q.question,qTextDiv);
     dfHlRestore(qTextDiv,(opts.highlights||{})[q.id]);
     qCard.append(
-      div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'12px'}},[div({cls:'mono',style:{fontSize:'9px'}},['Question '+(i+1)+' of '+qs.length]),h('span',{style:{fontFamily:'Inter,sans-serif',fontSize:'11px',color:isCorrect?'var(--teal)':'#ff8888',fontWeight:'700'}},[isCorrect?'\u2713 Correct':'\u2717 Incorrect'])]),
+      div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'12px'}},[div({cls:'mono',style:{fontSize:'9px'}},['Question '+(i+1)+' of '+qs.length]),div({style:{display:'flex',alignItems:'center',gap:'8px'}},[marks[q.id]?dfMarkedBadge():'',h('span',{style:{fontFamily:'Inter,sans-serif',fontSize:'11px',color:isCorrect?'var(--teal)':'#ff8888',fontWeight:'700'}},[isCorrect?'\u2713 Correct':'\u2717 Incorrect'])])]),
       qTextDiv
     );
     ['a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p','q'].forEach(function(opt){
@@ -2372,7 +2388,10 @@ function buildReviewQuestionCards(qs,ans,opts){
     renderQuestionText(q.question,qTextDiv);
     dfHlRestore(qTextDiv,(opts.highlights||{})[q.id]);
     var headerRow=div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'10px'}},[div({cls:'mono',style:{fontSize:'9px'},html:'Question '+(i+1)})]);
-    if(!opts.previewMode)headerRow.append(h('span',{style:{fontFamily:'Inter,sans-serif',fontSize:'11px',color:isCorrect?'var(--teal)':'#ff8888',fontWeight:'700'},html:isCorrect?'\u2713 Correct':'\u2717 Incorrect'}));
+    var _hdrRight=div({style:{display:'flex',alignItems:'center',gap:'8px'}},[]);
+    if((opts.flagged||{})[q.id])_hdrRight.append(dfMarkedBadge());
+    if(!opts.previewMode)_hdrRight.append(h('span',{style:{fontFamily:'Inter,sans-serif',fontSize:'11px',color:isCorrect?'var(--teal)':'#ff8888',fontWeight:'700'},html:isCorrect?'\u2713 Correct':'\u2717 Incorrect'}));
+    headerRow.append(_hdrRight);
     qCard.append(headerRow,qTextDiv);
     ['a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p','q'].forEach(function(opt){
       var val=q['option_'+opt];if(!val)return;
@@ -2420,7 +2439,7 @@ function buildReviewQuestionCards(qs,ans,opts){
 // Builds a clean, self-contained (off-DOM-tree) document for PDF export of a detailed,
 // question-by-question review. Deliberately independent of any live modal/overlay so
 // html2canvas isn't capturing through a position:fixed ancestor or interactive buttons.
-function buildDetailedReviewBody(titleText,subLine,qs,ans){
+function buildDetailedReviewBody(titleText,subLine,qs,ans,extra){
   var wrap=div({style:{background:'var(--bg)'}},[]);
   wrap.append(assessBrandHeader());
   wrap.append(h('span',{cls:'chapter',html:'Detailed Review'},[]));
@@ -2429,13 +2448,13 @@ function buildDetailedReviewBody(titleText,subLine,qs,ans){
   if(!qs.length){
     wrap.append(h('p',{style:{color:'var(--muted)',fontSize:'13px'}},['No question detail available for this result.']));
   }else{
-    buildReviewQuestionCards(qs,ans).forEach(function(c){wrap.append(c);});
+    buildReviewQuestionCards(qs,ans,{flagged:(extra&&extra.flagged)||{}}).forEach(function(c){wrap.append(c);});
   }
   return wrap;
 }
 
-function downloadDetailedReviewPdf(titleText,subLine,qs,ans,filenameBase,onDone){
-  var detailedBody=buildDetailedReviewBody(titleText,subLine,qs,ans);
+function downloadDetailedReviewPdf(titleText,subLine,qs,ans,filenameBase,onDone,extra){
+  var detailedBody=buildDetailedReviewBody(titleText,subLine,qs,ans,extra);
   var offscreen=div({style:{position:'fixed',top:'0',left:'-99999px',width:'860px',background:'var(--bg)'}},[]);
   offscreen.append(detailedBody);
   document.body.append(offscreen);
@@ -4538,7 +4557,7 @@ function runQuiz(a,test,questions){
     var score=0;questions.forEach(function(q){if(answers[q.id]===corr(q))score++;});
     var timeTakenSeconds=Math.round((Date.now()-examStartedAt)/1000);
     var questionTimesSeconds={};Object.keys(questionTimeMs).forEach(function(k){questionTimesSeconds[k]=Math.round(questionTimeMs[k]/1000);});
-    var ins=await sb.from('tutoring_results').insert({assignment_id:a?a.id:null,test_id:test.id,student_id:S.user.id,test_title:test.title,mode:mode,score:score,total:questions.length,answers:answers,questions:questions,highlights:highlights,time_taken_seconds:timeTakenSeconds,question_times:questionTimesSeconds,answer_changes:answerChanges}).select('id').single();
+    var ins=await dfInsertResult('tutoring_results',{assignment_id:a?a.id:null,test_id:test.id,student_id:S.user.id,test_title:test.title,mode:mode,score:score,total:questions.length,answers:answers,questions:questions,highlights:highlights,time_taken_seconds:timeTakenSeconds,question_times:questionTimesSeconds,answer_changes:answerChanges},flagged);
     if(!ins.error){
       await updateStreak();
       var _testMins=Math.round(timeTakenSeconds/60);
@@ -5253,7 +5272,7 @@ function runAssessmentQuiz(a,assessment,questions,resumeState){
     var score=0;questions.forEach(function(q){if(answers[q.id]===corr(q))score++;});
     var timeTakenSeconds=Math.round((Date.now()-examStartedAt)/1000);
     var questionTimesSeconds={};Object.keys(questionTimeMs).forEach(function(k){questionTimesSeconds[k]=Math.round(questionTimeMs[k]/1000);});
-    var ins=await sb.from('tutoring_assessment_results').insert({assignment_id:a?a.id:null,assessment_id:assessment.id,student_id:S.user.id,assessment_title:assessment.title,mode:mode,score:score,total:questions.length,answers:answers,questions:questions,highlights:highlights,time_taken_seconds:timeTakenSeconds,question_times:questionTimesSeconds,answer_changes:answerChanges}).select('id').single();
+    var ins=await dfInsertResult('tutoring_assessment_results',{assignment_id:a?a.id:null,assessment_id:assessment.id,student_id:S.user.id,assessment_title:assessment.title,mode:mode,score:score,total:questions.length,answers:answers,questions:questions,highlights:highlights,time_taken_seconds:timeTakenSeconds,question_times:questionTimesSeconds,answer_changes:answerChanges},flagged);
     if(!ins.error){
       clearResume();
       await updateStreak();
@@ -5518,7 +5537,7 @@ function runBlockedAssessment(a,assessment,allQuestions,resumeState){
     var timeTakenSeconds=Math.round((Date.now()-examStartedAt)/1000);
     var questionTimesSeconds={};Object.keys(globalQuestionTime).forEach(function(k){questionTimesSeconds[k]=Math.round(globalQuestionTime[k]/1000);});
     var blockScores=blocks.map(function(blk,i){var c=0;blk.forEach(function(q){if(globalAnswers[q.id]===corr(q))c++;});return{block:i+1,correct:c,total:blk.length};});
-    var ins=await sb.from('tutoring_assessment_results').insert({assignment_id:a?a.id:null,assessment_id:assessment.id,student_id:S.user.id,assessment_title:assessment.title,mode:assessment.mode,score:score,total:allQuestions.length,answers:globalAnswers,questions:allQuestions,highlights:globalHighlights,time_taken_seconds:timeTakenSeconds,question_times:questionTimesSeconds,answer_changes:globalAnswerChanges,block_scores:blockScores}).select('id').single();
+    var ins=await dfInsertResult('tutoring_assessment_results',{assignment_id:a?a.id:null,assessment_id:assessment.id,student_id:S.user.id,assessment_title:assessment.title,mode:assessment.mode,score:score,total:allQuestions.length,answers:globalAnswers,questions:allQuestions,highlights:globalHighlights,time_taken_seconds:timeTakenSeconds,question_times:questionTimesSeconds,answer_changes:globalAnswerChanges,block_scores:blockScores},globalFlagged);
     if(!ins.error){
       clearResume();
       await updateStreak();
@@ -5562,12 +5581,12 @@ async function showReview(result){
   }
   var subLine='Scored '+result.score+'/'+result.total+' \u00b7 '+new Date(result.taken_at).toLocaleDateString();
   content.append(buildGatedReviewUI({
-    qs:qs,ans:ans,resultId:result.id,errorReasons:errorReasons,highlights:result.highlights||{},
+    qs:qs,ans:ans,resultId:result.id,errorReasons:errorReasons,highlights:result.highlights||{},flagged:result.flagged||{},
     title:result.test_title||'Test',subLine:subLine,assessment:!!(result.assessment_id||result.assessment_title),
     onDownload:function(){
       downloadDetailedReviewPdf(result.test_title||'Assessment',subLine,qs,ans,result.test_title||'assessment',function(errMsg){
         if(errMsg)alert(errMsg);
-      });
+      },{flagged:result.flagged||{}});
     },
     onExit:function(){exitFullscreen();paintTabs();renderTab();}
   }));
@@ -9346,7 +9365,7 @@ flushActiveTime();
 const score=questions.filter(q=>answers[q.id]===q.correct_answer).length;
 const timeTakenSeconds=examStartedAt?Math.round((Date.now()-examStartedAt)/1000):0;
 const questionTimesSeconds={};Object.keys(qTimeMs).forEach(function(k){questionTimesSeconds[k]=Math.round(qTimeMs[k]/1000);});
-const ins=await sb.from('vignette_scores').insert({user_id:S.user.id,topic:selTopic,score,total:questions.length,mode,answers:answers,questions:questions,highlights:highlights,time_taken_seconds:timeTakenSeconds,question_times:questionTimesSeconds,answer_changes:ansChanges}).select('id').single();
+const ins=await dfInsertResult('vignette_scores',{user_id:S.user.id,topic:selTopic,score,total:questions.length,mode,answers:answers,questions:questions,highlights:highlights,time_taken_seconds:timeTakenSeconds,question_times:questionTimesSeconds,answer_changes:ansChanges},flagged);
 currentVignetteResultId=(ins.data&&ins.data.id)||null;
 if(S.profile?.is_free_tier!==true||isInTrial()){var _vpts=questions.length*2;await sb.from('profiles').update({total_points:(S.profile?.total_points||0)+_vpts}).eq('id',S.user.id);if(S.profile)S.profile.total_points=(S.profile.total_points||0)+_vpts;}
 await updateStreak();
@@ -9422,7 +9441,7 @@ if(currentVignetteResultId){
 }
 inner.innerHTML='';
 inner.append(buildGatedReviewUI({
-  qs:questions,ans:answers,resultId:currentVignetteResultId,errorReasons:errorReasons,highlights:highlights,
+  qs:questions,ans:answers,resultId:currentVignetteResultId,errorReasons:errorReasons,highlights:highlights,flagged:flagged,
   title:selTopic||'Answer Review',subLine:questions.length+' questions',
   onExit:function(){showSetup();}
 }));
@@ -11415,6 +11434,8 @@ function renderExamStylePreview(kind,item,questions){
     });
 
     if(q.explanation)mainArea.append(buildExplanation(q));
+    // Deo Tutor (explain with AI + Ask Deo) is available while previewing, same as in review.
+    mainArea.append(dfAiExplanation(q,corr(q),{assessment:kind==='assessment'}));
 
     var nr=div({style:{display:'flex',gap:'12px',marginTop:'16px'}},[]);
     if(current>0)nr.append(btn('\u2190 Prev','btn-outline',function(){current--;updateQ();}));
@@ -11528,7 +11549,7 @@ function openAdminResultReview(result,opts){
   document.body.append(overlay);
   overlay.onclick=function(e){if(e.target===overlay)overlay.remove();};
   function renderAdminReviewQuestions(qs,ans,errorReasons){
-    buildReviewQuestionCards(qs,ans,{errorReasons:errorReasons||{},aiExplain:true,assessment:!!(result&&(result.assessment_id||result.assessment_title)),highlights:(result&&result.highlights)||{}}).forEach(function(c){reviewBody.append(c);});
+    buildReviewQuestionCards(qs,ans,{errorReasons:errorReasons||{},aiExplain:true,assessment:!!(result&&(result.assessment_id||result.assessment_title)),highlights:(result&&result.highlights)||{},flagged:(result&&result.flagged)||{}}).forEach(function(c){reviewBody.append(c);});
   }
   var qs=result.questions||[];var ans=result.answers||{};
   if(qs.length){
@@ -12885,7 +12906,7 @@ function openStudent(s){
       var reviewErrorReasons={};
       function renderAdminReviewQuestions(qs,ans){
         fullQs=qs;
-        buildReviewQuestionCards(qs,ans,{errorReasons:reviewErrorReasons,aiExplain:true,assessment:!!(result&&(result.assessment_id||result.assessment_title)),highlights:(result&&result.highlights)||{}}).forEach(function(c){reviewBody.append(c);});
+        buildReviewQuestionCards(qs,ans,{errorReasons:reviewErrorReasons,aiExplain:true,assessment:!!(result&&(result.assessment_id||result.assessment_title)),highlights:(result&&result.highlights)||{},flagged:(result&&result.flagged)||{}}).forEach(function(c){reviewBody.append(c);});
       }
       var qs=result.questions||[];var ans=result.answers||{};
       (async function(){
