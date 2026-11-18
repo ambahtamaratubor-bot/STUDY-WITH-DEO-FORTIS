@@ -1098,6 +1098,7 @@ function dfRefreshEvidence(){
   return _dfEvInflight;
 }
 function dfEvidenceActive(){
+  if(window._dfEvForceOff)return false; // Final Assessment exams: Evidence Mode is always off
   dfEvidenceHydrate();
   if(S.user&&!dfEvidence.fresh&&!_dfEvInflight)dfRefreshEvidence();
   return dfEvidence.on===true;
@@ -3452,6 +3453,25 @@ async function mountGlobalPaymentBanner(){
 
 // STREAK RISK BANNER — global, fixed-position so it shows on every page/tab (not just the
 // tutoring dashboard), and warns before the streak breaks at local midnight.
+// ───────────── WHILE TAKING AN ASSESSMENT: hide the streak banner + "Ask Tutor", and force Evidence Mode off on "Final Assessment" exams ─────────────
+window._dfAssessActive=false;window._dfEvForceOff=false;
+function dfAssessChatShow(show){
+  try{
+    var b=document.getElementById('ai-chat-btn');if(b)b.style.display=show?'':'none';
+    var pn=document.getElementById('ai-chat-panel');if(pn)pn.style.display=show?'':'none';
+  }catch(e){}
+}
+function dfAssessUiSet(on,title){
+  window._dfAssessActive=!!on;
+  window._dfEvForceOff=!!on&&/final\s*assessment/i.test(String(title||''));
+  try{
+    if(on){removeGlobalStreakBanner();dfAssessChatShow(false);}
+    else{dfAssessChatShow(true);mountGlobalStreakBanner();}
+    adjustFixedBannerMargin();
+  }catch(e){}
+}
+// Used by render(): a fresh page render means the assessment screen is gone, so clear the flags without re-mounting anything.
+function dfAssessUiReset(){window._dfAssessActive=false;window._dfEvForceOff=false;dfAssessChatShow(true);}
 function removeGlobalStreakBanner(){
   var b=document.getElementById('df-streak-banner');
   if(b)b.remove();
@@ -3459,6 +3479,7 @@ function removeGlobalStreakBanner(){
   try{adjustFixedBannerMargin();}catch(e){}
 }
 function mountGlobalStreakBanner(){
+  if(window._dfAssessActive){removeGlobalStreakBanner();return;}
   var existing=document.getElementById('df-streak-banner');
   if(existing)existing.remove();
   if(window._dfStreakBannerTimer){clearInterval(window._dfStreakBannerTimer);window._dfStreakBannerTimer=null;}
@@ -3824,6 +3845,7 @@ function enterFullscreen(){
   inner.style.padding='0';
 }
 function exitFullscreen(){
+  dfAssessUiSet(false);
   try{dfNbmeCleanup(true);}catch(e){}
   nav.style.display='';
   wingHeader.style.display='';
@@ -5325,6 +5347,7 @@ function dfNbmeTutorial(o){
 }
 
 function runAssessmentQuiz(a,assessment,questions,resumeState){
+  dfAssessUiSet(true,assessment&&assessment.title);
   var mode=assessment.mode;
   var isTimed=mode==='timed';
   var current=0;
@@ -5457,6 +5480,7 @@ function runAssessmentQuiz(a,assessment,questions,resumeState){
 
 /* ===================== BLOCKED (NBME-style) ASSESSMENT RUNNER ===================== */
 function runBlockedAssessment(a,assessment,allQuestions,resumeState){
+  dfAssessUiSet(true,assessment&&assessment.title);
   var blockSize=assessment.block_size;
   var breakMinutes=DF_BREAK_SEC_PER_BLOCK/60; // every exam gets 5 minutes of break per block, pooled across the exam
   var perBlockLimit=assessment.time_limit||0; // minutes per block, 0 = untimed block
@@ -5773,6 +5797,7 @@ return page;
 }
 const pages={landing,signup,login,pending,dashboard,study,flashcards,vignette,leaderboard,admin,feynman,theory,notes,about,tutoring};
 if(!window.activeSessionId||!window.pomPlan){var _ps=localStorage.getItem('pomodoroState');if(_ps){try{var _psp=JSON.parse(_ps);if(_psp.activeSessionId){window.activeSessionId=_psp.activeSessionId;window.sessionStartTime=_psp.sessionStartTime||null;if(!window.pomPlan&&_psp.segStart){var _cfg=_psp.cfg||{};window.pomPlan={topic:_cfg.topic||'General Study',totalSessions:_cfg.sessions||4,workSec:(_cfg.workMins||25)*60,breakSec:(_cfg.breakMins||5)*60,currentCycle:_psp.curSess||1,isBreakMode:_psp.isBreak||false,startedAtTimestamp:_psp.segStart};}}  }catch(e){}}}
+dfAssessUiReset();
 try{
   root.append((pages[S.page]||landing)());
   if(S.user){
@@ -14792,7 +14817,7 @@ function initAIChat(){
     isOpen=!isOpen;
   }
   function buildChatPanel(){
-    const panelDiv=div({style:{position:'fixed',bottom:'80px',right:'20px',width:'350px',height:'500px',background:'var(--card)',border:'1px solid var(--gold)',borderRadius:'12px',zIndex:10000,display:'flex',flexDirection:'column',overflow:'hidden',boxShadow:'0 8px 24px rgba(0,0,0,0.4)'}});
+    const panelDiv=div({id:'ai-chat-panel',style:{position:'fixed',bottom:'80px',right:'20px',width:'350px',height:'500px',background:'var(--card)',border:'1px solid var(--gold)',borderRadius:'12px',zIndex:10000,display:'flex',flexDirection:'column',overflow:'hidden',boxShadow:'0 8px 24px rgba(0,0,0,0.4)'}});
     const header=div({style:{padding:'12px 16px',background:'var(--gold)',color:'var(--bg)',display:'flex',justifyContent:'space-between',alignItems:'center',fontFamily:"'Plus Jakarta Sans',sans-serif",fontWeight:'bold'}},[
       h('span',{style:{display:'inline-flex',alignItems:'center',gap:'8px'},html:ICONS.brain+' Deo Tutor'}),
       btn('✕','',()=>toggleChat(),{style:{background:'none',border:'none',color:'var(--bg)',fontSize:'18px',cursor:'pointer',padding:'0'}})
