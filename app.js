@@ -630,25 +630,185 @@ function dfHlApply(container,store,qid){
     }catch(err){}
   });
 }
-function renderQuestionText(text,container){
-var LAB_INLINE_RE=/(?:(?:Laboratory|Lab) (?:studies|results|findings|data|values)[^:]*:|studies show:|results show:|values show:)\s*((?:[^;]+(?:\/[^\s;]+)?\s*\([^)]+\);\s*)+)/i;
-var LAB_ITEM_RE=/([^;:()\\/\d]+?)\s+([\d,\.]+(?:[-\u2013][\d,\.]+)?(?:\s*[x\u00d7]\s*10\^?\d+)?\s*(?:\/[\w\u00b5]+)?)\s*(?:U\/L|g\/dL|mg\/dL|mEq\/L|mmol\/L|\u00b5mol\/L|umol\/L|IU\/L|ng\/mL|pg\/mL|\u00b5g\/dL|ug\/dL|%|\/\u00b5L|\/uL|mm\/hr|mm Hg|cm|x10\^?\d+\/?\\w*)?\s*\((?:normal\s+)?([^)]+)\)/gi;
-var match=LAB_INLINE_RE.exec(text);
-if(!match){var p=h('p',{style:{fontSize:'15px',color:'var(--text)',lineHeight:'1.8'}},[]);p.textContent=text;container.append(p);return;}
-var matchStart=text.indexOf(match[0]);
-var before=text.slice(0,matchStart);var after=text.slice(matchStart+match[0].length);
-var labStr=match[1];var labItems=[];var m2;LAB_ITEM_RE.lastIndex=0;
-while((m2=LAB_ITEM_RE.exec(labStr))!==null){var n=m2[1].replace(/^[;\s,]+/,'').trim();n=n.charAt(0).toUpperCase()+n.slice(1);labItems.push({name:n,value:m2[2].trim(),normal:m2[3].trim()});}
-if(!labItems.length){var p2=h('p',{style:{fontSize:'15px',color:'var(--text)',lineHeight:'1.8'}},[]);p2.textContent=text;container.append(p2);return;}
-if(before.trim()){var pBefore=h('p',{style:{fontSize:'15px',color:'var(--text)',lineHeight:'1.8',marginBottom:'14px'}},[]);pBefore.textContent=before.trim();container.append(pBefore);}
-var tableWrap=div({style:{margin:'16px 0',borderRadius:'3px',border:'1px solid var(--teal-border)',overflow:'hidden'}});
-var tableHead=div({style:{background:'rgba(126,184,164,0.1)',padding:'8px 16px',borderBottom:'1px solid var(--teal-border)',display:'flex',alignItems:'center'}});
-tableHead.append(h('span',{style:{fontSize:'10px',fontWeight:'700',letterSpacing:'1.5px',textTransform:'uppercase',color:'var(--teal)'}},['Laboratory Studies']));
-tableWrap.append(tableHead);
-labItems.forEach(function(item){var row=div({style:{display:'flex',alignItems:'baseline',padding:'9px 16px',borderBottom:'1px solid var(--border)'}});var nameEl=h('span',{style:{flex:'1',fontSize:'13px',color:'var(--text)',lineHeight:'1.5'}},[]);nameEl.textContent=item.name;var valEl=h('span',{style:{fontSize:'13px',fontWeight:'400',color:'var(--text)',minWidth:'90px',textAlign:'right'}},[]);valEl.textContent=item.value;var normEl=h('span',{style:{fontSize:'11px',color:'var(--muted)',minWidth:'120px',textAlign:'right',marginLeft:'16px'}},[]);normEl.textContent='('+item.normal+')';row.append(nameEl,valEl,normEl);tableWrap.append(row);});
-container.append(tableWrap);
-if(after.trim()){var pAfter=h('p',{style:{fontSize:'15px',color:'var(--text)',lineHeight:'1.8',marginTop:'14px'}},[]);pAfter.textContent=after.replace(/^[\s.,;]+/,'');container.append(pAfter);}
+// ───────────── QUESTION STEM: LAB VALUES -> TABLE ─────────────
+// Turns the lab-value list inside a question stem into a Test | Value | Reference range table.
+// Works on the formats stored in tutoring_assessment_questions / vignette_questions:
+//   "Laboratory studies show: Na+ 136 mEq/L; K+ 3 mEq/L; ..."      (semicolon list)
+//   "Laboratory studies show: Hemoglobin 12 g/dL, Hematocrit 35%"  (comma list)
+//   "Laboratory studies show:\nHemoglobin: 12.1 g/dL\n..."          (one per line)
+//   "Laboratory studies show: Hemoglobin 7.6 g/dL Hematocrit 22.8%" (run together)
+//   "... haemoglobin 8.0 g/dL (normal 13.5-17.5); ..."              (adds a Reference column)
+// If the text does not parse cleanly into at least 2 rows, nothing is changed and the stem shows as plain text.
+var DF_LAB_HEAD=/(?:(?:laborator\w*|lab|serum|plasma|blood|urine|urinalysis|csf|cerebrospinal fluid|arterial blood gas|blood gas)[^.:?;\n]{0,80}|(?:studies|results?|findings|values|data|tests?)\s+(?:show|shows|shown|reveal|reveals|are shown))\s*:[ \t]*/i;
+var DF_LAB_QUAL='positive|negative|normal|abnormal|absent|present|undetectable|detectable|none|increased|decreased|elevated|trace|reactive|nonreactive|clear|cloudy|turbid|few|many|numerous';
+var DF_LAB_NUM='(?:(?:less than|greater than|more than|up to)\\s+)?[<>\\u2264\\u2265~]?\\s*\\d[\\d,]*(?:\\.\\d+)?(?:\\s*[-\\u2013]\\s*\\d[\\d,]*(?:\\.\\d+)?)?[^\\s;,()]*';
+var DF_LAB_UNIT='(?:[A-Za-z\\u00b5\\u03bc]+\\/[A-Za-z0-9\\u00b5\\u03bc\\u00b2\\u00b3.]+(?:\\/[A-Za-z0-9]+)?(?:\\s+(?:H2O|Hb\\/cell))?|%|sec(?:onds)?|min|mm\\s*Hg|mmHg|fL|pg|mg|g|mL|U|IU|mIU|\\u00b5g|\\u03bcg|ug|ng|mmol|mol|mEq|mOsmol|\\u00b0C|cm|kg|mV|\\u00b5m3|\\u03bcm3|um3)(?![A-Za-z])';
+var DF_LAB_VALUE_SRC='(?:'+DF_LAB_NUM+'(?:\\s+'+DF_LAB_UNIT+'){0,3}|(?:'+DF_LAB_QUAL+')(?![A-Za-z]))(?:\\s*\\([^()]*\\))?';
+var DF_LAB_NAMETOK='(?:[A-Za-z][A-Za-z0-9+\\-\\u2212\\u207a\\u207b\\u2019\'\\/]*,?|\\d{1,2}\\s?(?:AM|PM))';
+var DF_LAB_SCAN=new RegExp('^\\s*('+DF_LAB_NAMETOK+'(?:\\s+'+DF_LAB_NAMETOK+'){0,6}?):?\\s+('+DF_LAB_VALUE_SRC+')','');
+var DF_LAB_VERB=/\b(?:shows?|showing|reveals?|revealing|grows?|is|are|was|were|has|have|had|undergoes|reveal)\b/i;
+var DF_LAB_REF_PREFIX=/^(?:normal|N)\s*[=:]?\s*/i;
+var DF_LAB_REF_BODY=/^[<>≤≥]?\s*\d[\d,.]*(?:\s*[-–]\s*[<>≤≥]?\d[\d,.]*)?(?:\s*[^\d\s][^\s]{0,14}(?:\s+[^\s]{1,8})?)?$/;
+var DF_LAB_REF_BARE=/^[<>≤≥]?\s*\d[\d,.]*\s*[-–]\s*\d[\d,.]*\s*[A-Za-zµμ%\/0-9]{0,12}$/;
+
+function dfLabSplitValueRef(v){
+  v=v.trim();var ref='';
+  var m=/^(.*?)\s*\(([^()]*)\)(.*)$/.exec(v);
+  if(m){
+    var inner=m[2].trim();var hasPrefix=DF_LAB_REF_PREFIX.test(inner);
+    var core=inner.replace(DF_LAB_REF_PREFIX,'');
+    if((hasPrefix&&DF_LAB_REF_BODY.test(core))||DF_LAB_REF_BARE.test(inner)){ref=core.replace(/\s*-\s*/g,'–').replace(/(\d)-(\d)/g,'$1–$2');v=(m[1]+(m[3]?' '+m[3].trim():'')).trim();}
+  }
+  return {value:v,ref:ref};
 }
+function dfLabCleanName(n){
+  n=n.replace(/\s*:\s*/g,' ').replace(/\s{2,}/g,' ').replace(/^(?:and|with)\s+/i,'').trim();
+  return /^[a-z]{4,}/.test(n)?n.charAt(0).toUpperCase()+n.slice(1):n;
+}
+// One chunk ("Serum Na+ 136 mEq/L", "Hemoglobin: 12 g/dL", "Serum IgG: normal") -> {name,value,ref} or null.
+function dfLabParseChunk(chunk){
+  chunk=chunk.trim().replace(/[.\s]+$/,'');
+  if(!chunk||chunk.length>160||/[?\u2014]/.test(chunk))return null;
+  var valOK=new RegExp('^(?:'+DF_LAB_NUM+'|(?:'+DF_LAB_QUAL+')(?![A-Za-z]))','i');
+  var m=/^([^:]{1,60}?)\s*:\s+(.+)$/.exec(chunk);
+  if(m&&m[1].split(/\s+/).length<=8&&!DF_LAB_VERB.test(m[1])&&valOK.test(m[2])){var sv=dfLabSplitValueRef(m[2]);return {name:dfLabCleanName(m[1]),value:sv.value,ref:sv.ref};}
+  var nm=new RegExp('^(.{1,60}?)\\s+((?:less than|greater than|more than|up to\\s+)?[<>\\u2264\\u2265~]?\\s*\\d.*)$','i').exec(chunk);
+  var qm=new RegExp('^(.{2,60}?)\\s+((?:'+DF_LAB_QUAL+')\\b.*)$','i').exec(chunk);
+  var pick=nm&&qm?(nm[1].length<=qm[1].length?nm:qm):(nm||qm);
+  if(!pick)return null;
+  if(pick[1].split(/\s+/).length>8||/[.;]\s/.test(pick[1])||DF_LAB_VERB.test(pick[1]))return null;
+  var sv2=dfLabSplitValueRef(pick[2]);
+  return {name:dfLabCleanName(pick[1]),value:sv2.value,ref:sv2.ref};
+}
+// Split at top level (outside brackets) on a delimiter. Returns [{text,start}].
+function dfLabSplitTop(s,delim){
+  var out=[],depth=0,start=0;
+  for(var i=0;i<s.length;i++){
+    var c=s.charAt(i);
+    if(c==='(')depth++;else if(c===')')depth=Math.max(0,depth-1);
+    else if(depth===0&&((delim===';'&&c===';')||(delim===','&&c===','&&/\s/.test(s.charAt(i+1)||' ')))){out.push({text:s.slice(start,i),start:start});start=i+1;}
+  }
+  out.push({text:s.slice(start),start:start});
+  return out;
+}
+function dfLabSentenceEnd(s){
+  var depth=0;
+  for(var i=0;i<s.length;i++){
+    var c=s.charAt(i);
+    if(c==='(')depth++;else if(c===')')depth=Math.max(0,depth-1);
+    else if(depth===0&&c==='.'&&/\s/.test(s.charAt(i+1)||' ')&&/^\s*(?:[A-Z]|$)/.test(s.slice(i+1)))return i;
+  }
+  return s.length;
+}
+// body = text right after the "Laboratory studies show:" header. Returns {items, rest}.
+function dfLabParseList(body){
+  var items=[],i,it;
+  var q=body.indexOf('?');var head=q>=0?body.slice(0,q):body;
+  // 1) one result per line
+  if(/^\s*\n/.test(body)||(head.match(/\n/g)||[]).length>=2){
+    var lines=body.split('\n'),used=0;
+    for(i=0;i<lines.length;i++){
+      if(!lines[i].trim()){used+=lines[i].length+1;continue;}
+      it=dfLabParseChunk(lines[i]);if(!it)break;items.push(it);used+=lines[i].length+1;
+    }
+    if(items.length>=2)return {items:items,rest:body.slice(Math.min(used,body.length))};
+    items=[];
+  }
+  // 2) ';' or ',' separated, ending at the first full stop
+  var end=dfLabSentenceEnd(body);var region=body.slice(0,end);
+  var delim=dfLabSplitTop(region,';').length>1?';':(dfLabSplitTop(region,',').length>1?',':null);
+  if(delim){
+    var chunks=dfLabSplitTop(region,delim),cut=-1;
+    for(i=0;i<chunks.length;i++){
+      it=dfLabParseChunk(chunks[i].text);
+      if(!it&&delim===','&&i+1<chunks.length){it=dfLabParseChunk(chunks[i].text+', '+chunks[i+1].text);if(it)i++;}
+      if(!it){cut=chunks[i].start;break;}
+      items.push(it);
+    }
+    if(items.length>=2)return {items:items,rest:cut>=0?body.slice(cut):body.slice(end).replace(/^\.\s*/,'')};
+    items=[];
+  }
+  // 3) run together, no separators: "Hemoglobin 7.6 g/dL Hematocrit 22.8% Platelet count 45,000/mm3 A photomicrograph..."
+  var pos=0,m;
+  while((m=DF_LAB_SCAN.exec(body.slice(pos)))){
+    var sv=dfLabSplitValueRef(m[2]);
+    items.push({name:dfLabCleanName(m[1]),value:sv.value,ref:sv.ref});
+    pos+=m[0].length;
+  }
+  if(items.length>=2)return {items:items,rest:body.slice(pos).replace(/^[\s.;,]+/,'')};
+  return null;
+}
+// text -> {before, sections:[{title,items}], after} or null when the stem has no clean lab list.
+function dfParseLabs(text){
+  if(typeof text!=='string')return null;
+  var hm=DF_LAB_HEAD.exec(text);if(!hm)return null;
+  var before=text.slice(0,hm.index).replace(/(?:the\s+)?results?\s+of\s+(?:[A-Za-z]+\s+){0,3}$/i,'');
+  var res=dfLabParseList(text.slice(hm.index+hm[0].length));
+  if(!res)return null;
+  var sections=[{title:'',items:res.items}],rest=res.rest;
+  // more blocks straight after, e.g. "Serum: Na+ 133 ...", "Urine: Glucose 1+ ...", "Arterial blood gas analysis (on 28% oxygen): pH 7.35; ..."
+  for(var guard=0;guard<6;guard++){
+    var lm=/^\s*([A-Z][^.:?;\n]{0,70}?)\s*:[ \t]*/.exec(rest);
+    if(!lm)break;
+    var sub=dfLabParseList(rest.slice(lm[0].length));
+    if(!sub)break;
+    sections.push({title:lm[1].trim(),items:sub.items});rest=sub.rest;
+  }
+  return {before:before.replace(/\s+$/,''),sections:sections,after:rest.replace(/^[\s.,;]+/,'')};
+}
+
+function dfRenderPlainPara(text,container,extra){
+  var p=document.createElement('p');
+  p.style.cssText='font-size:15px;color:var(--text);line-height:1.8;white-space:pre-line;'+(extra||'');
+  p.textContent=text;container.append(p);
+}
+function dfRenderLabTable(parsed,container){
+  var any=false;parsed.sections.forEach(function(s){s.items.forEach(function(it){if(it.ref)any=true;});});
+  var wrap=document.createElement('div');
+  wrap.style.cssText='margin:16px 0;border-radius:3px;border:1px solid var(--teal-border);overflow:hidden;';
+  var cap=document.createElement('div');
+  cap.style.cssText='background:rgba(126,184,164,0.1);padding:8px 16px;border-bottom:1px solid var(--teal-border);';
+  var capT=document.createElement('span');
+  capT.style.cssText='font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--teal);';
+  capT.textContent='Laboratory Studies';cap.append(capT);wrap.append(cap);
+  var scroll=document.createElement('div');scroll.style.cssText='overflow-x:auto;';
+  var tbl=document.createElement('table');tbl.style.cssText='width:100%;border-collapse:collapse;font-size:13px;';
+  var thead=document.createElement('thead');var hr=document.createElement('tr');
+  ['Test','Value'].concat(any?['Reference range']:[]).forEach(function(t,i){
+    var th=document.createElement('th');th.textContent=t;
+    th.style.cssText='text-align:'+(i===0?'left':'right')+';font-size:10px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:var(--muted);padding:7px 16px;border-bottom:1px solid var(--border);white-space:nowrap;';
+    hr.append(th);
+  });
+  thead.append(hr);tbl.append(thead);
+  var tb=document.createElement('tbody');
+  parsed.sections.forEach(function(s){
+    if(s.title){
+      var sr=document.createElement('tr');var sc=document.createElement('td');sc.colSpan=any?3:2;sc.textContent=s.title;
+      sc.style.cssText='padding:7px 16px;background:rgba(126,184,164,0.06);color:var(--teal);font-size:10px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;border-bottom:1px solid var(--border);';
+      sr.append(sc);tb.append(sr);
+    }
+    s.items.forEach(function(it){
+      var tr=document.createElement('tr');
+      var td1=document.createElement('td');td1.textContent=it.name;td1.style.cssText='padding:8px 16px;border-bottom:1px solid var(--border);color:var(--text);line-height:1.5;';
+      var td2=document.createElement('td');td2.textContent=it.value;td2.style.cssText='padding:8px 16px;border-bottom:1px solid var(--border);color:var(--text);text-align:right;white-space:nowrap;';
+      tr.append(td1,td2);
+      if(any){var td3=document.createElement('td');td3.textContent=it.ref?'('+it.ref+')':'';td3.style.cssText='padding:8px 16px;border-bottom:1px solid var(--border);color:var(--muted);font-size:11px;text-align:right;white-space:nowrap;';tr.append(td3);}
+      tb.append(tr);
+    });
+  });
+  tbl.append(tb);scroll.append(tbl);wrap.append(scroll);container.append(wrap);
+}
+function dfRenderStem(text,container,depth){
+  depth=depth||0;
+  var parsed=null;
+  try{parsed=dfParseLabs(text);}catch(e){parsed=null;}
+  if(!parsed||depth>3){dfRenderPlainPara(text,container);return;}
+  if(parsed.before.trim())dfRenderPlainPara(parsed.before.trim(),container,'margin-bottom:14px;');
+  dfRenderLabTable(parsed,container);
+  if(parsed.after.trim())dfRenderStem(parsed.after,container,depth+1);
+}
+
+function renderQuestionText(text,container){dfRenderStem(text,container);}
 // ═══════════════════════════════════════════════════════════════════════════
 // ADDED: Evidence Mode · AI explanations · Email composer · Tutor payout details
 // ═══════════════════════════════════════════════════════════════════════════
@@ -9185,25 +9345,7 @@ hCard.append(div({style:{display:'flex',justifyContent:'space-between',alignItem
 inner.append(hCard);
 });
 }
-function renderQuestionText(text,container){
-var LAB_INLINE_RE=/(?:(?:Laboratory|Lab) (?:studies|results|findings|data|values)[^:]*:|studies show:|results show:|values show:)\s*((?:[^;]+(?:\/[^\s;]+)?\s*\([^)]+\);\s*)+)/i;
-var LAB_ITEM_RE=/([^;:()\\/\d]+?)\s+([\d,\.]+(?:[-\u2013][\d,\.]+)?(?:\s*[x\u00d7]\s*10\^?\d+)?\s*(?:\/[\w\u00b5]+)?)\s*(?:U\/L|g\/dL|mg\/dL|mEq\/L|mmol\/L|\u00b5mol\/L|umol\/L|IU\/L|ng\/mL|pg\/mL|\u00b5g\/dL|ug\/dL|%|\/\u00b5L|\/uL|mm\/hr|mm Hg|cm|x10\^?\d+\/?\\w*)?\s*\((?:normal\s+)?([^)]+)\)/gi;
-var match=LAB_INLINE_RE.exec(text);
-if(!match){var p=h('p',{style:{fontSize:'15px',color:'var(--text)',lineHeight:'1.8'}},[]);p.textContent=text;container.append(p);return;}
-var matchStart=text.indexOf(match[0]);
-var before=text.slice(0,matchStart);var after=text.slice(matchStart+match[0].length);
-var labStr=match[1];var labItems=[];var m2;LAB_ITEM_RE.lastIndex=0;
-while((m2=LAB_ITEM_RE.exec(labStr))!==null){var n=m2[1].replace(/^[;\s,]+/,'').trim();n=n.charAt(0).toUpperCase()+n.slice(1);labItems.push({name:n,value:m2[2].trim(),normal:m2[3].trim()});}
-if(!labItems.length){var p2=h('p',{style:{fontSize:'15px',color:'var(--text)',lineHeight:'1.8'}},[]);p2.textContent=text;container.append(p2);return;}
-if(before.trim()){var pBefore=h('p',{style:{fontSize:'15px',color:'var(--text)',lineHeight:'1.8',marginBottom:'14px'}},[]);pBefore.textContent=before.trim();container.append(pBefore);}
-var tableWrap=div({style:{margin:'16px 0',borderRadius:'3px',border:'1px solid var(--teal-border)',overflow:'hidden'}});
-var tableHead=div({style:{background:'rgba(126,184,164,0.1)',padding:'8px 16px',borderBottom:'1px solid var(--teal-border)',display:'flex',alignItems:'center'}});
-tableHead.append(h('span',{style:{fontSize:'10px',fontWeight:'700',letterSpacing:'1.5px',textTransform:'uppercase',color:'var(--teal)'}},['Laboratory Studies']));
-tableWrap.append(tableHead);
-labItems.forEach(function(item){var row=div({style:{display:'flex',alignItems:'baseline',padding:'9px 16px',borderBottom:'1px solid var(--border)'}});var nameEl=h('span',{style:{flex:'1',fontSize:'13px',color:'var(--text)',lineHeight:'1.5'}},[]);nameEl.textContent=item.name;var valEl=h('span',{style:{fontSize:'13px',fontWeight:'400',color:'var(--text)',minWidth:'90px',textAlign:'right'}},[]);valEl.textContent=item.value;var normEl=h('span',{style:{fontSize:'11px',color:'var(--muted)',minWidth:'120px',textAlign:'right',marginLeft:'16px'}},[]);normEl.textContent='('+item.normal+')';row.append(nameEl,valEl,normEl);tableWrap.append(row);});
-container.append(tableWrap);
-if(after.trim()){var pAfter=h('p',{style:{fontSize:'15px',color:'var(--text)',lineHeight:'1.8',marginTop:'14px'}},[]);pAfter.textContent=after.replace(/^[\s.,;]+/,'');container.append(pAfter);}
-}
+function renderQuestionText(text,container){dfRenderStem(text,container);}
 function showQuiz(){
 examStartedAt=Date.now();qTimeMs={};ansChanges=[];activeQId=null;activeEnteredAt=null;
 page.innerHTML='';page.append(nav);
