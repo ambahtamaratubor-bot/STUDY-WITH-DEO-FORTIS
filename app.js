@@ -15729,7 +15729,7 @@ async function dfRenderTutorClassAttention(holder){
 var dfTutorLockOn=false;
 var dfTutorLock={overlay:null,tick:0,lastUser:null,isStaff:false,checking:false};
 // Super admin bypasses every lock. The role is read by dfInitTutorLock; the database functions also skip super admins.
-function dfIsSuperAdmin(){return typeof dfTutorLock!=='undefined'&&!!dfTutorLock&&dfTutorLock.role==='super_admin';}
+function dfIsSuperAdminLock(){return typeof dfTutorLock!=='undefined'&&!!dfTutorLock&&dfTutorLock.role==='super_admin';}
 function dfEffTutor(slot){
   return (slot.cover_tutor_id&&slot.cover_for_date&&slot.cover_for_date===slot.next_class_date)?slot.cover_tutor_id:slot.tutor_id;
 }
@@ -16035,7 +16035,7 @@ function dfStudentLockHide(){
 //   Flashcards, Q-Bank, requests, messages and payments all stay open so the student can do the work.
 function dfStudentLockApply(){
   var st=dfStudentLock.status;
-  var skip=!S.user||dfIsSuperAdmin()||['login','signup','pending','landing','admin'].indexOf(S.page)!==-1;
+  var skip=!S.user||dfIsSuperAdminLock()||['login','signup','pending','landing','admin'].indexOf(S.page)!==-1;
   var reasons=[];
   if(st&&st.locked&&S.page!=='flashcards'){(st.reasons||[]).forEach(function(r){if(r.type==='flashcards')reasons.push(r);});}
   if(S.page==='tutoring'){
@@ -16646,7 +16646,7 @@ async function dfTutorLockCheck(){
   if(dfTutorLock.checking)return;
   if(!S.user||['login','signup','pending'].indexOf(S.page)!==-1)return;
   dfTutorLock.checking=true;
-  if(dfIsSuperAdmin()){dfTutorLockHide();dfGoalGateHide();dfTutorLock.checking=false;return;} // super admin bypasses every lock
+  if(dfIsSuperAdminLock()){dfTutorLockHide();dfGoalGateHide();dfTutorLock.checking=false;return;} // super admin bypasses every lock
   try{
     var on=await sb.rpc('tutor_lock_enabled');
     dfTutorLockOn=!!(on&&!on.error&&on.data===true);
