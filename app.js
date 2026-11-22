@@ -3845,6 +3845,7 @@ nav.append(dfLogo(),rightNav);
 if(GUEST){nav.style.background='#0A0805';nav.style.borderBottom='1px solid rgba(184,146,46,0.15)';}
 page.append(nav);
 const heroHost=div({});
+if(GUEST)heroHost.append(div({style:{background:'#0A0805',minHeight:'calc(100vh - 64px)'}}));
 page.append(heroHost);
 const inner=div({cls:'inner'});
 const wingHeader=div({},[
@@ -3853,7 +3854,7 @@ const wingHeader=div({},[
   h('p',{cls:'muted',style:{fontSize:'14px',marginBottom:'12px'},html:'Your assigned tests, tasks and results \u2014 sit them, clear them, review them.'},[]),
   div({style:{marginBottom:'20px',display:'flex',gap:'8px',flexWrap:'wrap'}},[btn('My payments','btn-outline',function(){currentTab='payments';paintTabs();renderTab();},{style:{fontSize:'11px',padding:'6px 14px'}}),btn('Book a session \u2192','btn-outline',function(){showBooking();},{style:{fontSize:'11px',padding:'6px 14px'}})])
 ]);
-if(GUEST)wingHeader.innerHTML='';
+if(GUEST){wingHeader.innerHTML='';wingHeader.style.display='none';}
 inner.append(wingHeader);
 page.append(inner);
 
@@ -5860,6 +5861,7 @@ paintTabs();
     sec.append(wrap);
     heroHost.append(sec);
   }
+  function gsHeroBlank(mh){heroHost.innerHTML='';heroHost.append(div({style:{background:'#0A0805',minHeight:mh||'calc(100vh - 64px)'}}));}
   function gsHeader(title,sub){gsHero({compact:true,tag:'— SELF ASSESSMENT —',line1:title,em:'',sub:sub});}
   function gsErrText(e){
     var m=String((e&&e.message)||e||'');
@@ -6065,7 +6067,7 @@ paintTabs();
     return gsStaff;
   }
   async function gsStaffList(){
-    heroHost.innerHTML='';
+    gsHeroBlank('200px');
     content.append(skelCard([['40%'],['100%'],['80%']]));
     var r=await sb.rpc('self_assess_staff_list');
     content.innerHTML='';
@@ -6114,7 +6116,7 @@ paintTabs();
   }
   // ---- sign-up: one short form, nothing else ----
   async function gsSignup(){
-    heroHost.innerHTML='';
+    gsHeroBlank();
     content.append(skelCard([['40%'],['100%'],['60%']]));
     var st=await gsSettings();var wk=gsWeekState(st);
     var live=wk.state==='upcoming'||wk.state==='open';
@@ -6184,7 +6186,7 @@ paintTabs();
   }
   // ---- the list of forms ----
   async function gsList(){
-    heroHost.innerHTML='';
+    gsHeroBlank('200px');
     content.append(skelCard([['40%'],['100%'],['80%']]));
     var res=await Promise.all([sb.rpc('self_assess_list',{p_email:GS.email}),gsSettings()]);
     var lr=res[0],st=res[1]||{};
