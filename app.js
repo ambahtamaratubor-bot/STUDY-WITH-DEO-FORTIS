@@ -3853,6 +3853,7 @@ const wingHeader=div({},[
   h('p',{cls:'muted',style:{fontSize:'14px',marginBottom:'12px'},html:'Your assigned tests, tasks and results \u2014 sit them, clear them, review them.'},[]),
   div({style:{marginBottom:'20px',display:'flex',gap:'8px',flexWrap:'wrap'}},[btn('My payments','btn-outline',function(){currentTab='payments';paintTabs();renderTab();},{style:{fontSize:'11px',padding:'6px 14px'}}),btn('Book a session \u2192','btn-outline',function(){showBooking();},{style:{fontSize:'11px',padding:'6px 14px'}})])
 ]);
+if(GUEST)wingHeader.innerHTML='';
 inner.append(wingHeader);
 page.append(inner);
 
@@ -6087,10 +6088,27 @@ paintTabs();
       content.append(card);
     });
   }
+  // Logged-in students: use their account name and (already confirmed) email, no sign-up and no code.
+  async function gsAccount(){
+    try{
+      var sess=await sb.auth.getSession();
+      var u=sess&&sess.data&&sess.data.session&&sess.data.session.user;
+      if(!u||!u.email)return false;
+      if(GS.account&&GS.email===String(u.email).trim().toLowerCase())return true;
+      var md=u.user_metadata||{};
+      var nm=(S.profile&&S.profile.full_name)||md.full_name||md.name||'';
+      var r=await sb.rpc('self_assess_account_start',{p_name:nm});
+      if(r.error||!r.data)return false;
+      GS.email=r.data.email;GS.name=r.data.name;GS.nbme=r.data.nbme||{};GS.account=true;GS.step='list';
+      try{var st=await gsSettings();var wk=gsWeekState(st);if((wk.state==='upcoming'||wk.state==='open')&&!gsWeekSigned())await gsWeekSignup(GS.name,GS.email,'');}catch(e){}
+      return true;
+    }catch(e){return false;}
+  }
   async function dfGuestHub(){
     gsClearPoll();
     content.innerHTML='';
     if(await gsCheckStaff())return gsStaffList();
+    if(await gsAccount())return gsList();
     if(!GS.email)return gsSignup();
     return gsList();
   }
@@ -6160,7 +6178,7 @@ paintTabs();
     who.append(h('div',{cls:'mono',style:{fontSize:'11px',color:'var(--muted)'}},[GS.name+' · '+GS.email]));
     who.append(div({style:{display:'flex',gap:'8px'}},[
       btn('Refresh','btn-outline',function(){dfGuestHub();},{style:{fontSize:'10px',padding:'6px 12px'}}),
-      btn('Not you?','btn-outline',function(){try{localStorage.removeItem('df-sa-guest');}catch(e){}gsClearPoll();GS={step:'form',email:'',name:'',nbme:{},settings:GS.settings};dfGuestHub();},{style:{fontSize:'10px',padding:'6px 12px'}})
+      GS.account?'':btn('Not you?','btn-outline',function(){try{localStorage.removeItem('df-sa-guest');}catch(e){}gsClearPoll();GS={step:'form',email:'',name:'',nbme:{},settings:GS.settings};dfGuestHub();},{style:{fontSize:'10px',padding:'6px 12px'}})
     ]));
     return who;
   }
@@ -8388,6 +8406,7 @@ twoCol.append(recentCard);
   const studyPartnerLink=adminData?.link_study_partner||'';
   const kahootLink=adminData?.link_kahoot||'';
   const mailAct=actionButton(ICONS.mail,'Mail',function(){dfMailbox();},dfIsNew());mailAct.style.gridColumn='1 / -1';
+  const selfAct=actionButton(ICONS.pencil,'Self Assessment',()=>go('selfassess'),true);selfAct.style.gridColumn='1 / -1';selfAct.style.borderColor='var(--gold)';
   const actionsCard=div({cls:'card',style:{borderRadius:'12px',boxShadow:'0 10px 25px rgba(0,0,0,0.05),0 2px 6px rgba(0,0,0,0.03)'}});
   actionsCard.append(
     h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'18px',marginBottom:'4px'},html:'Quick Actions'}),
@@ -8401,6 +8420,7 @@ twoCol.append(recentCard);
       actionButton(ICONS.brain,'Feynman Arena',()=>go('feynman')),
       actionButton(ICONS.file,'Theory Hub',()=>{if(isFree&&!isInTrial()){showUpgradeModal();return;}go('theory');}),
       actionButton(ICONS.book,'My Notes',()=>go('notes')),
+      selfAct,
       mailAct
     ])
   );
