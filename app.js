@@ -6054,14 +6054,14 @@ paintTabs();
     gsHero(heroOpts);
     setTimeout(function(){try{codeI.focus();}catch(e){}tick();},50);
   }
-  // ---- super admin pass: a signed-in super admin sees and can take every assessment, nothing is saved ----
+  // ---- team pass: any signed-in team member (tutor or not) sees and can take every assessment, nothing is saved ----
   var gsStaff=false;
   async function gsCheckStaff(){
     if(gsStaff)return true;
     try{
       var sess=await sb.auth.getSession();
       if(!(sess&&sess.data&&sess.data.session))return false;
-      var r=await sb.rpc('is_super_admin');
+      var r=await sb.rpc('user_is_admin');
       gsStaff=!!(r&&r.data===true);
     }catch(e){gsStaff=false;}
     return gsStaff;
@@ -6071,7 +6071,7 @@ paintTabs();
     content.append(skelCard([['40%'],['100%'],['80%']]));
     var r=await sb.rpc('self_assess_staff_list');
     content.innerHTML='';
-    gsHero({compact:true,tag:'— SUPER ADMIN PASS —',line1:'Every',em:'assessment.',sub:'You are signed in as super admin, so everything on the portal is open to you. Nothing you take here is saved or shown to guests.'});
+    gsHero({compact:true,tag:'— TEAM PASS —',line1:'Every',em:'assessment.',sub:'You are signed in as part of the Deo Fortis team, so everything on the portal is open to you. Nothing you take here is saved or shown to guests.'});
     content.append(div({style:{display:'flex',justifyContent:'flex-end',marginBottom:'14px'}},[btn('Refresh','btn-outline',function(){dfGuestHub();},{style:{fontSize:'10px',padding:'6px 12px'}})]));
     if(r.error){content.append(emptyCard('Could not load the assessments',String(r.error.message||'')));return;}
     var items=r.data||[];
@@ -11786,7 +11786,7 @@ function renderAssessments(){
   tBody.innerHTML='';
   var _topRow=div({style:{display:'flex',gap:'8px',flexWrap:'wrap',marginBottom:'16px'}},[btn('+ Create New Assessment','btn-gold',function(){renderCreateAssessment();},{style:{fontSize:'12px',padding:'8px 16px'}})]);
   tBody.append(_topRow);
-  dfIsSuperAdmin().then(function(ok){if(ok)_topRow.append(btn('Open Self Assessment portal','btn-outline',function(){go('selfassess');},{style:{fontSize:'12px',padding:'8px 16px'}}));});
+  Promise.resolve(sb.rpc('user_is_admin')).then(function(r){var ok=!!(r&&r.data===true);if(ok)_topRow.append(btn('Open Self Assessment portal','btn-outline',function(){go('selfassess');},{style:{fontSize:'12px',padding:'8px 16px'}}));});
   var listWrap=div({},[]);
   tBody.append(listWrap);
   async function loadAssessments(){
