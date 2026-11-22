@@ -5817,6 +5817,7 @@ paintTabs();
   }
   function gsErrText(e){
     var m=String((e&&e.message)||e||'');
+    if(/unverified/i.test(m))return 'Please verify your email first.';
     if(/locked/i.test(m))return 'This assessment is locked. Purchase it on Selar, then refresh this page.';
     if(/used/i.test(m))return 'You have already taken this free assessment with this email.';
     if(/bad_email/i.test(m))return 'Please enter a valid email address.';
@@ -5930,6 +5931,80 @@ paintTabs();
     box.append(h('div',{style:{fontSize:'11px',color:'var(--dim)',marginTop:'8px',lineHeight:'1.6'}},['Use the same email ('+GS.email+') on Selar. Your purchase unlocks here automatically.']));
     return box;
   }
+  // ---- email verification: a 6-digit code is emailed right away ----
+  async function gsSendCode(nm,em,honeypot){
+    try{
+      var res=await fetch(SURL+'/functions/v1/self-assess-verify',{method:'POST',headers:{'Content-Type':'application/json','apikey':SKEY},body:JSON.stringify({action:'send',name:nm,email:em,website:honeypot||''})});
+      var d=null;try{d=await res.json();}catch(e){}
+      if(res.ok&&d&&d.ok)return {ok:true};
+      if(d&&d.error==='wait')return {ok:false,msg:'Please wait '+(d.retry_in||45)+' seconds before asking for another code.'};
+      if(d&&d.error==='rate_limited')return {ok:false,msg:'Too many codes requested. Please try again later.'};
+      return {ok:false,msg:'We could not send the code. Please check your email address and try again.'};
+    }catch(e){return {ok:false,msg:'Network problem. Please try again.'};}
+  }
+  async function gsCheckCode(em,code){
+    try{
+      var res=await fetch(SURL+'/functions/v1/self-assess-verify',{method:'POST',headers:{'Content-Type':'application/json','apikey':SKEY},body:JSON.stringify({action:'check',email:em,code:code})});
+      var d=null;try{d=await res.json();}catch(e){}
+      if(res.ok&&d&&d.ok)return {ok:true};
+      var er=d&&d.error;
+      if(er==='expired')return {ok:false,msg:'This code has expired. Tap Resend for a new one.'};
+      if(er==='too_many')return {ok:false,msg:'Too many wrong tries. Tap Resend for a new code.'};
+      if(er==='wrong_code')return {ok:false,msg:'That code is not right.'+(d&&d.left!=null?(' '+d.left+(d.left===1?' try':' tries')+' left.'):'')};
+      return {ok:false,msg:'We could not check that code. Please try again.'};
+    }catch(e){return {ok:false,msg:'Network problem. Please try again.'};}
+  }
+  function gsVerify(sent){
+    gsClearPoll();
+    content.innerHTML='';
+    gsHeader('Check your email',sent?('We just sent a 6-digit code to '+GS.email+'. Enter it below to continue.'):('Verify your email to continue. We will send a 6-digit code to '+GS.email+'.'));
+    var card=div({cls:'card',style:{maxWidth:'460px',margin:'0 auto',padding:'24px',textAlign:'center'}},[]);
+    var err=div({style:{fontSize:'12px',margin:'10px 0',display:'none',lineHeight:'1.6'}},['']);
+    function say(msg,ok){err.style.display='block';err.style.color=ok?'var(--teal)':'#ff8888';err.textContent=msg;}
+    var changeB=h('button',{type:'button',style:{background:'none',border:'none',color:'var(--muted)',cursor:'pointer',fontSize:'12px',textDecoration:'underline',padding:'0',marginTop:'14px'}},['Wrong email? Use a different one']);
+    changeB.addEventListener('click',function(){try{localStorage.removeItem('df-sa-guest');}catch(e){}gsClearPoll();GS={step:'form',email:'',name:'',nbme:{},settings:GS.settings};dfGuestHub();});
+    if(!sent){
+      var sb1=btn('Send me a code →','btn-gold',async function(){
+        sb1.disabled=true;sb1.textContent='Sending…';
+        var r=await gsSendCode(GS.name,GS.email,'');
+        if(r.ok){gsVerify(true);return;}
+        sb1.disabled=false;sb1.textContent='Send me a code →';say(r.msg,false);
+      },{style:{width:'100%'}});
+      card.append(sb1,err,changeB);content.append(card);return;
+    }
+    var codeI=h('input',{cls:'input',type:'text',inputMode:'numeric',autocomplete:'one-time-code',maxLength:6,placeholder:'------',style:{textAlign:'center',fontSize:'26px',letterSpacing:'10px',fontFamily:'Georgia,serif'}});
+    var busy=false;
+    var vb=btn('Verify →','btn-gold',async function(){
+      if(busy)return;
+      var code=codeI.value.replace(/\D/g,'');
+      if(code.length!==6){say('Enter the 6-digit code from your email.',false);return;}
+      busy=true;vb.disabled=true;vb.textContent='Checking…';err.style.display='none';
+      var r=await gsCheckCode(GS.email,code);
+      if(!r.ok){busy=false;vb.disabled=false;vb.textContent='Verify →';say(r.msg,false);return;}
+      say('✓ Email verified.',true);
+      // Verified: now record the Self Assessment Week sign-up (this is what sends the confirmation email)
+      try{var st=await gsSettings();var wk=gsWeekState(st);if((wk.state==='upcoming'||wk.state==='open')&&!gsWeekSigned())await gsWeekSignup(GS.name,GS.email,'');}catch(e){}
+      dfGuestHub();
+    },{style:{width:'100%',marginTop:'14px'}});
+    codeI.addEventListener('input',function(){codeI.value=codeI.value.replace(/\D/g,'').slice(0,6);if(codeI.value.length===6)vb.click();});
+    var rb=h('button',{type:'button',style:{background:'none',border:'none',color:'var(--gold)',cursor:'pointer',fontSize:'13px',fontWeight:'600',padding:'0',marginTop:'14px'}},['Resend code']);
+    var left=45;
+    function tick(){
+      if(!document.body.contains(rb))return;
+      if(left>0){rb.disabled=true;rb.style.opacity='0.5';rb.style.cursor='default';rb.textContent='Resend code in '+left+'s';left--;setTimeout(tick,1000);}
+      else{rb.disabled=false;rb.style.opacity='1';rb.style.cursor='pointer';rb.textContent='Resend code';}
+    }
+    rb.addEventListener('click',async function(){
+      if(rb.disabled)return;
+      rb.disabled=true;rb.textContent='Sending…';
+      var r=await gsSendCode(GS.name,GS.email,'');
+      if(r.ok){say('A new code is on its way.',true);codeI.value='';left=45;tick();}
+      else{say(r.msg,false);left=0;tick();}
+    });
+    card.append(codeI,vb,err,div({},[rb]),div({},[changeB]),h('div',{style:{fontSize:'11px',color:'var(--dim)',marginTop:'14px',lineHeight:'1.6'}},['The code can take a minute to arrive. Check your spam folder too.']));
+    content.append(card);
+    setTimeout(function(){try{codeI.focus();}catch(e){}tick();},50);
+  }
   function dfGuestHub(){
     gsClearPoll();
     content.innerHTML='';
@@ -5957,15 +6032,13 @@ paintTabs();
       var nm=nameI.value.trim(),em=emailI.value.trim().toLowerCase();
       if(nm.length<2){err.textContent='Please enter your name.';err.style.display='block';return;}
       if(!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(em)){err.textContent='Please enter a valid email address.';err.style.display='block';return;}
-      go1.disabled=true;go1.textContent='Signing you up…';
+      go1.disabled=true;go1.textContent='Sending your code…';
       var r=await sb.rpc('self_assess_register',{p_name:nm,p_email:em});
       if(r.error){go1.disabled=false;go1.textContent=label;err.textContent=gsErrText(r.error);err.style.display='block';return;}
       GS.email=r.data.email;GS.name=r.data.name;GS.nbme=r.data.nbme||{};GS.step='list';gsSave();
-      if(live){
-        var w=await gsWeekSignup(GS.name,GS.email,hp.value);
-        if(!w.ok){go1.disabled=false;go1.textContent=label;err.textContent=w.msg;err.style.display='block';return;}
-      }
-      dfGuestHub();
+      var sc=await gsSendCode(GS.name,GS.email,hp.value);
+      if(!sc.ok){go1.disabled=false;go1.textContent=label;err.textContent=sc.msg;err.style.display='block';return;}
+      gsVerify(true);
     },{style:{width:'100%'}});
     card.append(field('Name',nameI),field('Email',emailI),hp,h('div',{style:{fontSize:'11px',color:'var(--dim)',marginBottom:'14px',lineHeight:'1.6'}},['Use the same email if you buy more assessments later. That is how we unlock them for you.']),err,go1);
     content.append(card);
@@ -6011,6 +6084,7 @@ paintTabs();
     content.append(skelCard([['40%'],['100%'],['80%']]));
     var res=await Promise.all([sb.rpc('self_assess_list',{p_email:GS.email}),gsSettings()]);
     var lr=res[0],st=res[1]||{};
+    if(lr.error&&/unverified/i.test(String(lr.error.message||'')))return gsVerify(false);
     var wk=gsWeekState(st);
     content.innerHTML='';
     // Signed up, week not open yet: a confirmation, nothing to take yet
