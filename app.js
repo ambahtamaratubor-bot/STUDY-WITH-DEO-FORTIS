@@ -6163,6 +6163,7 @@ function dfSaGlowCss(){
     '.df-sa-tag{display:inline-block;background:linear-gradient(90deg,#b8922e,#f0c85a,#b8922e);background-size:200% 100%;animation:dfSaShine 3s linear infinite;color:#1b1712;font-weight:700;font-size:10px;letter-spacing:2px;text-transform:uppercase;padding:4px 12px;border-radius:999px;margin-bottom:10px}';
   document.head.appendChild(st);
 }
+window.dfSaGlowCss=dfSaGlowCss;
 // Public page (no login). It reuses the Tutoring Wing exam screen in "guest mode".
 function selfassess(){
   window.DF_SELFASSESS=true;
