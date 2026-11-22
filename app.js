@@ -6447,6 +6447,8 @@ function dfSaPortalSelect(a,existing,onDone){
   });
   return sel;
 }
+// The assessment list is built in another part of the app, so the dropdown is shared through window.
+window.dfSaPortalSelect=dfSaPortalSelect;
 
 const pages={landing,signup,login,pending,dashboard,study,flashcards,vignette,leaderboard,admin,feynman,theory,notes,about,tutoring,selfassess,selfweek};
 if(!window.activeSessionId||!window.pomPlan){var _ps=localStorage.getItem('pomodoroState');if(_ps){try{var _psp=JSON.parse(_ps);if(_psp.activeSessionId){window.activeSessionId=_psp.activeSessionId;window.sessionStartTime=_psp.sessionStartTime||null;if(!window.pomPlan&&_psp.segStart){var _cfg=_psp.cfg||{};window.pomPlan={topic:_cfg.topic||'General Study',totalSessions:_cfg.sessions||4,workSec:(_cfg.workMins||25)*60,breakSec:(_cfg.breakMins||5)*60,currentCycle:_psp.curSess||1,isBreakMode:_psp.isBreak||false,startedAtTimestamp:_psp.segStart};}}  }catch(e){}}}
@@ -11819,7 +11821,7 @@ function renderAssessments(){
       }
       btns.append(btn('Preview','btn-outline',function(){openLibraryPreview('assessment',a);},{style:{fontSize:'10px',padding:'6px 12px'}}));
       var _sa=saMap[a.id];
-      btns.append(dfSaPortalSelect(a,_sa,loadAssessments));
+      if(typeof window.dfSaPortalSelect==='function')btns.append(window.dfSaPortalSelect(a,_sa,loadAssessments));
       if(!grouped)btns.append(btn('Assign','btn-gold',function(){openAssignAssessment({assessmentId:a.id,assessmentTitle:a.title});},{style:{fontSize:'10px',padding:'6px 12px'}}));
       btns.append(btn('Archive','btn-outline',async function(){
         if(!confirm('Archive \u201c'+a.title+'\u201d? It leaves this list but nothing is deleted: questions, assignments and scores all stay.'))return;
