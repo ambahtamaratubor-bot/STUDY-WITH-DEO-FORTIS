@@ -3840,9 +3840,12 @@ const GUEST=!!window.DF_SELFASSESS;window.DF_SELFASSESS=false;
 const page=div({});
 const nav=div({cls:'dash-nav'});
 const rightNav=div({style:{display:'flex',gap:'12px',alignItems:'center'}},[]);
-rightNav.append(GUEST?btn('\u2190 Back to site','btn-outline',()=>go('landing'),{style:{padding:'8px 16px'}}):btn('\u2190 Dashboard','btn-outline',()=>go('dashboard'),{style:{padding:'8px 16px'}}),makeThemeBtn());
+rightNav.append(GUEST?btn('\u2190 Back to site','btn-outline',()=>go(S.user?'dashboard':'landing'),{style:{padding:'8px 16px',color:'#FFFFFF',borderColor:'rgba(255,255,255,0.4)'}}):btn('\u2190 Dashboard','btn-outline',()=>go('dashboard'),{style:{padding:'8px 16px'}}),makeThemeBtn());
 nav.append(dfLogo(),rightNav);
+if(GUEST){nav.style.background='#0A0805';nav.style.borderBottom='1px solid rgba(184,146,46,0.15)';}
 page.append(nav);
+const heroHost=div({});
+page.append(heroHost);
 const inner=div({cls:'inner'});
 const wingHeader=div({},[
   h('span',{cls:'chapter',html:'Tutoring Wing'},[]),
@@ -3861,6 +3864,7 @@ const TABS=[['tests','Assigned Tests'],['tasks','Tasks'],['results','My Results'
 
 function enterFullscreen(){
   nav.style.display='none';
+  heroHost.style.display='none';
   wingHeader.style.display='none';
   tabBar.style.display='none';
   inner.style.maxWidth='none';
@@ -3870,6 +3874,7 @@ function exitFullscreen(){
   dfAssessUiSet(false);
   try{dfNbmeCleanup(true);}catch(e){}
   nav.style.display='';
+  heroHost.style.display='';
   wingHeader.style.display='';
   tabBar.style.display='';
   inner.style.maxWidth='';
@@ -5807,14 +5812,54 @@ paintTabs();
   var GS={step:'form',email:'',name:'',nbme:{},settings:null};
   try{var _gsv=JSON.parse(localStorage.getItem('df-sa-guest')||'null');if(_gsv&&_gsv.email){GS.email=_gsv.email;GS.name=_gsv.name||'';GS.nbme=_gsv.nbme||{};GS.step='list';}}catch(e){}
   function gsSave(){try{localStorage.setItem('df-sa-guest',JSON.stringify({email:GS.email,name:GS.name,nbme:GS.nbme,step:GS.step}));}catch(e){}}
-  function gsHeader(title,sub){
-    wingHeader.innerHTML='';
-    wingHeader.append(
-      h('span',{cls:'chapter',html:'Self Assessment'}),
-      h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'26px',marginBottom:'8px'},html:title}),
-      h('p',{cls:'muted',style:{fontSize:'14px',marginBottom:'16px'},html:sub||''})
-    );
+  // ---- look and feel: same dark, gold-on-black hero as the landing page ----
+  var GS_BOOKS='https://raw.githubusercontent.com/ambahtamaratubor-bot/STUDY-WITH-DEO-FORTIS/main/E3677AB0-D918-4B22-A368-EB2C6F68557F.PNG';
+  var GS_COPY='You don’t want to exhaust your NBMEs yet, but you still need something new and predictive that shows you exactly where you are weak. We’ve got you. Our team took our time on this one.';
+  function gsDarkVars(el){
+    var v={'--text':'#F2EBDD','--muted':'#BDB3A0','--dim':'#8E8576','--card':'#14110D','--bg':'#0A0805','--border':'rgba(184,146,46,0.32)','--gold':'#B8922E','--gold-subtle':'rgba(184,146,46,0.12)','--teal':'#7EB8A4'};
+    Object.keys(v).forEach(function(k){el.style.setProperty(k,v[k]);});
   }
+  function gsHeroCard(glow){
+    dfSaGlowCss();
+    var c=div({cls:glow?'df-sa-glow':'',style:{background:'rgba(20,17,13,0.94)',border:'1px solid rgba(184,146,46,0.35)',borderRadius:'6px',padding:'28px',width:'100%',maxWidth:'460px',boxShadow:'0 24px 60px rgba(0,0,0,0.55)',color:'var(--text)'}},[]);
+    gsDarkVars(c);
+    return c;
+  }
+  // o: tag, line1, em, sub, aside (element), facts (bool), compact (bool)
+  function gsHero(o){
+    dfSaGlowCss();
+    wingHeader.innerHTML='';
+    heroHost.innerHTML='';
+    var sec=div({style:{position:'relative',overflow:'hidden',background:'#0A0805',minHeight:o.compact?'0':'calc(100vh - 64px)',display:'flex',alignItems:'center'}},[]);
+    gsDarkVars(sec);
+    sec.append(
+      div({style:{position:'absolute',inset:'0',backgroundImage:'url('+GS_BOOKS+')',backgroundSize:'65%',backgroundPosition:'bottom right',backgroundRepeat:'no-repeat',zIndex:'0',filter:'brightness(0.55) contrast(1.1)'}}),
+      div({style:{position:'absolute',inset:'0',background:'linear-gradient(to right, rgba(10,8,5,0.98) 0%, rgba(10,8,5,0.93) 35%, rgba(10,8,5,0.82) 60%, rgba(10,8,5,0.7) 100%)',zIndex:'1'}}),
+      div({style:{position:'absolute',bottom:'0',left:'0',right:'0',height:o.compact?'60px':'240px',background:'linear-gradient(to top, rgba(10,8,5,1) 0%, rgba(10,8,5,0) 100%)',zIndex:'2'}})
+    );
+    var wrap=div({style:{position:'relative',zIndex:'3',width:'100%',maxWidth:'1120px',margin:'0 auto',padding:o.compact?'40px 24px 34px':'48px 24px 72px',display:'grid',gridTemplateColumns:o.aside?'repeat(auto-fit,minmax(300px,1fr))':'1fr',gap:'48px',alignItems:'center'}},[]);
+    var left=div({cls:'df-sa-rise'},[]);
+    left.append(h('span',{cls:'chapter',style:{color:'var(--gold)',letterSpacing:'4px',marginBottom:'20px',display:'block'},html:dfEsc(o.tag||'')}));
+    var h1=h('h1',{cls:'big',style:{marginBottom:'20px',lineHeight:'0.95'},html:'<span style="color:#FFFFFF;font-family:\'Playfair Display\',serif;">'+dfEsc(o.line1||'')+'</span>'+(o.em?'<br><em class="gold-em">'+dfEsc(o.em)+'</em>':'')});
+    if(o.compact)h1.style.fontSize='clamp(32px,5vw,48px)';
+    left.append(h1,div({style:{width:'60px',height:'2px',background:'var(--gold)',marginBottom:'22px'}}));
+    if(o.sub)left.append(h('p',{cls:'muted',style:{fontSize:o.compact?'15px':'16px',lineHeight:'1.8',maxWidth:'500px',marginBottom:'0',color:'var(--muted)'},html:dfEsc(o.sub)}));
+    if(o.facts){
+      var row=div({style:{display:'flex',flexWrap:'wrap',marginTop:'38px',borderTop:'1px solid rgba(184,146,46,0.15)',paddingTop:'22px',gap:'0'}},[]);
+      [['NBME-style','exam interface'],['Full','score breakdown'],['Free','to start']].forEach(function(f,i){
+        row.append(div({style:{paddingRight:'28px',marginRight:'28px',borderRight:i<2?'1px solid rgba(184,146,46,0.15)':'none',marginBottom:'8px'}},[
+          h('div',{style:{fontFamily:"'Playfair Display',serif",fontSize:'20px',color:'#FFFFFF',lineHeight:'1.2'}},[f[0]]),
+          h('div',{style:{fontFamily:'Inter,sans-serif',fontSize:'10px',letterSpacing:'2px',textTransform:'uppercase',color:'var(--dim)',marginTop:'4px'}},[f[1]])
+        ]));
+      });
+      left.append(row);
+    }
+    wrap.append(left);
+    if(o.aside)wrap.append(div({cls:'df-sa-rise',style:{animationDelay:'.18s',display:'flex',justifyContent:'center',width:'100%'}},[o.aside]));
+    sec.append(wrap);
+    heroHost.append(sec);
+  }
+  function gsHeader(title,sub){gsHero({compact:true,tag:'— SELF ASSESSMENT —',line1:title,em:'',sub:sub});}
   function gsErrText(e){
     var m=String((e&&e.message)||e||'');
     if(/unverified/i.test(m))return 'Please verify your email first.';
@@ -5957,12 +6002,12 @@ paintTabs();
   function gsVerify(sent){
     gsClearPoll();
     content.innerHTML='';
-    gsHeader('Check your email',sent?('We just sent a 6-digit code to '+GS.email+'. Enter it below to continue.'):('Verify your email to continue. We will send a 6-digit code to '+GS.email+'.'));
-    var card=div({cls:'card',style:{maxWidth:'460px',margin:'0 auto',padding:'24px',textAlign:'center'}},[]);
+    var card=gsHeroCard(false);card.style.textAlign='center';
     var err=div({style:{fontSize:'12px',margin:'10px 0',display:'none',lineHeight:'1.6'}},['']);
     function say(msg,ok){err.style.display='block';err.style.color=ok?'var(--teal)':'#ff8888';err.textContent=msg;}
     var changeB=h('button',{type:'button',style:{background:'none',border:'none',color:'var(--muted)',cursor:'pointer',fontSize:'12px',textDecoration:'underline',padding:'0',marginTop:'14px'}},['Wrong email? Use a different one']);
     changeB.addEventListener('click',function(){try{localStorage.removeItem('df-sa-guest');}catch(e){}gsClearPoll();GS={step:'form',email:'',name:'',nbme:{},settings:GS.settings};dfGuestHub();});
+    var heroOpts={tag:'— ONE QUICK STEP —',line1:'Check your',em:'email.',sub:sent?('We just sent a 6-digit code to '+GS.email+'. Enter it to open your assessments.'):('We need to confirm it is really you. We will send a 6-digit code to '+GS.email+'.'),aside:card};
     if(!sent){
       var sb1=btn('Send me a code →','btn-gold',async function(){
         sb1.disabled=true;sb1.textContent='Sending…';
@@ -5970,9 +6015,10 @@ paintTabs();
         if(r.ok){gsVerify(true);return;}
         sb1.disabled=false;sb1.textContent='Send me a code →';say(r.msg,false);
       },{style:{width:'100%'}});
-      card.append(sb1,err,changeB);content.append(card);return;
+      card.append(h('div',{style:{fontFamily:"'Playfair Display',serif",fontSize:'24px',color:'#FFFFFF',marginBottom:'16px'}},['Verify your email']),sb1,err,changeB);
+      gsHero(heroOpts);return;
     }
-    var codeI=h('input',{cls:'input',type:'text',inputMode:'numeric',autocomplete:'one-time-code',maxLength:6,placeholder:'------',style:{textAlign:'center',fontSize:'26px',letterSpacing:'10px',fontFamily:'Georgia,serif'}});
+    var codeI=h('input',{cls:'input',type:'text',inputMode:'numeric',autocomplete:'one-time-code',maxLength:6,placeholder:'••••••',style:{textAlign:'center',fontSize:'28px',letterSpacing:'12px',fontFamily:'Georgia,serif'}});
     var busy=false;
     var vb=btn('Verify →','btn-gold',async function(){
       if(busy)return;
@@ -6001,27 +6047,67 @@ paintTabs();
       if(r.ok){say('A new code is on its way.',true);codeI.value='';left=45;tick();}
       else{say(r.msg,false);left=0;tick();}
     });
-    card.append(codeI,vb,err,div({},[rb]),div({},[changeB]),h('div',{style:{fontSize:'11px',color:'var(--dim)',marginTop:'14px',lineHeight:'1.6'}},['The code can take a minute to arrive. Check your spam folder too.']));
-    content.append(card);
+    card.append(h('div',{style:{fontFamily:"'Playfair Display',serif",fontSize:'24px',color:'#FFFFFF',marginBottom:'16px'}},['Enter your code']),codeI,vb,err,div({},[rb]),div({},[changeB]),h('div',{style:{fontSize:'11px',color:'var(--dim)',marginTop:'14px',lineHeight:'1.6'}},['It can take a minute to arrive. Check your spam folder too.']));
+    gsHero(heroOpts);
     setTimeout(function(){try{codeI.focus();}catch(e){}tick();},50);
   }
-  function dfGuestHub(){
+  // ---- super admin pass: a signed-in super admin sees and can take every assessment, nothing is saved ----
+  var gsStaff=false;
+  async function gsCheckStaff(){
+    if(gsStaff)return true;
+    try{
+      var sess=await sb.auth.getSession();
+      if(!(sess&&sess.data&&sess.data.session))return false;
+      var r=await sb.rpc('is_super_admin');
+      gsStaff=!!(r&&r.data===true);
+    }catch(e){gsStaff=false;}
+    return gsStaff;
+  }
+  async function gsStaffList(){
+    heroHost.innerHTML='';
+    content.append(skelCard([['40%'],['100%'],['80%']]));
+    var r=await sb.rpc('self_assess_staff_list');
+    content.innerHTML='';
+    gsHero({compact:true,tag:'— SUPER ADMIN PASS —',line1:'Every',em:'assessment.',sub:'You are signed in as super admin, so everything on the portal is open to you. Nothing you take here is saved or shown to guests.'});
+    content.append(div({style:{display:'flex',justifyContent:'flex-end',marginBottom:'14px'}},[btn('Refresh','btn-outline',function(){dfGuestHub();},{style:{fontSize:'10px',padding:'6px 12px'}})]));
+    if(r.error){content.append(emptyCard('Could not load the assessments',String(r.error.message||'')));return;}
+    var items=r.data||[];
+    if(!items.length){content.append(emptyCard('Nothing is on the portal yet','Use the dropdown on an assessment card to publish one.'));return;}
+    items.forEach(function(it){
+      var card=div({cls:'card',style:{marginBottom:'10px',display:'flex',justifyContent:'space-between',alignItems:'center',gap:'14px',flexWrap:'wrap'}},[]);
+      var paid=it.access==='paid';
+      var badges=div({style:{display:'flex',alignItems:'center',flexWrap:'wrap',marginBottom:'6px',gap:'8px'}},[
+        h('span',{cls:'mono',style:{fontSize:'10px',letterSpacing:'1px',textTransform:'uppercase',color:paid?'var(--gold)':'var(--teal)',border:'1px solid '+(paid?'var(--gold)':'rgba(126,173,168,0.4)'),borderRadius:'999px',padding:'2px 10px'}},[paid?('Paid · '+gsMoney(it.price)):'Free']),
+        it.enabled?'':h('span',{cls:'mono',style:{fontSize:'10px',letterSpacing:'1px',textTransform:'uppercase',color:'var(--dim)',border:'1px solid var(--border)',borderRadius:'999px',padding:'2px 10px'}},['Hidden']),
+        h('span',{style:{fontFamily:'Georgia,serif',fontSize:'17px',color:'var(--text)'}},['#'+it.code+' · '+it.title])
+      ]);
+      var meta=[];if(it.questions)meta.push(it.questions+' questions');if(it.block_size)meta.push(Math.ceil(it.questions/it.block_size)+' blocks');else if(it.mode==='timed'&&it.time_limit)meta.push(it.time_limit+' min');
+      card.append(div({style:{flex:'1',minWidth:'220px'}},[badges,h('div',{cls:'mono',style:{fontSize:'11px',color:'var(--muted)'}},[meta.join(' · ')])]));
+      card.append(btn('Open','btn-gold',function(){gsStart(it,true);},{style:{fontSize:'11px',padding:'8px 16px'}}));
+      content.append(card);
+    });
+  }
+  async function dfGuestHub(){
     gsClearPoll();
     content.innerHTML='';
+    if(await gsCheckStaff())return gsStaffList();
     if(!GS.email)return gsSignup();
     return gsList();
   }
   // ---- sign-up: one short form, nothing else ----
   async function gsSignup(){
+    heroHost.innerHTML='';
     content.append(skelCard([['40%'],['100%'],['60%']]));
     var st=await gsSettings();var wk=gsWeekState(st);
     var live=wk.state==='upcoming'||wk.state==='open';
     var range=live?(gsFmtDate(wk.start)+' – '+gsFmtDate(wk.end)):'';
-    gsHeader(live?'Free Self Assessment Week':'Free Self Assessment',live?(wk.state==='open'?'The week is open now. Sign up and your assessments open right away.':'Sign up and we will email you the link the moment the week opens ('+range+').'):'Test yourself with USMLE-style questions and see a full breakdown of your score. No account needed.');
     content.innerHTML='';
-    dfSaGlowCss();
-    var card=div({cls:live?'df-sa-week':'card',style:{maxWidth:'520px',margin:'0 auto',padding:'24px',borderRadius:'6px'}},[]);
+    var card=gsHeroCard(live);
     if(live)card.append(h('div',{cls:'df-sa-tag'},['Free · '+range]));
+    card.append(
+      h('div',{style:{fontFamily:"'Playfair Display',serif",fontSize:'26px',color:'#FFFFFF',marginBottom:'6px',lineHeight:'1.2'}},[live?'Reserve your spot':'Get started']),
+      h('div',{style:{fontSize:'13px',color:'var(--muted)',lineHeight:'1.7',marginBottom:'20px'}},[wk.state==='open'?'The week is open now. Sign up and your assessments open right away.':wk.state==='upcoming'?'Sign up now and we will email you the link the moment the week opens.':'Free to start. No account needed.'])
+    );
     var nameI=inp('Your full name','text',GS.name||'');
     var emailI=inp('Your email address','email',GS.email||'');
     var hp=h('input',{type:'text',tabindex:'-1',autocomplete:'off',style:{position:'absolute',left:'-9999px',opacity:'0',height:'0'}});
@@ -6040,8 +6126,8 @@ paintTabs();
       if(!sc.ok){go1.disabled=false;go1.textContent=label;err.textContent=sc.msg;err.style.display='block';return;}
       gsVerify(true);
     },{style:{width:'100%'}});
-    card.append(field('Name',nameI),field('Email',emailI),hp,h('div',{style:{fontSize:'11px',color:'var(--dim)',marginBottom:'14px',lineHeight:'1.6'}},['Use the same email if you buy more assessments later. That is how we unlock them for you.']),err,go1);
-    content.append(card);
+    card.append(field('Name',nameI),field('Email',emailI),hp,h('div',{style:{fontSize:'11px',color:'var(--dim)',marginBottom:'14px',lineHeight:'1.6'}},['We will email you a 6-digit code to confirm it is you. Use the same email if you buy more assessments later.']),err,go1);
+    gsHero({tag:live?('— FREE SELF ASSESSMENT WEEK · '+range.toUpperCase()+' —'):'— DEO FORTIS SELF ASSESSMENT —',line1:'Take a Deo Fortis',em:'Self Assessment.',sub:GS_COPY,facts:true,aside:card});
   }
   // Optional: NBME scores (collapsed, never required)
   function gsNbmeCard(){
@@ -6080,7 +6166,7 @@ paintTabs();
   }
   // ---- the list of forms ----
   async function gsList(){
-    gsHeader('Self Assessments','');
+    heroHost.innerHTML='';
     content.append(skelCard([['40%'],['100%'],['80%']]));
     var res=await Promise.all([sb.rpc('self_assess_list',{p_email:GS.email}),gsSettings()]);
     var lr=res[0],st=res[1]||{};
@@ -6089,15 +6175,13 @@ paintTabs();
     content.innerHTML='';
     // Signed up, week not open yet: a confirmation, nothing to take yet
     if(wk.state==='upcoming'){
-      dfSaGlowCss();
-      gsHeader('You are in','Self Assessment Week opens '+gsFmtDate(wk.start)+'.');
-      content.append(gsWho());
+      var range2=gsFmtDate(wk.start)+' – '+gsFmtDate(wk.end);
       var signed=gsWeekSigned();
-      var uc=div({cls:'df-sa-week',style:{borderRadius:'6px',padding:'22px',maxWidth:'560px',margin:'0 auto'}},[]);
-      uc.append(h('div',{cls:'df-sa-tag'},['Free · '+gsFmtDate(wk.start)+' – '+gsFmtDate(wk.end)]));
+      var uc=gsHeroCard(true);
+      uc.append(h('div',{cls:'df-sa-tag'},['Free · '+range2]));
       if(signed){
-        uc.append(h('div',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'20px',fontWeight:'700',marginBottom:'6px'}},['✅ You are signed up']),
-          h('div',{style:{fontSize:'13px',color:'var(--muted)',lineHeight:'1.7'}},['We will email the direct link to '+GS.email+' the moment the week opens on '+gsFmtDate(wk.start)+'. The free assessments open here, and the other forms can be bought on Selar.']));
+        uc.append(h('div',{style:{fontFamily:"'Playfair Display',serif",fontSize:'24px',color:'#FFFFFF',marginBottom:'8px',lineHeight:'1.25'}},['✅ You are signed up']),
+          h('div',{style:{fontSize:'13px',color:'var(--muted)',lineHeight:'1.7',marginBottom:'18px'}},['We will email the direct link to '+GS.email+' the moment the week opens. The free assessments open here, and the other forms can be bought on Selar.']));
       }else{
         var ue=div({style:{fontSize:'12px',color:'#ff8888',margin:'8px 0',display:'none'}},['']);
         var ub=btn('Reserve my spot →','btn-gold',async function(){
@@ -6106,14 +6190,16 @@ paintTabs();
           if(w.ok){dfGuestHub();return;}
           ub.disabled=false;ub.textContent='Reserve my spot →';ue.textContent=w.msg;ue.style.display='block';
         },{style:{width:'100%'}});
-        uc.append(h('div',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'20px',fontWeight:'700',marginBottom:'6px'}},['Self Assessment Week']),
-          h('div',{style:{fontSize:'13px',color:'var(--muted)',lineHeight:'1.7',marginBottom:'14px'}},['Reserve your spot and we will email you the link the moment the week opens.']),ue,ub);
+        uc.append(h('div',{style:{fontFamily:"'Playfair Display',serif",fontSize:'24px',color:'#FFFFFF',marginBottom:'8px'}},['Reserve your spot']),
+          h('div',{style:{fontSize:'13px',color:'var(--muted)',lineHeight:'1.7',marginBottom:'16px'}},['One tap and we will email you the link the moment the week opens.']),ue,ub);
       }
-      content.append(uc);
-      var nb0=gsNbmeCard();if(nb0)content.append(nb0);
+      uc.append(gsWho());
+      var aside=div({style:{display:'flex',flexDirection:'column',gap:'4px',alignItems:'center',width:'100%'}},[uc]);
+      var nb0=gsNbmeCard();if(nb0){gsDarkVars(nb0);nb0.style.maxWidth='460px';aside.append(nb0);}
+      gsHero({tag:'— YOU ARE IN —',line1:'See you on',em:gsFmtDate(wk.start)+'.',sub:'Self Assessment Week runs '+range2+' (Eastern Time). Come back to this page any time, or just wait for our email.',aside:aside});
       return;
     }
-    gsHeader('Self Assessments','Free ones open right away. The others can be bought on Selar and open here once you have paid.');
+    gsHero({compact:true,tag:'— SELF ASSESSMENT —',line1:'Choose your',em:'assessment.',sub:'Free ones open right away. The others can be bought on Selar and open here once you have paid.'});
     content.append(gsWho());
     if(GS.flash){content.append(div({style:{border:'1px solid var(--teal)',color:'var(--teal)',borderRadius:'6px',padding:'12px 14px',fontSize:'13px',marginBottom:'14px'}},[GS.flash]));GS.flash='';}
     if(lr.error){content.append(emptyCard('Could not load the assessments','Check your connection and tap Refresh.'));return;}
@@ -6155,10 +6241,10 @@ paintTabs();
     }
     var nb=gsNbmeCard();if(nb)content.append(nb);
   }
-  async function gsStart(it){
+  async function gsStart(it,staff){
     gsClearPoll();
     content.innerHTML='';content.append(skelCard([['40%'],['100%'],['100%'],['80%']]));
-    var r=await sb.rpc('self_assess_start',{p_email:GS.email,p_assessment_id:it.assessment_id});
+    var r=staff?await sb.rpc('self_assess_staff_start',{p_assessment_id:it.assessment_id}):await sb.rpc('self_assess_start',{p_email:GS.email,p_assessment_id:it.assessment_id});
     if(r.error||!r.data){content.innerHTML='';alert(gsErrText(r.error));dfGuestHub();return;}
     var assessment=r.data.assessment;var questions=r.data.questions||[];
     if(!questions.length){content.innerHTML='';alert('This assessment has no questions yet.');dfGuestHub();return;}
@@ -6188,6 +6274,12 @@ paintTabs();
   // After the last question: do NOT show the score yet. Ask the two questions first.
   async function dfGuestFinish(o){
     gsClearPoll();
+    if(gsStaff){
+      try{if(o.clear)o.clear();}catch(e){}
+      var tot=(o.questions||[]).length;
+      gsShowReport({assessment_id:o.assessment.id,assessment_title:o.assessment.title,score:o.score,total:tot,questions:o.questions,answers:o.answers,time_taken_seconds:o.timeTakenSeconds,question_times:o.questionTimes,answer_changes:o.answerChanges,block_scores:o.blockScores});
+      return;
+    }
     try{if(o.clear)o.clear();}catch(e){}
     content.innerHTML='';content.append(skelCard([['40%'],['100%'],['80%']]));
     var r=await sb.rpc('self_assess_submit',{p_email:GS.email,p_assessment_id:o.assessment.id,p_answers:o.answers||{},p_questions:o.questions||[],p_time:o.timeTakenSeconds||0,p_question_times:o.questionTimes||{},p_answer_changes:o.answerChanges||[],p_block_scores:o.blockScores||null,p_highlights:o.highlights||{},p_flagged:o.flagged||{}});
@@ -6263,6 +6355,7 @@ function dfSaGlowCss(){
   var st=document.createElement('style');st.id='df-sa-glow-css';
   st.textContent='@keyframes dfSaGlow{0%,100%{box-shadow:0 0 6px rgba(184,146,46,.45),0 0 14px rgba(184,146,46,.22)}50%{box-shadow:0 0 18px rgba(240,200,90,.95),0 0 38px rgba(184,146,46,.55)}}'+
     '@keyframes dfSaShine{0%{background-position:-200% 0}100%{background-position:200% 0}}'+
+    '@keyframes dfSaRise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}.df-sa-rise{animation:dfSaRise .7s cubic-bezier(.2,.7,.2,1) both}'+
     '.df-sa-glow{animation:dfSaGlow 1.8s ease-in-out infinite;border:1px solid var(--gold)!important}'+
     '.df-sa-week{background:linear-gradient(135deg,rgba(184,146,46,.16),rgba(184,146,46,.04) 55%,rgba(184,146,46,.16));border:1px solid var(--gold)!important;animation:dfSaGlow 2.2s ease-in-out infinite}'+
     '.df-sa-tag{display:inline-block;background:linear-gradient(90deg,#b8922e,#f0c85a,#b8922e);background-size:200% 100%;animation:dfSaShine 3s linear infinite;color:#1b1712;font-weight:700;font-size:10px;letter-spacing:2px;text-transform:uppercase;padding:4px 12px;border-radius:999px;margin-bottom:10px}';
@@ -11667,7 +11760,9 @@ function openAssessmentVersionPicker(baseTitle,members){
 function renderAssessments(){
   subNav.style.display='flex';
   tBody.innerHTML='';
-  tBody.append(div({style:{display:'flex',gap:'8px',flexWrap:'wrap',marginBottom:'16px'}},[btn('+ Create New Assessment','btn-gold',function(){renderCreateAssessment();},{style:{fontSize:'12px',padding:'8px 16px'}})]));
+  var _topRow=div({style:{display:'flex',gap:'8px',flexWrap:'wrap',marginBottom:'16px'}},[btn('+ Create New Assessment','btn-gold',function(){renderCreateAssessment();},{style:{fontSize:'12px',padding:'8px 16px'}})]);
+  tBody.append(_topRow);
+  dfIsSuperAdmin().then(function(ok){if(ok)_topRow.append(btn('Open Self Assessment portal','btn-outline',function(){go('selfassess');},{style:{fontSize:'12px',padding:'8px 16px'}}));});
   var listWrap=div({},[]);
   tBody.append(listWrap);
   async function loadAssessments(){
