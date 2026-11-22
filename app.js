@@ -1436,6 +1436,19 @@ function dfAiExplanation(q,correct,aiOpts){
   }catch(e){}
 })();
 
+// Public Self Assessment links:  ?selfassess=1  opens the assessment page, ?selfweek=1 opens the week sign-up page.
+(function dfCaptureSelfAssessLink(){
+  try{
+    var u=new URL(window.location.href);
+    var pg=u.searchParams.has('selfassess')?'selfassess':(u.searchParams.has('selfweek')?'selfweek':'');
+    if(pg){
+      window.DF_START_PAGE=pg;S.page=pg;
+      u.searchParams.delete('selfassess');u.searchParams.delete('selfweek');
+      window.history.replaceState(null,'',u.pathname+(u.search||'')+u.hash);
+    }
+  }catch(e){}
+})();
+
 var dfMail={unread:0,btn:null,badge:null,tick:0,box:null,lastUser:null};
 // Background checks (mail badge, tutor reviews, locks) only count time while this tab is on screen,
 // and run one catch-up check when the person comes back after a minute or more away.
@@ -2379,7 +2392,7 @@ var ERROR_REASONS=[
   ['fixated_on_detail','I fixated on one thing in the question'],
   ['time_pressure','I ran out of time / rushed']
 ];
-function buildErrorReasonPicker(resultId,questionId,existingReason,onSaved){
+function buildErrorReasonPicker(resultId,questionId,existingReason,onSaved,trailingEl){
   var wrap=div({style:{marginTop:'10px'}},[]);
   if(!resultId||!questionId){
     wrap.append(h('div',{style:{fontSize:'11px',color:'#ff8888'}},['Could not attach a reason picker to this question \u2014 missing result reference.']));
@@ -2406,6 +2419,7 @@ function buildErrorReasonPicker(resultId,questionId,existingReason,onSaved){
     }
   };
   row.append(sel,savedNote,errNote);
+  if(trailingEl)row.append(trailingEl);
   wrap.append(row);
   return wrap;
 }
@@ -2514,20 +2528,27 @@ function buildGatedReviewUI(opts){
       }
       qCard.append(expWrap);
     }
+    var isLast=(idx===qs.length-1);
+    function goNext(){
+      if(isLast){if(!canLeave())return;opts.onExit&&opts.onExit();return;}
+      var before=idx;
+      tryGoTo(idx+1);
+      if(idx!==before)wrap.scrollIntoView({behavior:'smooth',block:'start'});
+    }
     if(!isCorrect){
+      // Next sits on the same line as the "why did you miss this" dropdown so the student
+      // does not have to scroll back up and click a number in the nav.
+      var inlineNext=btn(isLast?'Finish':'Next \u2192','btn-gold',goNext,{style:{fontSize:'12px',padding:'8px 16px',marginLeft:'auto'}});
       qCard.append(buildErrorReasonPicker(resultId,q.id,errorReasons[q.id],function(savedReason){
         errorReasons[q.id]=savedReason;
         blockMsg.style.display='none';
         paintNav();
-      }));
+      },inlineNext));
     }
     qPanel.append(qCard);
     prevBtn.disabled=(idx===0);
-    nextBtn.textContent=(idx===qs.length-1)?'Finish':'Next \u2192';
-    nextBtn.onclick=function(){
-      if(idx===qs.length-1){if(!canLeave())return;opts.onExit&&opts.onExit();return;}
-      tryGoTo(idx+1);
-    };
+    nextBtn.textContent=isLast?'Finish':'Next \u2192';
+    nextBtn.onclick=goNext;
   }
   renderQuestion();
   return wrap;
@@ -3542,7 +3563,7 @@ if(!S.user){
     S.user=_rsess.user;
     var _savedPage=localStorage.getItem('df-page');
     var _admOk=false;try{_admOk=localStorage.getItem('df-admin-session')==='1';}catch(e){}
-    if(_savedPage&&_savedPage!=='landing'&&_savedPage!=='login'&&_savedPage!=='signup'&&(_savedPage!=='admin'||_admOk)){S.page=_savedPage;}
+    if(window.DF_START_PAGE){S.page=window.DF_START_PAGE;}else if(_savedPage&&_savedPage!=='landing'&&_savedPage!=='login'&&_savedPage!=='signup'&&_savedPage!=='selfassess'&&_savedPage!=='selfweek'&&(_savedPage!=='admin'||_admOk)){S.page=_savedPage;}
     if(!S.profile){await getProfile(_rsess.user.id);render();return;}return;
   }
 }
@@ -3815,10 +3836,11 @@ box.append(h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'
 ov.append(box);document.body.append(ov);
 }
 function tutoring(){
+const GUEST=!!window.DF_SELFASSESS;window.DF_SELFASSESS=false;
 const page=div({});
 const nav=div({cls:'dash-nav'});
 const rightNav=div({style:{display:'flex',gap:'12px',alignItems:'center'}},[]);
-rightNav.append(btn('\u2190 Dashboard','btn-outline',()=>go('dashboard'),{style:{padding:'8px 16px'}}),makeThemeBtn());
+rightNav.append(GUEST?btn('\u2190 Back to site','btn-outline',()=>go('landing'),{style:{padding:'8px 16px'}}):btn('\u2190 Dashboard','btn-outline',()=>go('dashboard'),{style:{padding:'8px 16px'}}),makeThemeBtn());
 nav.append(dfLogo(),rightNav);
 page.append(nav);
 const inner=div({cls:'inner'});
@@ -3857,6 +3879,7 @@ function exitFullscreen(){
 
 function paintTabs(){
   tabBar.innerHTML='';
+  if(GUEST)return;
   if(currentTab==='dashboard')return;
   tabBar.append(btn('\u2190 Back to Dashboard','btn-outline',function(){currentTab='dashboard';paintTabs();renderTab();},{style:{padding:'8px 16px',fontSize:'12px'}}));
 }
@@ -3932,6 +3955,7 @@ function dfCompletionCard(c){
 }
 function renderTab(){
   content.innerHTML='';
+  if(GUEST){dfGuestHub();return;}
   if(!DATA.enrolled&&DATA.completion){content.append(dfCompletionCard(DATA.completion));return;}
   if(!DATA.enrolled){
     content.append(div({cls:'card',style:{textAlign:'center',padding:'40px'}},[h('p',{style:{color:'var(--muted)',fontSize:'14px'},html:'You are not enrolled in tutoring yet. Your tutor will add you when your programme begins.'},[])]));
@@ -4785,7 +4809,7 @@ async function renderAssessmentScoreReport(o){
   content.innerHTML='';
   var wrap=div({style:{maxWidth:'900px',margin:'0 auto'}},[]);
 
-  content.append(btn('\u2190 Back to wing','btn-outline',function(){exitFullscreen();currentTab=o.backTab||'assessments';paintTabs();renderTab();},{style:{fontSize:'11px',padding:'6px 12px',marginBottom:'16px'}}));
+  content.append(btn(o.guest?'\u2190 Back to assessments':'\u2190 Back to wing','btn-outline',function(){exitFullscreen();currentTab=o.backTab||'assessments';paintTabs();renderTab();},{style:{fontSize:'11px',padding:'6px 12px',marginBottom:'16px'}}));
 
   wrap.append(reportBody);
 
@@ -4803,9 +4827,9 @@ async function renderAssessmentScoreReport(o){
   },{style:{fontSize:'12px'}});
   var actionsRow=div({style:{display:'flex',gap:'10px',flexWrap:'wrap',marginTop:'20px',alignItems:'center'}},[]);
   actionsRow.append(
-    btn('Review Answers \u2192','btn-gold',function(){showReview({id:o.resultId,test_title:o.assessment.title,score:o.score,total:o.total,answers:o.answers,questions:o.questions,taken_at:new Date().toISOString()});}),
+    btn('Review Answers \u2192','btn-gold',function(){if(o.guest){gsReview(o);return;}showReview({id:o.resultId,test_title:o.assessment.title,score:o.score,total:o.total,answers:o.answers,questions:o.questions,taken_at:new Date().toISOString()});}),
     downloadBtn,
-    btn('Back to wing','btn-outline',function(){exitFullscreen();currentTab=o.backTab||'assessments';paintTabs();renderTab();})
+    btn(o.guest?'Back to assessments':'Back to wing','btn-outline',function(){exitFullscreen();currentTab=o.backTab||'assessments';paintTabs();renderTab();})
   );
   wrap.append(actionsRow,pdfStatus);
   content.append(wrap);
@@ -5455,6 +5479,7 @@ function runAssessmentQuiz(a,assessment,questions,resumeState){
     var score=0;questions.forEach(function(q){if(answers[q.id]===corr(q))score++;});
     var timeTakenSeconds=Math.round((Date.now()-examStartedAt)/1000);
     var questionTimesSeconds={};Object.keys(questionTimeMs).forEach(function(k){questionTimesSeconds[k]=Math.round(questionTimeMs[k]/1000);});
+    if(GUEST){await dfGuestFinish({assessment:assessment,score:score,questions:questions,answers:answers,timeTakenSeconds:timeTakenSeconds,questionTimes:questionTimesSeconds,answerChanges:answerChanges,blockScores:null,highlights:highlights,flagged:flagged,clear:clearResume});return;}
     var ins=await dfInsertResult('tutoring_assessment_results',{assignment_id:a?a.id:null,assessment_id:assessment.id,student_id:S.user.id,assessment_title:assessment.title,mode:mode,score:score,total:questions.length,answers:answers,questions:questions,highlights:highlights,time_taken_seconds:timeTakenSeconds,question_times:questionTimesSeconds,answer_changes:answerChanges},flagged);
     if(!ins.error){
       clearResume();
@@ -5721,6 +5746,7 @@ function runBlockedAssessment(a,assessment,allQuestions,resumeState){
     var timeTakenSeconds=Math.round((Date.now()-examStartedAt)/1000);
     var questionTimesSeconds={};Object.keys(globalQuestionTime).forEach(function(k){questionTimesSeconds[k]=Math.round(globalQuestionTime[k]/1000);});
     var blockScores=blocks.map(function(blk,i){var c=0;blk.forEach(function(q){if(globalAnswers[q.id]===corr(q))c++;});return{block:i+1,correct:c,total:blk.length};});
+    if(GUEST){await dfGuestFinish({assessment:assessment,score:score,questions:allQuestions,answers:globalAnswers,timeTakenSeconds:timeTakenSeconds,questionTimes:questionTimesSeconds,answerChanges:globalAnswerChanges,blockScores:blockScores,highlights:globalHighlights,flagged:globalFlagged,clear:clearResume});return;}
     var ins=await dfInsertResult('tutoring_assessment_results',{assignment_id:a?a.id:null,assessment_id:assessment.id,student_id:S.user.id,assessment_title:assessment.title,mode:assessment.mode,score:score,total:allQuestions.length,answers:globalAnswers,questions:allQuestions,highlights:globalHighlights,time_taken_seconds:timeTakenSeconds,question_times:questionTimesSeconds,answer_changes:globalAnswerChanges,block_scores:blockScores},globalFlagged);
     if(!ins.error){
       clearResume();
@@ -5777,6 +5803,199 @@ async function showReview(result){
 }
 
 paintTabs();
+  /* ===================== SELF ASSESSMENT (public guest mode: no login) ===================== */
+  var GS={step:'form',email:'',name:'',nbme:{},settings:null};
+  try{var _gsv=JSON.parse(localStorage.getItem('df-sa-guest')||'null');if(_gsv&&_gsv.email){GS.email=_gsv.email;GS.name=_gsv.name||'';GS.nbme=_gsv.nbme||{};GS.step=_gsv.step==='nbme'?'nbme':'list';}}catch(e){}
+  function gsSave(){try{localStorage.setItem('df-sa-guest',JSON.stringify({email:GS.email,name:GS.name,nbme:GS.nbme,step:GS.step}));}catch(e){}}
+  function gsHeader(title,sub){
+    wingHeader.innerHTML='';
+    wingHeader.append(
+      h('span',{cls:'chapter',html:'Self Assessment'}),
+      h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'26px',marginBottom:'8px'},html:title}),
+      h('p',{cls:'muted',style:{fontSize:'14px',marginBottom:'16px'},html:sub||''})
+    );
+  }
+  function gsErrText(e){
+    var m=String((e&&e.message)||e||'');
+    if(/locked/i.test(m))return 'This assessment is locked. Purchase it on Selar, then refresh this page.';
+    if(/used/i.test(m))return 'You have already taken this free assessment with this email.';
+    if(/bad_email/i.test(m))return 'Please enter a valid email address.';
+    if(/bad_name/i.test(m))return 'Please enter your name.';
+    if(/not_available/i.test(m))return 'This assessment is not available right now.';
+    return 'Something went wrong. Please try again.';
+  }
+  async function gsSettings(){
+    if(GS.settings)return GS.settings;
+    try{var r=await sb.rpc('self_assess_public_settings');if(!r.error&&r.data)GS.settings=r.data;}catch(e){}
+    return GS.settings||{};
+  }
+  function dfGuestHub(){
+    content.innerHTML='';
+    if(!GS.email||GS.step==='form')return gsForm();
+    if(GS.step==='nbme')return gsNbme();
+    return gsList();
+  }
+  function gsForm(){
+    gsHeader('Free Self Assessment','Test yourself with USMLE-style questions and see a full breakdown of your score. No account needed.');
+    var card=div({cls:'card',style:{maxWidth:'520px',margin:'0 auto',padding:'24px'}},[]);
+    var nameI=inp('Your full name','text',GS.name||'');
+    var emailI=inp('Your email address','email',GS.email||'');
+    var err=div({style:{fontSize:'12px',color:'#ff8888',marginBottom:'10px',display:'none'}},['']);
+    var go1=btn('Continue →','btn-gold',async function(){
+      err.style.display='none';
+      var nm=nameI.value.trim(),em=emailI.value.trim().toLowerCase();
+      if(nm.length<2){err.textContent='Please enter your name.';err.style.display='block';return;}
+      if(!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(em)){err.textContent='Please enter a valid email address.';err.style.display='block';return;}
+      go1.disabled=true;go1.textContent='One moment…';
+      var r=await sb.rpc('self_assess_register',{p_name:nm,p_email:em});
+      go1.disabled=false;go1.textContent='Continue →';
+      if(r.error){err.textContent=gsErrText(r.error);err.style.display='block';return;}
+      GS.email=r.data.email;GS.name=r.data.name;GS.nbme=r.data.nbme||{};
+      GS.step=Object.keys(GS.nbme).length?'list':'nbme';gsSave();dfGuestHub();
+    },{style:{width:'100%'}});
+    card.append(field('Name',nameI),field('Email',emailI),h('div',{style:{fontSize:'11px',color:'var(--dim)',marginBottom:'14px',lineHeight:'1.6'}},['Use the same email if you buy more assessments later. That is how we unlock them for you.']),err,go1);
+    content.append(card);
+  }
+  function gsNbme(){
+    gsHeader('Quick question','Hi '+dfEsc((GS.name||'').split(' ')[0])+'. This helps us understand where you are right now.');
+    var card=div({cls:'card',style:{maxWidth:'560px',margin:'0 auto',padding:'24px'}},[]);
+    card.append(h('div',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'18px',fontWeight:'700',marginBottom:'14px'}},['Have you taken any NBMEs recently?']));
+    var choice=div({style:{display:'flex',gap:'10px',marginBottom:'16px'}},[]);
+    var scoreBox=div({style:{display:'none'}},[]);
+    var inputs={};
+    var grid=div({style:{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(150px,1fr))',gap:'10px',marginBottom:'6px'}},[]);
+    for(var n=26;n<=34;n++){(function(n){
+      var i=h('input',{cls:'input',type:'number',placeholder:'Score',min:'0',max:'999',value:GS.nbme&&GS.nbme[String(n)]!=null?String(GS.nbme[String(n)]):''});
+      inputs[n]=i;
+      grid.append(div({},[h('div',{cls:'mono',style:{fontSize:'11px',color:'var(--muted)',marginBottom:'4px'}},['NBME '+n]),i]));
+    })(n);}
+    scoreBox.append(h('div',{style:{fontSize:'12px',color:'var(--dim)',marginBottom:'10px'}},['Fill in the scores you remember. Everything here is optional.']),grid);
+    var cont=btn('Continue →','btn-gold',async function(){
+      cont.disabled=true;cont.textContent='Saving…';
+      var payload={};for(var k=26;k<=34;k++){if(inputs[k]&&inputs[k].value.trim()!=='')payload[String(k)]=inputs[k].value.trim();}
+      if(Object.keys(payload).length){var r=await sb.rpc('self_assess_save_nbme',{p_email:GS.email,p_nbme:payload});if(!r.error&&r.data)GS.nbme=r.data;}
+      GS.step='list';gsSave();dfGuestHub();
+    },{style:{width:'100%',marginTop:'14px',display:'none'}});
+    var yes=btn('Yes','btn-outline',function(){scoreBox.style.display='block';cont.style.display='block';yes.style.borderColor='var(--gold)';no.style.borderColor='';},{style:{flex:'1'}});
+    var no=btn('No','btn-outline',function(){GS.step='list';gsSave();dfGuestHub();},{style:{flex:'1'}});
+    choice.append(yes,no);
+    card.append(choice,scoreBox,cont);
+    content.append(card);
+  }
+  async function gsList(){
+    gsHeader('Your Self Assessments','Pick an assessment below. Free ones open right away. Paid ones unlock after you buy them on Selar.');
+    content.append(skelCard([['40%'],['100%'],['80%']]));
+    var res=await Promise.all([sb.rpc('self_assess_list',{p_email:GS.email}),gsSettings()]);
+    var lr=res[0],st=res[1]||{};
+    content.innerHTML='';
+    var who=div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:'10px',marginBottom:'16px'}},[]);
+    who.append(h('div',{cls:'mono',style:{fontSize:'11px',color:'var(--muted)'}},[GS.name+' · '+GS.email]));
+    who.append(div({style:{display:'flex',gap:'8px'}},[
+      btn('Refresh','btn-outline',function(){dfGuestHub();},{style:{fontSize:'10px',padding:'6px 12px'}}),
+      btn('Not you?','btn-outline',function(){try{localStorage.removeItem('df-sa-guest');}catch(e){}GS={step:'form',email:'',name:'',nbme:{},settings:GS.settings};dfGuestHub();},{style:{fontSize:'10px',padding:'6px 12px'}})
+    ]));
+    content.append(who);
+    if(lr.error){content.append(emptyCard('Could not load the assessments','Check your connection and tap Refresh.'));return;}
+    var items=lr.data||[];
+    if(!items.length){content.append(emptyCard('No self assessments are open right now','Please check back soon.'));return;}
+    items.forEach(function(it){
+      var card=div({cls:'card',style:{marginBottom:'10px',display:'flex',justifyContent:'space-between',alignItems:'center',gap:'14px',flexWrap:'wrap'}},[]);
+      var paid=it.access==='paid';
+      var badge=h('span',{cls:'mono',style:{fontSize:'10px',letterSpacing:'1px',textTransform:'uppercase',color:paid?'var(--gold)':'var(--teal)',border:'1px solid '+(paid?'var(--gold)':'rgba(126,173,168,0.4)'),borderRadius:'999px',padding:'2px 10px',marginRight:'10px'}},[paid?(it.unlocked?'Unlocked':'Paid'):'Free']);
+      var meta=[];if(it.questions)meta.push(it.questions+' questions');if(it.block_size)meta.push(Math.ceil(it.questions/it.block_size)+' blocks');else if(it.mode==='timed'&&it.time_limit)meta.push(it.time_limit+' min');
+      card.append(div({style:{flex:'1',minWidth:'220px'}},[
+        div({style:{display:'flex',alignItems:'center',flexWrap:'wrap',marginBottom:'6px'}},[badge,h('span',{style:{fontFamily:'Georgia,serif',fontSize:'17px',color:'var(--text)'}},[it.title])]),
+        h('div',{cls:'mono',style:{fontSize:'11px',color:'var(--muted)'}},[meta.join(' · ')+(it.attempts?(' · taken '+it.attempts+(it.attempts===1?' time':' times')):'')])
+      ]));
+      var acts=div({style:{display:'flex',gap:'8px',flexWrap:'wrap'}},[]);
+      if(it.unlocked){
+        if(!paid&&it.attempts>0){
+          if(it.last_attempt_id)acts.append(btn('View results','btn-outline',function(){gsViewAttempt(it.last_attempt_id);},{style:{fontSize:'11px',padding:'8px 14px'}}));
+        }else{
+          if(paid&&it.attempts>0&&it.last_attempt_id)acts.append(btn('Last results','btn-outline',function(){gsViewAttempt(it.last_attempt_id);},{style:{fontSize:'11px',padding:'8px 14px'}}));
+          acts.append(btn(it.attempts>0?'Retake':'Start','btn-gold',function(){gsStart(it);},{style:{fontSize:'11px',padding:'8px 16px'}}));
+        }
+      }else{
+        var link=it.selar_link||st.selar_link||'';
+        if(link)acts.append(h('a',{cls:'btn btn-gold',href:link,target:'_blank',rel:'noopener',style:{fontSize:'11px',padding:'8px 16px',textDecoration:'none'}},['🔒 Unlock on Selar']));
+        else acts.append(h('span',{cls:'mono',style:{fontSize:'11px',color:'var(--dim)'}},['🔒 Coming soon']));
+      }
+      card.append(acts);
+      content.append(card);
+    });
+    if(items.some(function(x){return !x.unlocked;}))content.append(h('div',{style:{fontSize:'12px',color:'var(--dim)',lineHeight:'1.7',marginTop:'10px'}},['After you pay, use the same email ('+GS.email+') on Selar. Your assessment unlocks automatically within a few minutes. Tap Refresh to see it.']));
+  }
+  async function gsStart(it){
+    content.innerHTML='';content.append(skelCard([['40%'],['100%'],['100%'],['80%']]));
+    var r=await sb.rpc('self_assess_start',{p_email:GS.email,p_assessment_id:it.assessment_id});
+    if(r.error||!r.data){content.innerHTML='';alert(gsErrText(r.error));dfGuestHub();return;}
+    var assessment=r.data.assessment;var questions=r.data.questions||[];
+    if(!questions.length){content.innerHTML='';alert('This assessment has no questions yet.');dfGuestHub();return;}
+    if(assessment.shuffle_questions)questions=shuffleArray(questions);
+    content.innerHTML='';
+    enterFullscreen();
+    if(assessment.block_size){runBlockedAssessment(null,assessment,questions,null);}
+    else{runAssessmentQuiz(null,assessment,questions,null);}
+  }
+  async function gsViewAttempt(id){
+    content.innerHTML='';content.append(skelCard([['40%'],['100%'],['80%']]));
+    var r=await sb.rpc('self_assess_get_attempt',{p_email:GS.email,p_attempt_id:id});
+    if(r.error||!r.data){dfGuestHub();return;}
+    gsShowReport(r.data);
+  }
+  function gsShowReport(t){
+    renderAssessmentScoreReport({guest:true,resultId:null,assessment:{id:t.assessment_id,title:t.assessment_title||'Self Assessment'},score:t.score,total:t.total,questions:t.questions||[],answers:t.answers||{},timeTakenSeconds:t.time_taken_seconds||0,questionTimes:t.question_times||{},answerChanges:t.answer_changes||[],blockScores:t.block_scores||null,trendList:[],backTab:'assessments'});
+  }
+  function gsReview(o){
+    content.innerHTML='';
+    var wrap=div({style:{maxWidth:'900px',margin:'0 auto',padding:'20px 16px'}},[]);
+    wrap.append(btn('← Back to results','btn-outline',function(){renderAssessmentScoreReport(o);},{style:{fontSize:'11px',padding:'6px 12px',marginBottom:'16px'}}));
+    buildReviewQuestionCards(o.questions,o.answers,{}).forEach(function(c){wrap.append(c);});
+    content.append(wrap);
+  }
+  // After the last question: do NOT show the score yet. Ask the two questions first.
+  async function dfGuestFinish(o){
+    try{if(o.clear)o.clear();}catch(e){}
+    content.innerHTML='';content.append(skelCard([['40%'],['100%'],['80%']]));
+    var r=await sb.rpc('self_assess_submit',{p_email:GS.email,p_assessment_id:o.assessment.id,p_answers:o.answers||{},p_questions:o.questions||[],p_time:o.timeTakenSeconds||0,p_question_times:o.questionTimes||{},p_answer_changes:o.answerChanges||[],p_block_scores:o.blockScores||null,p_highlights:o.highlights||{},p_flagged:o.flagged||{}});
+    content.innerHTML='';
+    if(r.error||!r.data){
+      var ec=div({cls:'card',style:{maxWidth:'520px',margin:'40px auto',padding:'24px',textAlign:'center'}},[]);
+      ec.append(h('div',{style:{fontSize:'15px',marginBottom:'12px'}},['We could not save your answers. '+gsErrText(r.error)]),btn('Try again','btn-gold',function(){dfGuestFinish(Object.assign({},o,{clear:null}));},{style:{marginRight:'8px'}}),btn('Back','btn-outline',function(){exitFullscreen();dfGuestHub();}));
+      content.append(ec);return;
+    }
+    var saved=r.data;var st=await gsSettings();
+    var predictive=null,wants=null;
+    var wrap=div({style:{maxWidth:'620px',margin:'0 auto',padding:'40px 16px'}},[]);
+    var card=div({cls:'card',style:{padding:'26px'}},[]);
+    card.append(h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--gold)',letterSpacing:'2px',textTransform:'uppercase',marginBottom:'8px'}},['Assessment submitted']),h('div',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'22px',fontWeight:'700',marginBottom:'18px'}},['Before you see your results']));
+    var q1=div({style:{marginBottom:'22px'}},[]);
+    q1.append(h('div',{style:{fontSize:'15px',marginBottom:'10px',fontWeight:'600'}},['Do you think these questions are predictive of the questions on NBME exams?']));
+    var q1opts=div({style:{display:'flex',flexDirection:'column',gap:'8px'}},[]);
+    [['very','Very predictive'],['somewhat','Somewhat predictive'],['not_very','Not very predictive'],['not_at_all','Not at all predictive'],['unsure','I have not taken NBME exams']].forEach(function(p){
+      var b=btn(p[1],'btn-outline',function(){predictive=p[0];Array.prototype.forEach.call(q1opts.children,function(x){x.style.borderColor='';x.style.background='';});b.style.borderColor='var(--gold)';b.style.background='var(--gold-subtle)';sb.rpc('self_assess_feedback',{p_email:GS.email,p_attempt_id:saved.id,p_predictive:predictive,p_wants_more:null});sync();},{style:{textAlign:'left',fontSize:'13px',padding:'10px 14px'}});
+      q1opts.append(b);
+    });
+    q1.append(q1opts);
+    var q2=div({style:{marginBottom:'22px'}},[]);
+    q2.append(h('div',{style:{fontSize:'15px',marginBottom:'10px',fontWeight:'600'}},['Would you like to purchase more self assessments?']));
+    var q2row=div({style:{display:'flex',gap:'10px'}},[]);
+    var buyBox=div({style:{marginTop:'12px',display:'none'}},[]);
+    var yesB=btn('Yes','btn-outline',function(){wants=true;yesB.style.borderColor='var(--gold)';yesB.style.background='var(--gold-subtle)';noB.style.borderColor='';noB.style.background='';buyBox.style.display='block';sb.rpc('self_assess_feedback',{p_email:GS.email,p_attempt_id:saved.id,p_predictive:null,p_wants_more:true});sync();},{style:{flex:'1'}});
+    var noB=btn('No','btn-outline',function(){wants=false;noB.style.borderColor='var(--gold)';noB.style.background='var(--gold-subtle)';yesB.style.borderColor='';yesB.style.background='';buyBox.style.display='none';sb.rpc('self_assess_feedback',{p_email:GS.email,p_attempt_id:saved.id,p_predictive:null,p_wants_more:false});sync();},{style:{flex:'1'}});
+    q2row.append(yesB,noB);
+    if(st.selar_link)buyBox.append(h('a',{cls:'btn btn-gold',href:st.selar_link,target:'_blank',rel:'noopener',style:{display:'block',textAlign:'center',textDecoration:'none',padding:'12px 18px',fontSize:'13px'}},['Purchase more →']),h('div',{style:{fontSize:'11px',color:'var(--dim)',marginTop:'8px',lineHeight:'1.6'}},['Use the same email ('+GS.email+') when you pay so it unlocks automatically.']));
+    else buyBox.append(h('div',{style:{fontSize:'13px',color:'var(--muted)'}},['The purchase link will be available very soon.']));
+    q2.append(q2row,buyBox);
+    var seeB=btn('See results →','btn-gold',function(){
+      gsShowReport({assessment_id:o.assessment.id,assessment_title:o.assessment.title,score:saved.score,total:saved.total,questions:o.questions,answers:o.answers,time_taken_seconds:o.timeTakenSeconds,question_times:o.questionTimes,answer_changes:o.answerChanges,block_scores:o.blockScores});
+    },{style:{width:'100%',padding:'13px'}});
+    seeB.disabled=true;seeB.style.opacity='0.5';
+    function sync(){var ok=predictive!==null&&wants!==null;seeB.disabled=!ok;seeB.style.opacity=ok?'1':'0.5';}
+    card.append(q1,q2,seeB);
+    wrap.append(card);content.append(wrap);
+  }
+  if(GUEST){dfGuestHub();return page;}
 content.append(skelCard([['40%'],['100%'],['80%'],['100%']]));
 (async function(){
   try{
@@ -5795,7 +6014,179 @@ content.append(skelCard([['40%'],['100%'],['80%'],['100%']]));
 })();
 return page;
 }
-const pages={landing,signup,login,pending,dashboard,study,flashcards,vignette,leaderboard,admin,feynman,theory,notes,about,tutoring};
+/* ===================== SELF ASSESSMENT: PUBLIC PAGES ===================== */
+// Public page (no login). It reuses the Tutoring Wing exam screen in "guest mode".
+function selfassess(){
+  window.DF_SELFASSESS=true;
+  return tutoring();
+}
+
+// Sign-up page for Self Assessment Week. Linked from the landing page and shareable on its own (?selfweek=1).
+function selfweek(){
+  const page=div({});
+  const nav=div({cls:'dash-nav'});
+  nav.append(dfLogo(),div({style:{display:'flex',gap:'12px',alignItems:'center'}},[btn('← Back to site','btn-outline',()=>go('landing'),{style:{padding:'8px 16px'}}),makeThemeBtn()]));
+  page.append(nav);
+  const inner=div({cls:'inner'});
+  const card=div({cls:'card',style:{maxWidth:'560px',margin:'0 auto',padding:'28px'}},[]);
+  inner.append(card);page.append(inner);
+  function fmtD(s,opt){try{return new Date(s).toLocaleDateString('en-US',Object.assign({month:'long',day:'numeric',timeZone:'America/New_York'},opt||{}));}catch(e){return '';}}
+  card.append(skelCard([['40%'],['100%'],['80%']]));
+  (async function(){
+    var st={};
+    try{var r=await sb.rpc('self_assess_public_settings');if(!r.error&&r.data)st=r.data;}catch(e){}
+    var startS=st.week_start?fmtD(st.week_start):'January 4';
+    var endS=st.week_end?fmtD(st.week_end):'January 10';
+    var opened=st.week_start&&Date.now()>=new Date(st.week_start).getTime();
+    card.innerHTML='';
+    card.append(
+      h('span',{cls:'chapter',html:'Free Self Assessment Week'}),
+      h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'28px',marginBottom:'8px'},html:startS+' – '+endS}),
+      h('p',{cls:'muted',style:{fontSize:'14px',lineHeight:'1.8',marginBottom:'18px'},html:'Take free USMLE-style self assessments and get a full score breakdown. Sign up below and we will email you the link '+(opened?'right now.':'the moment the week opens.')})
+    );
+    var nameI=inp('Your full name');var emailI=inp('Your email address','email');
+    var hp=h('input',{type:'text',tabindex:'-1',autocomplete:'off',style:{position:'absolute',left:'-9999px',opacity:'0',height:'0'}});
+    var err=div({style:{fontSize:'12px',color:'#ff8888',marginBottom:'10px',display:'none'}},['']);
+    var go1=btn('Sign me up →','btn-gold',async function(){
+      err.style.display='none';
+      var nm=nameI.value.trim(),em=emailI.value.trim().toLowerCase();
+      if(nm.length<2){err.textContent='Please enter your name.';err.style.display='block';return;}
+      if(!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(em)){err.textContent='Please enter a valid email address.';err.style.display='block';return;}
+      go1.disabled=true;go1.textContent='Signing you up…';
+      try{
+        var res=await fetch(SURL+'/functions/v1/self-assess-week-signup',{method:'POST',headers:{'Content-Type':'application/json','apikey':SKEY},body:JSON.stringify({name:nm,email:em,website:hp.value,source:(document.referrer||'').slice(0,200)})});
+        var d=null;try{d=await res.json();}catch(e){}
+        if(!res.ok||!d||!d.ok){go1.disabled=false;go1.textContent='Sign me up →';err.textContent=(d&&d.error==='rate_limited')?'Too many attempts. Please try again later.':'We could not sign you up. Please try again.';err.style.display='block';return;}
+        card.innerHTML='';
+        card.append(
+          h('div',{style:{fontSize:'42px',textAlign:'center',marginBottom:'8px'},html:'✅'}),
+          h('h2',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'24px',textAlign:'center',marginBottom:'10px'},html:'You are in!'}),
+          h('p',{cls:'muted',style:{fontSize:'14px',lineHeight:'1.8',textAlign:'center',marginBottom:'18px'},html:'We sent a confirmation to '+dfEsc(em)+'. '+(opened?'The week is open now, so start whenever you like.':'We will email you the link on '+startS+'.')})
+        );
+        if(opened)card.append(btn('Start now →','btn-gold',function(){window.DF_START_PAGE='selfassess';go('selfassess');},{style:{width:'100%'}}));
+      }catch(e){go1.disabled=false;go1.textContent='Sign me up →';err.textContent='Network problem. Please try again.';err.style.display='block';}
+    },{style:{width:'100%'}});
+    card.append(field('Name',nameI),field('Email',emailI),hp,err,go1);
+  })();
+  return page;
+}
+
+/* ===================== SELF ASSESSMENT: ADMIN CONTROLS ===================== */
+// Per-assessment switch: code number, Free or Paid, on/off, optional title and Selar link.
+function dfSaModal(a,existing,onDone){
+  var overlay=div({cls:'modal-bg',style:{zIndex:'100030'}},[]);
+  var box=div({cls:'card',style:{maxWidth:'480px',width:'100%',maxHeight:'88vh',overflowY:'auto',padding:'22px'}},[]);
+  overlay.onclick=function(e){if(e.target===overlay)overlay.remove();};
+  box.append(h('div',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'18px',fontWeight:'700',marginBottom:'4px'}},['Self Assessment']),h('div',{style:{fontSize:'12px',color:'var(--muted)',marginBottom:'14px'}},[a.title]));
+  var codeI=inp('e.g. 1','number',existing?String(existing.code):'');codeI.min='1';
+  var accessS=h('select',{cls:'input'},[h('option',{value:'free'},['Free']),h('option',{value:'paid'},['Paid (locked until bought on Selar)'])]);accessS.value=existing?existing.access:'free';
+  var onC=h('input',{type:'checkbox'});onC.checked=existing?!!existing.enabled:true;
+  var titleI=inp('Leave blank to use the assessment title','text',existing&&existing.display_title||'');
+  var linkI=inp('Optional: a Selar link just for this one','text',existing&&existing.selar_link||'');
+  var err=div({style:{fontSize:'12px',color:'#ff8888',margin:'8px 0',display:'none'}},['']);
+  box.append(
+    field('Number (matches the Selar product name "DEO FORTIS SELF ASSESSMENT N")',codeI),
+    field('Access',accessS),
+    div({style:{display:'flex',alignItems:'center',gap:'8px',marginBottom:'16px',fontSize:'13px'}},[onC,h('span',{},['Show on the public Self Assessment page'])]),
+    field('Display title (optional)',titleI),
+    field('Selar link for this assessment (optional)',linkI),
+    err
+  );
+  var row=div({style:{display:'flex',gap:'8px',justifyContent:'space-between',flexWrap:'wrap'}},[]);
+  var save=btn('Save','btn-gold',async function(){
+    err.style.display='none';
+    var code=parseInt(codeI.value,10);
+    if(!(code>0)){err.textContent='Enter a number of 1 or more.';err.style.display='block';return;}
+    var payload={assessment_id:a.id,code:code,access:accessS.value,enabled:onC.checked,display_title:titleI.value.trim()||null,selar_link:linkI.value.trim()||null};
+    save.disabled=true;
+    var r=await sb.from('self_assess_items').upsert(payload,{onConflict:'assessment_id'});
+    save.disabled=false;
+    if(r.error){err.textContent=/duplicate|unique/i.test(r.error.message)?'Another assessment already uses number '+code+'.':('Could not save: '+r.error.message);err.style.display='block';return;}
+    overlay.remove();if(onDone)onDone();
+  },{style:{padding:'8px 20px'}});
+  row.append(save,btn('Cancel','btn-outline',function(){overlay.remove();},{style:{padding:'8px 16px'}}));
+  if(existing)row.append(btn('Remove','btn-outline',async function(){
+    if(!confirm('Remove this assessment from the Self Assessment page? Past guest results are kept.'))return;
+    var d=await sb.from('self_assess_items').delete().eq('assessment_id',a.id);
+    if(d.error){err.textContent='Could not remove: '+d.error.message;err.style.display='block';return;}
+    overlay.remove();if(onDone)onDone();
+  },{style:{padding:'8px 16px',color:'#ff4444',borderColor:'#ff4444'}}));
+  box.append(row);overlay.append(box);document.body.appendChild(overlay);
+}
+
+// The hub: Selar link, week dates, sign-ups, guests with NBME scores and results, manual unlocks.
+async function dfSaAdminPanel(container,onBack){
+  container.innerHTML='';
+  container.append(btn('← Back to assessments','btn-outline',onBack,{style:{fontSize:'11px',padding:'6px 12px',marginBottom:'14px'}}));
+  container.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'18px',marginBottom:'12px'},html:'Self Assessment hub'}));
+  var body=div({},[]);container.append(body);
+  body.append(skelCard([['40%'],['100%'],['80%']]));
+  var res=await Promise.all([
+    sb.from('self_assess_settings').select('*').eq('id',1).maybeSingle(),
+    sb.from('self_assess_items').select('*').order('code'),
+    sb.from('self_assess_week_signups').select('*').order('created_at',{ascending:false}),
+    sb.from('self_assess_guests').select('*').order('created_at',{ascending:false}),
+    sb.from('self_assess_attempts').select('id,email,assessment_title,score,total,predictive,wants_more,taken_at').order('taken_at',{ascending:false}).limit(500),
+    sb.from('self_assess_unlocks').select('*').order('created_at',{ascending:false}).limit(200)
+  ]);
+  var st=(res[0].data)||{},items=res[1].data||[],weeks=res[2].data||[],guests=res[3].data||[],atts=res[4].data||[],unl=res[5].data||[];
+  body.innerHTML='';
+  function sec(title,sub){var c=div({cls:'card',style:{padding:'18px',marginBottom:'14px'}},[]);c.append(h('div',{style:{fontFamily:'Georgia,serif',fontSize:'16px',marginBottom:sub?'4px':'12px'}},[title]));if(sub)c.append(h('div',{style:{fontSize:'12px',color:'var(--muted)',marginBottom:'12px',lineHeight:'1.6'}},[sub]));body.append(c);return c;}
+  // 1. Selar link and week
+  var s1=sec('Selar and Self Assessment Week','The Purchase more button and the Unlock buttons open this link. Each assessment can also have its own link.');
+  var linkI=inp('https://selar.com/...','text',st.selar_link||'');
+  function toLocalInput(iso){if(!iso)return '';var d=new Date(iso);var p=function(n){return String(n).padStart(2,'0');};return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+'T'+p(d.getHours())+':'+p(d.getMinutes());}
+  var ws=h('input',{cls:'input',type:'datetime-local',value:toLocalInput(st.week_start)});
+  var we=h('input',{cls:'input',type:'datetime-local',value:toLocalInput(st.week_end)});
+  var note=div({style:{fontSize:'12px',margin:'8px 0',display:'none'}},['']);
+  s1.append(field('Selar pay link',linkI),field('Week opens (the link email goes out then; shown in your browser time)',ws),field('Week closes',we),note);
+  s1.append(btn('Save','btn-gold',async function(){
+    var upd={selar_link:linkI.value.trim()||null,updated_at:new Date().toISOString()};
+    if(ws.value)upd.week_start=new Date(ws.value).toISOString();
+    if(we.value)upd.week_end=new Date(we.value).toISOString();
+    var r=await sb.from('self_assess_settings').update(upd).eq('id',1);
+    note.style.display='block';note.style.color=r.error?'#ff8888':'var(--teal)';note.textContent=r.error?('Could not save: '+r.error.message):'Saved.';
+  },{style:{padding:'8px 20px'}}));
+  // 2. Assessments set up
+  var s2=sec('Assessments on the page ('+items.length+')','Set these with the Self Assessment button on each assessment card.');
+  if(!items.length)s2.append(h('div',{style:{fontSize:'13px',color:'var(--dim)'}},['None yet.']));
+  var titleMap={};
+  try{var ar=await sb.from('tutoring_assessments').select('id,title').in('id',items.map(function(x){return x.assessment_id;}));(ar.data||[]).forEach(function(x){titleMap[x.id]=x.title;});}catch(e){}
+  items.forEach(function(it){s2.append(div({style:{display:'flex',justifyContent:'space-between',gap:'10px',padding:'8px 0',borderTop:'1px solid var(--border)',fontSize:'13px'}},[h('span',{},['#'+it.code+' · '+(it.display_title||titleMap[it.assessment_id]||'Assessment')]),h('span',{cls:'mono',style:{color:it.access==='paid'?'var(--gold)':'var(--teal)'}},[(it.access==='paid'?'Paid':'Free')+(it.enabled?'':' · hidden')])]));});
+  // 3. Week sign-ups
+  var s3=sec('Week sign-ups ('+weeks.length+')');
+  if(!weeks.length)s3.append(h('div',{style:{fontSize:'13px',color:'var(--dim)'}},['No sign-ups yet.']));
+  weeks.slice(0,200).forEach(function(w){s3.append(div({style:{display:'flex',justifyContent:'space-between',gap:'10px',padding:'6px 0',borderTop:'1px solid var(--border)',fontSize:'12px',flexWrap:'wrap'}},[h('span',{},[w.name+' · '+w.email]),h('span',{cls:'mono',style:{color:'var(--muted)'}},[new Date(w.created_at).toLocaleDateString()+(w.link_sent_at?' · link sent':'')])]));});
+  // 4. Guests: NBME scores and results
+  var s4=sec('Guests ('+guests.length+')','Name, email, NBME scores they entered, and what they took.');
+  if(!guests.length)s4.append(h('div',{style:{fontSize:'13px',color:'var(--dim)'}},['No guests yet.']));
+  var byEmail={};atts.forEach(function(t){(byEmail[t.email]=byEmail[t.email]||[]).push(t);});
+  var lbl2={very:'Very predictive',somewhat:'Somewhat predictive',not_very:'Not very predictive',not_at_all:'Not at all predictive',unsure:'No NBME taken'};
+  guests.slice(0,300).forEach(function(g){
+    var nb=Object.keys(g.nbme||{}).sort().map(function(k){return 'NBME '+k+': '+g.nbme[k];}).join('  ·  ');
+    var row=div({style:{padding:'10px 0',borderTop:'1px solid var(--border)',fontSize:'12px'}},[]);
+    row.append(h('div',{style:{fontWeight:'600',fontSize:'13px'}},[g.name+' · '+g.email]));
+    row.append(h('div',{cls:'mono',style:{color:'var(--muted)',marginTop:'3px'}},[nb||'No NBME scores entered']));
+    (byEmail[g.email]||[]).forEach(function(t){row.append(h('div',{style:{marginTop:'3px',color:'var(--text)'}},[(t.assessment_title||'Assessment')+': '+t.score+'/'+t.total+(t.total?' ('+Math.round(t.score/t.total*100)+'%)':'')+(t.predictive?' · '+(lbl2[t.predictive]||t.predictive):'')+(t.wants_more===true?' · wants more':t.wants_more===false?' · no more':'')]));});
+    s4.append(row);
+  });
+  // 5. Unlocks and manual grant
+  var s5=sec('Unlocks ('+unl.length+')','Created automatically from Selar. You can also grant one by hand (type ALL to open everything).');
+  var mE=inp('buyer@email.com','email'),mC=inp('Number or ALL');
+  var mRow=div({style:{display:'flex',gap:'8px',flexWrap:'wrap',marginBottom:'12px'}},[mE,mC]);mE.style.flex='2';mC.style.flex='1';
+  var mNote=div({style:{fontSize:'12px',margin:'0 0 10px',display:'none'}},['']);
+  s5.append(mRow,btn('Grant access','btn-outline',async function(){
+    var em=mE.value.trim().toLowerCase(),cd=mC.value.trim().toUpperCase();
+    mNote.style.display='block';
+    if(!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(em)||!(cd==='ALL'||/^\d+$/.test(cd))){mNote.style.color='#ff8888';mNote.textContent='Enter an email and a number or ALL.';return;}
+    var r=await sb.from('self_assess_unlocks').insert({email:em,code:cd,reference:'manual-'+Date.now(),product:'Manual grant',buyer_name:'',paid_at:new Date().toISOString(),receipt_no:'SA-MANUAL'});
+    mNote.style.color=r.error?'#ff8888':'var(--teal)';mNote.textContent=r.error?('Could not grant: '+r.error.message):'Access granted.';
+    if(!r.error)dfSaAdminPanel(container,onBack);
+  },{style:{fontSize:'11px',padding:'8px 16px'}}),mNote);
+  unl.slice(0,100).forEach(function(u){s5.append(div({style:{display:'flex',justifyContent:'space-between',gap:'10px',padding:'6px 0',borderTop:'1px solid var(--border)',fontSize:'12px',flexWrap:'wrap'}},[h('span',{},[u.email]),h('span',{cls:'mono',style:{color:'var(--muted)'}},[(u.code==='ALL'?'ALL':'#'+u.code)+' · '+(u.receipt_no||'')+' · '+new Date(u.created_at).toLocaleDateString()])]));});
+}
+
+const pages={landing,signup,login,pending,dashboard,study,flashcards,vignette,leaderboard,admin,feynman,theory,notes,about,tutoring,selfassess,selfweek};
 if(!window.activeSessionId||!window.pomPlan){var _ps=localStorage.getItem('pomodoroState');if(_ps){try{var _psp=JSON.parse(_ps);if(_psp.activeSessionId){window.activeSessionId=_psp.activeSessionId;window.sessionStartTime=_psp.sessionStartTime||null;if(!window.pomPlan&&_psp.segStart){var _cfg=_psp.cfg||{};window.pomPlan={topic:_cfg.topic||'General Study',totalSessions:_cfg.sessions||4,workSec:(_cfg.workMins||25)*60,breakSec:(_cfg.breakMins||5)*60,currentCycle:_psp.curSess||1,isBreakMode:_psp.isBreak||false,startedAtTimestamp:_psp.segStart};}}  }catch(e){}}}
 dfAssessUiReset();
 try{
@@ -6438,6 +6829,7 @@ nav.append(
   h('div',{cls:'df-nav-links',style:{display:'flex',gap:'32px',alignItems:'center',position:'absolute',left:'50%',transform:'translateX(-50%)'}},[
     h('a',{cls:'nav-link',href:'#plans',html:'Plans'}),
     h('a',{cls:'nav-link',href:'#tutoring',html:'Tutoring'}),
+    h('a',{cls:'nav-link',href:'#',onclick:function(e){e.preventDefault();go('selfassess');},html:'Self Assessment'}),
     h('a',{cls:'nav-link',href:'#',onclick:function(e){e.preventDefault();go('about');},html:'About'}),
   ]),
   div({style:{display:'flex',gap:'12px',alignItems:'center'}},[
@@ -6466,6 +6858,8 @@ hc.append(
 );
 const hbtns=div({style:{display:'flex',gap:'16px',marginTop:'32px',flexWrap:'wrap',alignItems:'center'}});
 hbtns.append(h('a',{cls:'btn btn-gold',href:'#plans',style:{padding:'14px 32px',fontSize:'13px'},html:'View Plans →'}));
+hbtns.append(btn('Free Self Assessment','btn-outline',()=>go('selfassess'),{style:{padding:'13px 24px',fontSize:'12px',color:'#FFFFFF',borderColor:'rgba(184,146,46,0.6)'}}));
+hbtns.append(btn('Self Assessment Week →','btn-outline',()=>go('selfweek'),{style:{padding:'13px 24px',fontSize:'12px',color:'var(--gold)',borderColor:'var(--gold)'}}));
 const vbtn=div({style:{display:'inline-flex',alignItems:'center',gap:'10px',padding:'13px 24px',border:'1px solid rgba(184,146,46,0.3)',borderRadius:'2px',fontFamily:"Inter,sans-serif",fontSize:'11px',letterSpacing:'2px',textTransform:'uppercase',color:'var(--muted)',cursor:'pointer'}});
 const playIcon=div({style:{width:'22px',height:'22px',borderRadius:'50%',border:'1px solid var(--gold)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'9px',color:'var(--gold)'}});
 playIcon.textContent='▶';
@@ -11121,12 +11515,13 @@ function openAssessmentVersionPicker(baseTitle,members){
 function renderAssessments(){
   subNav.style.display='flex';
   tBody.innerHTML='';
-  tBody.append(btn('+ Create New Assessment','btn-gold',function(){renderCreateAssessment();},{style:{fontSize:'12px',padding:'8px 16px',marginBottom:'16px'}}));
+  tBody.append(div({style:{display:'flex',gap:'8px',flexWrap:'wrap',marginBottom:'16px'}},[btn('+ Create New Assessment','btn-gold',function(){renderCreateAssessment();},{style:{fontSize:'12px',padding:'8px 16px'}}),btn('Self Assessment hub','btn-outline',function(){dfSaAdminPanel(tBody,renderAssessments);},{style:{fontSize:'12px',padding:'8px 16px'}})]));
   var listWrap=div({},[]);
   tBody.append(listWrap);
   async function loadAssessments(){
     listWrap.innerHTML='';listWrap.append(skelCard([['40%'],['80%']]));
     var a=await sb.from('tutoring_assessments').select('*').order('created_at',{ascending:false});
+    var saMap={};try{var saR=await sb.from('self_assess_items').select('*');(saR.data||[]).forEach(function(x){saMap[x.assessment_id]=x;});}catch(e){}
     var assessments=(a.data||[]).filter(function(x){return !x.archived;});
     function assessRank(t){var s=(t||'').toLowerCase();var fm=s.match(/final assessment\s*(\d+)?/);if(fm)return 100+(fm[1]?parseInt(fm[1],10):1);var bm=s.match(/block\s*(\d+)/);if(bm)return parseInt(bm[1],10);return 0;}
     assessments=assessments.slice().sort(function(x,y){return assessRank(y.title)-assessRank(x.title);});
@@ -11154,6 +11549,8 @@ function renderAssessments(){
         },{style:{fontSize:'10px',padding:'6px 12px'}}));
       }
       btns.append(btn('Preview','btn-outline',function(){openLibraryPreview('assessment',a);},{style:{fontSize:'10px',padding:'6px 12px'}}));
+      var _sa=saMap[a.id];
+      btns.append(btn(_sa?('Self Assessment #'+_sa.code+' \u00b7 '+(_sa.access==='paid'?'Paid':'Free')+(_sa.enabled?'':' \u00b7 hidden')):'Self Assessment','btn-outline',function(){dfSaModal(a,_sa,loadAssessments);},{style:{fontSize:'10px',padding:'6px 12px',borderColor:_sa?'var(--gold)':undefined,color:_sa?'var(--gold)':undefined}}));
       if(!grouped)btns.append(btn('Assign','btn-gold',function(){openAssignAssessment({assessmentId:a.id,assessmentTitle:a.title});},{style:{fontSize:'10px',padding:'6px 12px'}}));
       btns.append(btn('Archive','btn-outline',async function(){
         if(!confirm('Archive \u201c'+a.title+'\u201d? It leaves this list but nothing is deleted: questions, assignments and scores all stay.'))return;
