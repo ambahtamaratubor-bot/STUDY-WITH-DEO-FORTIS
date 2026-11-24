@@ -5972,11 +5972,30 @@ paintTabs();
     try{var r=await sb.rpc('self_assess_public_settings');if(!r.error&&r.data)GS.settings=r.data;}catch(e){}
     return GS.settings||{};
   }
+  // ---- portal closed / team testing as a real student ----
+  function gsClosed(){
+    gsHero({compact:true,tag:'— SELF ASSESSMENT —',line1:'The portal is',em:'closed for now.',sub:'The Deo Fortis Self Assessment is not open right now. Please check back soon, or write to us and we will let you know when it opens.'});
+    content.append(gsStudentBar());
+  }
+  function gsStudentBar(){
+    if(!GS.asStudent)return div({},[]);
+    return div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:'10px',background:'rgba(184,146,46,0.12)',border:'1px solid var(--gold)',borderRadius:'6px',padding:'10px 14px',margin:'0 0 16px'}},[
+      h('div',{style:{fontSize:'12px',color:'var(--gold)',lineHeight:'1.6'}},['\u{1F9EA} TEAM TEST \u00b7 you are using the portal exactly like a student. Use a real email, pay on Selar and come back. Everything here is real.']),
+      btn('Exit student mode','btn-gold',function(){
+        gsClearPoll();GS.asStudent=false;
+        try{localStorage.removeItem('df-sa-guest');}catch(e){}
+        GS={step:'form',email:'',name:'',nbme:{},settings:null};
+        dfGuestHub();
+      },{style:{fontSize:'10px',padding:'6px 12px'}})
+    ]);
+  }
   // ---- helpers ----
   function gsMoney(n){n=Math.round(Number(n||0)*100)/100;return '$'+(n%1===0?String(n):n.toFixed(2));}
   function gsFmtDate(d){try{return d.toLocaleDateString('en-US',{month:'long',day:'numeric',timeZone:'America/New_York'});}catch(e){return '';}}
   // none = no week set, upcoming = signed up but not open yet, open = the week is on, over = the week has finished
   function gsWeekState(st){
+    if(st&&st.portal_mode==='closed')return {state:'closed'};
+    if(st&&st.portal_mode==='open')return {state:'open',start:st&&st.week_start?new Date(st.week_start):new Date(),end:st&&st.week_end?new Date(st.week_end):new Date(Date.now()+7*864e5),manual:true};
     if(!st||!st.week_start||!st.week_end)return {state:'none'};
     var s=new Date(st.week_start),e=new Date(st.week_end),n=Date.now();
     if(n<s.getTime())return {state:'upcoming',start:s,end:e};
@@ -6198,16 +6217,17 @@ paintTabs();
     gsHeroBlank('200px');
     content.append(skelCard([['40%'],['100%'],['80%']]));
     var r=await sb.rpc('self_assess_staff_list');
+    GS.settings=null;await gsSettings();
     content.innerHTML='';
     gsHero({compact:true,tag:'— TEAM PASS —',line1:'Every',em:'assessment.',sub:'You are signed in as part of the Deo Fortis team, so everything on the portal is open to you. Nothing you take here is saved or shown to guests.'});
     content.append(div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:'10px',marginBottom:'14px'}},[
-      div({style:{display:'flex',gap:'8px',flexWrap:'wrap'}},[
-        btn('\u{1F441} Preview as a student','btn-gold',function(){gsPreviewStart('open');},{style:{fontSize:'11px',padding:'8px 16px'}}),
-        btn('Preview: portal not open yet','btn-outline',function(){gsPreviewStart('upcoming');},{style:{fontSize:'11px',padding:'8px 16px'}})
+      div({style:{display:'flex',gap:'8px',flexWrap:'wrap',alignItems:'center'}},[
+        dfSaPortalSelect(GS.settings||{},function(){GS.settings=null;dfGuestHub();}),
+        btn('\u{1F9EA} Use as a real student','btn-gold',function(){GS.asStudent=true;GS.email='';GS.name='';GS.nbme={};GS.step='form';try{localStorage.removeItem('df-sa-guest');}catch(e){}dfGuestHub();},{style:{fontSize:'11px',padding:'8px 16px'}})
       ]),
       btn('Refresh','btn-outline',function(){dfGuestHub();},{style:{fontSize:'10px',padding:'6px 12px'}})
     ]));
-    content.append(h('div',{style:{fontSize:'12px',color:'var(--muted)',lineHeight:'1.7',marginBottom:'14px'}},['Preview as a student walks the real student screens, from sign-up to the Purchase button and the \u201cAlready paid?\u201d box, even when the portal is closed. Nothing is saved and no emails are sent.']));
+    content.append(h('div',{style:{fontSize:'12px',color:'var(--muted)',lineHeight:'1.7',marginBottom:'14px'}},['Portal status: Auto follows the Self Assessment Week dates, Open lets students sign up and buy right now, Closed shows everyone a closed page. Use as a real student lets you go through the page with a real email, pay on Selar and come back, exactly like a student.']));
     if(r.error){content.append(emptyCard('Could not load the assessments',String(r.error.message||'')));return;}
     var items=r.data||[];
     if(!items.length){content.append(emptyCard('Nothing is on the portal yet','Use the dropdown on an assessment card to publish one.'));return;}
@@ -6245,8 +6265,8 @@ paintTabs();
     gsClearPoll();
     content.innerHTML='';
     if(GS.preview){if(!GS.email)return gsSignup();return gsList();}
-    if(await gsCheckStaff())return gsStaffList();
-    if(await gsAccount())return gsList();
+    if(!GS.asStudent&&await gsCheckStaff())return gsStaffList();
+    if(!GS.asStudent&&await gsAccount())return gsList();
     if(!GS.email)return gsSignup();
     return gsList();
   }
@@ -6259,6 +6279,8 @@ paintTabs();
     var live=wk.state==='upcoming'||wk.state==='open';
     var range=live?(gsFmtDate(wk.start)+' – '+gsFmtDate(wk.end)):'';
     content.innerHTML='';
+    if(wk.state==='closed')return gsClosed();
+    if(GS.asStudent)content.append(gsStudentBar());
     if(GS.preview)content.append(gsPreviewBar());
     var card=gsHeroCard(live);
     if(live)card.append(h('div',{cls:'df-sa-tag'},['Free · '+range]));
@@ -6321,7 +6343,7 @@ paintTabs();
     who.append(h('div',{cls:'mono',style:{fontSize:'11px',color:'var(--muted)'}},[GS.name+' · '+GS.email]));
     who.append(div({style:{display:'flex',gap:'8px'}},[
       btn('Refresh','btn-outline',function(){dfGuestHub();},{style:{fontSize:'10px',padding:'6px 12px'}}),
-      GS.account?'':btn('Not you?','btn-outline',function(){try{localStorage.removeItem('df-sa-guest');}catch(e){}gsClearPoll();GS={step:'form',email:'',name:'',nbme:{},settings:GS.settings};dfGuestHub();},{style:{fontSize:'10px',padding:'6px 12px'}})
+      GS.account?'':btn('Not you?','btn-outline',function(){try{localStorage.removeItem('df-sa-guest');}catch(e){}gsClearPoll();GS={step:'form',email:'',name:'',nbme:{},settings:GS.settings,asStudent:GS.asStudent};dfGuestHub();},{style:{fontSize:'10px',padding:'6px 12px'}})
     ]));
     return who;
   }
@@ -6336,6 +6358,7 @@ paintTabs();
     var wk=gsWeekState(st);
     if(GS.preview){wk=GS.previewState==='upcoming'?{state:'upcoming',start:wk.start||new Date(Date.now()+3*864e5),end:wk.end||new Date(Date.now()+10*864e5)}:{state:'open'};}
     content.innerHTML='';
+    if(wk.state==='closed')return gsClosed();
     // Signed up, week not open yet: a confirmation, nothing to take yet
     if(wk.state==='upcoming'){
       var range2=gsFmtDate(wk.start)+' – '+gsFmtDate(wk.end);
@@ -6363,6 +6386,7 @@ paintTabs();
       return;
     }
     gsHero({compact:true,tag:'— SELF ASSESSMENT —',line1:'Choose your',em:'assessment.',sub:'Free ones open right away. The others can be bought on Selar and open here once you have paid.'});
+    content.append(gsStudentBar());
     content.append(gsWho());
     if(GS.flash){content.append(div({style:{border:'1px solid var(--teal)',color:'var(--teal)',borderRadius:'6px',padding:'12px 14px',fontSize:'13px',marginBottom:'14px'}},[GS.flash]));GS.flash='';}
     if(lr.error){content.append(emptyCard('Could not load the assessments','Check your connection and tap Refresh.'));return;}
@@ -6587,6 +6611,21 @@ function dfSaPortalSelect(a,existing,onDone){
   return sel;
 }
 /* ---- Settings page panel (admin only): one Selar link, one bundle link, which assessments are on the portal, and who has chosen what ---- */
+function dfSaPortalSelect(st,onDone){
+  var sel=h('select',{cls:'input',style:{width:'auto',fontSize:'12px',padding:'8px 10px'}},[
+    h('option',{value:'auto'},['Portal: Auto (follows the week dates)']),
+    h('option',{value:'open'},['Portal: Open for purchase now']),
+    h('option',{value:'closed'},['Portal: Closed'])
+  ]);
+  sel.value=st&&st.portal_mode?st.portal_mode:'auto';
+  sel.addEventListener('change',async function(){
+    sel.disabled=true;
+    var u=await sb.from('self_assess_settings').update({portal_mode:sel.value}).eq('id',1);
+    if(u.error){alert('Could not change the portal: '+u.error.message);sel.disabled=false;return;}
+    if(onDone)onDone();else sel.disabled=false;
+  });
+  return sel;
+}
 async function dfSaSettingsPanel(host){
   host.innerHTML='';
   host.append(h('div',{cls:'mono',style:{color:'var(--muted)',fontSize:'12px'}},['Loading Self Assessment settings…']));
@@ -6612,6 +6651,7 @@ async function dfSaSettingsPanel(host){
   var refresh=function(){dfSaSettingsPanel(host);};
 
   host.append(H3('Self Assessment portal'));
+  host.append(lab('Portal status'),dfSaPortalSelect(st,function(){refresh();}),note('Auto follows the Self Assessment Week dates. Open lets people sign up and buy right now. Closed shows everyone a closed page (the team can still use Team Pass).'));
   host.append(note('Students pay once on Selar, then choose which assessment to open on the Self Assessment page. Only admins can see this section.'));
   var linkI=mk('https://selar.co/...',st.selar_link),priceI=mk('25',st.single_price==null?25:st.single_price,'number');
   var bLinkI=mk('https://selar.co/...',st.bundle_link),bPriceI=mk('80',st.bundle_price==null?80:st.bundle_price,'number');
