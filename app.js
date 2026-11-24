@@ -5859,6 +5859,47 @@ paintTabs();
   var GS={step:'form',email:'',name:'',nbme:{},settings:null};
   try{var _gsv=JSON.parse(localStorage.getItem('df-sa-guest')||'null');if(_gsv&&_gsv.email){GS.email=_gsv.email;GS.name=_gsv.name||'';GS.nbme=_gsv.nbme||{};GS.step='list';}}catch(e){}
   function gsSave(){try{localStorage.setItem('df-sa-guest',JSON.stringify({email:GS.email,name:GS.name,nbme:GS.nbme,step:GS.step}));}catch(e){}}
+  /* ---- STUDENT PREVIEW (team only) ----
+     Lets a team member walk the exact student journey (sign-up, assessment list, Purchase link, "Already paid?" box,
+     taking a form, the two questions after it) whether or not the portal week is open. Nothing is saved, no email or
+     code is sent, no guest record is created, and the fake preview email is never written to this device. */
+  function gsPreviewStart(state){
+    GS._bk={email:GS.email,name:GS.name,nbme:GS.nbme,step:GS.step};
+    GS.preview=true;GS.previewState=state||'open';GS.previewUnlocked=false;GS.previewSigned=false;
+    GS.email='';GS.name='';GS.nbme={};GS.account=false;GS.flash='';
+    dfGuestHub();
+  }
+  function gsPreviewExit(){
+    var b=GS._bk||{email:'',name:'',nbme:{},step:'form'};
+    gsClearPoll();
+    GS.preview=false;GS.previewState='open';GS.previewUnlocked=false;GS.previewSigned=false;
+    GS.email=b.email;GS.name=b.name;GS.nbme=b.nbme||{};GS.step=b.step;GS._bk=null;GS.flash='';
+    dfGuestHub();
+  }
+  function gsPreviewBar(){
+    var bar=div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:'10px',background:'rgba(184,146,46,0.12)',border:'1px solid var(--gold)',borderRadius:'6px',padding:'10px 14px',margin:'0 0 16px'}},[]);
+    bar.append(h('div',{style:{fontSize:'12px',color:'var(--gold)',lineHeight:'1.6'}},['\u{1F441} STUDENT PREVIEW \u00b7 '+(GS.previewState==='upcoming'?'portal not open yet':'portal open')+' \u00b7 nothing is saved, no emails are sent.']));
+    var acts=div({style:{display:'flex',gap:'8px',flexWrap:'wrap'}},[]);
+    if(GS.previewState==='open'&&GS.email){
+      acts.append(btn(GS.previewUnlocked?'Re-lock paid forms':'Simulate: payment received','btn-outline',function(){GS.previewUnlocked=!GS.previewUnlocked;GS.flash=GS.previewUnlocked?'\u2705 Payment received. Your assessment is unlocked. (preview)':'';dfGuestHub();},{style:{fontSize:'10px',padding:'6px 12px'}}));
+    }
+    acts.append(btn('Exit preview','btn-gold',function(){gsPreviewExit();},{style:{fontSize:'10px',padding:'6px 12px'}}));
+    bar.append(acts);
+    return bar;
+  }
+  // What a student would get from self_assess_list, built for the preview (no email, no verification, nothing saved).
+  async function gsPreviewList(){
+    var r=await sb.rpc('self_assess_staff_list');
+    if(r.error)return {error:r.error};
+    var ir=await sb.from('self_assess_items').select('assessment_id,selar_link');
+    var lm={};(ir.data||[]).forEach(function(x){lm[x.assessment_id]=x.selar_link;});
+    var items=(r.data||[]).filter(function(x){return x.enabled;}).map(function(x){
+      var paid=x.access==='paid';
+      return Object.assign({},x,{selar_link:lm[x.assessment_id]||null,unlocked:!paid||!!GS.previewUnlocked,attempts:0,last_attempt_id:null});
+    });
+    return {data:items};
+  }
+  function gsFbRpc(args){if(GS.preview)return Promise.resolve({});return sb.rpc('self_assess_feedbac'+'k',args);}
   // ---- look and feel: same dark, gold-on-black hero as the landing page ----
   var GS_BOOKS='https://raw.githubusercontent.com/ambahtamaratubor-bot/STUDY-WITH-DEO-FORTIS/main/E3677AB0-D918-4B22-A368-EB2C6F68557F.PNG';
   var GS_COPY='You don’t want to exhaust your NBMEs yet, but you still need something new and predictive that shows you exactly where you are weak. We’ve got you. Our team took our time on this one.';
@@ -5934,7 +5975,7 @@ paintTabs();
     if(n<=e.getTime())return {state:'open',start:s,end:e};
     return {state:'over',start:s,end:e};
   }
-  function gsWeekSigned(){var v='';try{v=localStorage.getItem('df-sa-week')||'';}catch(e){}return !!GS.email&&v===GS.email;}
+  function gsWeekSigned(){if(GS.preview)return !!GS.previewSigned;var v='';try{v=localStorage.getItem('df-sa-week')||'';}catch(e){}return !!GS.email&&v===GS.email;}
   // Sign-up for the free week: saves the sign-up and emails the person (same edge function as before).
   async function gsWeekSignup(nm,em,honeypot){
     try{
@@ -5948,6 +5989,7 @@ paintTabs();
   function gsClearPoll(){GS._tok=(GS._tok||0)+1;if(GS._poll){clearInterval(GS._poll);GS._poll=null;}}
   function gsStartPoll(items){
     gsClearPoll();
+    if(GS.preview)return;
     var tok=GS._tok,started=Date.now();
     var before=(items||[]).filter(function(x){return x.access==='paid'&&x.unlocked;}).length;
     GS._poll=setInterval(async function(){
@@ -5971,7 +6013,7 @@ paintTabs();
       status.style.display='block';
       if(ref.length<6){status.style.color='#ff8888';status.textContent='Please enter the payment reference from your Selar receipt.';return;}
       go1.disabled=true;go1.textContent='Verifying…';
-      var r=await sb.rpc('self_assess_claim_reference',{p_email:GS.email,p_reference:ref});
+      var r=GS.preview?(await new Promise(function(res){setTimeout(res,700);}),{data:{ok:true}}):await sb.rpc('self_assess_claim_reference',{p_email:GS.email,p_reference:ref});
       go1.disabled=false;go1.textContent='Verify and unlock →';
       if(r.error){
         var m=String(r.error.message||'');
@@ -5984,9 +6026,10 @@ paintTabs();
       }
       status.style.color='var(--teal)';status.textContent='✓ Payment verified. Opening your assessment…';
       GS.flash='✅ Payment verified. Your assessment is unlocked.';
+      if(GS.preview)GS.previewUnlocked=true;
       setTimeout(function(){if(onUnlocked)onUnlocked();},900);
     },{style:{width:'100%'}});
-    body.append(h('div',{style:{fontSize:'12px',color:'var(--muted)',lineHeight:'1.6',marginBottom:'10px'}},['Your assessment should open on its own a few minutes after you pay. If it has not, paste the payment reference from your Selar receipt here.']),refI,status,go1);
+    body.append(h('div',{style:{fontSize:'12px',color:'var(--muted)',lineHeight:'1.6',marginBottom:'10px'}},['Your assessment should open on its own a few minutes after you pay. If it has not, paste the payment reference from your Selar receipt here.'+(GS.preview?' (PREVIEW: enter any reference of 6 or more characters to simulate a verified payment. Nothing is checked or saved.)':'')]),refI,status,go1);
     var tog=h('button',{type:'button',style:{background:'none',border:'none',color:'var(--gold)',cursor:'pointer',fontSize:'13px',fontWeight:'600',padding:'0'}},['Already paid? Verify your Selar reference']);
     tog.addEventListener('click',function(){body.style.display=body.style.display==='none'?'block':'none';});
     wrap.append(tog,body);
@@ -6117,7 +6160,14 @@ paintTabs();
     var r=await sb.rpc('self_assess_staff_list');
     content.innerHTML='';
     gsHero({compact:true,tag:'— TEAM PASS —',line1:'Every',em:'assessment.',sub:'You are signed in as part of the Deo Fortis team, so everything on the portal is open to you. Nothing you take here is saved or shown to guests.'});
-    content.append(div({style:{display:'flex',justifyContent:'flex-end',marginBottom:'14px'}},[btn('Refresh','btn-outline',function(){dfGuestHub();},{style:{fontSize:'10px',padding:'6px 12px'}})]));
+    content.append(div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:'10px',marginBottom:'14px'}},[
+      div({style:{display:'flex',gap:'8px',flexWrap:'wrap'}},[
+        btn('\u{1F441} Preview as a student','btn-gold',function(){gsPreviewStart('open');},{style:{fontSize:'11px',padding:'8px 16px'}}),
+        btn('Preview: portal not open yet','btn-outline',function(){gsPreviewStart('upcoming');},{style:{fontSize:'11px',padding:'8px 16px'}})
+      ]),
+      btn('Refresh','btn-outline',function(){dfGuestHub();},{style:{fontSize:'10px',padding:'6px 12px'}})
+    ]));
+    content.append(h('div',{style:{fontSize:'12px',color:'var(--muted)',lineHeight:'1.7',marginBottom:'14px'}},['Preview as a student walks the real student screens, from sign-up to the Purchase button and the \u201cAlready paid?\u201d box, even when the portal is closed. Nothing is saved and no emails are sent.']));
     if(r.error){content.append(emptyCard('Could not load the assessments',String(r.error.message||'')));return;}
     var items=r.data||[];
     if(!items.length){content.append(emptyCard('Nothing is on the portal yet','Use the dropdown on an assessment card to publish one.'));return;}
@@ -6154,6 +6204,7 @@ paintTabs();
   async function dfGuestHub(){
     gsClearPoll();
     content.innerHTML='';
+    if(GS.preview){if(!GS.email)return gsSignup();return gsList();}
     if(await gsCheckStaff())return gsStaffList();
     if(await gsAccount())return gsList();
     if(!GS.email)return gsSignup();
@@ -6164,9 +6215,11 @@ paintTabs();
     gsHeroBlank();
     content.append(skelCard([['40%'],['100%'],['60%']]));
     var st=await gsSettings();var wk=gsWeekState(st);
+    if(GS.preview){wk=GS.previewState==='upcoming'?{state:'upcoming',start:wk.start||new Date(Date.now()+3*864e5),end:wk.end||new Date(Date.now()+10*864e5)}:{state:'open',start:wk.start||new Date(),end:wk.end||new Date(Date.now()+7*864e5)};}
     var live=wk.state==='upcoming'||wk.state==='open';
     var range=live?(gsFmtDate(wk.start)+' – '+gsFmtDate(wk.end)):'';
     content.innerHTML='';
+    if(GS.preview)content.append(gsPreviewBar());
     var card=gsHeroCard(live);
     if(live)card.append(h('div',{cls:'df-sa-tag'},['Free · '+range]));
     card.append(
@@ -6183,6 +6236,7 @@ paintTabs();
       var nm=nameI.value.trim(),em=emailI.value.trim().toLowerCase();
       if(nm.length<2){err.textContent='Please enter your name.';err.style.display='block';return;}
       if(!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(em)){err.textContent='Please enter a valid email address.';err.style.display='block';return;}
+      if(GS.preview){GS.email='preview.student@example.com';GS.name=nm;GS.step='list';gsClearPoll();dfGuestHub();return;}
       go1.disabled=true;go1.textContent='Sending your code…';
       var r=await sb.rpc('self_assess_register',{p_name:nm,p_email:em});
       if(r.error){go1.disabled=false;go1.textContent=label;err.textContent=gsErrText(r.error);err.style.display='block';return;}
@@ -6196,6 +6250,7 @@ paintTabs();
   }
   // Optional: NBME scores (collapsed, never required)
   function gsNbmeCard(){
+    if(GS.preview)return null;
     if(GS.nbme&&Object.keys(GS.nbme).length)return null;
     var wrap=div({style:{maxWidth:'620px',margin:'18px auto 0',textAlign:'center'}},[]);
     var body=div({style:{display:'none',textAlign:'left',marginTop:'12px'}},[]);
@@ -6221,6 +6276,7 @@ paintTabs();
     return wrap;
   }
   function gsWho(){
+    if(GS.preview)return gsPreviewBar();
     var who=div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:'10px',marginBottom:'16px'}},[]);
     who.append(h('div',{cls:'mono',style:{fontSize:'11px',color:'var(--muted)'}},[GS.name+' · '+GS.email]));
     who.append(div({style:{display:'flex',gap:'8px'}},[
@@ -6233,10 +6289,11 @@ paintTabs();
   async function gsList(){
     gsHeroBlank('200px');
     content.append(skelCard([['40%'],['100%'],['80%']]));
-    var res=await Promise.all([sb.rpc('self_assess_list',{p_email:GS.email}),gsSettings()]);
+    var res=await Promise.all([GS.preview?gsPreviewList():sb.rpc('self_assess_list',{p_email:GS.email}),gsSettings()]);
     var lr=res[0],st=res[1]||{};
     if(lr.error&&/unverified/i.test(String(lr.error.message||'')))return gsVerify(false);
     var wk=gsWeekState(st);
+    if(GS.preview){wk=GS.previewState==='upcoming'?{state:'upcoming',start:wk.start||new Date(Date.now()+3*864e5),end:wk.end||new Date(Date.now()+10*864e5)}:{state:'open'};}
     content.innerHTML='';
     // Signed up, week not open yet: a confirmation, nothing to take yet
     if(wk.state==='upcoming'){
@@ -6251,7 +6308,7 @@ paintTabs();
         var ue=div({style:{fontSize:'12px',color:'#ff8888',margin:'8px 0',display:'none'}},['']);
         var ub=btn('Reserve my spot →','btn-gold',async function(){
           ub.disabled=true;ub.textContent='Signing you up…';ue.style.display='none';
-          var w=await gsWeekSignup(GS.name,GS.email,'');
+          var w=GS.preview?(GS.previewSigned=true,{ok:true}):await gsWeekSignup(GS.name,GS.email,'');
           if(w.ok){dfGuestHub();return;}
           ub.disabled=false;ub.textContent='Reserve my spot →';ue.textContent=w.msg;ue.style.display='block';
         },{style:{width:'100%'}});
@@ -6309,7 +6366,7 @@ paintTabs();
   async function gsStart(it,staff){
     gsClearPoll();
     content.innerHTML='';content.append(skelCard([['40%'],['100%'],['100%'],['80%']]));
-    var r=staff?await sb.rpc('self_assess_staff_start',{p_assessment_id:it.assessment_id}):await sb.rpc('self_assess_start',{p_email:GS.email,p_assessment_id:it.assessment_id});
+    var r=(staff||GS.preview)?await sb.rpc('self_assess_staff_start',{p_assessment_id:it.assessment_id}):await sb.rpc('self_assess_start',{p_email:GS.email,p_assessment_id:it.assessment_id});
     if(r.error||!r.data){content.innerHTML='';alert(gsErrText(r.error));dfGuestHub();return;}
     var assessment=r.data.assessment;var questions=r.data.questions||[];
     if(!questions.length){content.innerHTML='';alert('This assessment has no questions yet.');dfGuestHub();return;}
@@ -6339,7 +6396,7 @@ paintTabs();
   // After the last question: do NOT show the score yet. Ask the two questions first.
   async function dfGuestFinish(o){
     gsClearPoll();
-    if(gsStaff){
+    if(gsStaff&&!GS.preview){
       try{if(o.clear)o.clear();}catch(e){}
       var tot=(o.questions||[]).length;
       gsShowReport({assessment_id:o.assessment.id,assessment_title:o.assessment.title,score:o.score,total:tot,questions:o.questions,answers:o.answers,time_taken_seconds:o.timeTakenSeconds,question_times:o.questionTimes,answer_changes:o.answerChanges,block_scores:o.blockScores});
@@ -6347,7 +6404,7 @@ paintTabs();
     }
     try{if(o.clear)o.clear();}catch(e){}
     content.innerHTML='';content.append(skelCard([['40%'],['100%'],['80%']]));
-    var r=await sb.rpc('self_assess_submit',{p_email:GS.email,p_assessment_id:o.assessment.id,p_answers:o.answers||{},p_questions:o.questions||[],p_time:o.timeTakenSeconds||0,p_question_times:o.questionTimes||{},p_answer_changes:o.answerChanges||[],p_block_scores:o.blockScores||null,p_highlights:o.highlights||{},p_flagged:o.flagged||{}});
+    var r=GS.preview?{data:{id:null,score:o.score,total:(o.questions||[]).length}}:await sb.rpc('self_assess_submit',{p_email:GS.email,p_assessment_id:o.assessment.id,p_answers:o.answers||{},p_questions:o.questions||[],p_time:o.timeTakenSeconds||0,p_question_times:o.questionTimes||{},p_answer_changes:o.answerChanges||[],p_block_scores:o.blockScores||null,p_highlights:o.highlights||{},p_flagged:o.flagged||{}});
     content.innerHTML='';
     if(r.error||!r.data){
       var ec=div({cls:'card',style:{maxWidth:'520px',margin:'40px auto',padding:'24px',textAlign:'center'}},[]);
@@ -6363,7 +6420,7 @@ paintTabs();
     q1.append(h('div',{style:{fontSize:'15px',marginBottom:'10px',fontWeight:'600'}},['Do you think these questions are predictive of the questions on NBME exams?']));
     var q1opts=div({style:{display:'flex',flexDirection:'column',gap:'8px'}},[]);
     [['very','Very predictive'],['somewhat','Somewhat predictive'],['not_very','Not very predictive'],['not_at_all','Not at all predictive'],['unsure','I have not taken NBME exams']].forEach(function(p){
-      var b=btn(p[1],'btn-outline',function(){predictive=p[0];Array.prototype.forEach.call(q1opts.children,function(x){x.style.borderColor='';x.style.background='';});b.style.borderColor='var(--gold)';b.style.background='var(--gold-subtle)';sb.rpc('self_assess_feedback',{p_email:GS.email,p_attempt_id:saved.id,p_predictive:predictive,p_wants_more:null});sync();},{style:{textAlign:'left',fontSize:'13px',padding:'10px 14px'}});
+      var b=btn(p[1],'btn-outline',function(){predictive=p[0];Array.prototype.forEach.call(q1opts.children,function(x){x.style.borderColor='';x.style.background='';});b.style.borderColor='var(--gold)';b.style.background='var(--gold-subtle)';gsFbRpc({p_email:GS.email,p_attempt_id:saved.id,p_predictive:predictive,p_wants_more:null});sync();},{style:{textAlign:'left',fontSize:'13px',padding:'10px 14px'}});
       q1opts.append(b);
     });
     q1.append(q1opts);
@@ -6371,14 +6428,14 @@ paintTabs();
     q2.append(h('div',{style:{fontSize:'15px',marginBottom:'10px',fontWeight:'600'}},['Would you like to purchase more self assessments?']));
     var q2row=div({style:{display:'flex',gap:'10px'}},[]);
     var buyBox=div({style:{marginTop:'12px',display:'none'}},[]);
-    var yesB=btn('Yes','btn-outline',function(){wants=true;yesB.style.borderColor='var(--gold)';yesB.style.background='var(--gold-subtle)';noB.style.borderColor='';noB.style.background='';buyBox.style.display='block';fillBuy();sb.rpc('self_assess_feedback',{p_email:GS.email,p_attempt_id:saved.id,p_predictive:null,p_wants_more:true});sync();},{style:{flex:'1'}});
-    var noB=btn('No','btn-outline',function(){wants=false;noB.style.borderColor='var(--gold)';noB.style.background='var(--gold-subtle)';yesB.style.borderColor='';yesB.style.background='';buyBox.style.display='none';sb.rpc('self_assess_feedback',{p_email:GS.email,p_attempt_id:saved.id,p_predictive:null,p_wants_more:false});sync();},{style:{flex:'1'}});
+    var yesB=btn('Yes','btn-outline',function(){wants=true;yesB.style.borderColor='var(--gold)';yesB.style.background='var(--gold-subtle)';noB.style.borderColor='';noB.style.background='';buyBox.style.display='block';fillBuy();gsFbRpc({p_email:GS.email,p_attempt_id:saved.id,p_predictive:null,p_wants_more:true});sync();},{style:{flex:'1'}});
+    var noB=btn('No','btn-outline',function(){wants=false;noB.style.borderColor='var(--gold)';noB.style.background='var(--gold-subtle)';yesB.style.borderColor='';yesB.style.background='';buyBox.style.display='none';gsFbRpc({p_email:GS.email,p_attempt_id:saved.id,p_predictive:null,p_wants_more:false});sync();},{style:{flex:'1'}});
     q2row.append(yesB,noB);
     var buyLoaded=false;
     async function fillBuy(){
       if(buyLoaded)return;buyLoaded=true;
       buyBox.append(h('div',{style:{fontSize:'12px',color:'var(--muted)'}},['Loading plans\u2026']));
-      var lr=await sb.rpc('self_assess_list',{p_email:GS.email});
+      var lr=GS.preview?await gsPreviewList():await sb.rpc('self_assess_list',{p_email:GS.email});
       buyBox.innerHTML='';
       var lockedNow=lr.error?[]:(lr.data||[]).filter(function(x){return x.access==='paid'&&!x.unlocked;});
       if(lockedNow.length)buyBox.append(gsBuyBox(lockedNow,st));
@@ -6458,6 +6515,76 @@ async function dfSaPickCode(a){
   if(used[n]){alert('Number '+n+' is already used by another assessment.');return null;}
   return n;
 }
+/* ---- Self Assessment purchase links (admin) ----
+   Per assessment: self_assess_items.selar_link (that assessment's Purchase button).
+   Portal-wide: self_assess_settings row id=1 -> selar_link (fallback for any assessment without its own), bundle_link, bundle_price. */
+function dfSaCleanLink(v){v=(v||'').trim();if(!v)return {ok:true,val:null};if(!/^https?:\/\/\S+$/i.test(v))return {ok:false};return {ok:true,val:v};}
+function dfSaLinkModal(o){
+  // o:{title,intro,fields:[{key,label,placeholder,value,type}],onSave(values)->Promise<string|null error>,onDone()}
+  var overlay=div({cls:'modal-bg',style:{zIndex:'100010'}},[]);
+  var modal=div({cls:'card',style:{maxWidth:'520px',width:'100%',position:'relative'}},[]);
+  overlay.onclick=function(e){if(e.target===overlay)overlay.remove();};
+  modal.append(h('h3',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'17px',margin:'0 0 6px'}},[o.title]));
+  if(o.intro)modal.append(h('div',{style:{fontSize:'12px',color:'var(--muted)',marginBottom:'12px',lineHeight:'1.6'}},[o.intro]));
+  var inputs={};
+  o.fields.forEach(function(f){
+    modal.append(h('div',{cls:'mono',style:{fontSize:'10px',color:'var(--muted)',textTransform:'uppercase',letterSpacing:'1px',margin:'10px 0 6px'}},[f.label]));
+    var inp=h('input',{cls:'input',type:f.type||'text',placeholder:f.placeholder||'',value:f.value==null?'':String(f.value),style:{width:'100%'}});
+    inputs[f.key]=inp;modal.append(inp);
+  });
+  var msg=h('div',{style:{fontSize:'12px',minHeight:'16px',margin:'12px 0 8px',color:'var(--muted)'}},['']);
+  modal.append(msg);
+  var save=btn('Save','btn-gold',async function(){
+    var vals={};
+    for(var i=0;i<o.fields.length;i++){
+      var f=o.fields[i];var raw=inputs[f.key].value;
+      if(f.type==='number'){vals[f.key]=raw===''?null:Number(raw);if(raw!==''&&!(vals[f.key]>=0)){msg.style.color='#ff8888';msg.textContent=f.label+' must be a number.';return;}}
+      else{var c=dfSaCleanLink(raw);if(!c.ok){msg.style.color='#ff8888';msg.textContent=f.label+' must start with https://';return;}vals[f.key]=c.val;}
+    }
+    save.disabled=true;msg.style.color='var(--muted)';msg.textContent='Saving…';
+    var err=await o.onSave(vals);
+    if(err){msg.style.color='#ff8888';msg.textContent='Could not save: '+err;save.disabled=false;return;}
+    overlay.remove();if(o.onDone)o.onDone();
+  },{style:{fontSize:'12px',padding:'8px 16px'}});
+  modal.append(div({style:{display:'flex',gap:'8px',justifyContent:'flex-end'}},[btn('Cancel','btn-outline',function(){overlay.remove();},{style:{fontSize:'12px',padding:'8px 14px'}}),save]));
+  overlay.append(modal);document.body.appendChild(overlay);
+}
+// Button on each assessment card that is on the Self Assessment portal: set this assessment's own Selar purchase link.
+function dfSaLinkBtn(a,existing,onDone){
+  var has=!!(existing&&existing.selar_link);
+  return btn(has?'Purchase link ✓':'Purchase link','btn-outline',function(){
+    dfSaLinkModal({
+      title:'Purchase link · '+(a.title||'assessment'),
+      intro:'Paste the Selar product link for this assessment. Students see it on the Purchase button. Leave empty to use the general purchase link instead.',
+      fields:[{key:'selar_link',label:'Selar link for this assessment',placeholder:'https://selar.co/...',value:existing&&existing.selar_link}],
+      onSave:async function(v){var r=await sb.from('self_assess_items').update({selar_link:v.selar_link}).eq('assessment_id',a.id);return r.error?r.error.message:null;},
+      onDone:onDone
+    });
+  },{style:{fontSize:'10px',padding:'6px 12px',color:has?'var(--teal)':undefined,borderColor:has?'var(--teal)':undefined}});
+}
+// Portal-wide links: general purchase link, bundle link, bundle price.
+function dfSaSettingsBtn(){
+  return btn('Self Assessment links','btn-outline',async function(){
+    var r=await sb.from('self_assess_settings').select('*').eq('id',1).maybeSingle();
+    var st=(r&&r.data)||{};
+    dfSaLinkModal({
+      title:'Self Assessment purchase links',
+      intro:'The general link is used for any assessment that has no purchase link of its own. The bundle link is for the buy-all offer.',
+      fields:[
+        {key:'selar_link',label:'General purchase link (Selar)',placeholder:'https://selar.co/...',value:st.selar_link},
+        {key:'bundle_link',label:'Bundle link (all assessments)',placeholder:'https://selar.co/...',value:st.bundle_link},
+        {key:'bundle_price',label:'Bundle price (USD)',type:'number',placeholder:'80',value:st.bundle_price}
+      ],
+      onSave:async function(v){
+        var upd={selar_link:v.selar_link,bundle_link:v.bundle_link};
+        if(v.bundle_price!=null)upd.bundle_price=v.bundle_price;
+        var u=await sb.from('self_assess_settings').update(upd).eq('id',1);
+        return u.error?u.error.message:null;
+      }
+    });
+  },{style:{fontSize:'12px',padding:'8px 16px'}});
+}
+
 function dfSaPortalSelect(a,existing,onDone){
   var on=!!(existing&&existing.enabled);
   var cur=on?existing.access:'off';
@@ -6493,7 +6620,7 @@ function dfSaPortalSelect(a,existing,onDone){
   return sel;
 }
 // The assessment list is built in another part of the app, so the dropdown is shared through window.
-window.dfSaPortalSelect=dfSaPortalSelect;
+window.dfSaPortalSelect=dfSaPortalSelect;window.dfSaLinkBtn=dfSaLinkBtn;window.dfSaSettingsBtn=dfSaSettingsBtn;
 
 const pages={landing,signup,login,pending,dashboard,study,flashcards,vignette,leaderboard,admin,feynman,theory,notes,about,tutoring,selfassess,selfweek};
 if(!window.activeSessionId||!window.pomPlan){var _ps=localStorage.getItem('pomodoroState');if(_ps){try{var _psp=JSON.parse(_ps);if(_psp.activeSessionId){window.activeSessionId=_psp.activeSessionId;window.sessionStartTime=_psp.sessionStartTime||null;if(!window.pomPlan&&_psp.segStart){var _cfg=_psp.cfg||{};window.pomPlan={topic:_cfg.topic||'General Study',totalSessions:_cfg.sessions||4,workSec:(_cfg.workMins||25)*60,breakSec:(_cfg.breakMins||5)*60,currentCycle:_psp.curSess||1,isBreakMode:_psp.isBreak||false,startedAtTimestamp:_psp.segStart};}}  }catch(e){}}}
@@ -11831,7 +11958,7 @@ function renderAssessments(){
   tBody.innerHTML='';
   var _topRow=div({style:{display:'flex',gap:'8px',flexWrap:'wrap',marginBottom:'16px'}},[btn('+ Create New Assessment','btn-gold',function(){renderCreateAssessment();},{style:{fontSize:'12px',padding:'8px 16px'}})]);
   tBody.append(_topRow);
-  Promise.resolve(sb.rpc('user_is_admin')).then(function(r){var ok=!!(r&&r.data===true);if(ok)_topRow.append(btn('Open Self Assessment portal','btn-outline',function(){go('selfassess');},{style:{fontSize:'12px',padding:'8px 16px'}}));});
+  Promise.resolve(sb.rpc('user_is_admin')).then(function(r){var ok=!!(r&&r.data===true);if(ok){_topRow.append(btn('Open Self Assessment portal','btn-outline',function(){go('selfassess');},{style:{fontSize:'12px',padding:'8px 16px'}}));if(typeof window.dfSaSettingsBtn==='function')_topRow.append(window.dfSaSettingsBtn());}});
   var listWrap=div({},[]);
   tBody.append(listWrap);
   async function loadAssessments(){
@@ -11867,6 +11994,7 @@ function renderAssessments(){
       btns.append(btn('Preview','btn-outline',function(){openLibraryPreview('assessment',a);},{style:{fontSize:'10px',padding:'6px 12px'}}));
       var _sa=saMap[a.id];
       if(typeof window.dfSaPortalSelect==='function')btns.append(window.dfSaPortalSelect(a,_sa,loadAssessments));
+      if(_sa&&_sa.enabled&&typeof window.dfSaLinkBtn==='function')btns.append(window.dfSaLinkBtn(a,_sa,loadAssessments));
       if(!grouped)btns.append(btn('Assign','btn-gold',function(){openAssignAssessment({assessmentId:a.id,assessmentTitle:a.title});},{style:{fontSize:'10px',padding:'6px 12px'}}));
       btns.append(btn('Archive','btn-outline',async function(){
         if(!confirm('Archive \u201c'+a.title+'\u201d? It leaves this list but nothing is deleted: questions, assignments and scores all stay.'))return;
