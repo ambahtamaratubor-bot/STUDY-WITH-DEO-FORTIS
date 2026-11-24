@@ -2496,6 +2496,7 @@ function buildGatedReviewUI(opts){
       div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'12px'}},[div({cls:'mono',style:{fontSize:'9px'}},['Question '+(i+1)+' of '+qs.length]),div({style:{display:'flex',alignItems:'center',gap:'8px'}},[marks[q.id]?dfMarkedBadge():'',h('span',{style:{fontFamily:'Inter,sans-serif',fontSize:'11px',color:isCorrect?'var(--teal)':'#ff8888',fontWeight:'700'}},[isCorrect?'\u2713 Correct':'\u2717 Incorrect'])])]),
       qTextDiv
     );
+    if(opts.padCtx)qCard.append(dfReasoningPad(q.id,opts.padCtx));
     ['a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p','q'].forEach(function(opt){
       var val=q['option_'+opt];if(!val)return;
       var isUser=userAns===opt.toUpperCase();var isCorr=correct===opt.toUpperCase();
@@ -5845,6 +5846,7 @@ async function showReview(result){
   content.append(buildGatedReviewUI({
     qs:qs,ans:ans,resultId:result.id,errorReasons:errorReasons,highlights:result.highlights||{},flagged:result.flagged||{},
     title:result.test_title||'Test',subLine:subLine,assessment:!!(result.assessment_id||result.assessment_title),
+    padCtx:(result.assessment_id||result.assessment_title)?'assessment':'tutoring_test',
     onDownload:function(){
       downloadDetailedReviewPdf(result.test_title||'Assessment',subLine,qs,ans,result.test_title||'assessment',function(errMsg){
         if(errMsg)alert(errMsg);
@@ -5882,10 +5884,12 @@ paintTabs();
     var acts=div({style:{display:'flex',gap:'8px',flexWrap:'wrap'}},[]);
     if(GS.previewState==='open'&&GS.email){
       var _pvDone=GS.previewUnlocked||GS.previewCredits>0||Object.keys(GS.previewChosen||{}).length>0;
-      acts.append(btn(_pvDone?'Reset simulation':'Simulate: payment received','btn-outline',function(){
-        if(_pvDone){GS.previewUnlocked=false;GS.previewCredits=0;GS.previewChosen={};GS.flash='';}
-        else{GS.previewCredits=1;GS.flash='\u2705 Payment received. Choose which assessment to unlock. (preview)';}
-        dfGuestHub();},{style:{fontSize:'10px',padding:'6px 12px'}}));
+      if(!_pvDone){
+        acts.append(btn('Simulate: paid for ONE','btn-outline',function(){GS.previewCredits=1;GS.flash='\u2705 Payment received. Choose which assessment you want to unlock below. (preview)';dfGuestHub();},{style:{fontSize:'10px',padding:'6px 12px'}}));
+        acts.append(btn('Simulate: paid for ALL','btn-outline',function(){GS.previewUnlocked=true;GS.flash='\u2705 Payment received. Every assessment is unlocked. (preview)';dfGuestHub();},{style:{fontSize:'10px',padding:'6px 12px'}}));
+      }else{
+        acts.append(btn('Reset simulation','btn-outline',function(){GS.previewUnlocked=false;GS.previewCredits=0;GS.previewChosen={};GS.flash='';dfGuestHub();},{style:{fontSize:'10px',padding:'6px 12px'}}));
+      }
     }
     acts.append(btn('Exit preview','btn-gold',function(){gsPreviewExit();},{style:{fontSize:'10px',padding:'6px 12px'}}));
     bar.append(acts);
@@ -6035,7 +6039,7 @@ paintTabs();
       }
       status.style.color='var(--teal)';status.textContent='✓ Payment verified. Opening your assessment…';
       GS.flash='✅ Payment verified. Your assessment is unlocked.';
-      if(GS.preview)GS.previewUnlocked=true;
+      if(GS.preview){GS.previewCredits=(GS.previewCredits||0)+1;GS.flash='\u2705 Payment verified. Choose which assessment you want to unlock below. (preview)';}
       setTimeout(function(){if(onUnlocked)onUnlocked();},900);
     },{style:{width:'100%'}});
     body.append(h('div',{style:{fontSize:'12px',color:'var(--muted)',lineHeight:'1.6',marginBottom:'10px'}},['Your payment should show up here a few minutes after you pay, and you can then choose your assessment. If it has not, paste the payment reference from your Selar receipt here.'+(GS.preview?' (PREVIEW: enter any reference of 6 or more characters to simulate a verified payment. Nothing is checked or saved.)':'')]),refI,status,go1);
@@ -10504,6 +10508,7 @@ inner.innerHTML='';
 inner.append(buildGatedReviewUI({
   qs:questions,ans:answers,resultId:currentVignetteResultId,errorReasons:errorReasons,highlights:highlights,flagged:flagged,
   title:selTopic||'Answer Review',subLine:questions.length+' questions',
+  padCtx:'vignette',
   onExit:function(){showSetup();}
 }));
 page.append(inner);
