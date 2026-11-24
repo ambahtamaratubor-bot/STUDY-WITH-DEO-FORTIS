@@ -6096,6 +6096,47 @@ paintTabs();
     else c.append(h('span',{cls:'mono',style:{fontSize:'11px',color:'var(--dim)'}},['Purchase link coming soon']));
     return c;
   }
+  // Two big price cards, like the landing page plans: ONE assessment or ALL of them. Replaces the two small purchase rows.
+  function gsPricing(locked,st,onBuy,hasCredit){
+    dfSaGlowCss();
+    var one=Number(st.single_price||DF_SA_PRICE),all=Number(st.bundle_price||0);
+    var n=(locked||[]).length;
+    var showAll=all>0;
+    var cnt=Math.max(n,5); // the portal is growing to 5 assessments, so the saving is shown against buying 5 separately
+    var sum=cnt*one;
+    var wrap=div({style:{margin:'0 0 22px'}},[]);
+    wrap.append(h('div',{cls:'mono',style:{fontSize:'11px',letterSpacing:'2px',textTransform:'uppercase',color:'var(--gold)',textAlign:'center',marginBottom:'14px'}},[hasCredit?'Buy another':'Unlock the paid assessments']));
+    var grid=div({style:{display:'grid',gridTemplateColumns:showAll?'repeat(auto-fit,minmax(250px,1fr))':'minmax(250px,380px)',justifyContent:'center',gap:'16px',alignItems:'stretch'}},[]);
+    function card(o){
+      var c=div({cls:'plan-card'+(o.best?' df-sa-glow':''),style:{position:'relative',display:'flex',flexDirection:'column',padding:'28px 24px',borderTop:'3px solid '+o.color,borderRadius:'8px'}},[]);
+      if(o.best)c.append(h('div',{cls:'df-sa-tag',style:{position:'absolute',top:'-12px',left:'50%',transform:'translateX(-50%)',margin:'0',whiteSpace:'nowrap'}},['Best value']));
+      c.append(div({cls:'mono',style:{marginBottom:'10px',marginTop:o.best?'6px':'0',color:'var(--muted)',letterSpacing:'2px',textTransform:'uppercase',fontSize:'11px'}},[o.name]));
+      c.append(div({style:{display:'flex',alignItems:'baseline',gap:'6px',marginBottom:'4px'}},[
+        h('span',{style:{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:'54px',color:o.color,lineHeight:'1',fontWeight:'700'}},[o.price]),
+        h('span',{style:{fontSize:'14px',color:'var(--dim)'}},[o.per])
+      ]));
+      c.append(div({style:{fontSize:'12px',color:o.save?'var(--teal)':'var(--dim)',minHeight:'18px',marginBottom:'16px',fontWeight:o.save?'600':'400'}},[o.save||'']));
+      c.append(h('hr',{style:{border:'none',borderTop:'1px solid var(--border)',margin:'0 0 16px'}}));
+      var fl=div({style:{marginBottom:'22px',flex:'1'}},[]);
+      o.feats.forEach(function(f){fl.append(div({style:{display:'flex',gap:'10px',fontSize:'13px',color:'var(--text)',lineHeight:'1.5',marginBottom:'9px'}},[h('span',{style:{color:o.color,fontSize:'12px',marginTop:'2px',flexShrink:'0'}},['\u2726']),h('span',{},[f])]));});
+      c.append(fl);
+      if(o.link){
+        var a=h('a',{cls:'btn btn-gold',href:o.link,target:'_blank',rel:'noopener',style:{background:o.color,color:'#0F0E0A',width:'100%',textAlign:'center',display:'block',textDecoration:'none',padding:'15px 18px',fontSize:'14px',fontWeight:'700',boxSizing:'border-box'}},[o.btn]);
+        if(onBuy)a.addEventListener('click',onBuy);
+        c.append(a);
+      }else{
+        c.append(h('div',{cls:'mono',style:{textAlign:'center',fontSize:'12px',color:'var(--dim)',border:'1px dashed var(--border)',borderRadius:'4px',padding:'14px'}},['Purchase link coming soon']));
+      }
+      c.append(h('div',{style:{fontSize:'10px',color:'var(--dim)',textAlign:'center',marginTop:'12px',letterSpacing:'1px',textTransform:'uppercase'}},['Secure payment on Selar']));
+      return c;
+    }
+    grid.append(card({name:'One assessment',price:gsMoney(one),per:'once',color:'var(--teal)',save:'',link:st.selar_link||'',btn:'Buy one \u2014 '+gsMoney(one),
+      feats:['Choose any one paid assessment after you pay','Retake it as often as you like','Full score breakdown and review']}));
+    if(showAll)grid.append(card({name:'All assessments',price:gsMoney(all),per:'once',best:true,color:'var(--gold)',save:sum>all?('Save '+gsMoney(sum-all)+' compared with buying '+cnt+' separately'):'Every paid assessment included',link:st.bundle_link||'',btn:'Buy all \u2014 '+gsMoney(all),
+      feats:['Every paid assessment opens at once','Retake them as often as you like','Full score breakdown and review']}));
+    wrap.append(grid);
+    return wrap;
+  }
   // Shown after a payment: the buyer picks which assessment the purchase opens. The choice is final (the team can reset a wrong pick).
   function gsChooseCard(locked,credits){
     dfSaGlowCss();
@@ -6121,8 +6162,7 @@ paintTabs();
   // Purchase list used after the free assessment ("Would you like to purchase more?")
   function gsBuyBox(locked,st){
     var box=div({},[]);
-    var bc=gsBundleCard(locked,st,null);if(bc){bc.style.marginTop='4px';box.append(bc);}
-    box.append(gsBuyCard(st,null,false));
+    box.append(gsPricing(locked,st,null,false));
     box.append(h('div',{style:{fontSize:'11px',color:'var(--dim)',marginTop:'8px',lineHeight:'1.6'}},['Use the same email ('+GS.email+') on Selar. After you pay, come back here and choose which assessment to open.']));
     return box;
   }
@@ -6397,9 +6437,7 @@ paintTabs();
     function onBuy(){if(verify)verify.open();gsStartPoll(items,credits);}
     if(credits>0&&locked.length)content.append(gsChooseCard(locked,credits));
     else if(credits>0&&!locked.length)content.append(h('div',{style:{border:'1px solid var(--teal)',color:'var(--teal)',borderRadius:'6px',padding:'12px 14px',fontSize:'13px',marginBottom:'14px'}},['You have an unused purchase, but every paid assessment is already unlocked for you. Please contact us and we will sort it out.']));
-    if(locked.length)content.append(gsBuyCard(st,onBuy,credits>0));
-    var bundle=gsBundleCard(locked,st,onBuy);
-    if(bundle)content.append(bundle);
+    if(locked.length)content.append(gsPricing(locked,st,onBuy,credits>0));
     items.forEach(function(it){
       var card=div({cls:'card',style:{marginBottom:'10px',display:'flex',justifyContent:'space-between',alignItems:'center',gap:'14px',flexWrap:'wrap'}},[]);
       var paid=it.access==='paid';
