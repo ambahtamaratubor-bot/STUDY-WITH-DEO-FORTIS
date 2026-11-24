@@ -2554,6 +2554,50 @@ function buildGatedReviewUI(opts){
   return wrap;
 }
 
+/* ===================== TUTOR TIP (variant questions, tutor-only) =====================
+   For an assessment variant (title ends in " - 2", " - 3" ... or legacy " - Variant"), each question can carry a
+   tutor tip saying what the ORIGINAL NBME concept was asking. Tips live in their own table
+   (tutoring_assessment_tutor_tips / tutoring_test_tutor_tips: parent id, position, tip) that only staff can read (RLS), so a student's
+   browser never receives them. Keyed by position, so they survive an assessment re-save. */
+function dfIsVariantTitle(title){return /\s*[-–—]\s*(?:variant|\d+)\s*$/i.test((title||'').trim())&&!/\s*[-–—]\s*1\s*$/.test((title||'').trim());}
+async function dfLoadTutorTips(id,title,kind){
+  var map={};
+  if(!id)return map;
+  var isTest=kind==='test';
+  // Assessments: only titles marked as a variant. Test Library: no title convention, so any test with tip rows shows them.
+  if(!isTest&&!dfIsVariantTitle(title))return map;
+  try{
+    var r=isTest
+      ?await sb.from('tutoring_test_tutor_tips').select('position,tip').eq('test_id',id)
+      :await sb.from('tutoring_assessment_tutor_tips').select('position,tip').eq('assessment_id',id);
+    (r&&r.data||[]).forEach(function(x){if(x&&x.tip)map[x.position]=x.tip;});
+  }catch(e){}
+  return map;
+}
+function dfLoadTutorTipsForResult(result){
+  if(!result)return Promise.resolve({});
+  if(result.assessment_id)return dfLoadTutorTips(result.assessment_id,result.assessment_title,'assessment');
+  if(result.test_id)return dfLoadTutorTips(result.test_id,result.test_title||result.title,'test');
+  return Promise.resolve({});
+}
+function dfTutorTipEl(tip){
+  if(!tip)return null;
+  if(!document.getElementById('df-tutor-tip-css')){
+    var st=document.createElement('style');st.id='df-tutor-tip-css';
+    st.textContent='@keyframes dfTipGlow{0%,100%{box-shadow:0 0 6px rgba(212,175,55,0.35),0 0 16px rgba(212,175,55,0.18),inset 0 0 10px rgba(212,175,55,0.06);}50%{box-shadow:0 0 12px rgba(212,175,55,0.65),0 0 30px rgba(212,175,55,0.32),inset 0 0 14px rgba(212,175,55,0.12);}}'
+      +'.df-tutor-tip{animation:dfTipGlow 3.2s ease-in-out infinite;}'
+      +'@media (prefers-reduced-motion:reduce){.df-tutor-tip{animation:none;box-shadow:0 0 14px rgba(212,175,55,0.45),0 0 28px rgba(212,175,55,0.2);}}'
+      +'@media print{.df-tutor-tip{animation:none;box-shadow:none;}}';
+    document.head.appendChild(st);
+  }
+  var box=div({cls:'df-tutor-tip',style:{background:'linear-gradient(135deg,rgba(212,175,55,0.14),rgba(212,175,55,0.05))',border:'1px solid rgba(212,175,55,0.6)',borderLeft:'4px solid #d4af37',borderRadius:'6px',padding:'12px 14px',margin:'0 0 14px'}},[]);
+  box.append(
+    div({style:{fontFamily:'Inter,sans-serif',fontSize:'10px',fontWeight:'700',color:'#d4af37',letterSpacing:'2px',textTransform:'uppercase',marginBottom:'6px',textShadow:'0 0 8px rgba(212,175,55,0.6)'},html:'✨ Tutor tip · tutors only'}),
+    div({style:{fontSize:'13px',color:'var(--text)',lineHeight:'1.7'},html:tip})
+  );
+  return box;
+}
+
 // Builds the per-question review cards (question text, options colored by correctness,
 // explanation) shared by both the admin review modal and PDF export — continuous scroll,
 // used only where the mandatory error-reason gate does not apply.
@@ -2575,6 +2619,7 @@ function buildReviewQuestionCards(qs,ans,opts){
     if(!opts.previewMode)_hdrRight.append(h('span',{style:{fontFamily:'Inter,sans-serif',fontSize:'11px',color:isCorrect?'var(--teal)':'#ff8888',fontWeight:'700'},html:isCorrect?'\u2713 Correct':'\u2717 Incorrect'}));
     headerRow.append(_hdrRight);
     qCard.append(headerRow,qTextDiv);
+    if(opts.tutorTips){var _tt=dfTutorTipEl(opts.tutorTips[q.position!=null?q.position:(i+1)]);if(_tt)qCard.append(_tt);}
     ['a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p','q'].forEach(function(opt){
       var val=q['option_'+opt];if(!val)return;
       var isUser=!opts.previewMode&&userAns===opt.toUpperCase();var isCorr=correct===opt.toUpperCase();
@@ -12231,11 +12276,13 @@ function openLibraryPreview(kind,item){
       ]));
       return;
     }
-    renderExamStylePreview(kind,item,qs);
+    var tips=await dfLoadTutorTips(item.id,item.title,kind);
+    renderExamStylePreview(kind,item,qs,tips);
   })();
 }
 
-function renderExamStylePreview(kind,item,questions){
+function renderExamStylePreview(kind,item,questions,tutorTips){
+  tutorTips=tutorTips||{};
   tBody.innerHTML='';
   var current=0;
   function corr(q){return String(q.correct_answer||'').toUpperCase();}
@@ -12305,6 +12352,8 @@ function renderExamStylePreview(kind,item,questions){
     renderQuestionText(q.question,qTextDiv);
     qCard.append(qTextDiv);
     mainArea.append(qCard);
+    var _tip=dfTutorTipEl(tutorTips[q.position!=null?q.position:(current+1)]);
+    if(_tip)mainArea.append(_tip);
 
     ['a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p','q'].forEach(function(opt){
       var val=q['option_'+opt];if(!val)return;
@@ -12430,8 +12479,8 @@ function openAdminResultReview(result,opts){
   overlay.append(modal);
   document.body.append(overlay);
   overlay.onclick=function(e){if(e.target===overlay)overlay.remove();};
-  function renderAdminReviewQuestions(qs,ans,errorReasons){
-    buildReviewQuestionCards(qs,ans,{errorReasons:errorReasons||{},aiExplain:true,assessment:!!(result&&(result.assessment_id||result.assessment_title)),highlights:(result&&result.highlights)||{},flagged:(result&&result.flagged)||{}}).forEach(function(c){reviewBody.append(c);});
+  function renderAdminReviewQuestions(qs,ans,errorReasons,tips){
+    buildReviewQuestionCards(qs,ans,{tutorTips:tips||null,errorReasons:errorReasons||{},aiExplain:true,assessment:!!(result&&(result.assessment_id||result.assessment_title)),highlights:(result&&result.highlights)||{},flagged:(result&&result.flagged)||{}}).forEach(function(c){reviewBody.append(c);});
   }
   var qs=result.questions||[];var ans=result.answers||{};
   if(qs.length){
@@ -12441,7 +12490,8 @@ function openAdminResultReview(result,opts){
         var er=await sb.from('question_error_log').select('question_id,reason').eq('student_id',result.student_id).eq('result_id',result.id);
         (er.data||[]).forEach(function(row){errorReasons[row.question_id]=row.reason;});
       }
-      renderAdminReviewQuestions(qs,ans,errorReasons);
+      var _tips1=await dfLoadTutorTipsForResult(result);
+      renderAdminReviewQuestions(qs,ans,errorReasons,_tips1);
     })();
   }
   else{reviewBody.append(h('p',{style:{color:'var(--muted)',fontSize:'13px'}},['No question detail available for this result.']));}
@@ -13789,9 +13839,10 @@ function openStudent(s){
       overlay.onclick=function(e){if(e.target===overlay)overlay.remove();};
       var fullQs=[];
       var reviewErrorReasons={};
+      var reviewTips=null;
       function renderAdminReviewQuestions(qs,ans){
         fullQs=qs;
-        buildReviewQuestionCards(qs,ans,{errorReasons:reviewErrorReasons,aiExplain:true,assessment:!!(result&&(result.assessment_id||result.assessment_title)),highlights:(result&&result.highlights)||{},flagged:(result&&result.flagged)||{}}).forEach(function(c){reviewBody.append(c);});
+        buildReviewQuestionCards(qs,ans,{tutorTips:reviewTips,errorReasons:reviewErrorReasons,aiExplain:true,assessment:!!(result&&(result.assessment_id||result.assessment_title)),highlights:(result&&result.highlights)||{},flagged:(result&&result.flagged)||{}}).forEach(function(c){reviewBody.append(c);});
       }
       var qs=result.questions||[];var ans=result.answers||{};
       (async function(){
@@ -13799,6 +13850,7 @@ function openStudent(s){
           var er=await sb.from('question_error_log').select('question_id,reason').eq('student_id',s.user_id).eq('result_id',result.id);
           (er.data||[]).forEach(function(row){reviewErrorReasons[row.question_id]=row.reason;});
         }
+        reviewTips=await dfLoadTutorTipsForResult(result);
         if(qs.length){renderAdminReviewQuestions(qs,ans);return;}
         reviewBody.append(skelCard([['60%'],['100%'],['80%']]));
         var qr=await sb.from('tutoring_questions').select('*').eq('test_id',result.test_id).order('position',{ascending:true});
