@@ -6102,7 +6102,7 @@ paintTabs();
     var one=Number(st.single_price||DF_SA_PRICE),all=Number(st.bundle_price||0);
     var n=(locked||[]).length;
     var showAll=all>0;
-    var cnt=Math.max(n,5); // the portal is growing to 5 assessments, so the saving is shown against buying 5 separately
+    var cnt=Math.max(n,4); // 5 assessments, 1 free and 4 paid: the saving is shown against buying the 4 paid ones separately
     var sum=cnt*one;
     var wrap=div({style:{margin:'0 0 22px'}},[]);
     wrap.append(h('div',{cls:'mono',style:{fontSize:'11px',letterSpacing:'2px',textTransform:'uppercase',color:'var(--gold)',textAlign:'center',marginBottom:'14px'}},[hasCredit?'Buy another':'Unlock the paid assessments']));
