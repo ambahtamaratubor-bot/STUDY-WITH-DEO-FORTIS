@@ -3590,6 +3590,76 @@ function mountGlobalStreakBanner(){
   }
 }
 
+// ===== CHRISTMAS DECOR (Tutoring Wing dashboard only) =====
+// Shows automatically from 1 December until 1 January (device date).
+// Preview any time: add ?xmas=on to the site address (turn off with ?xmas=off),
+// or run dfXmasPreview(true) / dfXmasPreview(false) in the browser console.
+var DF_XMAS_START={m:11,d:1};   // 1 December
+var DF_XMAS_END={m:0,d:2};      // last day shown: 1 January (hidden from 2 January)
+function dfXmasPreview(on){try{if(on)localStorage.setItem('df_xmas_preview','1');else localStorage.removeItem('df_xmas_preview');}catch(e){}return !!on;}
+(function(){try{var q=(location.search+' '+location.hash).match(/xmas=(on|off)/);if(q)dfXmasPreview(q[1]==='on');}catch(e){}})();
+function dfXmasPreviewOn(){try{return localStorage.getItem('df_xmas_preview')==='1';}catch(e){return false;}}
+function dfXmasSeason(){
+  var n=new Date(),m=n.getMonth(),d=n.getDate();
+  return m===DF_XMAS_START.m&&d>=DF_XMAS_START.d||m===DF_XMAS_END.m&&d<DF_XMAS_END.d;
+}
+function dfXmasActive(){return dfXmasSeason()||dfXmasPreviewOn();}
+function dfXmasCss(){
+  if(document.getElementById('df-xmas-css'))return;
+  var st=document.createElement('style');st.id='df-xmas-css';
+  st.textContent=
+    '.df-xmas{position:relative;overflow:hidden;padding:34px 0 4px;}'+
+    '.df-xmas-wire{position:absolute;left:0;right:0;top:0;height:30px;pointer-events:none;}'+
+    '.df-xmas-wire svg{position:absolute;inset:0;width:100%;height:100%;}'+
+    '.df-xmas-bulb{position:absolute;top:13px;width:9px;height:13px;margin-left:-4.5px;border-radius:50% 50% 55% 55%;animation:dfXmasTwinkle 1.8s ease-in-out infinite;}'+
+    '.df-xmas-bulb:before{content:"";position:absolute;left:2px;top:-4px;width:5px;height:5px;background:#6b6b6b;border-radius:1px;}'+
+    '@keyframes dfXmasTwinkle{0%,100%{opacity:1;filter:brightness(1.25);box-shadow:0 0 10px 3px var(--c);}50%{opacity:.35;filter:brightness(.7);box-shadow:0 0 2px 0 var(--c);}}'+
+    '.df-xmas-snow{position:absolute;inset:0;pointer-events:none;}'+
+    '.df-xmas-snow i{position:absolute;top:-8px;border-radius:50%;background:#fff;opacity:.85;animation:dfXmasFall linear infinite;}'+
+    '[data-theme="light"] .df-xmas-snow i{background:#9fc3e8;}'+
+    '@keyframes dfXmasFall{0%{transform:translate(0,0);}50%{transform:translate(10px,60px);}100%{transform:translate(-6px,130px);opacity:.1;}}'+
+    '.df-xmas-note{display:inline-block;margin-top:8px;font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--gold);border:1px dashed var(--gold);border-radius:3px;padding:3px 8px;}'+
+    '.df-xmas-note a{color:inherit;text-decoration:underline;cursor:pointer;}'+
+    '@media (prefers-reduced-motion:reduce){.df-xmas-bulb{animation:none;box-shadow:0 0 6px 1px var(--c);}.df-xmas-snow{display:none;}}';
+  document.head.appendChild(st);
+}
+// Wraps the dashboard greeting with lights + gentle snow. Returns the wrapper to append in place of the plain header.
+function dfXmasWrap(inner){
+  dfXmasCss();
+  var wrap=document.createElement('div');wrap.className='df-xmas';
+  var wire=document.createElement('div');wire.className='df-xmas-wire';
+  var N=10,W=1200,path='M0 2';
+  for(var k=0;k<N;k++){path+=' Q '+(W/N*k+W/N/2)+' 26 '+(W/N*(k+1))+' 2';}
+  wire.innerHTML='<svg viewBox="0 0 '+W+' 30" preserveAspectRatio="none"><path d="'+path+'" fill="none" stroke="rgba(130,130,130,.55)" stroke-width="1.5" vector-effect="non-scaling-stroke"/></svg>';
+  var cols=['#e5484d','#f2c14e','#3fb27f','#4aa3e8'];
+  for(var b=0;b<N;b++){
+    var bulb=document.createElement('span');bulb.className='df-xmas-bulb';
+    bulb.style.left=((b+0.5)/N*100)+'%';
+    bulb.style.background=cols[b%cols.length];
+    bulb.style.setProperty('--c',cols[b%cols.length]);
+    bulb.style.animationDelay=((b%5)*0.35)+'s';
+    wire.appendChild(bulb);
+  }
+  var snow=document.createElement('div');snow.className='df-xmas-snow';
+  for(var s=0;s<22;s++){
+    var f=document.createElement('i'),sz=2+Math.round(Math.random()*3);
+    f.style.left=(Math.random()*100)+'%';f.style.width=f.style.height=sz+'px';
+    f.style.animationDuration=(5+Math.random()*5)+'s';f.style.animationDelay=(-Math.random()*8)+'s';
+    snow.appendChild(f);
+  }
+  wrap.appendChild(wire);wrap.appendChild(snow);if(inner)wrap.appendChild(inner);else{wrap.style.padding='34px 0 0';wrap.style.marginBottom='4px';}
+  if(inner&&!dfXmasSeason()&&dfXmasPreviewOn()){
+    var note=document.createElement('div');note.className='df-xmas-note';
+    note.innerHTML='Christmas preview · only you see this · <a>turn off</a>';
+    note.querySelector('a').onclick=function(){dfXmasPreview(false);wrap.remove();};
+    inner.appendChild(note);
+  }
+  return wrap;
+}
+// Slim lights-and-snow strip (used under the admin panel top bar).
+function dfXmasStrip(){return dfXmasWrap(null);}
+// ===== END CHRISTMAS DECOR =====
+
 async function render(){
 const root=document.getElementById('root');
 ensureAnnouncementBanner();
@@ -4022,75 +4092,6 @@ function renderTab(){
   else renderResults();
 }
 
-// ===== CHRISTMAS DECOR (Tutoring Wing dashboard only) =====
-// Shows automatically from 1 December until 1 January (device date).
-// Preview any time: add ?xmas=on to the site address (turn off with ?xmas=off),
-// or run dfXmasPreview(true) / dfXmasPreview(false) in the browser console.
-var DF_XMAS_START={m:11,d:1};   // 1 December
-var DF_XMAS_END={m:0,d:2};      // last day shown: 1 January (hidden from 2 January)
-function dfXmasPreview(on){try{if(on)localStorage.setItem('df_xmas_preview','1');else localStorage.removeItem('df_xmas_preview');}catch(e){}return !!on;}
-(function(){try{var q=(location.search+' '+location.hash).match(/xmas=(on|off)/);if(q)dfXmasPreview(q[1]==='on');}catch(e){}})();
-function dfXmasPreviewOn(){try{return localStorage.getItem('df_xmas_preview')==='1';}catch(e){return false;}}
-function dfXmasSeason(){
-  var n=new Date(),m=n.getMonth(),d=n.getDate();
-  return m===DF_XMAS_START.m&&d>=DF_XMAS_START.d||m===DF_XMAS_END.m&&d<DF_XMAS_END.d;
-}
-function dfXmasActive(){return dfXmasSeason()||dfXmasPreviewOn();}
-function dfXmasCss(){
-  if(document.getElementById('df-xmas-css'))return;
-  var st=document.createElement('style');st.id='df-xmas-css';
-  st.textContent=
-    '.df-xmas{position:relative;overflow:hidden;padding:34px 0 4px;}'+
-    '.df-xmas-wire{position:absolute;left:0;right:0;top:0;height:30px;pointer-events:none;}'+
-    '.df-xmas-wire svg{position:absolute;inset:0;width:100%;height:100%;}'+
-    '.df-xmas-bulb{position:absolute;top:13px;width:9px;height:13px;margin-left:-4.5px;border-radius:50% 50% 55% 55%;animation:dfXmasTwinkle 1.8s ease-in-out infinite;}'+
-    '.df-xmas-bulb:before{content:"";position:absolute;left:2px;top:-4px;width:5px;height:5px;background:#6b6b6b;border-radius:1px;}'+
-    '@keyframes dfXmasTwinkle{0%,100%{opacity:1;filter:brightness(1.25);box-shadow:0 0 10px 3px var(--c);}50%{opacity:.35;filter:brightness(.7);box-shadow:0 0 2px 0 var(--c);}}'+
-    '.df-xmas-snow{position:absolute;inset:0;pointer-events:none;}'+
-    '.df-xmas-snow i{position:absolute;top:-8px;border-radius:50%;background:#fff;opacity:.85;animation:dfXmasFall linear infinite;}'+
-    '[data-theme="light"] .df-xmas-snow i{background:#9fc3e8;}'+
-    '@keyframes dfXmasFall{0%{transform:translate(0,0);}50%{transform:translate(10px,60px);}100%{transform:translate(-6px,130px);opacity:.1;}}'+
-    '.df-xmas-note{display:inline-block;margin-top:8px;font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--gold);border:1px dashed var(--gold);border-radius:3px;padding:3px 8px;}'+
-    '.df-xmas-note a{color:inherit;text-decoration:underline;cursor:pointer;}'+
-    '@media (prefers-reduced-motion:reduce){.df-xmas-bulb{animation:none;box-shadow:0 0 6px 1px var(--c);}.df-xmas-snow{display:none;}}';
-  document.head.appendChild(st);
-}
-// Wraps the dashboard greeting with lights + gentle snow. Returns the wrapper to append in place of the plain header.
-function dfXmasWrap(inner){
-  dfXmasCss();
-  var wrap=document.createElement('div');wrap.className='df-xmas';
-  var wire=document.createElement('div');wire.className='df-xmas-wire';
-  var N=10,W=1200,path='M0 2';
-  for(var k=0;k<N;k++){path+=' Q '+(W/N*k+W/N/2)+' 26 '+(W/N*(k+1))+' 2';}
-  wire.innerHTML='<svg viewBox="0 0 '+W+' 30" preserveAspectRatio="none"><path d="'+path+'" fill="none" stroke="rgba(130,130,130,.55)" stroke-width="1.5" vector-effect="non-scaling-stroke"/></svg>';
-  var cols=['#e5484d','#f2c14e','#3fb27f','#4aa3e8'];
-  for(var b=0;b<N;b++){
-    var bulb=document.createElement('span');bulb.className='df-xmas-bulb';
-    bulb.style.left=((b+0.5)/N*100)+'%';
-    bulb.style.background=cols[b%cols.length];
-    bulb.style.setProperty('--c',cols[b%cols.length]);
-    bulb.style.animationDelay=((b%5)*0.35)+'s';
-    wire.appendChild(bulb);
-  }
-  var snow=document.createElement('div');snow.className='df-xmas-snow';
-  for(var s=0;s<22;s++){
-    var f=document.createElement('i'),sz=2+Math.round(Math.random()*3);
-    f.style.left=(Math.random()*100)+'%';f.style.width=f.style.height=sz+'px';
-    f.style.animationDuration=(5+Math.random()*5)+'s';f.style.animationDelay=(-Math.random()*8)+'s';
-    snow.appendChild(f);
-  }
-  wrap.appendChild(wire);wrap.appendChild(snow);if(inner)wrap.appendChild(inner);else{wrap.style.padding='34px 0 0';wrap.style.marginBottom='4px';}
-  if(inner&&!dfXmasSeason()&&dfXmasPreviewOn()){
-    var note=document.createElement('div');note.className='df-xmas-note';
-    note.innerHTML='Christmas preview · only you see this · <a>turn off</a>';
-    note.querySelector('a').onclick=function(){dfXmasPreview(false);wrap.remove();};
-    inner.appendChild(note);
-  }
-  return wrap;
-}
-// Slim lights-and-snow strip (used under the admin panel top bar).
-function dfXmasStrip(){return dfXmasWrap(null);}
-// ===== END CHRISTMAS DECOR =====
 
 function renderDashboard(){
   const skel=div({});for(var _o=0;_o<4;_o++){skel.append(skelCard([['40%'],['60%']]));}
